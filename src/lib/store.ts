@@ -65,6 +65,10 @@ interface EditorState {
   // Dirty flag
   isDirty: boolean;
 
+  // Auto-save state
+  lastSavedAt: Date | null;
+  autoSaveStatus: 'idle' | 'saving' | 'saved' | 'error';
+
   // Actions
   setDesignInfo: (info: {
     designId?: string | null;
@@ -136,6 +140,10 @@ interface EditorState {
   // Dirty flag
   markClean: () => void;
 
+  // Auto-save
+  setAutoSaveStatus: (status: 'idle' | 'saving' | 'saved' | 'error') => void;
+  setLastSavedAt: (date: Date | null) => void;
+
   // Reset
   reset: () => void;
 }
@@ -167,6 +175,8 @@ const createInitialState = () => ({
   stitchType: "continental" as StitchType,
   bufferPercent: 15,
   isDirty: false,
+  lastSavedAt: null,
+  autoSaveStatus: 'idle' as 'idle' | 'saving' | 'saved' | 'error',
 });
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -605,6 +615,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   markClean: () => set({ isDirty: false }),
+
+  setAutoSaveStatus: (status) => set({ autoSaveStatus: status }),
+
+  setLastSavedAt: (date) => set({ lastSavedAt: date }),
 
   reset: () => set(createInitialState()),
 }));
