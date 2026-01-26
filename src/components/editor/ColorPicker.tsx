@@ -8,8 +8,10 @@ export default function ColorPicker() {
   const { currentColor, setCurrentColor, getUsedColors, replaceAllColor, grid } = useEditorStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
-  const [replaceMode, setReplaceMode] = useState(false);
+  const [showReplacePanel, setShowReplacePanel] = useState(false);
   const [replaceFrom, setReplaceFrom] = useState<DmcColor | null>(null);
+  const [replaceTo, setReplaceTo] = useState<DmcColor | null>(null);
+  const [selectingFor, setSelectingFor] = useState<'from' | 'to' | null>(null);
 
   const usedColors = getUsedColors();
 
@@ -21,17 +23,31 @@ export default function ColorPicker() {
   }, [searchQuery, showAll, usedColors]);
 
   const handleColorClick = (color: DmcColor) => {
-    if (replaceMode) {
-      if (!replaceFrom) {
-        setReplaceFrom(color);
-      } else {
-        replaceAllColor(replaceFrom.dmcNumber, color.dmcNumber);
-        setReplaceFrom(null);
-        setReplaceMode(false);
-      }
+    if (selectingFor === 'from') {
+      setReplaceFrom(color);
+      setSelectingFor(null);
+    } else if (selectingFor === 'to') {
+      setReplaceTo(color);
+      setSelectingFor(null);
     } else {
       setCurrentColor(color);
     }
+  };
+
+  const handleReplace = () => {
+    if (replaceFrom && replaceTo) {
+      replaceAllColor(replaceFrom.dmcNumber, replaceTo.dmcNumber);
+      setReplaceFrom(null);
+      setReplaceTo(null);
+      setShowReplacePanel(false);
+    }
+  };
+
+  const handleCloseReplace = () => {
+    setShowReplacePanel(false);
+    setReplaceFrom(null);
+    setReplaceTo(null);
+    setSelectingFor(null);
   };
 
   return (
@@ -86,45 +102,150 @@ export default function ColorPicker() {
         </button>
       </div>
 
-      {/* Replace mode */}
+      {/* Replace color toggle */}
       <div className="p-2 border-b border-slate-700">
         <button
-          onClick={() => {
-            setReplaceMode(!replaceMode);
-            setReplaceFrom(null);
-          }}
-          className={`w-full py-2 px-3 rounded-lg text-sm ${
-            replaceMode
+          onClick={() => setShowReplacePanel(!showReplacePanel)}
+          className={`w-full py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2 ${
+            showReplacePanel
               ? "bg-orange-600 text-white"
               : "bg-slate-700 text-slate-300 hover:bg-slate-600"
           }`}
         >
-          {replaceMode
-            ? replaceFrom
-              ? `Replace ${replaceFrom.dmcNumber} with...`
-              : "Select color to replace"
-            : "Replace Color Mode"}
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          Replace Color
         </button>
       </div>
+
+      {/* Replace color panel */}
+      {showReplacePanel && (
+        <div className="p-3 border-b border-slate-700 bg-slate-750 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400 uppercase tracking-wider">Replace Color</span>
+            <button
+              onClick={handleCloseReplace}
+              className="text-slate-400 hover:text-white p-1"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* From color slot */}
+            <button
+              onClick={() => setSelectingFor('from')}
+              className={`flex-1 p-2 rounded-lg border-2 transition-all ${
+                selectingFor === 'from'
+                  ? 'border-orange-500 bg-slate-700'
+                  : 'border-slate-600 bg-slate-700 hover:border-slate-500'
+              }`}
+            >
+              <div className="text-xs text-slate-400 mb-1">From</div>
+              {replaceFrom ? (
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-8 h-8 rounded border border-white/20"
+                    style={{ backgroundColor: replaceFrom.hex }}
+                  />
+                  <span className="text-white text-xs truncate">{replaceFrom.dmcNumber}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded border-2 border-dashed border-slate-500 flex items-center justify-center">
+                    <span className="text-slate-500 text-lg">+</span>
+                  </div>
+                  <span className="text-slate-500 text-xs">Select</span>
+                </div>
+              )}
+            </button>
+
+            {/* Arrow */}
+            <div className="text-slate-500">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </div>
+
+            {/* To color slot */}
+            <button
+              onClick={() => setSelectingFor('to')}
+              className={`flex-1 p-2 rounded-lg border-2 transition-all ${
+                selectingFor === 'to'
+                  ? 'border-orange-500 bg-slate-700'
+                  : 'border-slate-600 bg-slate-700 hover:border-slate-500'
+              }`}
+            >
+              <div className="text-xs text-slate-400 mb-1">To</div>
+              {replaceTo ? (
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-8 h-8 rounded border border-white/20"
+                    style={{ backgroundColor: replaceTo.hex }}
+                  />
+                  <span className="text-white text-xs truncate">{replaceTo.dmcNumber}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded border-2 border-dashed border-slate-500 flex items-center justify-center">
+                    <span className="text-slate-500 text-lg">+</span>
+                  </div>
+                  <span className="text-slate-500 text-xs">Select</span>
+                </div>
+              )}
+            </button>
+          </div>
+
+          {/* Selection hint */}
+          {selectingFor && (
+            <p className="text-xs text-orange-400 text-center">
+              Click a color below to select the &quot;{selectingFor}&quot; color
+            </p>
+          )}
+
+          {/* Replace button */}
+          <button
+            onClick={handleReplace}
+            disabled={!replaceFrom || !replaceTo}
+            className="w-full py-2 px-3 rounded-lg text-sm bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Replace All
+          </button>
+        </div>
+      )}
 
       {/* Color grid */}
       <div className="flex-1 overflow-auto p-2">
         <div className="grid grid-cols-5 gap-1">
-          {filteredColors.map((color) => (
-            <button
-              key={color.dmcNumber}
-              onClick={() => handleColorClick(color)}
-              className={`aspect-square rounded-md border-2 transition-all ${
-                currentColor?.dmcNumber === color.dmcNumber
-                  ? "border-white scale-110 z-10"
-                  : replaceFrom?.dmcNumber === color.dmcNumber
-                  ? "border-orange-500 scale-110 z-10"
-                  : "border-transparent hover:border-white/50"
-              }`}
-              style={{ backgroundColor: color.hex }}
-              title={`DMC ${color.dmcNumber} - ${color.name}`}
-            />
-          ))}
+          {filteredColors.map((color) => {
+            const isCurrentColor = currentColor?.dmcNumber === color.dmcNumber;
+            const isReplaceFrom = replaceFrom?.dmcNumber === color.dmcNumber;
+            const isReplaceTo = replaceTo?.dmcNumber === color.dmcNumber;
+            const isSelecting = selectingFor !== null;
+
+            return (
+              <button
+                key={color.dmcNumber}
+                onClick={() => handleColorClick(color)}
+                className={`aspect-square rounded-md border-2 transition-all ${
+                  isReplaceFrom
+                    ? "border-orange-500 scale-110 z-10 ring-2 ring-orange-500/50"
+                    : isReplaceTo
+                    ? "border-green-500 scale-110 z-10 ring-2 ring-green-500/50"
+                    : isCurrentColor && !isSelecting
+                    ? "border-white scale-110 z-10"
+                    : isSelecting
+                    ? "border-transparent hover:border-orange-400 hover:scale-105"
+                    : "border-transparent hover:border-white/50"
+                }`}
+                style={{ backgroundColor: color.hex }}
+                title={`DMC ${color.dmcNumber} - ${color.name}`}
+              />
+            );
+          })}
         </div>
 
         {filteredColors.length === 0 && (
