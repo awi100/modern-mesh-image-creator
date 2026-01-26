@@ -9,6 +9,7 @@ export default function PixelCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
+  const [lineStart, setLineStart] = useState<{ x: number; y: number } | null>(null);
 
   const {
     grid,
@@ -21,13 +22,17 @@ export default function PixelCanvas() {
     panX,
     panY,
     showGrid,
+    brushSize,
     referenceImageUrl,
     referenceImageOpacity,
     setPixel,
+    setBrushPixels,
     fillArea,
+    drawLine,
     setCurrentColor,
     startSelection,
     updateSelection,
+    selectByColor,
     saveToHistory,
     setZoom,
     setPan,
@@ -161,11 +166,16 @@ export default function PixelCanvas() {
     if (currentTool === "pencil") {
       saveToHistory();
       setPixel(coords.x, coords.y, currentColor?.dmcNumber || null);
+    } else if (currentTool === "brush") {
+      saveToHistory();
+      setBrushPixels(coords.x, coords.y, currentColor?.dmcNumber || null);
     } else if (currentTool === "eraser") {
       saveToHistory();
       setPixel(coords.x, coords.y, null);
     } else if (currentTool === "fill") {
       fillArea(coords.x, coords.y, currentColor?.dmcNumber || null);
+    } else if (currentTool === "line") {
+      setLineStart(coords);
     } else if (currentTool === "eyedropper") {
       const dmcNumber = grid[coords.y]?.[coords.x];
       if (dmcNumber) {
@@ -176,8 +186,10 @@ export default function PixelCanvas() {
       }
     } else if (currentTool === "select") {
       startSelection(coords.x, coords.y);
+    } else if (currentTool === "magicWand") {
+      selectByColor(coords.x, coords.y);
     }
-  }, [getGridCoords, currentTool, currentColor, grid, saveToHistory, setPixel, fillArea, setCurrentColor, startSelection]);
+  }, [getGridCoords, currentTool, currentColor, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
@@ -214,17 +226,61 @@ export default function PixelCanvas() {
         }
       }
       setLastPos(coords);
+    } else if (currentTool === "brush") {
+      // Draw with brush (multiple pixels at once)
+      if (lastPos) {
+        const dx = Math.abs(coords.x - lastPos.x);
+        const dy = Math.abs(coords.y - lastPos.y);
+        const sx = lastPos.x < coords.x ? 1 : -1;
+        const sy = lastPos.y < coords.y ? 1 : -1;
+        let err = dx - dy;
+
+        let x = lastPos.x;
+        let y = lastPos.y;
+
+        while (true) {
+          setBrushPixels(x, y, currentColor?.dmcNumber || null);
+
+          if (x === coords.x && y === coords.y) break;
+
+          const e2 = 2 * err;
+          if (e2 > -dy) {
+            err -= dy;
+            x += sx;
+          }
+          if (e2 < dx) {
+            err += dx;
+            y += sy;
+          }
+        }
+      }
+      setLastPos(coords);
     } else if (currentTool === "eraser") {
       setPixel(coords.x, coords.y, null);
       setLastPos(coords);
     } else if (currentTool === "select") {
       updateSelection(coords.x, coords.y);
     }
-  }, [isDrawing, getGridCoords, currentTool, currentColor, lastPos, setPixel, updateSelection]);
+  }, [isDrawing, getGridCoords, currentTool, currentColor, lastPos, setPixel, setBrushPixels, updateSelection]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Handle line tool on mouse up
+    if (currentTool === "line" && lineStart) {
+      const coords = getGridCoords(e);
+      if (coords) {
+        drawLine(lineStart.x, lineStart.y, coords.x, coords.y, currentColor?.dmcNumber || null);
+      }
+      setLineStart(null);
+    }
+
     setIsDrawing(false);
     setLastPos(null);
+  }, [currentTool, lineStart, getGridCoords, drawLine, currentColor]);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsDrawing(false);
+    setLastPos(null);
+    setLineStart(null);
   }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -245,7 +301,7 @@ export default function PixelCanvas() {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
         onWheel={handleWheel}
       />
     </div>

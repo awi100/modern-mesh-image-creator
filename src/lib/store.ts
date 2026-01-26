@@ -3,7 +3,7 @@ import { DmcColor, DMC_PEARL_COTTON, getDmcColorByNumber } from "./dmc-pearl-cot
 import { PixelGrid, floodFill, replaceColor, createEmptyGrid, copySelection, pasteData, getSelectionBounds, mirrorHorizontal, mirrorVertical, rotate90Clockwise, countStitchesByColor, getUsedColors } from "./color-utils";
 import { calculateYarnUsage, YarnUsage, StitchType } from "./yarn-calculator";
 
-export type Tool = "pencil" | "eraser" | "fill" | "rectangle" | "select" | "eyedropper" | "move";
+export type Tool = "pencil" | "brush" | "eraser" | "fill" | "line" | "rectangle" | "select" | "magicWand" | "eyedropper" | "move";
 
 interface HistoryEntry {
   grid: PixelGrid;
@@ -55,6 +55,9 @@ interface EditorState {
   panY: number;
   showGrid: boolean;
 
+  // Brush settings
+  brushSize: number;
+
   // Settings
   stitchType: StitchType;
   bufferPercent: number;
@@ -78,15 +81,21 @@ interface EditorState {
 
   // Pixel operations
   setPixel: (x: number, y: number, color: string | null) => void;
+  setBrushPixels: (x: number, y: number, color: string | null) => void;
   fillArea: (x: number, y: number, color: string | null) => void;
   replaceAllColor: (oldColor: string | null, newColor: string | null) => void;
   drawRectangle: (x1: number, y1: number, x2: number, y2: number, color: string | null, filled: boolean) => void;
+  drawLine: (x1: number, y1: number, x2: number, y2: number, color: string | null) => void;
+
+  // Brush settings
+  setBrushSize: (size: number) => void;
 
   // Selection operations
   startSelection: (x: number, y: number) => void;
   updateSelection: (x: number, y: number) => void;
   clearSelection: () => void;
   selectAll: () => void;
+  selectByColor: (x: number, y: number) => void;
   copySelectionToClipboard: () => void;
   cutSelectionToClipboard: () => void;
   pasteFromClipboard: (x: number, y: number) => void;
@@ -154,6 +163,7 @@ const createInitialState = () => ({
   panX: 0,
   panY: 0,
   showGrid: true,
+  brushSize: 1,
   stitchType: "continental" as StitchType,
   bufferPercent: 15,
   isDirty: false,
@@ -212,6 +222,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ grid: newGrid, isDirty: true });
   },
 
+  setBrushPixels: (x, y, color) => {
+    const { grid, gridWidth, gridHeight, brushSize } = get();
+    const newGrid = grid.map(row => [...row]);
+    const radius = Math.floor(brushSize / 2);
+
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const px = x + dx;
+        const py = y + dy;
+        if (px >= 0 && px < gridWidth && py >= 0 && py < gridHeight) {
+          newGrid[py][px] = color;
+        }
+      }
+    }
+
+    set({ grid: newGrid, isDirty: true });
+  },
+
+  setBrushSize: (size) => set({ brushSize: Math.max(1, Math.min(10, size)) }),
+
   fillArea: (x, y, color) => {
     const { grid } = get();
     const newGrid = floodFill(grid, x, y, color);
@@ -242,6 +272,43 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         if (filled || x === minX || x === maxX || y === minY || y === maxY) {
           newGrid[y][x] = color;
         }
+      }
+    }
+
+    set({ grid: newGrid, isDirty: true });
+  },
+
+  drawLine: (x1, y1, x2, y2, color) => {
+    const { grid, gridWidth, gridHeight } = get();
+    get().saveToHistory();
+
+    const newGrid = grid.map(row => [...row]);
+
+    // Bresenham's line algorithm
+    const dx = Math.abs(x2 - x1);
+    const dy = Math.abs(y2 - y1);
+    const sx = x1 < x2 ? 1 : -1;
+    const sy = y1 < y2 ? 1 : -1;
+    let err = dx - dy;
+
+    let x = x1;
+    let y = y1;
+
+    while (true) {
+      if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
+        newGrid[y][x] = color;
+      }
+
+      if (x === x2 && y === y2) break;
+
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y += sy;
       }
     }
 
@@ -280,6 +347,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectAll: () => {
     const { gridWidth, gridHeight } = get();
     const selection = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(true));
+    set({ selection });
+  },
+
+  selectByColor: (x, y) => {
+    const { grid, gridWidth, gridHeight } = get();
+    if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) return;
+
+    const targetColor = grid[y][x];
+    const selection = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(false));
+
+    // Flood fill to select all connected pixels of same color
+    const stack: [number, number][] = [[x, y]];
+    const visited = new Set<string>();
+
+    while (stack.length > 0) {
+      const [cx, cy] = stack.pop()!;
+      const key = `${cx},${cy}`;
+
+      if (visited.has(key)) continue;
+      if (cx < 0 || cx >= gridWidth || cy < 0 || cy >= gridHeight) continue;
+      if (grid[cy][cx] !== targetColor) continue;
+
+      visited.add(key);
+      selection[cy][cx] = true;
+
+      stack.push([cx + 1, cy]);
+      stack.push([cx - 1, cy]);
+      stack.push([cx, cy + 1]);
+      stack.push([cx, cy - 1]);
+    }
+
     set({ selection });
   },
 
