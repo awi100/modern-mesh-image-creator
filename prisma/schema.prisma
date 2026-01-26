@@ -1,0 +1,124 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// DMC Pearl Cotton Color Palette
+model DmcColor {
+  id        String   @id @default(cuid())
+  dmcNumber String   @unique
+  name      String
+  hexColor  String
+  red       Int
+  green     Int
+  blue      Int
+  // Lab color space for perceptual color matching
+  labL      Float
+  labA      Float
+  labB      Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("dmc_colors")
+}
+
+// Folder organization for designs
+model Folder {
+  id        String   @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    Folder?  @relation("FolderToFolder", fields: [parentId], references: [id])
+  children  Folder[] @relation("FolderToFolder")
+  designs   Design[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("folders")
+}
+
+// Tags for filtering designs
+model Tag {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  color     String      @default("#6366f1")
+  designs   DesignTag[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@map("tags")
+}
+
+// Many-to-many relation between Design and Tag
+model DesignTag {
+  id       String @id @default(cuid())
+  designId String
+  tagId    String
+  design   Design @relation(fields: [designId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([designId, tagId])
+  @@map("design_tags")
+}
+
+// Main Design model
+model Design {
+  id           String   @id @default(cuid())
+  name         String
+  widthInches  Float
+  heightInches Float
+  meshCount    Int      // 14 or 18
+  gridWidth    Int      // Computed: round(widthInches * meshCount)
+  gridHeight   Int      // Computed: round(heightInches * meshCount)
+
+  // Pixel grid data - stored as compressed JSON
+  // Format: Array of rows, each row is array of DMC numbers or null (empty)
+  pixelData    Bytes    // Compressed with pako
+
+  // Reference image for tracing (optional)
+  referenceImageUrl     String?
+  referenceImageOpacity Float   @default(0.5)
+
+  // Cloudinary URLs for exports
+  previewImageUrl       String?
+  artworkPdfUrl         String?
+  guidePdfUrl           String?
+
+  // Settings
+  stitchType            String  @default("continental") // "continental" or "basketweave"
+  bufferPercent         Float   @default(15)
+
+  // Organization
+  folderId  String?
+  folder    Folder?     @relation(fields: [folderId], references: [id])
+  tags      DesignTag[]
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([folderId])
+  @@index([createdAt])
+  @@map("designs")
+}
+
+// User settings for yarn calculation calibration
+model UserSettings {
+  id                           String   @id @default(cuid())
+  // Inches per stitch calibration values
+  mesh14ContinentalInchPerStitch Float   @default(1.5)
+  mesh14BasketwaveInchPerStitch  Float   @default(2.0)
+  mesh18ContinentalInchPerStitch Float   @default(1.2)
+  mesh18BasketwaveInchPerStitch  Float   @default(1.6)
+  // Default export DPI
+  defaultExportDpi              Int     @default(600)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+
+  @@map("user_settings")
+}

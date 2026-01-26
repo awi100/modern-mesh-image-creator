@@ -1,0 +1,512 @@
+import { create } from "zustand";
+import { DmcColor, DMC_PEARL_COTTON, getDmcColorByNumber } from "./dmc-pearl-cotton";
+import { PixelGrid, floodFill, replaceColor, createEmptyGrid, copySelection, pasteData, getSelectionBounds, mirrorHorizontal, mirrorVertical, rotate90Clockwise, countStitchesByColor, getUsedColors } from "./color-utils";
+import { calculateYarnUsage, YarnUsage, StitchType } from "./yarn-calculator";
+
+export type Tool = "pencil" | "eraser" | "fill" | "rectangle" | "select" | "eyedropper" | "move";
+
+interface HistoryEntry {
+  grid: PixelGrid;
+  timestamp: number;
+}
+
+interface Clipboard {
+  data: PixelGrid;
+  width: number;
+  height: number;
+}
+
+interface EditorState {
+  // Design info
+  designId: string | null;
+  designName: string;
+  widthInches: number;
+  heightInches: number;
+  meshCount: 14 | 18;
+  gridWidth: number;
+  gridHeight: number;
+
+  // Pixel data
+  grid: PixelGrid;
+
+  // Tool state
+  currentTool: Tool;
+  currentColor: DmcColor | null;
+
+  // Selection
+  selection: boolean[][] | null;
+  selectionStart: { x: number; y: number } | null;
+
+  // Clipboard
+  clipboard: Clipboard | null;
+
+  // History for undo/redo
+  history: HistoryEntry[];
+  historyIndex: number;
+  maxHistorySize: number;
+
+  // Reference image
+  referenceImageUrl: string | null;
+  referenceImageOpacity: number;
+
+  // View state
+  zoom: number;
+  panX: number;
+  panY: number;
+  showGrid: boolean;
+
+  // Settings
+  stitchType: StitchType;
+  bufferPercent: number;
+
+  // Dirty flag
+  isDirty: boolean;
+
+  // Actions
+  setDesignInfo: (info: {
+    designId?: string | null;
+    designName?: string;
+    widthInches?: number;
+    heightInches?: number;
+    meshCount?: 14 | 18;
+  }) => void;
+
+  initializeGrid: (width: number, height: number, existingGrid?: PixelGrid) => void;
+
+  setTool: (tool: Tool) => void;
+  setCurrentColor: (color: DmcColor | null) => void;
+
+  // Pixel operations
+  setPixel: (x: number, y: number, color: string | null) => void;
+  fillArea: (x: number, y: number, color: string | null) => void;
+  replaceAllColor: (oldColor: string | null, newColor: string | null) => void;
+  drawRectangle: (x1: number, y1: number, x2: number, y2: number, color: string | null, filled: boolean) => void;
+
+  // Selection operations
+  startSelection: (x: number, y: number) => void;
+  updateSelection: (x: number, y: number) => void;
+  clearSelection: () => void;
+  selectAll: () => void;
+  copySelectionToClipboard: () => void;
+  cutSelectionToClipboard: () => void;
+  pasteFromClipboard: (x: number, y: number) => void;
+  deleteSelection: () => void;
+
+  // Transform operations
+  mirrorHorizontal: () => void;
+  mirrorVertical: () => void;
+  rotate90: (clockwise: boolean) => void;
+
+  // History operations
+  saveToHistory: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+
+  // View operations
+  setZoom: (zoom: number) => void;
+  setPan: (x: number, y: number) => void;
+  resetView: () => void;
+  setShowGrid: (show: boolean) => void;
+
+  // Reference image
+  setReferenceImage: (url: string | null, opacity?: number) => void;
+  setReferenceOpacity: (opacity: number) => void;
+
+  // Settings
+  setStitchType: (type: StitchType) => void;
+  setBufferPercent: (percent: number) => void;
+
+  // Computed values
+  getUsedColors: () => DmcColor[];
+  getStitchCounts: () => Map<string, number>;
+  getYarnUsage: () => YarnUsage[];
+  getTotalStitches: () => number;
+
+  // Dirty flag
+  markClean: () => void;
+
+  // Reset
+  reset: () => void;
+}
+
+const createInitialState = () => ({
+  designId: null,
+  designName: "Untitled Design",
+  widthInches: 8,
+  heightInches: 8,
+  meshCount: 14 as 14 | 18,
+  gridWidth: 112,
+  gridHeight: 112,
+  grid: createEmptyGrid(112, 112),
+  currentTool: "pencil" as Tool,
+  currentColor: DMC_PEARL_COTTON[0],
+  selection: null,
+  selectionStart: null,
+  clipboard: null,
+  history: [] as HistoryEntry[],
+  historyIndex: -1,
+  maxHistorySize: 100,
+  referenceImageUrl: null,
+  referenceImageOpacity: 0.5,
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  showGrid: true,
+  stitchType: "continental" as StitchType,
+  bufferPercent: 15,
+  isDirty: false,
+});
+
+export const useEditorStore = create<EditorState>((set, get) => ({
+  ...createInitialState(),
+
+  setDesignInfo: (info) => {
+    set((state) => {
+      const updates: Partial<EditorState> = { isDirty: true };
+
+      if (info.designId !== undefined) updates.designId = info.designId;
+      if (info.designName !== undefined) updates.designName = info.designName;
+      if (info.widthInches !== undefined) updates.widthInches = info.widthInches;
+      if (info.heightInches !== undefined) updates.heightInches = info.heightInches;
+      if (info.meshCount !== undefined) updates.meshCount = info.meshCount;
+
+      // Recalculate grid dimensions if size changed
+      if (info.widthInches !== undefined || info.heightInches !== undefined || info.meshCount !== undefined) {
+        const w = info.widthInches ?? state.widthInches;
+        const h = info.heightInches ?? state.heightInches;
+        const m = info.meshCount ?? state.meshCount;
+        updates.gridWidth = Math.round(w * m);
+        updates.gridHeight = Math.round(h * m);
+      }
+
+      return updates;
+    });
+  },
+
+  initializeGrid: (width, height, existingGrid) => {
+    const grid = existingGrid || createEmptyGrid(width, height);
+    set({
+      gridWidth: width,
+      gridHeight: height,
+      grid,
+      history: [{ grid: grid.map(row => [...row]), timestamp: Date.now() }],
+      historyIndex: 0,
+      selection: null,
+      isDirty: false,
+    });
+  },
+
+  setTool: (tool) => set({ currentTool: tool }),
+
+  setCurrentColor: (color) => set({ currentColor: color }),
+
+  setPixel: (x, y, color) => {
+    const { grid, gridWidth, gridHeight } = get();
+    if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) return;
+
+    const newGrid = grid.map(row => [...row]);
+    newGrid[y][x] = color;
+
+    set({ grid: newGrid, isDirty: true });
+  },
+
+  fillArea: (x, y, color) => {
+    const { grid } = get();
+    const newGrid = floodFill(grid, x, y, color);
+    get().saveToHistory();
+    set({ grid: newGrid, isDirty: true });
+  },
+
+  replaceAllColor: (oldColor, newColor) => {
+    const { grid } = get();
+    get().saveToHistory();
+    const newGrid = replaceColor(grid, oldColor, newColor);
+    set({ grid: newGrid, isDirty: true });
+  },
+
+  drawRectangle: (x1, y1, x2, y2, color, filled) => {
+    const { grid, gridWidth, gridHeight } = get();
+    get().saveToHistory();
+
+    const minX = Math.max(0, Math.min(x1, x2));
+    const maxX = Math.min(gridWidth - 1, Math.max(x1, x2));
+    const minY = Math.max(0, Math.min(y1, y2));
+    const maxY = Math.min(gridHeight - 1, Math.max(y1, y2));
+
+    const newGrid = grid.map(row => [...row]);
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (filled || x === minX || x === maxX || y === minY || y === maxY) {
+          newGrid[y][x] = color;
+        }
+      }
+    }
+
+    set({ grid: newGrid, isDirty: true });
+  },
+
+  startSelection: (x, y) => {
+    const { gridWidth, gridHeight } = get();
+    const selection = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(false));
+    selection[y][x] = true;
+    set({ selection, selectionStart: { x, y } });
+  },
+
+  updateSelection: (x, y) => {
+    const { selectionStart, gridWidth, gridHeight } = get();
+    if (!selectionStart) return;
+
+    const selection = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(false));
+
+    const minX = Math.max(0, Math.min(selectionStart.x, x));
+    const maxX = Math.min(gridWidth - 1, Math.max(selectionStart.x, x));
+    const minY = Math.max(0, Math.min(selectionStart.y, y));
+    const maxY = Math.min(gridHeight - 1, Math.max(selectionStart.y, y));
+
+    for (let sy = minY; sy <= maxY; sy++) {
+      for (let sx = minX; sx <= maxX; sx++) {
+        selection[sy][sx] = true;
+      }
+    }
+
+    set({ selection });
+  },
+
+  clearSelection: () => set({ selection: null, selectionStart: null }),
+
+  selectAll: () => {
+    const { gridWidth, gridHeight } = get();
+    const selection = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(true));
+    set({ selection });
+  },
+
+  copySelectionToClipboard: () => {
+    const { grid, selection } = get();
+    if (!selection) return;
+
+    const clipboard = copySelection(grid, selection);
+    if (clipboard) {
+      set({ clipboard });
+    }
+  },
+
+  cutSelectionToClipboard: () => {
+    const { grid, selection } = get();
+    if (!selection) return;
+
+    const clipboard = copySelection(grid, selection);
+    if (clipboard) {
+      get().saveToHistory();
+
+      const newGrid = grid.map((row, y) =>
+        row.map((cell, x) => (selection[y][x] ? null : cell))
+      );
+
+      set({ clipboard, grid: newGrid, isDirty: true });
+    }
+  },
+
+  pasteFromClipboard: (x, y) => {
+    const { grid, clipboard } = get();
+    if (!clipboard) return;
+
+    get().saveToHistory();
+    const newGrid = pasteData(grid, clipboard, x, y);
+    set({ grid: newGrid, isDirty: true });
+  },
+
+  deleteSelection: () => {
+    const { grid, selection } = get();
+    if (!selection) return;
+
+    get().saveToHistory();
+
+    const newGrid = grid.map((row, y) =>
+      row.map((cell, x) => (selection[y][x] ? null : cell))
+    );
+
+    set({ grid: newGrid, selection: null, isDirty: true });
+  },
+
+  mirrorHorizontal: () => {
+    const { grid, selection } = get();
+    get().saveToHistory();
+
+    if (selection) {
+      const bounds = getSelectionBounds(selection);
+      if (bounds) {
+        const newGrid = grid.map(row => [...row]);
+        const { minX, maxX, minY, maxY } = bounds;
+        const width = maxX - minX + 1;
+
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            const mirrorX = maxX - (x - minX);
+            if (selection[y][x] && selection[y][mirrorX]) {
+              const temp = newGrid[y][x];
+              newGrid[y][x] = grid[y][mirrorX];
+              newGrid[y][mirrorX] = temp;
+            }
+          }
+        }
+
+        set({ grid: newGrid, isDirty: true });
+        return;
+      }
+    }
+
+    set({ grid: mirrorHorizontal(grid), isDirty: true });
+  },
+
+  mirrorVertical: () => {
+    const { grid, selection } = get();
+    get().saveToHistory();
+
+    if (selection) {
+      const bounds = getSelectionBounds(selection);
+      if (bounds) {
+        const newGrid = grid.map(row => [...row]);
+        const { minX, maxX, minY, maxY } = bounds;
+
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            const mirrorY = maxY - (y - minY);
+            if (selection[y][x] && selection[mirrorY]?.[x]) {
+              const temp = newGrid[y][x];
+              newGrid[y][x] = grid[mirrorY][x];
+              newGrid[mirrorY][x] = temp;
+            }
+          }
+        }
+
+        set({ grid: newGrid, isDirty: true });
+        return;
+      }
+    }
+
+    set({ grid: mirrorVertical(grid), isDirty: true });
+  },
+
+  rotate90: (clockwise) => {
+    const { grid } = get();
+    get().saveToHistory();
+
+    const newGrid = clockwise ? rotate90Clockwise(grid) : rotate90Clockwise(rotate90Clockwise(rotate90Clockwise(grid)));
+
+    set({
+      grid: newGrid,
+      gridWidth: newGrid[0]?.length || 0,
+      gridHeight: newGrid.length,
+      isDirty: true,
+    });
+  },
+
+  saveToHistory: () => {
+    const { grid, history, historyIndex, maxHistorySize } = get();
+
+    // Remove any redo entries
+    const newHistory = history.slice(0, historyIndex + 1);
+
+    // Add current state
+    newHistory.push({ grid: grid.map(row => [...row]), timestamp: Date.now() });
+
+    // Trim if too long
+    while (newHistory.length > maxHistorySize) {
+      newHistory.shift();
+    }
+
+    set({ history: newHistory, historyIndex: newHistory.length - 1 });
+  },
+
+  undo: () => {
+    const { history, historyIndex } = get();
+    if (historyIndex <= 0) return;
+
+    const newIndex = historyIndex - 1;
+    const entry = history[newIndex];
+
+    set({
+      grid: entry.grid.map(row => [...row]),
+      historyIndex: newIndex,
+      isDirty: true,
+    });
+  },
+
+  redo: () => {
+    const { history, historyIndex } = get();
+    if (historyIndex >= history.length - 1) return;
+
+    const newIndex = historyIndex + 1;
+    const entry = history[newIndex];
+
+    set({
+      grid: entry.grid.map(row => [...row]),
+      historyIndex: newIndex,
+      isDirty: true,
+    });
+  },
+
+  canUndo: () => {
+    const { historyIndex } = get();
+    return historyIndex > 0;
+  },
+
+  canRedo: () => {
+    const { history, historyIndex } = get();
+    return historyIndex < history.length - 1;
+  },
+
+  setZoom: (zoom) => set({ zoom: Math.max(0.1, Math.min(10, zoom)) }),
+
+  setPan: (x, y) => set({ panX: x, panY: y }),
+
+  resetView: () => set({ zoom: 1, panX: 0, panY: 0 }),
+
+  setShowGrid: (show) => set({ showGrid: show }),
+
+  setReferenceImage: (url, opacity) => set({
+    referenceImageUrl: url,
+    referenceImageOpacity: opacity ?? get().referenceImageOpacity,
+  }),
+
+  setReferenceOpacity: (opacity) => set({ referenceImageOpacity: opacity }),
+
+  setStitchType: (type) => set({ stitchType: type, isDirty: true }),
+
+  setBufferPercent: (percent) => set({ bufferPercent: percent, isDirty: true }),
+
+  getUsedColors: () => {
+    const { grid } = get();
+    const colorNumbers = getUsedColors(grid);
+    return colorNumbers
+      .map(num => getDmcColorByNumber(num))
+      .filter((c): c is DmcColor => c !== undefined);
+  },
+
+  getStitchCounts: () => {
+    const { grid } = get();
+    return countStitchesByColor(grid);
+  },
+
+  getYarnUsage: () => {
+    const { meshCount, stitchType, bufferPercent } = get();
+    const counts = get().getStitchCounts();
+    return calculateYarnUsage(counts, meshCount, stitchType, bufferPercent);
+  },
+
+  getTotalStitches: () => {
+    const counts = get().getStitchCounts();
+    let total = 0;
+    for (const count of counts.values()) {
+      total += count;
+    }
+    return total;
+  },
+
+  markClean: () => set({ isDirty: false }),
+
+  reset: () => set(createInitialState()),
+}));
