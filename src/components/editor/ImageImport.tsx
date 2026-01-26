@@ -99,7 +99,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full py-3 px-4 bg-slate-700 border-2 border-dashed border-slate-500 rounded-lg text-slate-300 hover:border-purple-500 hover:text-white transition-colors"
+            className="w-full py-3 px-4 bg-slate-700 border-2 border-dashed border-slate-500 rounded-lg text-slate-300 hover:border-rose-800 hover:text-white transition-colors"
           >
             {imageUrl ? "Change Image" : "Select Image"}
           </button>
@@ -152,7 +152,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
           <button
             onClick={handleImport}
             disabled={!imageUrl || processing}
-            className="flex-1 py-2 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-2 px-4 bg-rose-900 text-white rounded-lg hover:bg-rose-950 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {processing ? "Processing..." : "Import"}
           </button>

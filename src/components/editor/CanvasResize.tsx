@@ -94,7 +94,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
             step="0.5"
             value={newWidthInches}
             onChange={(e) => setNewWidthInches(Number(e.target.value))}
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
           />
         </div>
 
@@ -108,7 +108,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
             step="0.5"
             value={newHeightInches}
             onChange={(e) => setNewHeightInches(Number(e.target.value))}
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
           />
         </div>
 
@@ -118,7 +118,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
           <select
             value={newMeshCount}
             onChange={(e) => setNewMeshCount(Number(e.target.value) as 14 | 18)}
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
           >
             <option value={14}>14 mesh</option>
             <option value={18}>18 mesh</option>
@@ -132,7 +132,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
               type="checkbox"
               checked={scaleContent}
               onChange={(e) => setScaleContent(e.target.checked)}
-              className="w-4 h-4 text-purple-600 bg-slate-700 border-slate-600 rounded focus:ring-purple-500"
+              className="w-4 h-4 text-rose-900 bg-slate-700 border-slate-600 rounded focus:ring-rose-800"
             />
             <span className="text-slate-300">Scale content to fit</span>
           </label>
@@ -144,8 +144,8 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
         </div>
 
         {/* New size preview */}
-        <div className="mb-4 p-3 bg-purple-900/30 border border-purple-500/30 rounded-lg">
-          <p className="text-sm text-purple-300">
+        <div className="mb-4 p-3 bg-rose-900/30 border border-rose-800/30 rounded-lg">
+          <p className="text-sm text-rose-300">
             New size: <span className="text-white font-medium">{newGridWidth} × {newGridHeight}</span> stitches
           </p>
         </div>
@@ -160,7 +160,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
           </button>
           <button
             onClick={handleApply}
-            className="flex-1 py-2 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            className="flex-1 py-2 px-4 bg-rose-900 text-white rounded-lg hover:bg-rose-950"
           >
             Apply
           </button>

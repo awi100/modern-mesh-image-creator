@@ -52,7 +52,7 @@ export default function Toolbar() {
               onClick={() => setTool(tool.id)}
               className={`p-2 md:px-2 md:py-1.5 rounded-lg transition-colors flex items-center gap-1 touch-manipulation ${
                 currentTool === tool.id
-                  ? "bg-purple-600 text-white"
+                  ? "bg-rose-900 text-white"
                   : "bg-slate-700 text-slate-300 hover:bg-slate-600 active:bg-slate-500"
               }`}
               title={tool.label}
@@ -147,7 +147,7 @@ export default function Toolbar() {
           onClick={() => setShowGrid(!showGrid)}
           className={`p-2 rounded-lg transition-colors touch-manipulation ${
             showGrid
-              ? "bg-purple-600 text-white"
+              ? "bg-rose-900 text-white"
               : "bg-slate-700 text-slate-300 hover:bg-slate-600"
           }`}
           title="Toggle Grid"

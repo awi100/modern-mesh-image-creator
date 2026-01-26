@@ -122,7 +122,7 @@ export default function Header({
             onClick={() => router.push("/")}
             className="flex-shrink-0 flex items-center gap-2 text-slate-400 hover:text-white"
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-br from-rose-900 to-rose-800 rounded-lg flex items-center justify-center">
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
               </svg>
@@ -138,7 +138,7 @@ export default function Header({
                 onChange={(e) => setTempName(e.target.value)}
                 onBlur={handleNameSubmit}
                 onKeyDown={(e) => e.key === "Enter" && handleNameSubmit()}
-                className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                 autoFocus
               />
             ) : (
@@ -147,10 +147,10 @@ export default function Header({
                   setTempName(designName);
                   setEditingName(true);
                 }}
-                className="text-white text-sm md:text-base font-medium hover:text-purple-400 transition-colors flex items-center gap-1 truncate max-w-full"
+                className="text-white text-sm md:text-base font-medium hover:text-rose-400 transition-colors flex items-center gap-1 truncate max-w-full"
               >
                 <span className="truncate">{designName}</span>
-                {isDirty && <span className="text-purple-400 flex-shrink-0">•</span>}
+                {isDirty && <span className="text-rose-400 flex-shrink-0">•</span>}
               </button>
             )}
             <span className="text-slate-500 text-xs md:text-sm hidden sm:block">
@@ -190,7 +190,7 @@ export default function Header({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-3 md:px-4 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium touch-manipulation"
+            className="px-3 md:px-4 py-1.5 bg-rose-900 text-white rounded-lg hover:bg-rose-950 disabled:opacity-50 text-sm font-medium touch-manipulation"
           >
             {saving ? "..." : "Save"}
           </button>
