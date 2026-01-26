@@ -174,3 +174,36 @@ export async function DELETE(
     );
   }
 }
+
+// PATCH for partial updates (e.g., moving to folder)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { id } = await params;
+    const body = await request.json();
+
+    const design = await prisma.design.update({
+      where: { id },
+      data: {
+        folderId: body.folderId,
+      },
+      include: {
+        folder: true,
+      },
+    });
+
+    return NextResponse.json(design);
+  } catch (error) {
+    console.error("Error updating design:", error);
+    return NextResponse.json(
+      { error: "Failed to update design" },
+      { status: 500 }
+    );
+  }
+}

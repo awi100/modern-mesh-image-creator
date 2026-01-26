@@ -218,7 +218,7 @@ export default function ColorPicker() {
       )}
 
       {/* Color grid */}
-      <div className="flex-1 overflow-auto p-2">
+      <div className="flex-1 overflow-y-auto p-2 min-h-0 max-h-[40vh] md:max-h-none">
         <div className="grid grid-cols-5 gap-1">
           {filteredColors.map((color) => {
             const isCurrentColor = currentColor?.dmcNumber === color.dmcNumber;

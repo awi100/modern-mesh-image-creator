@@ -40,6 +40,9 @@ export default function HomePage() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [showNewFolderInput, setShowNewFolderInput] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [movingDesignId, setMovingDesignId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDesigns();
@@ -106,6 +109,67 @@ export default function HomePage() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+
+    try {
+      const response = await fetch("/api/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newFolderName.trim() }),
+      });
+
+      if (response.ok) {
+        const newFolder = await response.json();
+        setFolders([...folders, newFolder]);
+        setNewFolderName("");
+        setShowNewFolderInput(false);
+      }
+    } catch (error) {
+      console.error("Error creating folder:", error);
+    }
+  };
+
+  const handleMoveToFolder = async (designId: string, folderId: string | null) => {
+    try {
+      const response = await fetch(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      });
+
+      if (response.ok) {
+        setDesigns(designs.map(d =>
+          d.id === designId
+            ? { ...d, folder: folderId ? folders.find(f => f.id === folderId) || null : null }
+            : d
+        ));
+        setMovingDesignId(null);
+        // Refresh to update counts
+        fetchDesigns();
+      }
+    } catch (error) {
+      console.error("Error moving design:", error);
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    if (!confirm("Delete this folder? Designs will be moved to Unfiled.")) return;
+
+    try {
+      const response = await fetch(`/api/folders/${folderId}`, { method: "DELETE" });
+      if (response.ok) {
+        setFolders(folders.filter(f => f.id !== folderId));
+        if (selectedFolder === folderId) {
+          setSelectedFolder(null);
+        }
+        fetchDesigns();
+      }
+    } catch (error) {
+      console.error("Error deleting folder:", error);
+    }
   };
 
   return (
@@ -260,9 +324,42 @@ export default function HomePage() {
 
             {/* Folders */}
             <div className="mb-6">
-              <h3 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">
-                Folders
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                  Folders
+                </h3>
+                <button
+                  onClick={() => setShowNewFolderInput(!showNewFolderInput)}
+                  className="text-slate-400 hover:text-white p-1"
+                  title="New Folder"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* New folder input */}
+              {showNewFolderInput && (
+                <div className="mb-2 flex gap-2">
+                  <input
+                    type="text"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+                    placeholder="Folder name..."
+                    className="flex-1 px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleCreateFolder}
+                    className="px-3 py-1.5 bg-rose-900 text-white text-sm rounded hover:bg-rose-950"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+
               <div className="space-y-1">
                 <button
                   onClick={() => setSelectedFolder(null)}
@@ -285,17 +382,27 @@ export default function HomePage() {
                   Unfiled
                 </button>
                 {folders.map((folder) => (
-                  <button
-                    key={folder.id}
-                    onClick={() => setSelectedFolder(folder.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                      selectedFolder === folder.id
-                        ? "bg-rose-900/20 text-rose-400"
-                        : "text-slate-300 hover:bg-slate-800"
-                    }`}
-                  >
-                    📁 {folder.name}
-                  </button>
+                  <div key={folder.id} className="group flex items-center">
+                    <button
+                      onClick={() => setSelectedFolder(folder.id)}
+                      className={`flex-1 text-left px-3 py-2 rounded-lg transition-colors ${
+                        selectedFolder === folder.id
+                          ? "bg-rose-900/20 text-rose-400"
+                          : "text-slate-300 hover:bg-slate-800"
+                      }`}
+                    >
+                      📁 {folder.name}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteFolder(folder.id)}
+                      className="p-1 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete folder"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -408,20 +515,61 @@ export default function HomePage() {
                         </div>
                       )}
 
+                      {/* Folder indicator */}
+                      {design.folder && (
+                        <p className="text-xs text-slate-500 mb-2">
+                          📁 {design.folder.name}
+                        </p>
+                      )}
+
                       {/* Actions */}
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-500">
                           {new Date(design.updatedAt).toLocaleDateString()}
                         </span>
-                        <button
-                          onClick={() => handleDelete(design.id)}
-                          className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
-                          title="Delete"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {/* Move to folder */}
+                          <div className="relative">
+                            <button
+                              onClick={() => setMovingDesignId(movingDesignId === design.id ? null : design.id)}
+                              className="p-1.5 text-slate-500 hover:text-white transition-colors"
+                              title="Move to folder"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                              </svg>
+                            </button>
+                            {movingDesignId === design.id && (
+                              <div className="absolute right-0 bottom-full mb-1 w-40 bg-slate-700 rounded-lg shadow-lg border border-slate-600 py-1 z-10">
+                                <button
+                                  onClick={() => handleMoveToFolder(design.id, null)}
+                                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-600 ${!design.folder ? 'text-rose-400' : 'text-slate-300'}`}
+                                >
+                                  Unfiled
+                                </button>
+                                {folders.map((folder) => (
+                                  <button
+                                    key={folder.id}
+                                    onClick={() => handleMoveToFolder(design.id, folder.id)}
+                                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-600 ${design.folder?.id === folder.id ? 'text-rose-400' : 'text-slate-300'}`}
+                                  >
+                                    📁 {folder.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {/* Delete */}
+                          <button
+                            onClick={() => handleDelete(design.id)}
+                            className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                            title="Delete"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
