@@ -10,12 +10,14 @@ interface HeaderProps {
   onShowImageImport: () => void;
   onShowCanvasResize: () => void;
   onShowExport: () => void;
+  onShowTextDialog: () => void;
 }
 
 export default function Header({
   onShowImageImport,
   onShowCanvasResize,
   onShowExport,
+  onShowTextDialog,
 }: HeaderProps) {
   const router = useRouter();
 
@@ -169,6 +171,14 @@ export default function Header({
         {/* Right side - Actions */}
         <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
           {/* Show icons on mobile, text on desktop */}
+          <button
+            onClick={onShowTextDialog}
+            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            title="Add Text"
+          >
+            <span className="md:hidden">Aa</span>
+            <span className="hidden md:inline">Text</span>
+          </button>
           <button
             onClick={onShowImageImport}
             className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"

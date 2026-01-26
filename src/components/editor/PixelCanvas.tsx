@@ -4,12 +4,27 @@ import React, { useRef, useEffect, useCallback, useState } from "react";
 import { useEditorStore } from "@/lib/store";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
-export default function PixelCanvas() {
+interface PixelCanvasProps {
+  pendingText?: {
+    pixels: (string | null)[][];
+    width: number;
+    height: number;
+  } | null;
+  onTextPlaced?: (x: number, y: number) => void;
+  onCancelTextPlacement?: () => void;
+}
+
+export default function PixelCanvas({
+  pendingText,
+  onTextPlaced,
+  onCancelTextPlacement,
+}: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
   const [lineStart, setLineStart] = useState<{ x: number; y: number } | null>(null);
+  const [textPlacementPos, setTextPlacementPos] = useState<{ x: number; y: number } | null>(null);
 
   const {
     grid,
@@ -133,11 +148,61 @@ export default function PixelCanvas() {
         }
       }
     }
-  }, [grid, gridWidth, gridHeight, cellSize, showGrid, selection, referenceImageUrl, referenceImageOpacity, zoom]);
+
+    // Draw pending text overlay
+    if (pendingText && textPlacementPos) {
+      ctx.globalAlpha = 0.7;
+      for (let py = 0; py < pendingText.height; py++) {
+        for (let px = 0; px < pendingText.width; px++) {
+          const dmcNum = pendingText.pixels[py]?.[px];
+          if (dmcNum) {
+            const color = getDmcColorByNumber(dmcNum);
+            if (color) {
+              ctx.fillStyle = color.hex;
+              ctx.fillRect(
+                (textPlacementPos.x + px) * cellSize,
+                (textPlacementPos.y + py) * cellSize,
+                cellSize,
+                cellSize
+              );
+            }
+          }
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // Draw bounding box
+      ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(
+        textPlacementPos.x * cellSize,
+        textPlacementPos.y * cellSize,
+        pendingText.width * cellSize,
+        pendingText.height * cellSize
+      );
+      ctx.setLineDash([]);
+    }
+  }, [grid, gridWidth, gridHeight, cellSize, showGrid, selection, referenceImageUrl, referenceImageOpacity, zoom, pendingText, textPlacementPos]);
 
   useEffect(() => {
     draw();
   }, [draw]);
+
+  // Handle escape key to cancel text placement
+  useEffect(() => {
+    if (!pendingText) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && onCancelTextPlacement) {
+        onCancelTextPlacement();
+        setTextPlacementPos(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pendingText, onCancelTextPlacement]);
 
   // Get grid coordinates from mouse or touch event
   const getGridCoords = useCallback((clientX: number, clientY: number) => {
@@ -202,15 +267,31 @@ export default function PixelCanvas() {
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
     if (!coords) return;
+
+    // Handle text placement mode
+    if (pendingText && onTextPlaced) {
+      onTextPlaced(coords.x, coords.y);
+      setTextPlacementPos(null);
+      return;
+    }
+
     handleDrawStart(coords);
-  }, [getMouseCoords, handleDrawStart]);
+  }, [getMouseCoords, handleDrawStart, pendingText, onTextPlaced]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault(); // Prevent scrolling while drawing
     const coords = getTouchCoords(e);
     if (!coords) return;
+
+    // Handle text placement mode
+    if (pendingText && onTextPlaced) {
+      onTextPlaced(coords.x, coords.y);
+      setTextPlacementPos(null);
+      return;
+    }
+
     handleDrawStart(coords);
-  }, [getTouchCoords, handleDrawStart]);
+  }, [getTouchCoords, handleDrawStart, pendingText, onTextPlaced]);
 
   // Shared move logic for mouse and touch
   const handleDrawMove = useCallback((coords: { x: number; y: number }) => {
@@ -283,11 +364,18 @@ export default function PixelCanvas() {
   }, [isDrawing, currentTool, currentColor, lastPos, setPixel, setBrushPixels, updateSelection]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
     const coords = getMouseCoords(e);
+
+    // Handle text placement mode - update position even when not drawing
+    if (pendingText && coords) {
+      setTextPlacementPos(coords);
+      return;
+    }
+
+    if (!isDrawing) return;
     if (!coords) return;
     handleDrawMove(coords);
-  }, [isDrawing, getMouseCoords, handleDrawMove]);
+  }, [isDrawing, getMouseCoords, handleDrawMove, pendingText]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
@@ -339,12 +427,12 @@ export default function PixelCanvas() {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-auto bg-slate-100 flex items-center justify-center p-2 md:p-4"
+      className="flex-1 overflow-auto bg-slate-100 flex items-center justify-center p-2 md:p-4 relative"
       style={{ transform: `translate(${panX}px, ${panY}px)` }}
     >
       <canvas
         ref={canvasRef}
-        className="shadow-lg cursor-crosshair touch-none"
+        className={`shadow-lg touch-none ${pendingText ? "cursor-cell" : "cursor-crosshair"}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -354,6 +442,19 @@ export default function PixelCanvas() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       />
+
+      {/* Text placement mode indicator */}
+      {pendingText && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 z-10">
+          <span className="text-sm font-medium">Click to place text</span>
+          <button
+            onClick={onCancelTextPlacement}
+            className="text-blue-200 hover:text-white text-sm underline"
+          >
+            Cancel (Esc)
+          </button>
+        </div>
+      )}
     </div>
   );
 }

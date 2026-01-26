@@ -123,3 +123,17 @@ model UserSettings {
 
   @@map("user_settings")
 }
+
+// Custom canvas size presets
+model CanvasPreset {
+  id          String   @id @default(cuid())
+  name        String
+  widthInches Float
+  heightInches Float
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("canvas_presets")
+}

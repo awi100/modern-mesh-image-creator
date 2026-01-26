@@ -105,6 +105,9 @@ interface EditorState {
   pasteFromClipboard: (x: number, y: number) => void;
   deleteSelection: () => void;
 
+  // Pixel overlay (for text placement, stamps, etc.)
+  applyPixelOverlay: (pixels: (string | null)[][], x: number, y: number) => void;
+
   // Transform operations
   mirrorHorizontal: () => void;
   mirrorVertical: () => void;
@@ -423,6 +426,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     get().saveToHistory();
     const newGrid = pasteData(grid, clipboard, x, y);
+    set({ grid: newGrid, isDirty: true });
+  },
+
+  applyPixelOverlay: (pixels, x, y) => {
+    const { grid, gridWidth, gridHeight } = get();
+    if (pixels.length === 0) return;
+
+    get().saveToHistory();
+    const newGrid = grid.map(row => [...row]);
+
+    for (let py = 0; py < pixels.length; py++) {
+      for (let px = 0; px < (pixels[py]?.length || 0); px++) {
+        const color = pixels[py][px];
+        if (color !== null) {
+          const targetX = x + px;
+          const targetY = y + py;
+          if (targetX >= 0 && targetX < gridWidth && targetY >= 0 && targetY < gridHeight) {
+            newGrid[targetY][targetX] = color;
+          }
+        }
+      }
+    }
+
     set({ grid: newGrid, isDirty: true });
   },
 

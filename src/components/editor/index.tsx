@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useEditorStore } from "@/lib/store";
 import Header from "./Header";
 import Toolbar from "./Toolbar";
@@ -11,6 +11,7 @@ import ImageImport from "./ImageImport";
 import CanvasResize from "./CanvasResize";
 import ExportPanel from "./ExportPanel";
 import MobileBottomBar from "./MobileBottomBar";
+import AddTextDialog from "./AddTextDialog";
 
 interface EditorProps {
   designId?: string;
@@ -44,6 +45,12 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const [showExport, setShowExport] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false);
+  const [showTextDialog, setShowTextDialog] = useState(false);
+  const [pendingText, setPendingText] = useState<{
+    pixels: (string | null)[][];
+    width: number;
+    height: number;
+  } | null>(null);
 
   // Initialize editor with design data
   useEffect(() => {
@@ -75,9 +82,44 @@ export default function Editor({ designId, initialData }: EditorProps) {
     }
   }, [designId, initialData, setDesignInfo, initializeGrid, setStitchType, setBufferPercent, setReferenceImage, reset]);
 
+  // Handle text added from dialog
+  const handleTextAdded = useCallback((pixels: (string | null)[][], width: number, height: number) => {
+    setPendingText({ pixels, width, height });
+    setShowTextDialog(false);
+  }, []);
+
+  // Handle text placement on canvas
+  const handleTextPlaced = useCallback((x: number, y: number) => {
+    if (pendingText) {
+      useEditorStore.getState().applyPixelOverlay(pendingText.pixels, x, y);
+      setPendingText(null);
+    }
+  }, [pendingText]);
+
+  // Cancel text placement
+  const handleCancelTextPlacement = useCallback(() => {
+    setPendingText(null);
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept shortcuts when user is typing in an input or textarea
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement instanceof HTMLInputElement ||
+                             activeElement instanceof HTMLTextAreaElement ||
+                             activeElement?.getAttribute("contenteditable") === "true";
+
+      if (isInputFocused) {
+        // Only allow undo/redo to work globally
+        if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "y")) {
+          // Let undo/redo work, but don't prevent default for inputs
+          return;
+        }
+        // Let all other shortcuts be handled by the input
+        return;
+      }
+
       const { undo, redo, canUndo, canRedo, copySelectionToClipboard, cutSelectionToClipboard, pasteFromClipboard, selectAll, deleteSelection, selection, clipboard } = useEditorStore.getState();
 
       if (e.metaKey || e.ctrlKey) {
@@ -137,6 +179,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
         onShowImageImport={() => setShowImageImport(true)}
         onShowCanvasResize={() => setShowCanvasResize(true)}
         onShowExport={() => setShowExport(true)}
+        onShowTextDialog={() => setShowTextDialog(true)}
       />
       <Toolbar />
 
@@ -146,7 +189,11 @@ export default function Editor({ designId, initialData }: EditorProps) {
           <ColorPicker />
         </div>
 
-        <PixelCanvas />
+        <PixelCanvas
+          pendingText={pendingText}
+          onTextPlaced={handleTextPlaced}
+          onCancelTextPlacement={handleCancelTextPlacement}
+        />
 
         {/* Metrics panel - hidden on mobile, shown via bottom drawer */}
         <div className="hidden lg:block">
@@ -217,6 +264,12 @@ export default function Editor({ designId, initialData }: EditorProps) {
       )}
       {showExport && (
         <ExportPanel onClose={() => setShowExport(false)} />
+      )}
+      {showTextDialog && (
+        <AddTextDialog
+          onClose={() => setShowTextDialog(false)}
+          onAddText={handleTextAdded}
+        />
       )}
     </div>
   );

@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
 import { scalePixelGrid, createEmptyGrid } from "@/lib/color-utils";
 
-// Preset canvas sizes for common needlepoint projects
-const PRESET_SIZES = [
+// Built-in preset canvas sizes
+const BUILTIN_PRESETS = [
   { name: "Coaster", width: 4, height: 4 },
   { name: "Small Ornament", width: 5, height: 5 },
   { name: "Ornament", width: 6, height: 6 },
@@ -17,6 +17,13 @@ const PRESET_SIZES = [
   { name: "Rectangle (12×16)", width: 12, height: 16 },
   { name: "Belt (2×36)", width: 2, height: 36 },
 ];
+
+interface CustomPreset {
+  id: string;
+  name: string;
+  widthInches: number;
+  heightInches: number;
+}
 
 interface CanvasResizeProps {
   onClose: () => void;
@@ -39,9 +46,22 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
   const [newHeightInches, setNewHeightInches] = useState(heightInches);
   const [newMeshCount, setNewMeshCount] = useState(meshCount);
   const [scaleContent, setScaleContent] = useState(true);
+  const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
 
   const newGridWidth = Math.round(newWidthInches * newMeshCount);
   const newGridHeight = Math.round(newHeightInches * newMeshCount);
+
+  // Fetch custom presets on mount
+  useEffect(() => {
+    fetch("/api/canvas-presets")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setCustomPresets(data);
+        }
+      })
+      .catch((err) => console.error("Failed to load presets:", err));
+  }, []);
 
   const handleApply = () => {
     saveToHistory();
@@ -101,8 +121,8 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
         {/* Preset sizes */}
         <div className="mb-4">
           <label className="block text-sm text-slate-400 mb-2">Preset Sizes</label>
-          <div className="grid grid-cols-2 gap-2">
-            {PRESET_SIZES.map((preset) => (
+          <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+            {BUILTIN_PRESETS.map((preset) => (
               <button
                 key={preset.name}
                 onClick={() => {
@@ -117,6 +137,23 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
               >
                 {preset.name}
                 <span className="text-slate-500 ml-1">({preset.width}×{preset.height})</span>
+              </button>
+            ))}
+            {customPresets.map((preset) => (
+              <button
+                key={preset.id}
+                onClick={() => {
+                  setNewWidthInches(preset.widthInches);
+                  setNewHeightInches(preset.heightInches);
+                }}
+                className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                  newWidthInches === preset.widthInches && newHeightInches === preset.heightInches
+                    ? "bg-rose-900/30 border-rose-800 text-rose-300"
+                    : "bg-slate-700 border-slate-600 text-slate-300 hover:border-slate-500"
+                }`}
+              >
+                {preset.name}
+                <span className="text-slate-500 ml-1">({preset.widthInches}×{preset.heightInches})</span>
               </button>
             ))}
           </div>
