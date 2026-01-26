@@ -139,8 +139,8 @@ export default function PixelCanvas() {
     draw();
   }, [draw]);
 
-  // Get grid coordinates from mouse event
-  const getGridCoords = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Get grid coordinates from mouse or touch event
+  const getGridCoords = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
 
@@ -148,18 +148,26 @@ export default function PixelCanvas() {
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    const x = Math.floor(((e.clientX - rect.left) * scaleX) / cellSize);
-    const y = Math.floor(((e.clientY - rect.top) * scaleY) / cellSize);
+    const x = Math.floor(((clientX - rect.left) * scaleX) / cellSize);
+    const y = Math.floor(((clientY - rect.top) * scaleY) / cellSize);
 
     if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) return null;
 
     return { x, y };
   }, [cellSize, gridWidth, gridHeight]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const coords = getGridCoords(e);
-    if (!coords) return;
+  const getMouseCoords = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    return getGridCoords(e.clientX, e.clientY);
+  }, [getGridCoords]);
 
+  const getTouchCoords = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length === 0) return null;
+    const touch = e.touches[0];
+    return getGridCoords(touch.clientX, touch.clientY);
+  }, [getGridCoords]);
+
+  // Shared drawing logic for mouse and touch
+  const handleDrawStart = useCallback((coords: { x: number; y: number }) => {
     setIsDrawing(true);
     setLastPos(coords);
 
@@ -189,13 +197,24 @@ export default function PixelCanvas() {
     } else if (currentTool === "magicWand") {
       selectByColor(coords.x, coords.y);
     }
-  }, [getGridCoords, currentTool, currentColor, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor]);
+  }, [currentTool, currentColor, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-
-    const coords = getGridCoords(e);
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const coords = getMouseCoords(e);
     if (!coords) return;
+    handleDrawStart(coords);
+  }, [getMouseCoords, handleDrawStart]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault(); // Prevent scrolling while drawing
+    const coords = getTouchCoords(e);
+    if (!coords) return;
+    handleDrawStart(coords);
+  }, [getTouchCoords, handleDrawStart]);
+
+  // Shared move logic for mouse and touch
+  const handleDrawMove = useCallback((coords: { x: number; y: number }) => {
+    if (!isDrawing) return;
 
     if (currentTool === "pencil") {
       // Draw line from last pos to current
@@ -261,21 +280,49 @@ export default function PixelCanvas() {
     } else if (currentTool === "select") {
       updateSelection(coords.x, coords.y);
     }
-  }, [isDrawing, getGridCoords, currentTool, currentColor, lastPos, setPixel, setBrushPixels, updateSelection]);
+  }, [isDrawing, currentTool, currentColor, lastPos, setPixel, setBrushPixels, updateSelection]);
 
-  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    // Handle line tool on mouse up
-    if (currentTool === "line" && lineStart) {
-      const coords = getGridCoords(e);
-      if (coords) {
-        drawLine(lineStart.x, lineStart.y, coords.x, coords.y, currentColor?.dmcNumber || null);
-      }
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const coords = getMouseCoords(e);
+    if (!coords) return;
+    handleDrawMove(coords);
+  }, [isDrawing, getMouseCoords, handleDrawMove]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const coords = getTouchCoords(e);
+    if (!coords) return;
+    handleDrawMove(coords);
+  }, [isDrawing, getTouchCoords, handleDrawMove]);
+
+  const handleDrawEnd = useCallback((coords: { x: number; y: number } | null) => {
+    // Handle line tool on end
+    if (currentTool === "line" && lineStart && coords) {
+      drawLine(lineStart.x, lineStart.y, coords.x, coords.y, currentColor?.dmcNumber || null);
       setLineStart(null);
     }
 
     setIsDrawing(false);
     setLastPos(null);
-  }, [currentTool, lineStart, getGridCoords, drawLine, currentColor]);
+  }, [currentTool, lineStart, drawLine, currentColor]);
+
+  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const coords = getMouseCoords(e);
+    handleDrawEnd(coords);
+  }, [getMouseCoords, handleDrawEnd]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    // For touch end, we use the last known position since touches array is empty
+    if (currentTool === "line" && lineStart && lastPos) {
+      drawLine(lineStart.x, lineStart.y, lastPos.x, lastPos.y, currentColor?.dmcNumber || null);
+      setLineStart(null);
+    }
+    setIsDrawing(false);
+    setLastPos(null);
+  }, [currentTool, lineStart, lastPos, drawLine, currentColor]);
 
   const handleMouseLeave = useCallback(() => {
     setIsDrawing(false);
@@ -292,17 +339,20 @@ export default function PixelCanvas() {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-auto bg-slate-100 flex items-center justify-center p-4"
+      className="flex-1 overflow-auto bg-slate-100 flex items-center justify-center p-2 md:p-4"
       style={{ transform: `translate(${panX}px, ${panY}px)` }}
     >
       <canvas
         ref={canvasRef}
-        className="shadow-lg cursor-crosshair"
+        className="shadow-lg cursor-crosshair touch-none"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
         onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       />
     </div>
   );

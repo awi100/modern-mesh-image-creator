@@ -114,79 +114,87 @@ export default function Header({
   };
 
   return (
-    <header className="bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between">
-      {/* Left side - Logo and name */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => router.push("/")}
-          className="flex items-center gap-2 text-slate-400 hover:text-white"
-        >
-          <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-            </svg>
-          </div>
-        </button>
-
-        {/* Design name */}
-        {editingName ? (
-          <input
-            type="text"
-            value={tempName}
-            onChange={(e) => setTempName(e.target.value)}
-            onBlur={handleNameSubmit}
-            onKeyDown={(e) => e.key === "Enter" && handleNameSubmit()}
-            className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-            autoFocus
-          />
-        ) : (
+    <header className="bg-slate-800 border-b border-slate-700 px-2 md:px-4 py-2 md:py-3">
+      <div className="flex items-center justify-between gap-2">
+        {/* Left side - Logo and name */}
+        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
           <button
-            onClick={() => {
-              setTempName(designName);
-              setEditingName(true);
-            }}
-            className="text-white font-medium hover:text-purple-400 transition-colors flex items-center gap-1"
+            onClick={() => router.push("/")}
+            className="flex-shrink-0 flex items-center gap-2 text-slate-400 hover:text-white"
           >
-            {designName}
-            {isDirty && <span className="text-purple-400">•</span>}
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+              </svg>
+            </div>
           </button>
-        )}
 
-        <span className="text-slate-500 text-sm">
-          {widthInches}&quot; × {heightInches}&quot; @ {meshCount} mesh
-        </span>
-      </div>
+          {/* Design name */}
+          <div className="min-w-0 flex-1">
+            {editingName ? (
+              <input
+                type="text"
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                onBlur={handleNameSubmit}
+                onKeyDown={(e) => e.key === "Enter" && handleNameSubmit()}
+                className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                autoFocus
+              />
+            ) : (
+              <button
+                onClick={() => {
+                  setTempName(designName);
+                  setEditingName(true);
+                }}
+                className="text-white text-sm md:text-base font-medium hover:text-purple-400 transition-colors flex items-center gap-1 truncate max-w-full"
+              >
+                <span className="truncate">{designName}</span>
+                {isDirty && <span className="text-purple-400 flex-shrink-0">•</span>}
+              </button>
+            )}
+            <span className="text-slate-500 text-xs md:text-sm hidden sm:block">
+              {widthInches}&quot; × {heightInches}&quot; @ {meshCount} mesh
+            </span>
+          </div>
+        </div>
 
-      {/* Right side - Actions */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onShowImageImport}
-          className="px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
-        >
-          Import Image
-        </button>
-        <button
-          onClick={onShowCanvasResize}
-          className="px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
-        >
-          Resize
-        </button>
-        <button
-          onClick={onShowExport}
-          className="px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
-        >
-          Export
-        </button>
+        {/* Right side - Actions */}
+        <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+          {/* Show icons on mobile, text on desktop */}
+          <button
+            onClick={onShowImageImport}
+            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            title="Import Image"
+          >
+            <span className="md:hidden">📷</span>
+            <span className="hidden md:inline">Import</span>
+          </button>
+          <button
+            onClick={onShowCanvasResize}
+            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            title="Resize Canvas"
+          >
+            <span className="md:hidden">📐</span>
+            <span className="hidden md:inline">Resize</span>
+          </button>
+          <button
+            onClick={onShowExport}
+            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            title="Export"
+          >
+            <span className="md:hidden">📤</span>
+            <span className="hidden md:inline">Export</span>
+          </button>
 
-        <div className="w-px h-6 bg-slate-600 mx-2" />
-
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-4 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium"
-        >
-          {saving ? "Saving..." : "Save"}
-        </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-3 md:px-4 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium touch-manipulation"
+          >
+            {saving ? "..." : "Save"}
+          </button>
+        </div>
       </div>
     </header>
   );

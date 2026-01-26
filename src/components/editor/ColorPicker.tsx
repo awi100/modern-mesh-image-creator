@@ -35,7 +35,7 @@ export default function ColorPicker() {
   };
 
   return (
-    <div className="bg-slate-800 border-l border-slate-700 w-64 flex flex-col">
+    <div className="bg-slate-800 md:border-l border-slate-700 w-full md:w-64 flex flex-col">
       {/* Current color */}
       <div className="p-4 border-b border-slate-700">
         <h3 className="text-sm font-medium text-slate-400 mb-2">Current Color</h3>

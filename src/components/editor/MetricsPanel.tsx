@@ -27,7 +27,7 @@ export default function MetricsPanel() {
   const totalYards = yarnUsage.reduce((sum, u) => sum + u.withBuffer, 0);
 
   return (
-    <div className="bg-slate-800 border-l border-slate-700 w-72 flex flex-col overflow-auto">
+    <div className="bg-slate-800 lg:border-l border-slate-700 w-full lg:w-72 flex flex-col overflow-auto">
       {/* Design Info */}
       <div className="p-4 border-b border-slate-700">
         <h3 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">

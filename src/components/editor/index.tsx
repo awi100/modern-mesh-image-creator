@@ -10,6 +10,7 @@ import MetricsPanel from "./MetricsPanel";
 import ImageImport from "./ImageImport";
 import CanvasResize from "./CanvasResize";
 import ExportPanel from "./ExportPanel";
+import MobileBottomBar from "./MobileBottomBar";
 
 interface EditorProps {
   designId?: string;
@@ -41,6 +42,8 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const [showImageImport, setShowImageImport] = useState(false);
   const [showCanvasResize, setShowCanvasResize] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showMetrics, setShowMetrics] = useState(false);
 
   // Initialize editor with design data
   useEffect(() => {
@@ -138,10 +141,72 @@ export default function Editor({ designId, initialData }: EditorProps) {
       <Toolbar />
 
       <div className="flex-1 flex overflow-hidden">
-        <ColorPicker />
+        {/* Color picker - hidden on mobile, shown via bottom drawer */}
+        <div className="hidden md:block">
+          <ColorPicker />
+        </div>
+
         <PixelCanvas />
-        <MetricsPanel />
+
+        {/* Metrics panel - hidden on mobile, shown via bottom drawer */}
+        <div className="hidden lg:block">
+          <MetricsPanel />
+        </div>
       </div>
+
+      {/* Mobile bottom bar with panel toggles */}
+      <MobileBottomBar
+        onShowColors={() => setShowColorPicker(true)}
+        onShowMetrics={() => setShowMetrics(true)}
+      />
+
+      {/* Mobile Color Picker Drawer */}
+      {showColorPicker && (
+        <div className="md:hidden fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowColorPicker(false)}
+          />
+          <div className="absolute bottom-0 left-0 right-0 bg-slate-800 rounded-t-2xl max-h-[70vh] overflow-hidden animate-slide-up">
+            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+              <h2 className="text-white font-semibold">Colors</h2>
+              <button
+                onClick={() => setShowColorPicker(false)}
+                className="p-2 text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="overflow-auto max-h-[calc(70vh-60px)]">
+              <ColorPicker />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Metrics Drawer */}
+      {showMetrics && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowMetrics(false)}
+          />
+          <div className="absolute bottom-0 left-0 right-0 bg-slate-800 rounded-t-2xl max-h-[70vh] overflow-hidden animate-slide-up">
+            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+              <h2 className="text-white font-semibold">Design Info</h2>
+              <button
+                onClick={() => setShowMetrics(false)}
+                className="p-2 text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="overflow-auto max-h-[calc(70vh-60px)]">
+              <MetricsPanel />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {showImageImport && (
