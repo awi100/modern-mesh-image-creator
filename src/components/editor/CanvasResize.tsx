@@ -4,6 +4,20 @@ import React, { useState } from "react";
 import { useEditorStore } from "@/lib/store";
 import { scalePixelGrid, createEmptyGrid } from "@/lib/color-utils";
 
+// Preset canvas sizes for common needlepoint projects
+const PRESET_SIZES = [
+  { name: "Coaster", width: 4, height: 4 },
+  { name: "Small Ornament", width: 5, height: 5 },
+  { name: "Ornament", width: 6, height: 6 },
+  { name: "Square (8\")", width: 8, height: 8 },
+  { name: "Square (10\")", width: 10, height: 10 },
+  { name: "Pillow (12\")", width: 12, height: 12 },
+  { name: "Pillow (14\")", width: 14, height: 14 },
+  { name: "Rectangle (9×12)", width: 9, height: 12 },
+  { name: "Rectangle (12×16)", width: 12, height: 16 },
+  { name: "Belt (2×36)", width: 2, height: 36 },
+];
+
 interface CanvasResizeProps {
   onClose: () => void;
 }
@@ -82,6 +96,34 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
             <span className="text-white">{meshCount}</span> mesh ={" "}
             <span className="text-white">{gridWidth} × {gridHeight}</span> stitches
           </p>
+        </div>
+
+        {/* Preset sizes */}
+        <div className="mb-4">
+          <label className="block text-sm text-slate-400 mb-2">Preset Sizes</label>
+          <div className="grid grid-cols-2 gap-2">
+            {PRESET_SIZES.map((preset) => (
+              <button
+                key={preset.name}
+                onClick={() => {
+                  setNewWidthInches(preset.width);
+                  setNewHeightInches(preset.height);
+                }}
+                className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                  newWidthInches === preset.width && newHeightInches === preset.height
+                    ? "bg-rose-900/30 border-rose-800 text-rose-300"
+                    : "bg-slate-700 border-slate-600 text-slate-300 hover:border-slate-500"
+                }`}
+              >
+                {preset.name}
+                <span className="text-slate-500 ml-1">({preset.width}×{preset.height})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-slate-700 pt-4 mb-4">
+          <p className="text-xs text-slate-500 mb-3">Or enter custom dimensions:</p>
         </div>
 
         {/* Width */}

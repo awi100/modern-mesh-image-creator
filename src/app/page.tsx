@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import NewDesignDialog from "@/components/NewDesignDialog";
 
 interface Tag {
   id: string;
@@ -43,6 +44,7 @@ export default function HomePage() {
   const [showNewFolderInput, setShowNewFolderInput] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [movingDesignId, setMovingDesignId] = useState<string | null>(null);
+  const [showNewDesignDialog, setShowNewDesignDialog] = useState(false);
 
   useEffect(() => {
     fetchDesigns();
@@ -172,6 +174,22 @@ export default function HomePage() {
     }
   };
 
+  const handleDuplicate = async (designId: string) => {
+    try {
+      const response = await fetch(`/api/designs/${designId}/duplicate`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const newDesign = await response.json();
+        // Refresh designs list
+        fetchDesigns();
+      }
+    } catch (error) {
+      console.error("Error duplicating design:", error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900">
       {/* Header */}
@@ -190,15 +208,15 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
-            <Link
-              href="/design/new"
+            <button
+              onClick={() => setShowNewDesignDialog(true)}
               className="px-3 md:px-4 py-2 bg-gradient-to-r from-rose-900 to-rose-800 text-white rounded-lg hover:from-rose-950 hover:to-rose-900 transition-all flex items-center gap-2 text-sm md:text-base"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               <span className="hidden sm:inline">New Design</span>
-            </Link>
+            </button>
             <button
               onClick={handleLogout}
               className="p-2 text-slate-400 hover:text-white"
@@ -455,15 +473,15 @@ export default function HomePage() {
                 </div>
                 <h2 className="text-lg md:text-xl font-semibold text-white mb-2">No designs yet</h2>
                 <p className="text-slate-400 mb-6 text-sm md:text-base px-4">Create your first needlepoint design to get started.</p>
-                <Link
-                  href="/design/new"
+                <button
+                  onClick={() => setShowNewDesignDialog(true)}
                   className="inline-flex items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-rose-900 to-rose-800 text-white rounded-lg hover:from-rose-950 hover:to-rose-900 transition-all text-sm md:text-base"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   Create New Design
-                </Link>
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
@@ -559,6 +577,16 @@ export default function HomePage() {
                               </div>
                             )}
                           </div>
+                          {/* Duplicate */}
+                          <button
+                            onClick={() => handleDuplicate(design.id)}
+                            className="p-1.5 text-slate-500 hover:text-blue-400 transition-colors"
+                            title="Duplicate"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
                           {/* Delete */}
                           <button
                             onClick={() => handleDelete(design.id)}
@@ -579,6 +607,11 @@ export default function HomePage() {
           </main>
         </div>
       </div>
+
+      {/* New Design Dialog */}
+      {showNewDesignDialog && (
+        <NewDesignDialog onClose={() => setShowNewDesignDialog(false)} />
+      )}
     </div>
   );
 }
