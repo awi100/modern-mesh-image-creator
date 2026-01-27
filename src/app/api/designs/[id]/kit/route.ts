@@ -70,7 +70,9 @@ export async function GET(
       const dmcColor = getDmcColorByNumber(usage.dmcNumber);
       const inventorySkeins = inventoryMap.get(usage.dmcNumber) ?? 0;
       const yardsNeeded = Math.round(usage.withBuffer * 10) / 10;
-      const isBobbin = yardsNeeded < SKEIN_YARDS;
+      const fullSkeins = Math.floor(yardsNeeded / SKEIN_YARDS);
+      const bobbinYards =
+        Math.round((yardsNeeded - fullSkeins * SKEIN_YARDS) * 10) / 10;
 
       return {
         dmcNumber: usage.dmcNumber,
@@ -79,14 +81,12 @@ export async function GET(
         stitchCount: usage.stitchCount,
         skeinsNeeded: usage.skeinsNeeded,
         yardsNeeded,
-        isBobbin,
+        fullSkeins,
+        bobbinYards,
         inventorySkeins,
         inStock: inventorySkeins >= usage.skeinsNeeded,
       };
     });
-
-    const bobbinItems = kitContents.filter((c) => c.isBobbin);
-    const skeinItems = kitContents.filter((c) => !c.isBobbin);
 
     return NextResponse.json({
       design: {
@@ -101,8 +101,8 @@ export async function GET(
       kitContents,
       totals: {
         colors: kitContents.length,
-        skeins: skeinItems.reduce((sum, c) => sum + c.skeinsNeeded, 0),
-        bobbins: bobbinItems.length,
+        skeins: kitContents.reduce((sum, c) => sum + c.skeinsNeeded, 0),
+        bobbins: kitContents.filter((c) => c.bobbinYards > 0).length,
         allInStock: kitContents.every((c) => c.inStock),
       },
     });

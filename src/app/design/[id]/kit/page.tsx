@@ -11,7 +11,8 @@ interface KitItem {
   stitchCount: number;
   skeinsNeeded: number;
   yardsNeeded: number;
-  isBobbin: boolean;
+  fullSkeins: number;
+  bobbinYards: number;
   inventorySkeins: number;
   inStock: boolean;
 }
@@ -219,9 +220,9 @@ export default function KitPage() {
             <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
               <p className="text-2xl font-bold text-white">{totals.skeins}</p>
               <p className="text-sm text-slate-400">
-                {totals.skeins === 1 ? "Skein" : "Skeins"}
+                {totals.skeins === 1 ? "Skein" : "Skeins"} to buy
                 {totals.bobbins > 0 && (
-                  <span className="text-slate-500"> + {totals.bobbins} {totals.bobbins === 1 ? "bobbin" : "bobbins"}</span>
+                  <span className="text-amber-500"> ({totals.bobbins} w/ bobbin)</span>
                 )}
               </p>
             </div>
@@ -275,10 +276,14 @@ export default function KitPage() {
                     <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.stitchCount.toLocaleString()}</td>
                     <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.yardsNeeded}</td>
                     <td className="px-4 py-3 text-white font-medium text-sm text-right">
-                      {item.isBobbin ? (
-                        <span className="text-amber-400">{item.yardsNeeded} yds <span className="text-xs text-amber-500">(bobbin)</span></span>
-                      ) : (
-                        <span>{item.skeinsNeeded} {item.skeinsNeeded === 1 ? "skein" : "skeins"}</span>
+                      {item.fullSkeins > 0 && (
+                        <span>{item.fullSkeins} {item.fullSkeins === 1 ? "skein" : "skeins"}</span>
+                      )}
+                      {item.bobbinYards > 0 && (
+                        <span className="text-amber-400">
+                          {item.fullSkeins > 0 && " + "}
+                          {item.bobbinYards} yds <span className="text-xs text-amber-500">(bobbin)</span>
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -329,13 +334,15 @@ export default function KitPage() {
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="text-white font-medium text-sm">
-                    {item.isBobbin ? (
-                      <span className="text-amber-400">{item.yardsNeeded} yds</span>
-                    ) : (
-                      <span>{item.skeinsNeeded} sk</span>
+                    {item.fullSkeins > 0 && <span>{item.fullSkeins} sk</span>}
+                    {item.bobbinYards > 0 && (
+                      <span className="text-amber-400">
+                        {item.fullSkeins > 0 && " + "}
+                        {item.bobbinYards} yds
+                      </span>
                     )}
                   </p>
-                  {item.isBobbin ? (
+                  {item.bobbinYards > 0 && item.fullSkeins === 0 ? (
                     <p className="text-amber-500 text-xs">bobbin</p>
                   ) : item.inStock ? (
                     <p className="text-emerald-400 text-xs">{item.inventorySkeins} in stock</p>
@@ -410,8 +417,10 @@ export default function KitPage() {
             <h3 className="text-lg font-semibold text-white mb-2">Sell Kit</h3>
             <p className="text-slate-400 text-sm mb-4">
               This will deduct {totals?.skeins ?? 0} {(totals?.skeins ?? 0) === 1 ? "skein" : "skeins"}
-              {(totals?.bobbins ?? 0) > 0 && ` + ${totals?.bobbins} ${(totals?.bobbins ?? 0) === 1 ? "bobbin" : "bobbins"}`}
               {" "}({totals?.colors ?? 0} colors) from your inventory.
+              {(totals?.bobbins ?? 0) > 0 && (
+                <span className="text-amber-500"> {totals?.bobbins} {(totals?.bobbins ?? 0) === 1 ? "color includes" : "colors include"} a bobbin.</span>
+              )}
             </p>
 
             {totals && !totals.allInStock && (
