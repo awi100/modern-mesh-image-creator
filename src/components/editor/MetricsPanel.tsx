@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
@@ -12,6 +12,7 @@ export default function MetricsPanel() {
     meshCount,
     gridWidth,
     gridHeight,
+    grid,
     stitchType,
     bufferPercent,
     setStitchType,
@@ -21,13 +22,70 @@ export default function MetricsPanel() {
     getTotalStitches,
   } = useEditorStore();
 
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const usedColors = getUsedColors();
   const yarnUsage = getYarnUsage();
   const totalStitches = getTotalStitches();
   const totalYards = yarnUsage.reduce((sum, u) => sum + u.withBuffer, 0);
 
+  // Draw preview thumbnail
+  useEffect(() => {
+    const canvas = previewCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Calculate cell size to fit in preview
+    const maxSize = 160;
+    const cellSize = Math.max(1, Math.min(
+      Math.floor(maxSize / gridWidth),
+      Math.floor(maxSize / gridHeight)
+    ));
+
+    const width = gridWidth * cellSize;
+    const height = gridHeight * cellSize;
+    canvas.width = width;
+    canvas.height = height;
+
+    // Clear with background
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw pixels
+    for (let y = 0; y < gridHeight; y++) {
+      for (let x = 0; x < gridWidth; x++) {
+        const dmcNumber = grid[y]?.[x];
+        if (dmcNumber) {
+          const color = getDmcColorByNumber(dmcNumber);
+          if (color) {
+            ctx.fillStyle = color.hex;
+            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+    }
+  }, [grid, gridWidth, gridHeight]);
+
   return (
     <div className="bg-slate-800 lg:border-l border-slate-700 w-full lg:w-72 flex flex-col overflow-auto">
+      {/* Design Preview */}
+      <div className="p-4 border-b border-slate-700">
+        <h3 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">
+          Preview
+        </h3>
+        <div className="flex justify-center bg-slate-700 rounded-lg p-2">
+          <canvas
+            ref={previewCanvasRef}
+            className="max-w-full h-auto rounded shadow-inner"
+            style={{ imageRendering: "pixelated" }}
+          />
+        </div>
+        <p className="text-center text-xs text-slate-500 mt-2">
+          {usedColors.length} color{usedColors.length !== 1 ? "s" : ""} used
+        </p>
+      </div>
+
       {/* Design Info */}
       <div className="p-4 border-b border-slate-700">
         <h3 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">

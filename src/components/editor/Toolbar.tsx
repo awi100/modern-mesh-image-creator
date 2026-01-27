@@ -25,6 +25,9 @@ export default function Toolbar() {
     redo,
     zoom,
     setZoom,
+    panX,
+    panY,
+    setPan,
     resetView,
     showGrid,
     setShowGrid,
@@ -40,6 +43,8 @@ export default function Toolbar() {
     deleteSelection,
     selection,
   } = useEditorStore();
+
+  const panStep = 50; // pixels to pan per click
 
   return (
     <div className="bg-slate-800 border-b border-slate-700 p-2 overflow-x-auto">
@@ -133,10 +138,44 @@ export default function Toolbar() {
           </button>
           <button
             onClick={resetView}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation hidden sm:block"
+            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation"
             title="Reset View"
           >
             🔄
+          </button>
+        </div>
+
+        {/* Pan controls for touch devices */}
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => setPan(panX + panStep, panY)}
+            className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation text-sm"
+            title="Pan Left"
+          >
+            ◀
+          </button>
+          <div className="flex flex-col gap-0.5">
+            <button
+              onClick={() => setPan(panX, panY + panStep)}
+              className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation text-sm"
+              title="Pan Up"
+            >
+              ▲
+            </button>
+            <button
+              onClick={() => setPan(panX, panY - panStep)}
+              className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation text-sm"
+              title="Pan Down"
+            >
+              ▼
+            </button>
+          </div>
+          <button
+            onClick={() => setPan(panX - panStep, panY)}
+            className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation text-sm"
+            title="Pan Right"
+          >
+            ▶
           </button>
         </div>
 
