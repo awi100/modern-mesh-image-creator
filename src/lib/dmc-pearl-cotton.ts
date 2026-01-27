@@ -153,6 +153,8 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("353", "Peach", "#F7B8B8"),
   createColor("817", "Very Dark Coral Red", "#B41C2D"),
   createColor("902", "Very Dark Garnet", "#651329"),
+  createColor("760", "Salmon", "#EC8880"),
+  createColor("761", "Light Salmon", "#F8B4AD"),
   createColor("3328", "Dark Salmon", "#BE444A"),
   createColor("3705", "Dark Melon", "#E55B5B"),
   createColor("3706", "Medium Melon", "#F08888"),
