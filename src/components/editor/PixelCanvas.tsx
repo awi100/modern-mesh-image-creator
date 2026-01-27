@@ -255,6 +255,8 @@ export default function PixelCanvas({
         const color = getDmcColorByNumber(dmcNumber);
         if (color) {
           setCurrentColor(color);
+          // Switch to pencil tool after picking a color
+          useEditorStore.getState().setTool("pencil");
         }
       }
     } else if (currentTool === "select") {

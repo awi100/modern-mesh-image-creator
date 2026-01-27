@@ -4,7 +4,51 @@ import React, { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useEditorStore } from "@/lib/store";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
+
+// Generate a small preview image as base64 data URL
+function generatePreviewImage(
+  grid: (string | null)[][],
+  gridWidth: number,
+  gridHeight: number
+): string {
+  const maxSize = 200; // Max dimension for preview
+  const cellSize = Math.max(1, Math.min(
+    Math.floor(maxSize / gridWidth),
+    Math.floor(maxSize / gridHeight)
+  ));
+
+  const width = gridWidth * cellSize;
+  const height = gridHeight * cellSize;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+
+  // Fill background
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(0, 0, width, height);
+
+  // Draw pixels
+  for (let y = 0; y < gridHeight; y++) {
+    for (let x = 0; x < gridWidth; x++) {
+      const dmcNumber = grid[y]?.[x];
+      if (dmcNumber) {
+        const color = getDmcColorByNumber(dmcNumber);
+        if (color) {
+          ctx.fillStyle = color.hex;
+          ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+  }
+
+  return canvas.toDataURL("image/png", 0.8);
+}
 
 interface HeaderProps {
   onShowImageImport: () => void;
@@ -56,6 +100,9 @@ export default function Header({
       const compressed = pako.deflate(pixelDataJson);
       const base64 = btoa(String.fromCharCode(...compressed));
 
+      // Generate preview image
+      const previewImageUrl = generatePreviewImage(grid, gridWidth, gridHeight);
+
       const body = {
         name: designName,
         widthInches,
@@ -64,6 +111,7 @@ export default function Header({
         gridWidth,
         gridHeight,
         pixelData: base64,
+        previewImageUrl,
         stitchType,
         bufferPercent,
         referenceImageUrl,

@@ -69,18 +69,19 @@ export default function Editor({ designId, initialData }: EditorProps) {
         setReferenceImage(initialData.referenceImageUrl, initialData.referenceImageOpacity);
       }
     } else {
-      // New design - use default settings
-      reset();
-      setDesignInfo({
-        designId: null,
-        designName: "Untitled Design",
-        widthInches: 8,
-        heightInches: 8,
-        meshCount: 14,
-      });
-      initializeGrid(112, 112);
+      // New design - check if store already has values set by NewDesignDialog
+      const currentState = useEditorStore.getState();
+
+      // Only initialize with defaults if the store hasn't been set up
+      // (i.e., if it still has initial values or was reset)
+      if (currentState.gridWidth === 112 && currentState.gridHeight === 112 &&
+          currentState.designName === "Untitled Design") {
+        // Store wasn't configured by NewDesignDialog, use defaults
+        initializeGrid(112, 112);
+      }
+      // Don't reset - preserve any name/dimensions set by NewDesignDialog
     }
-  }, [designId, initialData, setDesignInfo, initializeGrid, setStitchType, setBufferPercent, setReferenceImage, reset]);
+  }, [designId, initialData, setDesignInfo, initializeGrid, setStitchType, setBufferPercent, setReferenceImage]);
 
   // Handle text added from dialog
   const handleTextAdded = useCallback((pixels: (string | null)[][], width: number, height: number) => {
