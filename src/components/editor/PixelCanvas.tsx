@@ -33,6 +33,17 @@ export default function PixelCanvas({
     initialMidpoint: { x: number; y: number };
   } | null>(null);
 
+  // Pencil mode: click to place pixel, drag to pan
+  const PAN_THRESHOLD = 6; // pixels of screen movement before switching to pan
+  const dragRef = useRef<{
+    startScreenX: number;
+    startScreenY: number;
+    startGridCoords: { x: number; y: number };
+    startPanX: number;
+    startPanY: number;
+    isPanning: boolean;
+  } | null>(null);
+
   const {
     grid,
     gridWidth,
@@ -238,12 +249,31 @@ export default function PixelCanvas({
     return getGridCoords(touch.clientX, touch.clientY);
   }, [getGridCoords]);
 
+  // Start drag tracking for pencil pan detection
+  const startDragTracking = useCallback((screenX: number, screenY: number, gridCoords: { x: number; y: number }) => {
+    dragRef.current = {
+      startScreenX: screenX,
+      startScreenY: screenY,
+      startGridCoords: gridCoords,
+      startPanX: panX,
+      startPanY: panY,
+      isPanning: false,
+    };
+  }, [panX, panY]);
+
   // Shared drawing logic for mouse and touch
-  const handleDrawStart = useCallback((coords: { x: number; y: number }) => {
+  const handleDrawStart = useCallback((coords: { x: number; y: number }, screenX?: number, screenY?: number) => {
+    // Pencil mode: defer drawing, track for pan vs tap
+    if (currentTool === "pencil" && screenX !== undefined && screenY !== undefined) {
+      startDragTracking(screenX, screenY, coords);
+      return;
+    }
+
     setIsDrawing(true);
     setLastPos(coords);
 
     if (currentTool === "pencil") {
+      // Fallback if no screen coords (shouldn't happen)
       saveToHistory();
       setPixel(coords.x, coords.y, currentColor?.dmcNumber || null);
     } else if (currentTool === "brush") {
@@ -284,7 +314,7 @@ export default function PixelCanvas({
       return;
     }
 
-    handleDrawStart(coords);
+    handleDrawStart(coords, e.clientX, e.clientY);
   }, [getMouseCoords, handleDrawStart, pendingText, onTextPlaced]);
 
   const getTouchDistance = useCallback((t0: React.Touch, t1: React.Touch) => {
@@ -326,7 +356,8 @@ export default function PixelCanvas({
       return;
     }
 
-    handleDrawStart(coords);
+    const touch = e.touches[0];
+    handleDrawStart(coords, touch.clientX, touch.clientY);
   }, [getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawStart, pendingText, onTextPlaced, zoom, panX, panY]);
 
   // Shared move logic for mouse and touch
@@ -408,10 +439,23 @@ export default function PixelCanvas({
       return;
     }
 
+    // Handle pencil drag-to-pan
+    if (dragRef.current) {
+      const dx = e.clientX - dragRef.current.startScreenX;
+      const dy = e.clientY - dragRef.current.startScreenY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > PAN_THRESHOLD || dragRef.current.isPanning) {
+        dragRef.current.isPanning = true;
+        setPan(dragRef.current.startPanX + dx, dragRef.current.startPanY + dy);
+      }
+      return;
+    }
+
     if (!isDrawing) return;
     if (!coords) return;
     handleDrawMove(coords);
-  }, [isDrawing, getMouseCoords, handleDrawMove, pendingText]);
+  }, [isDrawing, getMouseCoords, handleDrawMove, pendingText, setPan]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -426,6 +470,20 @@ export default function PixelCanvas({
       const dx = newMidpoint.x - pinchRef.current.initialMidpoint.x;
       const dy = newMidpoint.y - pinchRef.current.initialMidpoint.y;
       setPan(pinchRef.current.initialPanX + dx, pinchRef.current.initialPanY + dy);
+      return;
+    }
+
+    // Handle pencil drag-to-pan (single finger)
+    if (dragRef.current && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - dragRef.current.startScreenX;
+      const dy = touch.clientY - dragRef.current.startScreenY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > PAN_THRESHOLD || dragRef.current.isPanning) {
+        dragRef.current.isPanning = true;
+        setPan(dragRef.current.startPanX + dx, dragRef.current.startPanY + dy);
+      }
       return;
     }
 
@@ -447,9 +505,20 @@ export default function PixelCanvas({
   }, [currentTool, lineStart, drawLine, currentColor]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Handle pencil drag-to-pan end: if didn't pan, treat as a click to place pixel
+    if (dragRef.current) {
+      if (!dragRef.current.isPanning) {
+        const coords = dragRef.current.startGridCoords;
+        saveToHistory();
+        setPixel(coords.x, coords.y, currentColor?.dmcNumber || null);
+      }
+      dragRef.current = null;
+      return;
+    }
+
     const coords = getMouseCoords(e);
     handleDrawEnd(coords);
-  }, [getMouseCoords, handleDrawEnd]);
+  }, [getMouseCoords, handleDrawEnd, saveToHistory, setPixel, currentColor]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -462,6 +531,17 @@ export default function PixelCanvas({
       return;
     }
 
+    // Handle pencil drag-to-pan end: if didn't pan, treat as a tap to place pixel
+    if (dragRef.current) {
+      if (!dragRef.current.isPanning) {
+        const coords = dragRef.current.startGridCoords;
+        saveToHistory();
+        setPixel(coords.x, coords.y, currentColor?.dmcNumber || null);
+      }
+      dragRef.current = null;
+      return;
+    }
+
     // For touch end, we use the last known position since touches array is empty
     if (currentTool === "line" && lineStart && lastPos) {
       drawLine(lineStart.x, lineStart.y, lastPos.x, lastPos.y, currentColor?.dmcNumber || null);
@@ -469,9 +549,10 @@ export default function PixelCanvas({
     }
     setIsDrawing(false);
     setLastPos(null);
-  }, [currentTool, lineStart, lastPos, drawLine, currentColor]);
+  }, [currentTool, lineStart, lastPos, drawLine, currentColor, saveToHistory, setPixel]);
 
   const handleMouseLeave = useCallback(() => {
+    dragRef.current = null;
     setIsDrawing(false);
     setLastPos(null);
     setLineStart(null);
