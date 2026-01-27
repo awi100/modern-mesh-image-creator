@@ -111,16 +111,16 @@ model Design {
 
 // User settings for yarn calculation calibration
 model UserSettings {
-  id                           String   @id @default(cuid())
-  // Inches per stitch calibration values
-  mesh14ContinentalInchPerStitch Float   @default(1.5)
-  mesh14BasketwaveInchPerStitch  Float   @default(2.0)
-  mesh18ContinentalInchPerStitch Float   @default(1.2)
-  mesh18BasketwaveInchPerStitch  Float   @default(1.6)
+  id                               String   @id @default(cuid())
+  // Yards of thread per square inch of canvas coverage
+  mesh14ContinentalYardsPerSqIn    Float    @default(2.1)   // Size 5, ~76 in/sq in
+  mesh14BasketwaveYardsPerSqIn     Float    @default(2.4)   // Size 5, ~15% more
+  mesh18ContinentalYardsPerSqIn    Float    @default(2.7)   // Size 8, ~96 in/sq in
+  mesh18BasketwaveYardsPerSqIn     Float    @default(3.1)   // Size 8, ~15% more
   // Default export DPI
-  defaultExportDpi              Int     @default(600)
-  createdAt                     DateTime @default(now())
-  updatedAt                     DateTime @updatedAt
+  defaultExportDpi                 Int      @default(600)
+  createdAt                        DateTime @default(now())
+  updatedAt                        DateTime @updatedAt
 
   @@map("user_settings")
 }

@@ -1,17 +1,22 @@
 // Yarn usage calculator for needlepoint designs
+// Uses yards-per-square-inch method: convert stitches to canvas area, then
+// multiply by thread consumption rate per square inch.
 
 export interface YarnCalculationSettings {
-  mesh14ContinentalInchPerStitch: number;
-  mesh14BasketwaveInchPerStitch: number;
-  mesh18ContinentalInchPerStitch: number;
-  mesh18BasketwaveInchPerStitch: number;
+  // Yards of thread needed to cover one square inch of canvas
+  // Size 5 thread on 14 mesh (~76 inches / sq in for continental)
+  mesh14ContinentalYardsPerSqIn: number;
+  mesh14BasketwaveYardsPerSqIn: number;
+  // Size 8 thread on 18 mesh (~96 inches / sq in for continental)
+  mesh18ContinentalYardsPerSqIn: number;
+  mesh18BasketwaveYardsPerSqIn: number;
 }
 
 export const DEFAULT_SETTINGS: YarnCalculationSettings = {
-  mesh14ContinentalInchPerStitch: 1.5,
-  mesh14BasketwaveInchPerStitch: 2.0,
-  mesh18ContinentalInchPerStitch: 1.2,
-  mesh18BasketwaveInchPerStitch: 1.6,
+  mesh14ContinentalYardsPerSqIn: 2.1,  // ~76 inches per sq in
+  mesh14BasketwaveYardsPerSqIn: 2.4,   // ~15% more than continental
+  mesh18ContinentalYardsPerSqIn: 2.7,  // ~96 inches per sq in
+  mesh18BasketwaveYardsPerSqIn: 3.1,   // ~15% more than continental
 };
 
 export type StitchType = "continental" | "basketweave";
@@ -19,7 +24,7 @@ export type StitchType = "continental" | "basketweave";
 export interface YarnUsage {
   dmcNumber: string;
   stitchCount: number;
-  yarnInches: number;
+  squareInches: number;
   yarnYards: number;
   withBuffer: number; // yards with buffer
   skeinsNeeded: number;
@@ -35,33 +40,36 @@ export function calculateYarnUsage(
   bufferPercent: number,
   settings: YarnCalculationSettings = DEFAULT_SETTINGS
 ): YarnUsage[] {
-  // Get inches per stitch based on mesh and stitch type
-  let inchPerStitch: number;
+  // Get yards per square inch based on mesh and stitch type
+  let yardsPerSqIn: number;
 
   if (meshCount === 14) {
-    inchPerStitch = stitchType === "continental"
-      ? settings.mesh14ContinentalInchPerStitch
-      : settings.mesh14BasketwaveInchPerStitch;
+    yardsPerSqIn = stitchType === "continental"
+      ? settings.mesh14ContinentalYardsPerSqIn
+      : settings.mesh14BasketwaveYardsPerSqIn;
   } else {
-    inchPerStitch = stitchType === "continental"
-      ? settings.mesh18ContinentalInchPerStitch
-      : settings.mesh18BasketwaveInchPerStitch;
+    yardsPerSqIn = stitchType === "continental"
+      ? settings.mesh18ContinentalYardsPerSqIn
+      : settings.mesh18BasketwaveYardsPerSqIn;
   }
+
+  // Stitches per square inch = meshCount²
+  const stitchesPerSqIn = meshCount * meshCount;
 
   const results: YarnUsage[] = [];
 
   for (const [dmcNumber, stitchCount] of stitchCounts) {
-    const yarnInches = stitchCount * inchPerStitch;
-    const yarnYards = yarnInches / 36;
+    const squareInches = stitchCount / stitchesPerSqIn;
+    const yarnYards = squareInches * yardsPerSqIn;
     const withBuffer = yarnYards * (1 + bufferPercent / 100);
     const skeinsNeeded = Math.ceil(withBuffer / SKEIN_YARDS);
 
     results.push({
       dmcNumber,
       stitchCount,
-      yarnInches,
-      yarnYards,
-      withBuffer,
+      squareInches: Math.round(squareInches * 100) / 100,
+      yarnYards: Math.round(yarnYards * 100) / 100,
+      withBuffer: Math.round(withBuffer * 100) / 100,
       skeinsNeeded,
     });
   }

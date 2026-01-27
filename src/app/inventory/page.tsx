@@ -37,9 +37,8 @@ export default function InventoryPage() {
   const [addSkeins, setAddSkeins] = useState(1);
   const [adding, setAdding] = useState(false);
 
-  // Editing state
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editSkeins, setEditSkeins] = useState(0);
+  // Track pending skein values being typed (before blur/Enter commits)
+  const [pendingSkeins, setPendingSkeins] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchInventory();
@@ -108,18 +107,22 @@ export default function InventoryPage() {
   };
 
   const handleUpdateSkeins = async (id: string, skeins: number) => {
+    const clamped = Math.max(0, skeins);
+    // Optimistic update
+    setItems(items.map((item) => (item.id === id ? { ...item, skeins: clamped } : item)));
+    setPendingSkeins((prev) => { const next = { ...prev }; delete next[id]; return next; });
     try {
       const response = await fetch(`/api/inventory/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ skeins }),
+        body: JSON.stringify({ skeins: clamped }),
       });
-      if (response.ok) {
-        setItems(items.map((item) => (item.id === id ? { ...item, skeins } : item)));
-        setEditingId(null);
+      if (!response.ok) {
+        await fetchInventory(); // revert on failure
       }
     } catch (error) {
       console.error("Error updating inventory item:", error);
+      await fetchInventory();
     }
   };
 
@@ -352,83 +355,62 @@ export default function InventoryPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {editingId === item.id ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              min="0"
-                              value={editSkeins}
-                              onChange={(e) => setEditSkeins(Number(e.target.value))}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleUpdateSkeins(item.id, editSkeins);
-                                if (e.key === "Escape") setEditingId(null);
-                              }}
-                              className="w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
-                              autoFocus
-                            />
-                            <button
-                              onClick={() => handleUpdateSkeins(item.id, editSkeins)}
-                              className="p-1 text-green-400 hover:text-green-300"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => setEditingId(null)}
-                              className="p-1 text-slate-400 hover:text-white"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        ) : (
+                        <div className="flex items-center gap-1">
                           <button
-                            onClick={() => {
-                              setEditingId(item.id);
-                              setEditSkeins(item.skeins);
-                            }}
-                            className="text-white font-medium hover:text-rose-400 transition-colors"
-                            title="Click to edit"
-                          >
-                            {item.skeins}
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <span className="text-slate-400">{item.skeins * 27} yds</span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleUpdateSkeins(item.id, Math.max(0, item.skeins - 1))}
-                            className="p-1.5 text-slate-400 hover:text-white transition-colors"
+                            onClick={() => handleUpdateSkeins(item.id, item.skeins - 1)}
+                            className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
                             title="Remove 1 skein"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
                             </svg>
                           </button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={pendingSkeins[item.id] ?? item.skeins}
+                            onChange={(e) => setPendingSkeins((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            onBlur={() => {
+                              const val = pendingSkeins[item.id];
+                              if (val !== undefined) {
+                                handleUpdateSkeins(item.id, Number(val));
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const val = pendingSkeins[item.id];
+                                if (val !== undefined) {
+                                  handleUpdateSkeins(item.id, Number(val));
+                                }
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
+                          />
                           <button
                             onClick={() => handleUpdateSkeins(item.id, item.skeins + 1)}
-                            className="p-1.5 text-slate-400 hover:text-white transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
                             title="Add 1 skein"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
                           </button>
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
-                            title="Remove from inventory"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
                         </div>
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <span className="text-slate-400">{item.skeins * 27} yds</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
+                          title="Remove from inventory"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
                       </td>
                     </tr>
                   );
