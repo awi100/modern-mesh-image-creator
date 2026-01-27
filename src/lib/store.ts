@@ -176,7 +176,7 @@ const createInitialState = () => ({
   showGrid: true,
   brushSize: 1,
   stitchType: "continental" as StitchType,
-  bufferPercent: 15,
+  bufferPercent: 20,
   isDirty: false,
   lastSavedAt: null,
   autoSaveStatus: 'idle' as 'idle' | 'saving' | 'saved' | 'error',

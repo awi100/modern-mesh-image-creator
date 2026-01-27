@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         gridHeight,
         pixelData: pixelDataBuffer,
         stitchType: stitchType || "continental",
-        bufferPercent: bufferPercent || 15,
+        bufferPercent: bufferPercent || 20,
         referenceImageUrl,
         referenceImageOpacity: referenceImageOpacity || 0.5,
         folderId,

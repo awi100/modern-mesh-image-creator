@@ -93,7 +93,7 @@ model Design {
 
   // Settings
   stitchType            String  @default("continental") // "continental" or "basketweave"
-  bufferPercent         Float   @default(15)
+  bufferPercent         Float   @default(20)
 
   // Organization
   folderId  String?
