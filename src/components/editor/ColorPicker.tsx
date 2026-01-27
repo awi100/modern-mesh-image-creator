@@ -4,6 +4,14 @@ import React, { useState, useMemo } from "react";
 import { useEditorStore } from "@/lib/store";
 import { DMC_PEARL_COTTON, DmcColor, searchDmcColors } from "@/lib/dmc-pearl-cotton";
 
+function getContrastTextColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? "#000000" : "#FFFFFF";
+}
+
 export default function ColorPicker() {
   const { currentColor, setCurrentColor, getUsedColors, replaceAllColor, grid } = useEditorStore();
   const [searchQuery, setSearchQuery] = useState("");
@@ -230,7 +238,7 @@ export default function ColorPicker() {
               <button
                 key={color.dmcNumber}
                 onClick={() => handleColorClick(color)}
-                className={`aspect-square rounded-md border-2 transition-all ${
+                className={`aspect-square rounded-md border-2 transition-all flex items-center justify-center ${
                   isReplaceFrom
                     ? "border-orange-500 scale-110 z-10 ring-2 ring-orange-500/50"
                     : isReplaceTo
@@ -243,7 +251,14 @@ export default function ColorPicker() {
                 }`}
                 style={{ backgroundColor: color.hex }}
                 title={`DMC ${color.dmcNumber} - ${color.name}`}
-              />
+              >
+                <span
+                  className="text-[8px] font-bold leading-none select-none"
+                  style={{ color: getContrastTextColor(color.hex) }}
+                >
+                  {color.dmcNumber}
+                </span>
+              </button>
             );
           })}
         </div>

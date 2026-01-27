@@ -24,10 +24,6 @@ export default function Toolbar() {
     undo,
     redo,
     zoom,
-    setZoom,
-    panX,
-    panY,
-    setPan,
     resetView,
     showGrid,
     setShowGrid,
@@ -43,8 +39,6 @@ export default function Toolbar() {
     deleteSelection,
     selection,
   } = useEditorStore();
-
-  const panStep = 50; // pixels to pan per click
 
   return (
     <div className="bg-slate-800 border-b border-slate-700 p-2 overflow-x-auto">
@@ -117,65 +111,17 @@ export default function Toolbar() {
 
         <div className="w-px h-8 bg-slate-600 hidden md:block" />
 
-        {/* Zoom */}
+        {/* Zoom indicator & reset */}
         <div className="flex items-center gap-1 md:gap-2">
-          <button
-            onClick={() => setZoom(zoom / 1.2)}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation"
-            title="Zoom Out"
-          >
-            ➖
-          </button>
           <span className="text-slate-300 text-xs md:text-sm w-12 md:w-16 text-center">
             {Math.round(zoom * 100)}%
           </span>
-          <button
-            onClick={() => setZoom(zoom * 1.2)}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation"
-            title="Zoom In"
-          >
-            ➕
-          </button>
           <button
             onClick={resetView}
             className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation"
             title="Reset View"
           >
             🔄
-          </button>
-        </div>
-
-        {/* Pan controls for touch devices */}
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => setPan(panX + panStep, panY)}
-            className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation text-sm"
-            title="Pan Left"
-          >
-            ◀
-          </button>
-          <div className="flex flex-col gap-0.5">
-            <button
-              onClick={() => setPan(panX, panY + panStep)}
-              className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation text-sm"
-              title="Pan Up"
-            >
-              ▲
-            </button>
-            <button
-              onClick={() => setPan(panX, panY - panStep)}
-              className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation text-sm"
-              title="Pan Down"
-            >
-              ▼
-            </button>
-          </div>
-          <button
-            onClick={() => setPan(panX - panStep, panY)}
-            className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation text-sm"
-            title="Pan Right"
-          >
-            ▶
           </button>
         </div>
 

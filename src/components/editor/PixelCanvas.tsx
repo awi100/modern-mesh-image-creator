@@ -25,6 +25,13 @@ export default function PixelCanvas({
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
   const [lineStart, setLineStart] = useState<{ x: number; y: number } | null>(null);
   const [textPlacementPos, setTextPlacementPos] = useState<{ x: number; y: number } | null>(null);
+  const pinchRef = useRef<{
+    initialDistance: number;
+    initialZoom: number;
+    initialPanX: number;
+    initialPanY: number;
+    initialMidpoint: { x: number; y: number };
+  } | null>(null);
 
   const {
     grid,
@@ -280,8 +287,35 @@ export default function PixelCanvas({
     handleDrawStart(coords);
   }, [getMouseCoords, handleDrawStart, pendingText, onTextPlaced]);
 
+  const getTouchDistance = useCallback((t0: React.Touch, t1: React.Touch) => {
+    const dx = t0.clientX - t1.clientX;
+    const dy = t0.clientY - t1.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }, []);
+
+  const getTouchMidpoint = useCallback((t0: React.Touch, t1: React.Touch) => ({
+    x: (t0.clientX + t1.clientX) / 2,
+    y: (t0.clientY + t1.clientY) / 2,
+  }), []);
+
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault(); // Prevent scrolling while drawing
+    e.preventDefault();
+
+    // Two-finger gesture: pinch-to-zoom and pan
+    if (e.touches.length >= 2) {
+      pinchRef.current = {
+        initialDistance: getTouchDistance(e.touches[0], e.touches[1]),
+        initialZoom: zoom,
+        initialPanX: panX,
+        initialPanY: panY,
+        initialMidpoint: getTouchMidpoint(e.touches[0], e.touches[1]),
+      };
+      setIsDrawing(false);
+      setLastPos(null);
+      return;
+    }
+
+    // Single touch: drawing
     const coords = getTouchCoords(e);
     if (!coords) return;
 
@@ -293,7 +327,7 @@ export default function PixelCanvas({
     }
 
     handleDrawStart(coords);
-  }, [getTouchCoords, handleDrawStart, pendingText, onTextPlaced]);
+  }, [getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawStart, pendingText, onTextPlaced, zoom, panX, panY]);
 
   // Shared move logic for mouse and touch
   const handleDrawMove = useCallback((coords: { x: number; y: number }) => {
@@ -380,12 +414,26 @@ export default function PixelCanvas({
   }, [isDrawing, getMouseCoords, handleDrawMove, pendingText]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
     e.preventDefault();
+
+    // Handle pinch-to-zoom and two-finger pan
+    if (e.touches.length >= 2 && pinchRef.current) {
+      const newDistance = getTouchDistance(e.touches[0], e.touches[1]);
+      const scale = newDistance / pinchRef.current.initialDistance;
+      setZoom(pinchRef.current.initialZoom * scale);
+
+      const newMidpoint = getTouchMidpoint(e.touches[0], e.touches[1]);
+      const dx = newMidpoint.x - pinchRef.current.initialMidpoint.x;
+      const dy = newMidpoint.y - pinchRef.current.initialMidpoint.y;
+      setPan(pinchRef.current.initialPanX + dx, pinchRef.current.initialPanY + dy);
+      return;
+    }
+
+    if (!isDrawing) return;
     const coords = getTouchCoords(e);
     if (!coords) return;
     handleDrawMove(coords);
-  }, [isDrawing, getTouchCoords, handleDrawMove]);
+  }, [isDrawing, getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawMove, setZoom, setPan]);
 
   const handleDrawEnd = useCallback((coords: { x: number; y: number } | null) => {
     // Handle line tool on end
@@ -405,6 +453,15 @@ export default function PixelCanvas({
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+
+    // If we were in a pinch gesture, clean up when fingers lift
+    if (pinchRef.current) {
+      if (e.touches.length < 2) {
+        pinchRef.current = null;
+      }
+      return;
+    }
+
     // For touch end, we use the last known position since touches array is empty
     if (currentTool === "line" && lineStart && lastPos) {
       drawLine(lineStart.x, lineStart.y, lastPos.x, lastPos.y, currentColor?.dmcNumber || null);
