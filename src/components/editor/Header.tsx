@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEditorStore } from "@/lib/store";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
@@ -219,6 +220,20 @@ export default function Header({
         {/* Right side - Actions */}
         <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
           {/* Show icons on mobile, text on desktop */}
+          {designId && (
+            <Link
+              href={`/design/${designId}/kit`}
+              className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation flex items-center"
+              title="Kit"
+            >
+              <span className="md:hidden">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </span>
+              <span className="hidden md:inline">Kit</span>
+            </Link>
+          )}
           <button
             onClick={onShowTextDialog}
             className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"

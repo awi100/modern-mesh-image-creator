@@ -99,6 +99,7 @@ model Design {
   folderId  String?
   folder    Folder?     @relation(fields: [folderId], references: [id])
   tags      DesignTag[]
+  kitSales  KitSale[]
 
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -135,6 +136,29 @@ model InventoryItem {
 
   @@unique([dmcNumber, size])
   @@map("inventory_items")
+}
+
+// Kit sale tracking
+model KitSale {
+  id        String        @id @default(cuid())
+  designId  String
+  design    Design        @relation(fields: [designId], references: [id], onDelete: Cascade)
+  note      String?
+  items     KitSaleItem[]
+  createdAt DateTime      @default(now())
+
+  @@index([designId])
+  @@map("kit_sales")
+}
+
+model KitSaleItem {
+  id        String  @id @default(cuid())
+  kitSaleId String
+  kitSale   KitSale @relation(fields: [kitSaleId], references: [id], onDelete: Cascade)
+  dmcNumber String
+  skeins    Int
+
+  @@map("kit_sale_items")
 }
 
 // Custom canvas size presets
