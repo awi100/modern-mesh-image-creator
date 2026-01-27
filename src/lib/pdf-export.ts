@@ -13,6 +13,7 @@ interface ExportOptions {
   meshCount: number;
   designName: string;
   usedColors: DmcColor[];
+  fitToOnePage?: boolean; // If true, scale pattern to fit on one page
 }
 
 // Export artwork PDF - exact size, no grid, for printing
@@ -58,20 +59,21 @@ export function exportArtworkPdf(options: ExportOptions): jsPDF {
 
 // Export stitch guide PDF - with grid, legend, and cover page
 export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
-  const { grid, widthInches, heightInches, meshCount, designName, usedColors } = options;
+  const { grid, widthInches, heightInches, meshCount, designName, usedColors, fitToOnePage = false } = options;
 
   const gridHeight = grid.length;
   const gridWidth = grid[0]?.length || 0;
 
-  // Use letter size for stitch guide
+  // Use letter size for stitch guide (or landscape if wider)
+  const isWide = gridWidth > gridHeight * 1.3;
   const doc = new jsPDF({
-    orientation: "portrait",
+    orientation: fitToOnePage && isWide ? "landscape" : "portrait",
     unit: "in",
     format: "letter",
   });
 
-  const pageWidth = 8.5;
-  const pageHeight = 11;
+  const pageWidth = fitToOnePage && isWide ? 11 : 8.5;
+  const pageHeight = fitToOnePage && isWide ? 8.5 : 11;
   const margin = 0.5;
   const contentWidth = pageWidth - 2 * margin;
   const contentHeight = pageHeight - 2 * margin;
@@ -160,22 +162,40 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
   // --- Pattern Pages ---
   // Calculate how to tile the pattern across multiple pages
 
-  // Target cell size for readability (in inches)
-  const targetCellSize = 0.15; // ~10.5 cells per inch
+  let pagesX: number;
+  let pagesY: number;
+  let cellsPerPageX: number;
+  let cellsPerPageY: number;
+  let actualCellSize: number;
 
-  // Calculate cells per page
-  const cellsPerPageX = Math.floor(contentWidth / targetCellSize);
-  const cellsPerPageY = Math.floor(contentHeight / targetCellSize);
+  if (fitToOnePage) {
+    // Scale to fit entire pattern on one page
+    actualCellSize = Math.min(
+      contentWidth / gridWidth,
+      contentHeight / gridHeight
+    );
+    cellsPerPageX = gridWidth;
+    cellsPerPageY = gridHeight;
+    pagesX = 1;
+    pagesY = 1;
+  } else {
+    // Target cell size for readability (in inches)
+    const targetCellSize = 0.15; // ~10.5 cells per inch
 
-  // Calculate number of pages needed
-  const pagesX = Math.ceil(gridWidth / cellsPerPageX);
-  const pagesY = Math.ceil(gridHeight / cellsPerPageY);
+    // Calculate cells per page
+    cellsPerPageX = Math.floor(contentWidth / targetCellSize);
+    cellsPerPageY = Math.floor(contentHeight / targetCellSize);
 
-  // Actual cell size to fit evenly
-  const actualCellSize = Math.min(
-    contentWidth / Math.min(gridWidth, cellsPerPageX),
-    contentHeight / Math.min(gridHeight, cellsPerPageY)
-  );
+    // Calculate number of pages needed
+    pagesX = Math.ceil(gridWidth / cellsPerPageX);
+    pagesY = Math.ceil(gridHeight / cellsPerPageY);
+
+    // Actual cell size to fit evenly
+    actualCellSize = Math.min(
+      contentWidth / Math.min(gridWidth, cellsPerPageX),
+      contentHeight / Math.min(gridHeight, cellsPerPageY)
+    );
+  }
 
   for (let pageY = 0; pageY < pagesY; pageY++) {
     for (let pageX = 0; pageX < pagesX; pageX++) {
