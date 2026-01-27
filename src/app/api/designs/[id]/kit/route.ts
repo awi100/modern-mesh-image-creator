@@ -7,6 +7,7 @@ import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 
 const SKEIN_YARDS = 27;
+const BOBBIN_MAX = 20;
 
 // GET - Compute kit contents for a design
 export async function GET(
@@ -70,9 +71,13 @@ export async function GET(
       const dmcColor = getDmcColorByNumber(usage.dmcNumber);
       const inventorySkeins = inventoryMap.get(usage.dmcNumber) ?? 0;
       const yardsNeeded = Math.round(usage.withBuffer * 10) / 10;
-      const fullSkeins = Math.floor(yardsNeeded / SKEIN_YARDS);
-      const bobbinYards =
+      let fullSkeins = Math.floor(yardsNeeded / SKEIN_YARDS);
+      let bobbinYards =
         Math.round((yardsNeeded - fullSkeins * SKEIN_YARDS) * 10) / 10;
+      if (bobbinYards > BOBBIN_MAX) {
+        fullSkeins += 1;
+        bobbinYards = 0;
+      }
 
       return {
         dmcNumber: usage.dmcNumber,
