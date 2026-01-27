@@ -6,6 +6,15 @@ import { DmcColor, getDmcColorByNumber } from "./dmc-pearl-cotton";
 
 const DPI = 72; // jsPDF uses 72 DPI
 
+// Symbols for distinguishing colors in the pattern
+const SYMBOLS = [
+  "●", "■", "▲", "◆", "★", "♦", "♥", "♣", "♠",
+  "○", "□", "△", "◇", "☆", "⬡", "⬢", "✦", "✧",
+  "+", "×", "÷", "±", "∞", "≈", "≠", "∅", "∩",
+  "α", "β", "γ", "δ", "ε", "θ", "λ", "μ", "π",
+  "Ω", "Σ", "Φ", "Ψ", "Δ", "Γ", "Λ", "Ξ", "Π",
+];
+
 interface ExportOptions {
   grid: PixelGrid;
   widthInches: number;
@@ -14,6 +23,26 @@ interface ExportOptions {
   designName: string;
   usedColors: DmcColor[];
   fitToOnePage?: boolean; // If true, scale pattern to fit on one page
+}
+
+// Count stitches for each color in the grid
+function countStitches(grid: PixelGrid): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of grid) {
+    for (const cell of row) {
+      if (cell !== null) {
+        counts.set(cell, (counts.get(cell) || 0) + 1);
+      }
+    }
+  }
+  return counts;
+}
+
+// Get contrasting color (black or white) for text/symbols on a background
+function getContrastColor(r: number, g: number, b: number): string {
+  // Calculate luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
 // Export artwork PDF - exact size, no grid, for printing
@@ -64,6 +93,15 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
   const gridHeight = grid.length;
   const gridWidth = grid[0]?.length || 0;
 
+  // Count stitches per color
+  const stitchCounts = countStitches(grid);
+
+  // Create symbol map for colors
+  const colorSymbols = new Map<string, string>();
+  usedColors.forEach((color, i) => {
+    colorSymbols.set(color.dmcNumber, SYMBOLS[i % SYMBOLS.length]);
+  });
+
   // Use letter size for stitch guide (or landscape if wider)
   const isWide = gridWidth > gridHeight * 1.3;
   const doc = new jsPDF({
@@ -78,6 +116,9 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
   const contentWidth = pageWidth - 2 * margin;
   const contentHeight = pageHeight - 2 * margin;
 
+  // Calculate total stitches
+  const totalStitches = Array.from(stitchCounts.values()).reduce((a, b) => a + b, 0);
+
   // --- Cover Page ---
   doc.setFontSize(24);
   doc.setFont("helvetica", "bold");
@@ -86,12 +127,13 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
   doc.setFontSize(14);
   doc.setFont("helvetica", "normal");
   doc.text(`${widthInches}" × ${heightInches}" at ${meshCount} mesh`, pageWidth / 2, 2.5, { align: "center" });
-  doc.text(`${gridWidth} × ${gridHeight} stitches`, pageWidth / 2, 2.9, { align: "center" });
+  doc.text(`${gridWidth} × ${gridHeight} grid (${totalStitches.toLocaleString()} total stitches)`, pageWidth / 2, 2.9, { align: "center" });
+  doc.text(`${usedColors.length} colors`, pageWidth / 2, 3.2, { align: "center" });
 
   // Preview image
   const previewSize = 4;
   const previewX = (pageWidth - previewSize) / 2;
-  const previewY = 3.5;
+  const previewY = 3.8;
 
   const cellSize = previewSize / Math.max(gridWidth, gridHeight);
   const previewWidth = cellSize * gridWidth;
@@ -132,8 +174,8 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
   doc.text("Color Legend", margin, margin + 0.3);
 
   const legendStartY = margin + 0.8;
-  const colorBoxSize = 0.3;
-  const legendLineHeight = 0.45;
+  const colorBoxSize = 0.35;
+  const legendLineHeight = 0.55;
   const colWidth = contentWidth / 2;
 
   usedColors.forEach((color, i) => {
@@ -145,18 +187,34 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
     // Skip if off page
     if (y > pageHeight - margin) return;
 
-    // Color box
+    // Color box with symbol
     doc.setFillColor(color.rgb.r, color.rgb.g, color.rgb.b);
     doc.rect(x, y, colorBoxSize, colorBoxSize, "F");
     doc.setDrawColor(0);
     doc.rect(x, y, colorBoxSize, colorBoxSize);
 
+    // Draw symbol in center of color box
+    const symbol = colorSymbols.get(color.dmcNumber) || "●";
+    const contrastColor = getContrastColor(color.rgb.r, color.rgb.g, color.rgb.b);
+    doc.setTextColor(contrastColor);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text(symbol, x + colorBoxSize / 2, y + colorBoxSize / 2 + 0.05, { align: "center" });
+
+    // Reset text color
+    doc.setTextColor(0, 0, 0);
+
     // DMC number and name
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
+    const count = stitchCounts.get(color.dmcNumber) || 0;
     doc.text(`DMC ${color.dmcNumber}`, x + colorBoxSize + 0.1, y + 0.12);
     doc.setFont("helvetica", "normal");
     doc.text(color.name, x + colorBoxSize + 0.1, y + 0.25);
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`${count.toLocaleString()} stitches`, x + colorBoxSize + 0.1, y + 0.38);
+    doc.setTextColor(0, 0, 0);
   });
 
   // --- Pattern Pages ---
@@ -216,6 +274,9 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
       );
 
       // Draw grid
+      // Calculate font size for symbols based on cell size
+      const symbolFontSize = Math.max(4, Math.min(10, actualCellSize * 50));
+
       for (let y = startY; y < endY; y++) {
         for (let x = startX; x < endX; x++) {
           const drawX = margin + (x - startX) * actualCellSize;
@@ -226,8 +287,24 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
           if (dmcNumber !== null) {
             const color = getDmcColorByNumber(dmcNumber);
             if (color) {
+              // Fill cell with color
               doc.setFillColor(color.rgb.r, color.rgb.g, color.rgb.b);
               doc.rect(drawX, drawY, actualCellSize, actualCellSize, "F");
+
+              // Draw symbol in cell (only if cell is large enough)
+              if (actualCellSize >= 0.08) {
+                const symbol = colorSymbols.get(dmcNumber) || "●";
+                const contrastColor = getContrastColor(color.rgb.r, color.rgb.g, color.rgb.b);
+                doc.setTextColor(contrastColor);
+                doc.setFontSize(symbolFontSize);
+                doc.setFont("helvetica", "bold");
+                doc.text(
+                  symbol,
+                  drawX + actualCellSize / 2,
+                  drawY + actualCellSize / 2 + actualCellSize * 0.15,
+                  { align: "center" }
+                );
+              }
             }
           }
 
@@ -237,6 +314,9 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
           doc.rect(drawX, drawY, actualCellSize, actualCellSize);
         }
       }
+
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
 
       // Draw heavier lines every 10 cells
       doc.setDrawColor(100, 100, 100);
