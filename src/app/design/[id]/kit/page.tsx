@@ -11,6 +11,7 @@ interface KitItem {
   stitchCount: number;
   skeinsNeeded: number;
   yardsNeeded: number;
+  isBobbin: boolean;
   inventorySkeins: number;
   inStock: boolean;
 }
@@ -28,6 +29,7 @@ interface DesignInfo {
 interface KitTotals {
   colors: number;
   skeins: number;
+  bobbins: number;
   allInStock: boolean;
 }
 
@@ -216,7 +218,12 @@ export default function KitPage() {
             </div>
             <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
               <p className="text-2xl font-bold text-white">{totals.skeins}</p>
-              <p className="text-sm text-slate-400">Total Skeins</p>
+              <p className="text-sm text-slate-400">
+                {totals.skeins === 1 ? "Skein" : "Skeins"}
+                {totals.bobbins > 0 && (
+                  <span className="text-slate-500"> + {totals.bobbins} {totals.bobbins === 1 ? "bobbin" : "bobbins"}</span>
+                )}
+              </p>
             </div>
             <div className={`rounded-xl p-4 border ${totals.allInStock ? "bg-emerald-900/30 border-emerald-700" : "bg-red-900/30 border-red-700"}`}>
               <p className={`text-2xl font-bold ${totals.allInStock ? "text-emerald-400" : "text-red-400"}`}>
@@ -243,7 +250,7 @@ export default function KitPage() {
                   <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
                   <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Stitches</th>
                   <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Yards</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Skeins</th>
+                  <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Amount</th>
                   <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">In Stock</th>
                 </tr>
               </thead>
@@ -267,7 +274,13 @@ export default function KitPage() {
                     <td className="px-4 py-3 text-slate-300 text-sm">{item.colorName}</td>
                     <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.stitchCount.toLocaleString()}</td>
                     <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.yardsNeeded}</td>
-                    <td className="px-4 py-3 text-white font-medium text-sm text-right">{item.skeinsNeeded}</td>
+                    <td className="px-4 py-3 text-white font-medium text-sm text-right">
+                      {item.isBobbin ? (
+                        <span className="text-amber-400">{item.yardsNeeded} yds <span className="text-xs text-amber-500">(bobbin)</span></span>
+                      ) : (
+                        <span>{item.skeinsNeeded} {item.skeinsNeeded === 1 ? "skein" : "skeins"}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       {item.inStock ? (
                         <span className="inline-flex items-center gap-1 text-emerald-400 text-sm">
@@ -315,8 +328,16 @@ export default function KitPage() {
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-white font-medium text-sm">{item.skeinsNeeded} sk</p>
-                  {item.inStock ? (
+                  <p className="text-white font-medium text-sm">
+                    {item.isBobbin ? (
+                      <span className="text-amber-400">{item.yardsNeeded} yds</span>
+                    ) : (
+                      <span>{item.skeinsNeeded} sk</span>
+                    )}
+                  </p>
+                  {item.isBobbin ? (
+                    <p className="text-amber-500 text-xs">bobbin</p>
+                  ) : item.inStock ? (
                     <p className="text-emerald-400 text-xs">{item.inventorySkeins} in stock</p>
                   ) : (
                     <p className="text-red-400 text-xs">{item.inventorySkeins}/{item.skeinsNeeded}</p>
@@ -388,7 +409,9 @@ export default function KitPage() {
           <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-md mx-4 p-6">
             <h3 className="text-lg font-semibold text-white mb-2">Sell Kit</h3>
             <p className="text-slate-400 text-sm mb-4">
-              This will deduct {totals?.skeins ?? 0} skeins ({totals?.colors ?? 0} colors) from your inventory.
+              This will deduct {totals?.skeins ?? 0} {(totals?.skeins ?? 0) === 1 ? "skein" : "skeins"}
+              {(totals?.bobbins ?? 0) > 0 && ` + ${totals?.bobbins} ${(totals?.bobbins ?? 0) === 1 ? "bobbin" : "bobbins"}`}
+              {" "}({totals?.colors ?? 0} colors) from your inventory.
             </p>
 
             {totals && !totals.allInStock && (

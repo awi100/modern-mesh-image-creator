@@ -6,6 +6,8 @@ import { calculateYarnUsage } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 
+const SKEIN_YARDS = 27;
+
 // GET - Compute kit contents for a design
 export async function GET(
   _request: NextRequest,
@@ -67,6 +69,8 @@ export async function GET(
     const kitContents = yarnUsage.map((usage) => {
       const dmcColor = getDmcColorByNumber(usage.dmcNumber);
       const inventorySkeins = inventoryMap.get(usage.dmcNumber) ?? 0;
+      const yardsNeeded = Math.round(usage.withBuffer * 10) / 10;
+      const isBobbin = yardsNeeded < SKEIN_YARDS;
 
       return {
         dmcNumber: usage.dmcNumber,
@@ -74,11 +78,15 @@ export async function GET(
         hex: dmcColor?.hex ?? "#888888",
         stitchCount: usage.stitchCount,
         skeinsNeeded: usage.skeinsNeeded,
-        yardsNeeded: Math.round(usage.withBuffer * 10) / 10,
+        yardsNeeded,
+        isBobbin,
         inventorySkeins,
         inStock: inventorySkeins >= usage.skeinsNeeded,
       };
     });
+
+    const bobbinItems = kitContents.filter((c) => c.isBobbin);
+    const skeinItems = kitContents.filter((c) => !c.isBobbin);
 
     return NextResponse.json({
       design: {
@@ -93,7 +101,8 @@ export async function GET(
       kitContents,
       totals: {
         colors: kitContents.length,
-        skeins: kitContents.reduce((sum, c) => sum + c.skeinsNeeded, 0),
+        skeins: skeinItems.reduce((sum, c) => sum + c.skeinsNeeded, 0),
+        bobbins: bobbinItems.length,
         allInStock: kitContents.every((c) => c.inStock),
       },
     });
