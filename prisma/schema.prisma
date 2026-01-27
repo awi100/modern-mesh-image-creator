@@ -124,6 +124,19 @@ model UserSettings {
   @@map("user_settings")
 }
 
+// Thread inventory tracking
+model InventoryItem {
+  id        String   @id @default(cuid())
+  dmcNumber String
+  size      Int      // 5 (for 14 mesh) or 8 (for 18 mesh)
+  skeins    Int      @default(1) // 1 skein = 27 yards
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dmcNumber, size])
+  @@map("inventory_items")
+}
+
 // Custom canvas size presets
 model CanvasPreset {
   id          String   @id @default(cuid())

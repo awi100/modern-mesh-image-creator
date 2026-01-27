@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
 import { DMC_PEARL_COTTON, DmcColor, searchDmcColors } from "@/lib/dmc-pearl-cotton";
 
@@ -13,13 +13,26 @@ function getContrastTextColor(hex: string): string {
 }
 
 export default function ColorPicker() {
-  const { currentColor, setCurrentColor, getUsedColors, replaceAllColor, grid } = useEditorStore();
+  const { currentColor, setCurrentColor, getUsedColors, replaceAllColor, grid, meshCount } = useEditorStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [showReplacePanel, setShowReplacePanel] = useState(false);
   const [replaceFrom, setReplaceFrom] = useState<DmcColor | null>(null);
   const [replaceTo, setReplaceTo] = useState<DmcColor | null>(null);
   const [selectingFor, setSelectingFor] = useState<'from' | 'to' | null>(null);
+
+  // Inventory: fetch stock for the relevant thread size (14 mesh → size 5, 18 mesh → size 8)
+  const [inStockSet, setInStockSet] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const threadSize = meshCount === 14 ? 5 : 8;
+    fetch(`/api/inventory?size=${threadSize}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((items: { dmcNumber: string; skeins: number }[]) => {
+        setInStockSet(new Set(items.filter((i) => i.skeins > 0).map((i) => i.dmcNumber)));
+      })
+      .catch(() => {});
+  }, [meshCount]);
 
   const usedColors = getUsedColors();
 
@@ -233,12 +246,13 @@ export default function ColorPicker() {
             const isReplaceFrom = replaceFrom?.dmcNumber === color.dmcNumber;
             const isReplaceTo = replaceTo?.dmcNumber === color.dmcNumber;
             const isSelecting = selectingFor !== null;
+            const isInStock = inStockSet.has(color.dmcNumber);
 
             return (
               <button
                 key={color.dmcNumber}
                 onClick={() => handleColorClick(color)}
-                className={`aspect-square rounded-md border-2 transition-all flex items-center justify-center ${
+                className={`aspect-square rounded-md border-2 transition-all flex items-center justify-center relative ${
                   isReplaceFrom
                     ? "border-orange-500 scale-110 z-10 ring-2 ring-orange-500/50"
                     : isReplaceTo
@@ -248,9 +262,9 @@ export default function ColorPicker() {
                     : isSelecting
                     ? "border-transparent hover:border-orange-400 hover:scale-105"
                     : "border-transparent hover:border-white/50"
-                }`}
+                }${!isInStock && inStockSet.size > 0 ? " opacity-40" : ""}`}
                 style={{ backgroundColor: color.hex }}
-                title={`DMC ${color.dmcNumber} - ${color.name}`}
+                title={`DMC ${color.dmcNumber} - ${color.name}${isInStock ? " (In Stock)" : inStockSet.size > 0 ? " (Not In Stock)" : ""}`}
               >
                 <span
                   className="text-[8px] font-bold leading-none select-none"
@@ -258,6 +272,9 @@ export default function ColorPicker() {
                 >
                   {color.dmcNumber}
                 </span>
+                {isInStock && (
+                  <span className="absolute top-0 right-0 w-2 h-2 bg-green-400 rounded-full border border-green-600" />
+                )}
               </button>
             );
           })}

@@ -208,6 +208,15 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
+            <Link
+              href="/inventory"
+              className="px-3 md:px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-all flex items-center gap-2 text-sm md:text-base"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              <span className="hidden sm:inline">Inventory</span>
+            </Link>
             <button
               onClick={() => setShowNewDesignDialog(true)}
               className="px-3 md:px-4 py-2 bg-gradient-to-r from-rose-900 to-rose-800 text-white rounded-lg hover:from-rose-950 hover:to-rose-900 transition-all flex items-center gap-2 text-sm md:text-base"
