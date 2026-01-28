@@ -31,6 +31,8 @@ export default function Toolbar() {
     setShowSymbols,
     brushSize,
     setBrushSize,
+    eraserSize,
+    setEraserSize,
     mirrorHorizontal,
     mirrorVertical,
     rotate90,
@@ -64,8 +66,8 @@ export default function Toolbar() {
           ))}
         </div>
 
-        {/* Brush size (shown when brush or eraser tool is active) */}
-        {(currentTool === "brush" || currentTool === "eraser") && (
+        {/* Brush size (shown when brush tool is active) */}
+        {currentTool === "brush" && (
           <>
             <div className="w-px h-8 bg-slate-600 hidden md:block" />
             <div className="flex items-center gap-2">
@@ -85,6 +87,33 @@ export default function Toolbar() {
               >
                 +
               </button>
+            </div>
+          </>
+        )}
+
+        {/* Eraser size (shown when eraser tool is active) */}
+        {currentTool === "eraser" && (
+          <>
+            <div className="w-px h-8 bg-slate-600 hidden md:block" />
+            <div className="flex items-center gap-1">
+              <span className="text-slate-400 text-sm hidden sm:inline">Size:</span>
+              {([
+                { label: "S", size: 1 },
+                { label: "M", size: 3 },
+                { label: "L", size: 5 },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.label}
+                  onClick={() => setEraserSize(opt.size)}
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors touch-manipulation ${
+                    eraserSize === opt.size
+                      ? "bg-rose-900 text-white"
+                      : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </>
         )}

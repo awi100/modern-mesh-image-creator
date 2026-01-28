@@ -58,6 +58,7 @@ interface EditorState {
 
   // Brush settings
   brushSize: number;
+  eraserSize: number;
 
   // Settings
   stitchType: StitchType;
@@ -86,7 +87,7 @@ interface EditorState {
 
   // Pixel operations
   setPixel: (x: number, y: number, color: string | null) => void;
-  setBrushPixels: (x: number, y: number, color: string | null) => void;
+  setBrushPixels: (x: number, y: number, color: string | null, sizeOverride?: number) => void;
   fillArea: (x: number, y: number, color: string | null) => void;
   replaceAllColor: (oldColor: string | null, newColor: string | null) => void;
   drawRectangle: (x1: number, y1: number, x2: number, y2: number, color: string | null, filled: boolean) => void;
@@ -94,6 +95,7 @@ interface EditorState {
 
   // Brush settings
   setBrushSize: (size: number) => void;
+  setEraserSize: (size: number) => void;
 
   // Selection operations
   startSelection: (x: number, y: number) => void;
@@ -178,6 +180,7 @@ const createInitialState = () => ({
   showGrid: true,
   showSymbols: true,
   brushSize: 1,
+  eraserSize: 1,
   stitchType: "continental" as StitchType,
   bufferPercent: 20,
   isDirty: false,
@@ -238,10 +241,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ grid: newGrid, isDirty: true });
   },
 
-  setBrushPixels: (x, y, color) => {
+  setBrushPixels: (x, y, color, sizeOverride?) => {
     const { grid, gridWidth, gridHeight, brushSize } = get();
+    const size = sizeOverride ?? brushSize;
     const newGrid = grid.map(row => [...row]);
-    const radius = Math.floor(brushSize / 2);
+    const radius = Math.floor(size / 2);
 
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
@@ -257,6 +261,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setBrushSize: (size) => set({ brushSize: Math.max(1, Math.min(10, size)) }),
+
+  setEraserSize: (size) => set({ eraserSize: size }),
 
   fillArea: (x, y, color) => {
     const { grid } = get();

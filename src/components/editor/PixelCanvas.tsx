@@ -57,7 +57,7 @@ export default function PixelCanvas({
     panY,
     showGrid,
     showSymbols,
-    brushSize,
+    eraserSize,
     referenceImageUrl,
     referenceImageOpacity,
     setPixel,
@@ -325,7 +325,7 @@ export default function PixelCanvas({
       setBrushPixels(coords.x, coords.y, currentColor?.dmcNumber || null);
     } else if (currentTool === "eraser") {
       saveToHistory();
-      setBrushPixels(coords.x, coords.y, null);
+      setBrushPixels(coords.x, coords.y, null, eraserSize);
     } else if (currentTool === "fill") {
       fillArea(coords.x, coords.y, currentColor?.dmcNumber || null);
     } else if (currentTool === "line") {
@@ -345,7 +345,7 @@ export default function PixelCanvas({
     } else if (currentTool === "magicWand") {
       selectByColor(coords.x, coords.y);
     }
-  }, [currentTool, currentColor, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor]);
+  }, [currentTool, currentColor, eraserSize, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
@@ -478,7 +478,7 @@ export default function PixelCanvas({
         let y = lastPos.y;
 
         while (true) {
-          setBrushPixels(x, y, null);
+          setBrushPixels(x, y, null, eraserSize);
 
           if (x === coords.x && y === coords.y) break;
 
@@ -497,7 +497,7 @@ export default function PixelCanvas({
     } else if (currentTool === "select") {
       updateSelection(coords.x, coords.y);
     }
-  }, [isDrawing, currentTool, currentColor, lastPos, setPixel, setBrushPixels, updateSelection]);
+  }, [isDrawing, currentTool, currentColor, eraserSize, lastPos, setPixel, setBrushPixels, updateSelection]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
