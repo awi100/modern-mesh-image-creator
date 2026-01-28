@@ -3,17 +3,9 @@
 import { jsPDF } from "jspdf";
 import { PixelGrid } from "./color-utils";
 import { DmcColor, getDmcColorByNumber } from "./dmc-pearl-cotton";
+import { SYMBOLS } from "./symbols";
 
 const DPI = 72; // jsPDF uses 72 DPI
-
-// Symbols for distinguishing colors in the pattern
-const SYMBOLS = [
-  "●", "■", "▲", "◆", "★", "♦", "♥", "♣", "♠",
-  "○", "□", "△", "◇", "☆", "⬡", "⬢", "✦", "✧",
-  "+", "×", "÷", "±", "∞", "≈", "≠", "∅", "∩",
-  "α", "β", "γ", "δ", "ε", "θ", "λ", "μ", "π",
-  "Ω", "Σ", "Φ", "Ψ", "Δ", "Γ", "Λ", "Ξ", "Π",
-];
 
 interface ExportOptions {
   grid: PixelGrid;

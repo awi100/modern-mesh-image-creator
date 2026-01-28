@@ -27,6 +27,8 @@ export default function Toolbar() {
     resetView,
     showGrid,
     setShowGrid,
+    showSymbols,
+    setShowSymbols,
     brushSize,
     setBrushSize,
     mirrorHorizontal,
@@ -138,6 +140,19 @@ export default function Toolbar() {
           title="Toggle Grid"
         >
           #️⃣
+        </button>
+
+        {/* Symbols toggle */}
+        <button
+          onClick={() => setShowSymbols(!showSymbols)}
+          className={`p-2 rounded-lg transition-colors touch-manipulation ${
+            showSymbols
+              ? "bg-rose-900 text-white"
+              : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+          }`}
+          title="Toggle Symbols"
+        >
+          <span className="text-base">Aa</span>
         </button>
 
         <div className="w-px h-8 bg-slate-600 hidden sm:block" />

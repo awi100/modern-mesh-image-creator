@@ -54,6 +54,7 @@ interface EditorState {
   panX: number;
   panY: number;
   showGrid: boolean;
+  showSymbols: boolean;
 
   // Brush settings
   brushSize: number;
@@ -125,6 +126,7 @@ interface EditorState {
   setPan: (x: number, y: number) => void;
   resetView: () => void;
   setShowGrid: (show: boolean) => void;
+  setShowSymbols: (show: boolean) => void;
 
   // Reference image
   setReferenceImage: (url: string | null, opacity?: number) => void;
@@ -174,6 +176,7 @@ const createInitialState = () => ({
   panX: 0,
   panY: 0,
   showGrid: true,
+  showSymbols: true,
   brushSize: 1,
   stitchType: "continental" as StitchType,
   bufferPercent: 20,
@@ -600,6 +603,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   resetView: () => set({ zoom: 1, panX: 0, panY: 0 }),
 
   setShowGrid: (show) => set({ showGrid: show }),
+
+  setShowSymbols: (show) => set({ showSymbols: show }),
 
   setReferenceImage: (url, opacity) => set({
     referenceImageUrl: url,

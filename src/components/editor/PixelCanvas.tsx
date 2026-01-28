@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback, useState } from "react";
+import React, { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { useEditorStore } from "@/lib/store";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { SYMBOLS, hexLuminance } from "@/lib/symbols";
 
 interface PixelCanvasProps {
   pendingText?: {
@@ -55,6 +56,7 @@ export default function PixelCanvas({
     panX,
     panY,
     showGrid,
+    showSymbols,
     brushSize,
     referenceImageUrl,
     referenceImageOpacity,
@@ -72,6 +74,21 @@ export default function PixelCanvas({
   } = useEditorStore();
 
   const cellSize = 20 * zoom;
+
+  // Build a stable color → symbol map based on the order colors appear in the grid
+  const colorSymbolMap = useMemo(() => {
+    const map = new Map<string, string>();
+    let idx = 0;
+    for (const row of grid) {
+      for (const cell of row) {
+        if (cell && !map.has(cell)) {
+          map.set(cell, SYMBOLS[idx % SYMBOLS.length]);
+          idx++;
+        }
+      }
+    }
+    return map;
+  }, [grid]);
 
   // Draw canvas
   const draw = useCallback(() => {
@@ -109,6 +126,33 @@ export default function PixelCanvas({
           if (color) {
             ctx.fillStyle = color.hex;
             ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+    }
+
+    // Draw symbols on colored cells
+    if (showSymbols && cellSize >= 10) {
+      const fontSize = Math.max(6, Math.round(cellSize * 0.6));
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      for (let y = 0; y < gridHeight; y++) {
+        for (let x = 0; x < gridWidth; x++) {
+          const dmcNumber = grid[y]?.[x];
+          if (dmcNumber) {
+            const symbol = colorSymbolMap.get(dmcNumber);
+            if (symbol) {
+              const color = getDmcColorByNumber(dmcNumber);
+              const lum = color ? hexLuminance(color.hex) : 0.5;
+              ctx.fillStyle = lum > 0.4 ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.85)";
+              ctx.fillText(
+                symbol,
+                x * cellSize + cellSize / 2,
+                y * cellSize + cellSize / 2
+              );
+            }
           }
         }
       }
@@ -201,7 +245,7 @@ export default function PixelCanvas({
       );
       ctx.setLineDash([]);
     }
-  }, [grid, gridWidth, gridHeight, cellSize, showGrid, selection, referenceImageUrl, referenceImageOpacity, zoom, pendingText, textPlacementPos]);
+  }, [grid, gridWidth, gridHeight, cellSize, showGrid, showSymbols, colorSymbolMap, selection, referenceImageUrl, referenceImageOpacity, zoom, pendingText, textPlacementPos]);
 
   useEffect(() => {
     draw();
