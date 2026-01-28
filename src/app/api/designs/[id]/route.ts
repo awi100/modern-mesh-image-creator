@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
+import { countStitchesByColor } from "@/lib/color-utils";
+import { calculateYarnUsage } from "@/lib/yarn-calculator";
 import pako from "pako";
 
 export async function GET(
@@ -93,6 +95,27 @@ export async function PUT(
       ? Buffer.from(pixelData, "base64")
       : undefined;
 
+    // Precompute kit summary from pixel data
+    let kitColorCount: number | undefined;
+    let kitSkeinCount: number | undefined;
+    if (pixelDataBuffer) {
+      try {
+        const decompressed = pako.inflate(pixelDataBuffer, { to: "string" });
+        const grid: (string | null)[][] = JSON.parse(decompressed);
+        const stitchCounts = countStitchesByColor(grid);
+        const yarnUsage = calculateYarnUsage(
+          stitchCounts,
+          (meshCount || 14) as 14 | 18,
+          (stitchType || "continental") as "continental" | "basketweave",
+          bufferPercent ?? 20
+        );
+        kitColorCount = yarnUsage.length;
+        kitSkeinCount = yarnUsage.reduce((sum, u) => sum + u.skeinsNeeded, 0);
+      } catch (e) {
+        console.error("Error computing kit summary:", e);
+      }
+    }
+
     // Update design
     const design = await prisma.design.update({
       where: { id },
@@ -110,6 +133,8 @@ export async function PUT(
         referenceImageOpacity,
         folderId,
         previewImageUrl,
+        kitColorCount,
+        kitSkeinCount,
       },
       include: {
         folder: true,
@@ -175,7 +200,7 @@ export async function DELETE(
   }
 }
 
-// PATCH for partial updates (e.g., moving to folder)
+// PATCH for partial updates (folder, canvas printed counter)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -188,11 +213,24 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
+    const data: Record<string, unknown> = {};
+
+    if (body.folderId !== undefined) {
+      data.folderId = body.folderId;
+    }
+
+    if (body.canvasPrintedDelta !== undefined) {
+      const current = await prisma.design.findUnique({
+        where: { id },
+        select: { canvasPrinted: true },
+      });
+      const newVal = (current?.canvasPrinted ?? 0) + body.canvasPrintedDelta;
+      data.canvasPrinted = Math.max(0, newVal);
+    }
+
     const design = await prisma.design.update({
       where: { id },
-      data: {
-        folderId: body.folderId,
-      },
+      data,
       include: {
         folder: true,
       },

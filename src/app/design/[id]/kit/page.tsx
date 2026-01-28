@@ -25,6 +25,8 @@ interface DesignInfo {
   bufferPercent: number;
   widthInches: number;
   heightInches: number;
+  kitsReady: number;
+  canvasPrinted: number;
 }
 
 interface KitTotals {
@@ -65,6 +67,8 @@ export default function KitPage() {
   const [totals, setTotals] = useState<KitTotals | null>(null);
   const [sales, setSales] = useState<KitSale[]>([]);
   const [loading, setLoading] = useState(true);
+  const [kitsReady, setKitsReady] = useState(0);
+  const [canvasPrinted, setCanvasPrinted] = useState(0);
   const [selling, setSelling] = useState(false);
   const [showSellDialog, setShowSellDialog] = useState(false);
   const [sellNote, setSellNote] = useState("");
@@ -77,6 +81,8 @@ export default function KitPage() {
         setDesign(data.design);
         setKitContents(data.kitContents);
         setTotals(data.totals);
+        setKitsReady(data.design.kitsReady ?? 0);
+        setCanvasPrinted(data.design.canvasPrinted ?? 0);
       }
     } catch (error) {
       console.error("Error fetching kit:", error);
@@ -101,7 +107,7 @@ export default function KitPage() {
     fetchSales();
   }, [designId]);
 
-  const handleSellKit = async () => {
+  const handleAssembleKit = async () => {
     setSelling(true);
     try {
       const res = await fetch(`/api/designs/${designId}/kit/sell`, {
@@ -113,26 +119,41 @@ export default function KitPage() {
       if (res.ok) {
         setShowSellDialog(false);
         setSellNote("");
+        setKitsReady((prev) => prev + 1);
         // Refresh both kit contents (stock changed) and sales
         fetchKit();
         fetchSales();
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to record sale");
+        alert(err.error || "Failed to assemble kit");
       }
     } catch (error) {
-      console.error("Error selling kit:", error);
-      alert("Failed to record sale");
+      console.error("Error assembling kit:", error);
+      alert("Failed to assemble kit");
     }
     setSelling(false);
   };
 
+  const handleMarkSold = async () => {
+    try {
+      const res = await fetch(`/api/designs/${designId}/kit/mark-sold`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        setKitsReady((prev) => Math.max(0, prev - 1));
+      }
+    } catch (error) {
+      console.error("Error marking sold:", error);
+    }
+  };
+
   const handleDeleteSale = async (saleId: string) => {
-    if (!confirm("Reverse this sale? Inventory will be restored.")) return;
+    if (!confirm("Reverse this assembly? Inventory will be restored.")) return;
 
     try {
       const res = await fetch(`/api/kit-sales/${saleId}`, { method: "DELETE" });
       if (res.ok) {
+        setKitsReady((prev) => Math.max(0, prev - 1));
         fetchKit();
         fetchSales();
       }
@@ -197,22 +218,33 @@ export default function KitPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowSellDialog(true)}
-            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-lg hover:from-emerald-700 hover:to-emerald-800 transition-all flex items-center gap-2 text-sm font-medium flex-shrink-0"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="hidden sm:inline">Sell Kit</span>
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {kitsReady > 0 && (
+              <button
+                onClick={handleMarkSold}
+                className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-all text-sm"
+                title="Mark one kit as sold to customer"
+              >
+                Mark Sold
+              </button>
+            )}
+            <button
+              onClick={() => setShowSellDialog(true)}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-lg hover:from-emerald-700 hover:to-emerald-800 transition-all flex items-center gap-2 text-sm font-medium"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              <span className="hidden sm:inline">Assemble Kit</span>
+            </button>
+          </div>
         </div>
       </header>
 
       <div className="max-w-5xl mx-auto px-3 md:px-4 py-4 md:py-6 space-y-6">
         {/* Totals bar */}
         {totals && (
-          <div className="grid grid-cols-3 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
             <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
               <p className="text-2xl font-bold text-white">{totals.colors}</p>
               <p className="text-sm text-slate-400">Colors</p>
@@ -231,6 +263,14 @@ export default function KitPage() {
                 {totals.allInStock ? "Yes" : "No"}
               </p>
               <p className="text-sm text-slate-400">All In Stock</p>
+            </div>
+            <div className="bg-blue-900/20 rounded-xl p-4 border border-blue-800">
+              <p className="text-2xl font-bold text-blue-400">{canvasPrinted}</p>
+              <p className="text-sm text-slate-400">Printed</p>
+            </div>
+            <div className="bg-emerald-900/20 rounded-xl p-4 border border-emerald-800">
+              <p className="text-2xl font-bold text-emerald-400">{kitsReady}</p>
+              <p className="text-sm text-slate-400">Kits Ready</p>
             </div>
           </div>
         )}
@@ -364,8 +404,8 @@ export default function KitPage() {
         {/* Sale History */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Sale History</h2>
-            <span className="text-sm text-slate-400">{sales.length} sale{sales.length !== 1 ? "s" : ""}</span>
+            <h2 className="text-lg font-semibold text-white">Assembly History</h2>
+            <span className="text-sm text-slate-400">{sales.length} assembl{sales.length !== 1 ? "ies" : "y"}</span>
           </div>
 
           {sales.length > 0 ? (
@@ -404,7 +444,7 @@ export default function KitPage() {
             </div>
           ) : (
             <div className="p-8 text-center text-slate-500 text-sm">
-              No kit sales recorded yet.
+              No kit assemblies recorded yet.
             </div>
           )}
         </div>
@@ -414,10 +454,10 @@ export default function KitPage() {
       {showSellDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-md mx-4 p-6">
-            <h3 className="text-lg font-semibold text-white mb-2">Sell Kit</h3>
+            <h3 className="text-lg font-semibold text-white mb-2">Assemble Kit</h3>
             <p className="text-slate-400 text-sm mb-4">
               This will deduct {totals?.skeins ?? 0} {(totals?.skeins ?? 0) === 1 ? "skein" : "skeins"}
-              {" "}({totals?.colors ?? 0} colors) from your inventory.
+              {" "}({totals?.colors ?? 0} colors) from your inventory and add 1 kit to &quot;Kits Ready.&quot;
               {(totals?.bobbins ?? 0) > 0 && (
                 <span className="text-amber-500"> {totals?.bobbins} {(totals?.bobbins ?? 0) === 1 ? "color includes" : "colors include"} a bobbin.</span>
               )}
@@ -426,7 +466,7 @@ export default function KitPage() {
             {totals && !totals.allInStock && (
               <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg">
                 <p className="text-yellow-400 text-sm">
-                  Some colors are not fully in stock. Selling will create negative inventory for those items.
+                  Some colors are not fully in stock. Assembling will create negative inventory for those items.
                 </p>
               </div>
             )}
@@ -453,11 +493,11 @@ export default function KitPage() {
                 Cancel
               </button>
               <button
-                onClick={handleSellKit}
+                onClick={handleAssembleKit}
                 disabled={selling}
                 className="flex-1 py-2 px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium"
               >
-                {selling ? "Recording..." : "Confirm Sale"}
+                {selling ? "Assembling..." : "Assemble Kit"}
               </button>
             </div>
           </div>

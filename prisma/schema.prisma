@@ -95,6 +95,14 @@ model Design {
   stitchType            String  @default("continental") // "continental" or "basketweave"
   bufferPercent         Float   @default(20)
 
+  // Kit tracking
+  kitsReady             Int     @default(0)  // assembled kits awaiting sale
+  canvasPrinted         Int     @default(0)  // physical canvases printed
+
+  // Precomputed kit summary (updated on design save)
+  kitColorCount         Int     @default(0)  // distinct colors in the kit
+  kitSkeinCount         Int     @default(0)  // total skeins for one kit
+
   // Organization
   folderId  String?
   folder    Folder?     @relation(fields: [folderId], references: [id])

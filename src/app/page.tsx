@@ -27,6 +27,10 @@ interface Design {
   previewImageUrl: string | null;
   folder: Folder | null;
   tags: Tag[];
+  kitsReady: number;
+  canvasPrinted: number;
+  kitColorCount: number;
+  kitSkeinCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -171,6 +175,25 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error("Error deleting folder:", error);
+    }
+  };
+
+  const handleUpdateCanvasPrinted = async (designId: string, delta: number) => {
+    try {
+      const response = await fetch(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canvasPrintedDelta: delta }),
+      });
+      if (response.ok) {
+        setDesigns(designs.map(d =>
+          d.id === designId
+            ? { ...d, canvasPrinted: Math.max(0, d.canvasPrinted + delta) }
+            : d
+        ));
+      }
+    } catch (error) {
+      console.error("Error updating canvas count:", error);
     }
   };
 
@@ -548,6 +571,30 @@ export default function HomePage() {
                           📁 {design.folder.name}
                         </p>
                       )}
+
+                      {/* Kit summary + tracking counters */}
+                      <div className="flex flex-wrap items-center gap-2 mb-2 text-xs">
+                        {design.kitColorCount > 0 && (
+                          <span className="text-slate-400">
+                            {design.kitColorCount} colors &middot; {design.kitSkeinCount} skeins
+                          </span>
+                        )}
+                        <span className="px-1.5 py-0.5 bg-blue-900/40 text-blue-400 rounded flex items-center gap-1">
+                          <button
+                            onClick={() => handleUpdateCanvasPrinted(design.id, -1)}
+                            disabled={design.canvasPrinted <= 0}
+                            className="hover:text-blue-200 disabled:opacity-30"
+                          >-</button>
+                          {design.canvasPrinted} printed
+                          <button
+                            onClick={() => handleUpdateCanvasPrinted(design.id, 1)}
+                            className="hover:text-blue-200"
+                          >+</button>
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-emerald-900/40 text-emerald-400 rounded">
+                          {design.kitsReady} kits ready
+                        </span>
+                      </div>
 
                       {/* Actions */}
                       <div className="flex items-center justify-between">

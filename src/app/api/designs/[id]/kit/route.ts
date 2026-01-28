@@ -32,6 +32,8 @@ export async function GET(
         pixelData: true,
         widthInches: true,
         heightInches: true,
+        kitsReady: true,
+        canvasPrinted: true,
       },
     });
 
@@ -102,6 +104,8 @@ export async function GET(
         bufferPercent: design.bufferPercent,
         widthInches: design.widthInches,
         heightInches: design.heightInches,
+        kitsReady: design.kitsReady,
+        canvasPrinted: design.canvasPrinted,
       },
       kitContents,
       totals: {

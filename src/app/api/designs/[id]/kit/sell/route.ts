@@ -92,6 +92,12 @@ export async function POST(
         });
       }
 
+      // Increment kitsReady on the design
+      await tx.design.update({
+        where: { id: design.id },
+        data: { kitsReady: { increment: 1 } },
+      });
+
       return kitSale;
     });
 

@@ -51,6 +51,12 @@ export async function DELETE(
         });
       }
 
+      // Decrement kitsReady on the design
+      await tx.design.update({
+        where: { id: sale.designId },
+        data: { kitsReady: { decrement: 1 } },
+      });
+
       // Delete the sale (cascade deletes items)
       await tx.kitSale.delete({
         where: { id },

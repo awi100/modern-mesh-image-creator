@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
+import { countStitchesByColor } from "@/lib/color-utils";
+import { calculateYarnUsage } from "@/lib/yarn-calculator";
+import pako from "pako";
 
 export async function GET(request: NextRequest) {
   if (!(await isAuthenticated())) {
@@ -86,6 +89,25 @@ export async function POST(request: NextRequest) {
     // Convert base64 to Buffer
     const pixelDataBuffer = Buffer.from(pixelData, "base64");
 
+    // Precompute kit summary from pixel data
+    let kitColorCount = 0;
+    let kitSkeinCount = 0;
+    try {
+      const decompressed = pako.inflate(pixelDataBuffer, { to: "string" });
+      const grid: (string | null)[][] = JSON.parse(decompressed);
+      const stitchCounts = countStitchesByColor(grid);
+      const yarnUsage = calculateYarnUsage(
+        stitchCounts,
+        (meshCount || 14) as 14 | 18,
+        ((stitchType || "continental") as "continental" | "basketweave"),
+        bufferPercent ?? 20
+      );
+      kitColorCount = yarnUsage.length;
+      kitSkeinCount = yarnUsage.reduce((sum: number, u: { skeinsNeeded: number }) => sum + u.skeinsNeeded, 0);
+    } catch (e) {
+      console.error("Error computing kit summary:", e);
+    }
+
     const design = await prisma.design.create({
       data: {
         name,
@@ -97,6 +119,8 @@ export async function POST(request: NextRequest) {
         pixelData: pixelDataBuffer,
         stitchType: stitchType || "continental",
         bufferPercent: bufferPercent || 20,
+        kitColorCount,
+        kitSkeinCount,
         referenceImageUrl,
         referenceImageOpacity: referenceImageOpacity || 0.5,
         folderId,
