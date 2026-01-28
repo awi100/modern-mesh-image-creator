@@ -100,7 +100,7 @@ export default function Toolbar() {
               {([
                 { label: "S", size: 1 },
                 { label: "M", size: 3 },
-                { label: "L", size: 5 },
+                { label: "L", size: 7 },
               ] as const).map((opt) => (
                 <button
                   key={opt.label}

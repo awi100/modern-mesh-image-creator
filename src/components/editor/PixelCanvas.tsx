@@ -32,6 +32,7 @@ export default function PixelCanvas({
     initialPanX: number;
     initialPanY: number;
     initialMidpoint: { x: number; y: number };
+    midFromCanvasCenter: { x: number; y: number };
   } | null>(null);
 
   // Pencil mode: click to place pixel, drag to pan
@@ -377,12 +378,23 @@ export default function PixelCanvas({
 
     // Two-finger gesture: pinch-to-zoom and pan
     if (e.touches.length >= 2) {
+      const midpoint = getTouchMidpoint(e.touches[0], e.touches[1]);
+      const canvas = canvasRef.current;
+      let midFromCanvasCenter = { x: 0, y: 0 };
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        midFromCanvasCenter = {
+          x: midpoint.x - rect.left - rect.width / 2,
+          y: midpoint.y - rect.top - rect.height / 2,
+        };
+      }
       pinchRef.current = {
         initialDistance: getTouchDistance(e.touches[0], e.touches[1]),
         initialZoom: zoom,
         initialPanX: panX,
         initialPanY: panY,
-        initialMidpoint: getTouchMidpoint(e.touches[0], e.touches[1]),
+        initialMidpoint: midpoint,
+        midFromCanvasCenter,
       };
       setIsDrawing(false);
       setLastPos(null);
@@ -532,13 +544,22 @@ export default function PixelCanvas({
     // Handle pinch-to-zoom and two-finger pan
     if (e.touches.length >= 2 && pinchRef.current) {
       const newDistance = getTouchDistance(e.touches[0], e.touches[1]);
-      const scale = newDistance / pinchRef.current.initialDistance;
-      setZoom(pinchRef.current.initialZoom * scale);
+      const zoomScale = newDistance / pinchRef.current.initialDistance;
+      const newZoom = pinchRef.current.initialZoom * zoomScale;
+      setZoom(newZoom);
 
+      // Finger movement (pan)
       const newMidpoint = getTouchMidpoint(e.touches[0], e.touches[1]);
       const dx = newMidpoint.x - pinchRef.current.initialMidpoint.x;
       const dy = newMidpoint.y - pinchRef.current.initialMidpoint.y;
-      setPan(pinchRef.current.initialPanX + dx, pinchRef.current.initialPanY + dy);
+
+      // Zoom-toward-midpoint: adjust pan so the point under the
+      // initial midpoint stays fixed as zoom changes
+      const { midFromCanvasCenter } = pinchRef.current;
+      setPan(
+        pinchRef.current.initialPanX + dx - (zoomScale - 1) * midFromCanvasCenter.x,
+        pinchRef.current.initialPanY + dy - (zoomScale - 1) * midFromCanvasCenter.y
+      );
       return;
     }
 
@@ -629,9 +650,24 @@ export default function PixelCanvas({
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(zoom * delta);
-  }, [zoom, setZoom]);
+    const newZoom = Math.max(0.1, Math.min(10, zoom * delta));
+    const scale = newZoom / zoom;
+
+    // Zoom toward cursor: keep the point under the cursor fixed on screen
+    const rect = canvas.getBoundingClientRect();
+    const cursorFromCenterX = e.clientX - rect.left - rect.width / 2;
+    const cursorFromCenterY = e.clientY - rect.top - rect.height / 2;
+
+    setZoom(newZoom);
+    setPan(
+      panX - (scale - 1) * cursorFromCenterX,
+      panY - (scale - 1) * cursorFromCenterY
+    );
+  }, [zoom, panX, panY, setZoom, setPan]);
 
   return (
     <div
