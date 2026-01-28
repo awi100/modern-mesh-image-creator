@@ -62,8 +62,8 @@ export default function Toolbar() {
           ))}
         </div>
 
-        {/* Brush size (shown when brush tool is active) */}
-        {currentTool === "brush" && (
+        {/* Brush size (shown when brush or eraser tool is active) */}
+        {(currentTool === "brush" || currentTool === "eraser") && (
           <>
             <div className="w-px h-8 bg-slate-600 hidden md:block" />
             <div className="flex items-center gap-2">

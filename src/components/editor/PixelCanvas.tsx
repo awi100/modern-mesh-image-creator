@@ -281,7 +281,7 @@ export default function PixelCanvas({
       setBrushPixels(coords.x, coords.y, currentColor?.dmcNumber || null);
     } else if (currentTool === "eraser") {
       saveToHistory();
-      setPixel(coords.x, coords.y, null);
+      setBrushPixels(coords.x, coords.y, null);
     } else if (currentTool === "fill") {
       fillArea(coords.x, coords.y, currentColor?.dmcNumber || null);
     } else if (currentTool === "line") {
@@ -423,7 +423,32 @@ export default function PixelCanvas({
       }
       setLastPos(coords);
     } else if (currentTool === "eraser") {
-      setPixel(coords.x, coords.y, null);
+      if (lastPos) {
+        const dx = Math.abs(coords.x - lastPos.x);
+        const dy = Math.abs(coords.y - lastPos.y);
+        const sx = lastPos.x < coords.x ? 1 : -1;
+        const sy = lastPos.y < coords.y ? 1 : -1;
+        let err = dx - dy;
+
+        let x = lastPos.x;
+        let y = lastPos.y;
+
+        while (true) {
+          setBrushPixels(x, y, null);
+
+          if (x === coords.x && y === coords.y) break;
+
+          const e2 = 2 * err;
+          if (e2 > -dy) {
+            err -= dy;
+            x += sx;
+          }
+          if (e2 < dx) {
+            err += dx;
+            y += sy;
+          }
+        }
+      }
       setLastPos(coords);
     } else if (currentTool === "select") {
       updateSelection(coords.x, coords.y);
