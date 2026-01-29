@@ -32,7 +32,9 @@ export default function PixelCanvas({
     initialPanX: number;
     initialPanY: number;
     initialMidpoint: { x: number; y: number };
-    midFromCanvasCenter: { x: number; y: number };
+    // Grid coordinate under the initial midpoint (for zoom-to-point)
+    gridPointX: number;
+    gridPointY: number;
   } | null>(null);
 
   // Pencil mode: click to place pixel, drag to pan
@@ -380,21 +382,29 @@ export default function PixelCanvas({
     if (e.touches.length >= 2) {
       const midpoint = getTouchMidpoint(e.touches[0], e.touches[1]);
       const canvas = canvasRef.current;
-      let midFromCanvasCenter = { x: 0, y: 0 };
+
+      // Calculate the grid coordinate under the pinch midpoint
+      // This is what we want to keep fixed on screen as we zoom
+      let gridPointX = gridWidth / 2;
+      let gridPointY = gridHeight / 2;
       if (canvas) {
         const rect = canvas.getBoundingClientRect();
-        midFromCanvasCenter = {
-          x: midpoint.x - rect.left - rect.width / 2,
-          y: midpoint.y - rect.top - rect.height / 2,
-        };
+        // Position relative to canvas in screen pixels
+        const relX = midpoint.x - rect.left;
+        const relY = midpoint.y - rect.top;
+        // Convert to grid coordinates
+        gridPointX = (relX / rect.width) * gridWidth;
+        gridPointY = (relY / rect.height) * gridHeight;
       }
+
       pinchRef.current = {
         initialDistance: getTouchDistance(e.touches[0], e.touches[1]),
         initialZoom: zoom,
         initialPanX: panX,
         initialPanY: panY,
         initialMidpoint: midpoint,
-        midFromCanvasCenter,
+        gridPointX,
+        gridPointY,
       };
       setIsDrawing(false);
       setLastPos(null);
@@ -543,23 +553,70 @@ export default function PixelCanvas({
 
     // Handle pinch-to-zoom and two-finger pan
     if (e.touches.length >= 2 && pinchRef.current) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
       const newDistance = getTouchDistance(e.touches[0], e.touches[1]);
       const zoomScale = newDistance / pinchRef.current.initialDistance;
-      const newZoom = pinchRef.current.initialZoom * zoomScale;
-      setZoom(newZoom);
+      const newZoom = Math.max(0.1, Math.min(10, pinchRef.current.initialZoom * zoomScale));
+      const newCellSize = 20 * newZoom;
 
-      // Finger movement (pan)
+      // Current midpoint position on screen
       const newMidpoint = getTouchMidpoint(e.touches[0], e.touches[1]);
-      const dx = newMidpoint.x - pinchRef.current.initialMidpoint.x;
-      const dy = newMidpoint.y - pinchRef.current.initialMidpoint.y;
 
-      // Zoom-toward-midpoint: adjust pan so the point under the
-      // initial midpoint stays fixed as zoom changes
-      const { midFromCanvasCenter } = pinchRef.current;
-      setPan(
-        pinchRef.current.initialPanX + dx - (zoomScale - 1) * midFromCanvasCenter.x,
-        pinchRef.current.initialPanY + dy - (zoomScale - 1) * midFromCanvasCenter.y
-      );
+      // We want the grid point (gridPointX, gridPointY) to appear at newMidpoint
+      // Canvas is centered in container, so we need to calculate where it would be
+      // The container is translated by (panX, panY) and canvas is flex-centered inside
+
+      // At the new zoom, the canvas size will be:
+      const newCanvasWidth = gridWidth * newCellSize;
+      const newCanvasHeight = gridHeight * newCellSize;
+
+      // The grid point's position relative to canvas top-left:
+      const gridPointCanvasX = pinchRef.current.gridPointX * newCellSize;
+      const gridPointCanvasY = pinchRef.current.gridPointY * newCellSize;
+
+      // We want: midpoint = containerCenter + newPan + (gridPointCanvas - canvasSize/2)
+      // where containerCenter is the center of the container on screen
+
+      // Using the initial state as reference:
+      // At initial: midpoint was at initialPan with canvas centered
+      // The container center relative to viewport depends on the layout
+
+      // Simpler approach: calculate relative to initial state
+      // At initial zoom, the grid point was at a certain screen position
+      // At new zoom, we want it at newMidpoint
+
+      // Finger movement
+      const fingerDx = newMidpoint.x - pinchRef.current.initialMidpoint.x;
+      const fingerDy = newMidpoint.y - pinchRef.current.initialMidpoint.y;
+
+      // Position shift due to zoom change (grid point moves relative to canvas center)
+      const initialCellSize = 20 * pinchRef.current.initialZoom;
+      const gridPointInitialX = pinchRef.current.gridPointX * initialCellSize;
+      const gridPointInitialY = pinchRef.current.gridPointY * initialCellSize;
+      const initialCanvasWidth = gridWidth * initialCellSize;
+      const initialCanvasHeight = gridHeight * initialCellSize;
+
+      // Grid point offset from canvas center (initial)
+      const offsetFromCenterInitialX = gridPointInitialX - initialCanvasWidth / 2;
+      const offsetFromCenterInitialY = gridPointInitialY - initialCanvasHeight / 2;
+
+      // Grid point offset from canvas center (new zoom)
+      const offsetFromCenterNewX = gridPointCanvasX - newCanvasWidth / 2;
+      const offsetFromCenterNewY = gridPointCanvasY - newCanvasHeight / 2;
+
+      // The grid point moved by this much relative to canvas center
+      const zoomShiftX = offsetFromCenterNewX - offsetFromCenterInitialX;
+      const zoomShiftY = offsetFromCenterNewY - offsetFromCenterInitialY;
+
+      // To keep the grid point at the finger midpoint:
+      // newPan = initialPan + fingerMovement - zoomShift
+      const newPanX = pinchRef.current.initialPanX + fingerDx - zoomShiftX;
+      const newPanY = pinchRef.current.initialPanY + fingerDy - zoomShiftY;
+
+      setZoom(newZoom);
+      setPan(newPanX, newPanY);
       return;
     }
 
