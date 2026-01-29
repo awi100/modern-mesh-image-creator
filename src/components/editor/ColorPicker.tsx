@@ -72,7 +72,7 @@ export default function ColorPicker() {
   };
 
   return (
-    <div className="bg-slate-800 md:border-l border-slate-700 w-full md:w-64 flex flex-col">
+    <div className="bg-slate-800 md:border-l border-slate-700 w-full md:w-64 flex flex-col h-full">
       {/* Current color */}
       <div className="p-4 border-b border-slate-700">
         <h3 className="text-sm font-medium text-slate-400 mb-2">Current Color</h3>
@@ -239,7 +239,10 @@ export default function ColorPicker() {
       )}
 
       {/* Color grid */}
-      <div className="flex-1 overflow-y-auto p-2 min-h-0 max-h-[40vh] md:max-h-none">
+      <div
+        className="flex-1 overflow-y-auto p-2 min-h-0 max-h-[40vh] md:max-h-none overscroll-contain"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         <div className="grid grid-cols-5 gap-1">
           {filteredColors.map((color) => {
             const isCurrentColor = currentColor?.dmcNumber === color.dmcNumber;

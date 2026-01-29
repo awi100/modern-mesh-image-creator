@@ -346,7 +346,7 @@ export default function PixelCanvas({
     } else if (currentTool === "magicWand") {
       selectByColor(coords.x, coords.y);
     }
-  }, [currentTool, currentColor, eraserSize, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor]);
+  }, [currentTool, currentColor, eraserSize, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, startDragTracking]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);

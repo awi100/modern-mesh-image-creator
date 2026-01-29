@@ -186,7 +186,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Color picker - hidden on mobile, shown via bottom drawer */}
-        <div className="hidden md:block">
+        <div className="hidden md:flex md:h-full">
           <ColorPicker />
         </div>
 
