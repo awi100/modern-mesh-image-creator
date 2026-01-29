@@ -31,9 +31,15 @@ interface Design {
   canvasPrinted: number;
   kitColorCount: number;
   kitSkeinCount: number;
+  colorsUsed: string | null;
   isDraft: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+interface InventoryItem {
+  dmcNumber: string;
+  skeins: number;
 }
 
 export default function HomePage() {
@@ -50,12 +56,52 @@ export default function HomePage() {
   const [newFolderName, setNewFolderName] = useState("");
   const [movingDesignId, setMovingDesignId] = useState<string | null>(null);
   const [showNewDesignDialog, setShowNewDesignDialog] = useState(false);
+  const [inventoryBySize, setInventoryBySize] = useState<{ size5: Set<string>; size8: Set<string> }>({
+    size5: new Set(),
+    size8: new Set(),
+  });
 
   useEffect(() => {
     fetchDesigns();
     fetchFolders();
     fetchTags();
+    fetchInventory();
   }, [selectedFolder, selectedTag, searchQuery]);
+
+  const fetchInventory = async () => {
+    try {
+      // Fetch inventory for both thread sizes
+      const [res5, res8] = await Promise.all([
+        fetch("/api/inventory?size=5"),
+        fetch("/api/inventory?size=8"),
+      ]);
+
+      if (res5.ok && res8.ok) {
+        const data5: InventoryItem[] = await res5.json();
+        const data8: InventoryItem[] = await res8.json();
+
+        setInventoryBySize({
+          size5: new Set(data5.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
+          size8: new Set(data8.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching inventory:", error);
+    }
+  };
+
+  // Check if a design has colors not in inventory
+  const getMissingColors = (design: Design): string[] => {
+    if (!design.colorsUsed) return [];
+
+    try {
+      const colors: string[] = JSON.parse(design.colorsUsed);
+      const inStock = design.meshCount === 14 ? inventoryBySize.size5 : inventoryBySize.size8;
+      return colors.filter(c => !inStock.has(c));
+    } catch {
+      return [];
+    }
+  };
 
   const fetchDesigns = async () => {
     try {
@@ -543,6 +589,20 @@ export default function HomePage() {
                         <div className="absolute top-2 left-2 pointer-events-none">
                           <span className="bg-slate-600/90 text-slate-200 text-xs font-semibold px-2 py-0.5 rounded">
                             DRAFT
+                          </span>
+                        </div>
+                      )}
+                      {/* Needs order badge - only show for non-draft designs with missing colors */}
+                      {!design.isDraft && getMissingColors(design).length > 0 && (
+                        <div className="absolute top-2 right-2 pointer-events-none">
+                          <span
+                            className="bg-red-600/90 text-white text-xs font-semibold px-2 py-0.5 rounded flex items-center gap-1"
+                            title={`Missing: ${getMissingColors(design).join(", ")}`}
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            Order
                           </span>
                         </div>
                       )}

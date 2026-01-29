@@ -99,6 +99,7 @@ export async function PUT(
     // Precompute kit summary from pixel data
     let kitColorCount: number | undefined;
     let kitSkeinCount: number | undefined;
+    let colorsUsed: string | undefined;
     if (pixelDataBuffer) {
       try {
         const decompressed = pako.inflate(pixelDataBuffer, { to: "string" });
@@ -112,6 +113,8 @@ export async function PUT(
         );
         kitColorCount = yarnUsage.length;
         kitSkeinCount = yarnUsage.reduce((sum, u) => sum + u.skeinsNeeded, 0);
+        // Store the DMC numbers used
+        colorsUsed = JSON.stringify(Object.keys(stitchCounts));
       } catch (e) {
         console.error("Error computing kit summary:", e);
       }
@@ -137,6 +140,7 @@ export async function PUT(
         previewImageUrl,
         kitColorCount,
         kitSkeinCount,
+        colorsUsed,
       },
       include: {
         folder: true,

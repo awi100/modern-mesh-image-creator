@@ -102,6 +102,7 @@ model Design {
   // Precomputed kit summary (updated on design save)
   kitColorCount         Int     @default(0)  // distinct colors in the kit
   kitSkeinCount         Int     @default(0)  // total skeins for one kit
+  colorsUsed            String? // JSON array of DMC numbers used in design
 
   // Draft status
   isDraft               Boolean @default(false)
