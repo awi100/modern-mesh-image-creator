@@ -540,8 +540,8 @@ export default function HomePage() {
                       )}
                       {/* Draft badge */}
                       {design.isDraft && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <span className="bg-amber-600/90 text-white text-lg md:text-xl font-bold px-4 py-1 rounded transform -rotate-12 shadow-lg">
+                        <div className="absolute top-2 left-2 pointer-events-none">
+                          <span className="bg-slate-600/90 text-slate-200 text-xs font-semibold px-2 py-0.5 rounded">
                             DRAFT
                           </span>
                         </div>

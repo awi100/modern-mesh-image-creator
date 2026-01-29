@@ -226,7 +226,7 @@ export default function Header({
                 onClick={() => setDesignInfo({ isDraft: !isDraft })}
                 className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
                   isDraft
-                    ? "bg-amber-600 text-white"
+                    ? "bg-slate-500 text-slate-200"
                     : "bg-slate-700 text-slate-400 hover:bg-slate-600"
                 }`}
                 title={isDraft ? "Click to mark as complete" : "Click to mark as draft"}
