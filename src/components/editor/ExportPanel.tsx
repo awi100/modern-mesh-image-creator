@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { exportArtworkPdf, exportStitchGuidePdf, generatePreviewImage } from "@/lib/pdf-export";
+import { exportArtworkPdf, exportStitchGuidePdf, generatePreviewImage, generateFullResImage } from "@/lib/pdf-export";
 
 interface ExportPanelProps {
   onClose: () => void;
@@ -66,13 +66,14 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
     }
   };
 
-  const handleExportImage = async () => {
+  const handleExportImage = async (format: "png" | "jpeg") => {
     setExporting(true);
     try {
-      const dataUrl = generatePreviewImage(grid, 2000);
+      const dataUrl = generateFullResImage(grid, meshCount, format);
       if (dataUrl) {
         const link = document.createElement("a");
-        link.download = `${designName.replace(/\s+/g, "_")}.png`;
+        const ext = format === "jpeg" ? "jpg" : "png";
+        link.download = `${designName.replace(/\s+/g, "_")}.${ext}`;
         link.href = dataUrl;
         link.click();
       }
@@ -156,22 +157,42 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
             </label>
           </div>
 
-          {/* PNG Image */}
-          <button
-            onClick={handleExportImage}
-            disabled={exporting}
-            className="w-full p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">📷</span>
-              <div>
-                <p className="text-white font-medium">Image (PNG)</p>
-                <p className="text-sm text-slate-400">
-                  High-resolution preview image
-                </p>
+          {/* Image Exports */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleExportImage("png")}
+              disabled={exporting}
+              className="flex-1 p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📷</span>
+                <div>
+                  <p className="text-white font-medium">PNG</p>
+                  <p className="text-sm text-slate-400">
+                    Lossless, transparent
+                  </p>
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+            <button
+              onClick={() => handleExportImage("jpeg")}
+              disabled={exporting}
+              className="flex-1 p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🖼️</span>
+                <div>
+                  <p className="text-white font-medium">JPEG</p>
+                  <p className="text-sm text-slate-400">
+                    Smaller file size
+                  </p>
+                </div>
+              </div>
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 text-center">
+            Image size: {grid[0]?.length || 0} × {grid.length} cells × {meshCount} = {(grid[0]?.length || 0) * meshCount} × {grid.length * meshCount} px
+          </p>
         </div>
 
         {/* Close button */}

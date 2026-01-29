@@ -405,3 +405,57 @@ export function generatePreviewImage(
 
   return canvas.toDataURL("image/png");
 }
+
+/**
+ * Generate a full-resolution image where each grid cell = meshCount pixels
+ * @param grid - The pixel grid
+ * @param meshCount - Mesh count (14 or 18), each cell becomes this many pixels
+ * @param format - "png" or "jpeg"
+ * @returns Data URL of the generated image
+ */
+export function generateFullResImage(
+  grid: PixelGrid,
+  meshCount: number,
+  format: "png" | "jpeg" = "png"
+): string {
+  const gridHeight = grid.length;
+  const gridWidth = grid[0]?.length || 0;
+
+  if (gridWidth === 0 || gridHeight === 0) {
+    return "";
+  }
+
+  // Each grid cell = meshCount pixels
+  const cellSize = meshCount;
+  const width = gridWidth * cellSize;
+  const height = gridHeight * cellSize;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) return "";
+
+  // Fill background with white
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, width, height);
+
+  // Draw pixels
+  for (let y = 0; y < gridHeight; y++) {
+    for (let x = 0; x < gridWidth; x++) {
+      const dmcNumber = grid[y][x];
+      if (dmcNumber === null) continue;
+
+      const color = getDmcColorByNumber(dmcNumber);
+      if (!color) continue;
+
+      ctx.fillStyle = color.hex;
+      ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+    }
+  }
+
+  const mimeType = format === "jpeg" ? "image/jpeg" : "image/png";
+  const quality = format === "jpeg" ? 0.92 : undefined;
+  return canvas.toDataURL(mimeType, quality);
+}
