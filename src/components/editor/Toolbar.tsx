@@ -8,7 +8,6 @@ const tools: { id: Tool; label: string; icon: string }[] = [
   { id: "brush", label: "Brush", icon: "🖌️" },
   { id: "eraser", label: "Eraser", icon: "🧹" },
   { id: "fill", label: "Fill", icon: "🪣" },
-  { id: "line", label: "Line", icon: "📏" },
   { id: "rectangle", label: "Rectangle", icon: "⬜" },
   { id: "select", label: "Select", icon: "⬚" },
   { id: "magicWand", label: "Magic Wand", icon: "🪄" },
@@ -44,9 +43,19 @@ export default function Toolbar() {
     selection,
   } = useEditorStore();
 
+  // Get current tool info for the mobile label
+  const currentToolInfo = tools.find((t) => t.id === currentTool);
+
   return (
     <div className="bg-slate-800 border-b border-slate-700 p-2 overflow-x-auto">
       <div className="flex items-center gap-2 md:gap-4 min-w-max">
+        {/* Current tool indicator - visible on mobile/tablet */}
+        <div className="lg:hidden flex items-center gap-1 px-2 py-1 bg-rose-900/50 rounded-lg border border-rose-800">
+          <span className="text-xs text-rose-200 font-medium">
+            {currentToolInfo?.label || currentTool}
+          </span>
+        </div>
+
         {/* Tools - scrollable on mobile */}
         <div className="flex items-center gap-1">
           {tools.map((tool) => (

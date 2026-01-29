@@ -3,7 +3,7 @@ import { DmcColor, DMC_PEARL_COTTON, getDmcColorByNumber } from "./dmc-pearl-cot
 import { PixelGrid, floodFill, replaceColor, createEmptyGrid, copySelection, pasteData, getSelectionBounds, mirrorHorizontal, mirrorVertical, rotate90Clockwise, countStitchesByColor, getUsedColors } from "./color-utils";
 import { calculateYarnUsage, YarnUsage, StitchType } from "./yarn-calculator";
 
-export type Tool = "pencil" | "brush" | "eraser" | "fill" | "line" | "rectangle" | "select" | "magicWand" | "eyedropper" | "move";
+export type Tool = "pencil" | "brush" | "eraser" | "fill" | "rectangle" | "select" | "magicWand" | "eyedropper" | "move";
 
 interface HistoryEntry {
   grid: PixelGrid;
