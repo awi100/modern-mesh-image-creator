@@ -1,17 +1,17 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useEditorStore, Tool } from "@/lib/store";
 
-const tools: { id: Tool; label: string; icon: string }[] = [
-  { id: "pencil", label: "Pencil", icon: "✏️" },
-  { id: "brush", label: "Brush", icon: "🖌️" },
-  { id: "eraser", label: "Eraser", icon: "🧹" },
-  { id: "fill", label: "Fill", icon: "🪣" },
-  { id: "rectangle", label: "Rectangle", icon: "⬜" },
-  { id: "select", label: "Select", icon: "⬚" },
-  { id: "magicWand", label: "Magic Wand", icon: "🪄" },
-  { id: "eyedropper", label: "Eyedropper", icon: "💧" },
+const tools: { id: Tool; label: string; icon: string; description: string }[] = [
+  { id: "pencil", label: "Pencil", icon: "✏️", description: "Draw single pixels. Tap to place, drag to pan." },
+  { id: "brush", label: "Brush", icon: "🖌️", description: "Draw multiple pixels at once. Adjust size with +/- buttons." },
+  { id: "eraser", label: "Eraser", icon: "🧼", description: "Remove color from pixels. Choose S/M/L size." },
+  { id: "fill", label: "Fill", icon: "🪣", description: "Fill an area with the current color." },
+  { id: "rectangle", label: "Rectangle", icon: "⬜", description: "Draw rectangles on the canvas." },
+  { id: "select", label: "Select", icon: "⬚", description: "Select an area to copy, cut, or delete." },
+  { id: "magicWand", label: "Magic Wand", icon: "🪄", description: "Select all pixels of the same color." },
+  { id: "eyedropper", label: "Eyedropper", icon: "💧", description: "Pick a color from the canvas." },
 ];
 
 export default function Toolbar() {
@@ -43,14 +43,52 @@ export default function Toolbar() {
     selection,
   } = useEditorStore();
 
+  const [showHelp, setShowHelp] = useState(false);
+
   // Get current tool info for the mobile label
   const currentToolInfo = tools.find((t) => t.id === currentTool);
 
   return (
+    <>
+    {/* Help Modal */}
+    {showHelp && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-slate-800 rounded-xl p-4 w-full max-w-md shadow-xl max-h-[80vh] overflow-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Tool Guide</h2>
+            <button
+              onClick={() => setShowHelp(false)}
+              className="p-1 text-slate-400 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="space-y-3">
+            {tools.map((tool) => (
+              <div key={tool.id} className="flex items-start gap-3 p-2 bg-slate-700/50 rounded-lg">
+                <span className="text-xl">{tool.icon}</span>
+                <div>
+                  <p className="text-white font-medium">{tool.label}</p>
+                  <p className="text-sm text-slate-400">{tool.description}</p>
+                </div>
+              </div>
+            ))}
+            <div className="border-t border-slate-600 pt-3 mt-3">
+              <p className="text-sm text-slate-400">
+                <strong className="text-white">Tip:</strong> On iPad, use two fingers to zoom and pan the canvas.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="bg-slate-800 border-b border-slate-700 p-2 overflow-x-auto">
       <div className="flex items-center gap-2 md:gap-4 min-w-max">
         {/* Current tool indicator - visible on mobile/tablet */}
-        <div className="lg:hidden flex items-center gap-1 px-2 py-1 bg-rose-900/50 rounded-lg border border-rose-800">
+        <div
+          className="lg:hidden flex items-center gap-1 px-2 py-1 bg-rose-900/50 rounded-lg border border-rose-800"
+          title={currentToolInfo?.description}
+        >
           <span className="text-xs text-rose-200 font-medium">
             {currentToolInfo?.label || currentTool}
           </span>
@@ -67,12 +105,20 @@ export default function Toolbar() {
                   ? "bg-rose-900 text-white"
                   : "bg-slate-700 text-slate-300 hover:bg-slate-600 active:bg-slate-500"
               }`}
-              title={tool.label}
+              title={`${tool.label}: ${tool.description}`}
             >
               <span className="text-lg md:text-base">{tool.icon}</span>
               <span className="text-xs font-medium hidden lg:inline">{tool.label}</span>
             </button>
           ))}
+          {/* Help button */}
+          <button
+            onClick={() => setShowHelp(true)}
+            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation"
+            title="Tool Guide"
+          >
+            <span className="text-lg md:text-base">❓</span>
+          </button>
         </div>
 
         {/* Brush size (shown when brush tool is active) */}
@@ -261,5 +307,6 @@ export default function Toolbar() {
         )}
       </div>
     </div>
+    </>
   );
 }
