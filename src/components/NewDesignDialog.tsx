@@ -28,9 +28,10 @@ interface CustomPreset {
 
 interface NewDesignDialogProps {
   onClose: () => void;
+  folderId?: string | null;
 }
 
-export default function NewDesignDialog({ onClose }: NewDesignDialogProps) {
+export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogProps) {
   const router = useRouter();
   const { setDesignInfo, initializeGrid, reset } = useEditorStore();
 
@@ -111,6 +112,7 @@ export default function NewDesignDialog({ onClose }: NewDesignDialogProps) {
     setDesignInfo({
       designId: null,
       designName,
+      folderId: folderId || null,
       widthInches,
       heightInches,
       meshCount,

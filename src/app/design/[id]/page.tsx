@@ -49,6 +49,7 @@ export default async function DesignPage({ params }: Props) {
 
   const initialData = {
     name: design.name,
+    folderId: design.folderId,
     widthInches: design.widthInches,
     heightInches: design.heightInches,
     meshCount: design.meshCount as 14 | 18,

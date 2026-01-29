@@ -676,7 +676,10 @@ export default function HomePage() {
 
       {/* New Design Dialog */}
       {showNewDesignDialog && (
-        <NewDesignDialog onClose={() => setShowNewDesignDialog(false)} />
+        <NewDesignDialog
+          onClose={() => setShowNewDesignDialog(false)}
+          folderId={selectedFolder}
+        />
       )}
     </div>
   );

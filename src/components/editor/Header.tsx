@@ -69,6 +69,7 @@ export default function Header({
   const {
     designId,
     designName,
+    folderId,
     widthInches,
     heightInches,
     meshCount,
@@ -106,6 +107,7 @@ export default function Header({
 
       const body = {
         name: designName,
+        folderId,
         widthInches,
         heightInches,
         meshCount,
@@ -150,6 +152,7 @@ export default function Header({
   }, [
     designId,
     designName,
+    folderId,
     widthInches,
     heightInches,
     meshCount,
