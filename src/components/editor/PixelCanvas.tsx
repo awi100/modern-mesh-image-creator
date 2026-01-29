@@ -22,8 +22,10 @@ export default function PixelCanvas({
 }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
+  // Use refs for isDrawing and lastPos to avoid React state async update issues
+  // This ensures touch/mouse move events see the updated values immediately
+  const isDrawingRef = useRef(false);
+  const lastPosRef = useRef<{ x: number; y: number } | null>(null);
   const [lineStart, setLineStart] = useState<{ x: number; y: number } | null>(null);
   const [textPlacementPos, setTextPlacementPos] = useState<{ x: number; y: number } | null>(null);
   const pinchRef = useRef<{
@@ -316,8 +318,8 @@ export default function PixelCanvas({
       return;
     }
 
-    setIsDrawing(true);
-    setLastPos(coords);
+    isDrawingRef.current = true;
+    lastPosRef.current = coords;
 
     if (currentTool === "pencil") {
       // Fallback if no screen coords (shouldn't happen)
@@ -406,8 +408,8 @@ export default function PixelCanvas({
         gridPointX,
         gridPointY,
       };
-      setIsDrawing(false);
-      setLastPos(null);
+      isDrawingRef.current = false;
+      lastPosRef.current = null;
       return;
     }
 
@@ -428,7 +430,9 @@ export default function PixelCanvas({
 
   // Shared move logic for mouse and touch
   const handleDrawMove = useCallback((coords: { x: number; y: number }) => {
-    if (!isDrawing) return;
+    if (!isDrawingRef.current) return;
+
+    const lastPos = lastPosRef.current;
 
     if (currentTool === "pencil") {
       // Draw line from last pos to current
@@ -458,7 +462,7 @@ export default function PixelCanvas({
           }
         }
       }
-      setLastPos(coords);
+      lastPosRef.current = coords;
     } else if (currentTool === "brush") {
       // Draw with brush (multiple pixels at once)
       if (lastPos) {
@@ -487,7 +491,7 @@ export default function PixelCanvas({
           }
         }
       }
-      setLastPos(coords);
+      lastPosRef.current = coords;
     } else if (currentTool === "eraser") {
       if (lastPos) {
         const dx = Math.abs(coords.x - lastPos.x);
@@ -515,11 +519,11 @@ export default function PixelCanvas({
           }
         }
       }
-      setLastPos(coords);
+      lastPosRef.current = coords;
     } else if (currentTool === "select") {
       updateSelection(coords.x, coords.y);
     }
-  }, [isDrawing, currentTool, currentColor, eraserSize, lastPos, setPixel, setBrushPixels, updateSelection]);
+  }, [currentTool, currentColor, eraserSize, setPixel, setBrushPixels, updateSelection]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
@@ -543,10 +547,10 @@ export default function PixelCanvas({
       return;
     }
 
-    if (!isDrawing) return;
+    if (!isDrawingRef.current) return;
     if (!coords) return;
     handleDrawMove(coords);
-  }, [isDrawing, getMouseCoords, handleDrawMove, pendingText, setPan]);
+  }, [getMouseCoords, handleDrawMove, pendingText, setPan]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -634,11 +638,11 @@ export default function PixelCanvas({
       return;
     }
 
-    if (!isDrawing) return;
+    if (!isDrawingRef.current) return;
     const coords = getTouchCoords(e);
     if (!coords) return;
     handleDrawMove(coords);
-  }, [isDrawing, getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawMove, setZoom, setPan]);
+  }, [getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawMove, setZoom, setPan]);
 
   const handleDrawEnd = useCallback((coords: { x: number; y: number } | null) => {
     // Handle line tool on end
@@ -647,8 +651,8 @@ export default function PixelCanvas({
       setLineStart(null);
     }
 
-    setIsDrawing(false);
-    setLastPos(null);
+    isDrawingRef.current = false;
+    lastPosRef.current = null;
   }, [currentTool, lineStart, drawLine, currentColor]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -690,18 +694,19 @@ export default function PixelCanvas({
     }
 
     // For touch end, we use the last known position since touches array is empty
+    const lastPos = lastPosRef.current;
     if (currentTool === "line" && lineStart && lastPos) {
       drawLine(lineStart.x, lineStart.y, lastPos.x, lastPos.y, currentColor?.dmcNumber || null);
       setLineStart(null);
     }
-    setIsDrawing(false);
-    setLastPos(null);
-  }, [currentTool, lineStart, lastPos, drawLine, currentColor, saveToHistory, setPixel]);
+    isDrawingRef.current = false;
+    lastPosRef.current = null;
+  }, [currentTool, lineStart, drawLine, currentColor, saveToHistory, setPixel]);
 
   const handleMouseLeave = useCallback(() => {
     dragRef.current = null;
-    setIsDrawing(false);
-    setLastPos(null);
+    isDrawingRef.current = false;
+    lastPosRef.current = null;
     setLineStart(null);
   }, []);
 
