@@ -70,6 +70,7 @@ export default function Header({
     designId,
     designName,
     folderId,
+    isDraft,
     widthInches,
     heightInches,
     meshCount,
@@ -108,6 +109,7 @@ export default function Header({
       const body = {
         name: designName,
         folderId,
+        isDraft,
         widthInches,
         heightInches,
         meshCount,
@@ -153,6 +155,7 @@ export default function Header({
     designId,
     designName,
     folderId,
+    isDraft,
     widthInches,
     heightInches,
     meshCount,
@@ -214,9 +217,23 @@ export default function Header({
                 {isDirty && <span className="text-rose-400 flex-shrink-0">•</span>}
               </button>
             )}
-            <span className="text-slate-500 text-xs md:text-sm hidden sm:block">
-              {widthInches}&quot; × {heightInches}&quot; @ {meshCount} mesh
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-500 text-xs md:text-sm hidden sm:block">
+                {widthInches}&quot; × {heightInches}&quot; @ {meshCount} mesh
+              </span>
+              {/* Draft toggle */}
+              <button
+                onClick={() => setDesignInfo({ isDraft: !isDraft })}
+                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  isDraft
+                    ? "bg-amber-600 text-white"
+                    : "bg-slate-700 text-slate-400 hover:bg-slate-600"
+                }`}
+                title={isDraft ? "Click to mark as complete" : "Click to mark as draft"}
+              >
+                {isDraft ? "DRAFT" : "Complete"}
+              </button>
+            </div>
           </div>
         </div>
 

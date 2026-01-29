@@ -31,6 +31,7 @@ interface Design {
   canvasPrinted: number;
   kitColorCount: number;
   kitSkeinCount: number;
+  isDraft: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -535,6 +536,14 @@ export default function HomePage() {
                           <svg className="w-12 h-12 md:w-16 md:h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
                           </svg>
+                        </div>
+                      )}
+                      {/* Draft badge */}
+                      {design.isDraft && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <span className="bg-amber-600/90 text-white text-lg md:text-xl font-bold px-4 py-1 rounded transform -rotate-12 shadow-lg">
+                            DRAFT
+                          </span>
                         </div>
                       )}
                     </Link>

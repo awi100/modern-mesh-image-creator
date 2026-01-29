@@ -21,6 +21,7 @@ interface EditorState {
   designId: string | null;
   designName: string;
   folderId: string | null;
+  isDraft: boolean;
   widthInches: number;
   heightInches: number;
   meshCount: 14 | 18;
@@ -77,6 +78,7 @@ interface EditorState {
     designId?: string | null;
     designName?: string;
     folderId?: string | null;
+    isDraft?: boolean;
     widthInches?: number;
     heightInches?: number;
     meshCount?: 14 | 18;
@@ -161,6 +163,7 @@ const createInitialState = () => ({
   designId: null,
   designName: "Untitled Design",
   folderId: null as string | null,
+  isDraft: false,
   widthInches: 8,
   heightInches: 8,
   meshCount: 14 as 14 | 18,
@@ -201,6 +204,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (info.designId !== undefined) updates.designId = info.designId;
       if (info.designName !== undefined) updates.designName = info.designName;
       if (info.folderId !== undefined) updates.folderId = info.folderId;
+      if (info.isDraft !== undefined) updates.isDraft = info.isDraft;
       if (info.widthInches !== undefined) updates.widthInches = info.widthInches;
       if (info.heightInches !== undefined) updates.heightInches = info.heightInches;
       if (info.meshCount !== undefined) updates.meshCount = info.meshCount;

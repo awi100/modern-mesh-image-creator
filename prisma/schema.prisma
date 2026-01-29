@@ -103,6 +103,9 @@ model Design {
   kitColorCount         Int     @default(0)  // distinct colors in the kit
   kitSkeinCount         Int     @default(0)  // total skeins for one kit
 
+  // Draft status
+  isDraft               Boolean @default(false)
+
   // Organization
   folderId  String?
   folder    Folder?     @relation(fields: [folderId], references: [id])

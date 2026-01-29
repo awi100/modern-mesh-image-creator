@@ -53,6 +53,7 @@ export function useAutoSave() {
     designId,
     designName,
     folderId,
+    isDraft,
     widthInches,
     heightInches,
     meshCount,
@@ -95,6 +96,7 @@ export function useAutoSave() {
       const body = {
         name: designName,
         folderId,
+        isDraft,
         widthInches,
         heightInches,
         meshCount,
@@ -141,6 +143,7 @@ export function useAutoSave() {
     designId,
     designName,
     folderId,
+    isDraft,
     widthInches,
     heightInches,
     meshCount,

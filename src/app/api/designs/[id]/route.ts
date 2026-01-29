@@ -86,6 +86,7 @@ export async function PUT(
       referenceImageUrl,
       referenceImageOpacity,
       folderId,
+      isDraft,
       tagIds,
       previewImageUrl,
     } = body;
@@ -132,6 +133,7 @@ export async function PUT(
         referenceImageUrl,
         referenceImageOpacity,
         folderId,
+        isDraft,
         previewImageUrl,
         kitColorCount,
         kitSkeinCount,

@@ -18,6 +18,7 @@ interface EditorProps {
   initialData?: {
     name: string;
     folderId?: string | null;
+    isDraft?: boolean;
     widthInches: number;
     heightInches: number;
     meshCount: 14 | 18;
@@ -60,6 +61,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
         designId: designId || null,
         designName: initialData.name,
         folderId: initialData.folderId || null,
+        isDraft: initialData.isDraft || false,
         widthInches: initialData.widthInches,
         heightInches: initialData.heightInches,
         meshCount: initialData.meshCount,
