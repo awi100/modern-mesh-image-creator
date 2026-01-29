@@ -716,21 +716,26 @@ export default function PixelCanvas({
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-auto bg-slate-100 flex items-center justify-center p-2 md:p-4 relative"
-      style={{ transform: `translate(${panX}px, ${panY}px)` }}
+      className="flex-1 overflow-hidden bg-slate-100 relative"
     >
-      <canvas
-        ref={canvasRef}
-        className={`shadow-lg touch-none ${pendingText ? "cursor-cell" : "cursor-crosshair"}`}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
-        onWheel={handleWheel}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      />
+      {/* Inner wrapper that handles pan/zoom transform */}
+      <div
+        className="w-full h-full flex items-center justify-center p-2 md:p-4"
+        style={{ transform: `translate(${panX}px, ${panY}px)` }}
+      >
+        <canvas
+          ref={canvasRef}
+          className={`shadow-lg touch-none ${pendingText ? "cursor-cell" : "cursor-crosshair"}`}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        />
+      </div>
 
       {/* Text placement mode indicator */}
       {pendingText && (
