@@ -604,7 +604,30 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
 
 // Get color by DMC number
 export function getDmcColorByNumber(dmcNumber: string): DmcColor | undefined {
-  return DMC_PEARL_COTTON.find(c => c.dmcNumber === dmcNumber);
+  // Exact match first
+  let color = DMC_PEARL_COTTON.find(c => c.dmcNumber === dmcNumber);
+  if (color) return color;
+
+  // Try case-insensitive match (for BLANC, ECRU, etc.)
+  const upperDmc = dmcNumber.toUpperCase();
+  color = DMC_PEARL_COTTON.find(c => c.dmcNumber.toUpperCase() === upperDmc);
+  if (color) return color;
+
+  // Try stripping leading zeros (e.g., "0310" -> "310")
+  const stripped = dmcNumber.replace(/^0+/, '');
+  if (stripped !== dmcNumber) {
+    color = DMC_PEARL_COTTON.find(c => c.dmcNumber === stripped);
+    if (color) return color;
+  }
+
+  // Try adding leading zeros for single/double digit numbers (e.g., "1" -> "01")
+  if (/^\d{1,2}$/.test(dmcNumber)) {
+    const padded = dmcNumber.padStart(2, '0');
+    color = DMC_PEARL_COTTON.find(c => c.dmcNumber === padded);
+    if (color) return color;
+  }
+
+  return undefined;
 }
 
 // Search colors by name
