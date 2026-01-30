@@ -47,6 +47,12 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
   const [newPresetName, setNewPresetName] = useState("");
   const [savingPreset, setSavingPreset] = useState(false);
 
+  // Edit preset state
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editWidth, setEditWidth] = useState("");
+  const [editHeight, setEditHeight] = useState("");
+
   // Fetch custom presets on mount
   useEffect(() => {
     fetch("/api/canvas-presets")
@@ -95,6 +101,52 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
       setCustomPresets(customPresets.filter((p) => p.id !== id));
     } catch (error) {
       console.error("Failed to delete preset:", error);
+    }
+  };
+
+  const handleStartEdit = (preset: CustomPreset, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPresetId(preset.id);
+    setEditName(preset.name);
+    setEditWidth(String(preset.widthInches));
+    setEditHeight(String(preset.heightInches));
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPresetId(null);
+    setEditName("");
+    setEditWidth("");
+    setEditHeight("");
+  };
+
+  const handleSaveEdit = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!editingPresetId || !editName.trim()) return;
+
+    const width = parseFloat(editWidth) || 1;
+    const height = parseFloat(editHeight) || 1;
+
+    try {
+      const response = await fetch(`/api/canvas-presets/${editingPresetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName,
+          widthInches: width,
+          heightInches: height,
+          description: `${width}" × ${height}"`,
+        }),
+      });
+
+      if (response.ok) {
+        const updated = await response.json();
+        setCustomPresets(
+          customPresets.map((p) => (p.id === editingPresetId ? updated : p))
+        );
+        handleCancelEdit();
+      }
+    } catch (error) {
+      console.error("Failed to update preset:", error);
     }
   };
 
@@ -191,35 +243,105 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
           <div className="mb-6">
             <label className="block text-sm text-slate-400 mb-3">Your Saved Sizes</label>
             <div className="grid grid-cols-2 gap-2">
-              {customPresets.map((preset) => (
-                <button
-                  key={preset.id}
-                  onClick={() => handleSelectPreset(preset.widthInches, preset.heightInches)}
-                  className={`p-3 text-left rounded-lg border transition-colors relative group ${
-                    widthInches === preset.widthInches && heightInches === preset.heightInches && !showCustom
-                      ? "bg-rose-900/30 border-rose-800"
-                      : "bg-slate-700 border-slate-600 hover:border-slate-500"
-                  }`}
-                >
-                  <p className={`font-medium ${
-                    widthInches === preset.widthInches && heightInches === preset.heightInches && !showCustom
-                      ? "text-rose-300"
-                      : "text-white"
-                  }`}>
-                    {preset.name}
-                  </p>
-                  <p className="text-xs text-slate-400">{preset.widthInches}" × {preset.heightInches}"</p>
-                  <button
-                    onClick={(e) => handleDeletePreset(preset.id, e)}
-                    className="absolute top-1 right-1 p-1 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Delete preset"
+              {customPresets.map((preset) =>
+                editingPresetId === preset.id ? (
+                  <div
+                    key={preset.id}
+                    className="p-3 rounded-lg border bg-slate-700 border-rose-800 col-span-2"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="Preset name"
+                        className="w-full px-2 py-1.5 bg-slate-600 border border-slate-500 rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-rose-800"
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="block text-xs text-slate-400 mb-1">Width</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="36"
+                            step="0.5"
+                            value={editWidth}
+                            onChange={(e) => setEditWidth(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-slate-600 border border-slate-500 rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-rose-800"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs text-slate-400 mb-1">Height</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="36"
+                            step="0.5"
+                            value={editHeight}
+                            onChange={(e) => setEditHeight(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-slate-600 border border-slate-500 rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-rose-800"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={handleSaveEdit}
+                          className="flex-1 px-2 py-1.5 bg-rose-900 text-white rounded text-sm hover:bg-rose-950"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="flex-1 px-2 py-1.5 bg-slate-600 text-slate-300 rounded text-sm hover:bg-slate-500"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    key={preset.id}
+                    onClick={() => handleSelectPreset(preset.widthInches, preset.heightInches)}
+                    className={`p-3 text-left rounded-lg border transition-colors relative group ${
+                      widthInches === preset.widthInches && heightInches === preset.heightInches && !showCustom
+                        ? "bg-rose-900/30 border-rose-800"
+                        : "bg-slate-700 border-slate-600 hover:border-slate-500"
+                    }`}
+                  >
+                    <p className={`font-medium pr-12 ${
+                      widthInches === preset.widthInches && heightInches === preset.heightInches && !showCustom
+                        ? "text-rose-300"
+                        : "text-white"
+                    }`}>
+                      {preset.name}
+                    </p>
+                    <p className="text-xs text-slate-400">{preset.widthInches}" × {preset.heightInches}"</p>
+                    <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => handleStartEdit(preset, e)}
+                        className="p-1 text-slate-500 hover:text-rose-400"
+                        title="Edit preset"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => handleDeletePreset(preset.id, e)}
+                        className="p-1 text-slate-500 hover:text-red-400"
+                        title="Delete preset"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </button>
-                </button>
-              ))}
+                )
+              )}
             </div>
           </div>
         )}
