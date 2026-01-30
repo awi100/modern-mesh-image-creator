@@ -48,6 +48,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false);
   const [showTextDialog, setShowTextDialog] = useState(false);
+  const [colorPanelCollapsed, setColorPanelCollapsed] = useState(false);
   const [pendingText, setPendingText] = useState<{
     pixels: (string | null)[][];
     width: number;
@@ -191,7 +192,35 @@ export default function Editor({ designId, initialData }: EditorProps) {
       <div className="flex-1 flex overflow-hidden">
         {/* Color picker - hidden on mobile, shown via bottom drawer */}
         <div className="hidden md:flex md:h-full">
-          <ColorPicker />
+          {colorPanelCollapsed ? (
+            <div className="bg-slate-800 border-r border-slate-700 flex flex-col items-center py-2">
+              <button
+                onClick={() => setColorPanelCollapsed(false)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                title="Show colors panel"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              <div className="mt-2 text-xs text-slate-500 writing-mode-vertical rotate-180" style={{ writingMode: 'vertical-rl' }}>
+                Colors
+              </div>
+            </div>
+          ) : (
+            <div className="relative">
+              <button
+                onClick={() => setColorPanelCollapsed(true)}
+                className="absolute top-2 right-2 z-10 p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                title="Collapse colors panel"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <ColorPicker />
+            </div>
+          )}
         </div>
 
         <PixelCanvas
