@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useEditorStore } from "@/lib/store";
-import { processImageToGrid } from "@/lib/color-utils";
+import { processImageToGrid, PixelGrid } from "@/lib/color-utils";
+import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
 interface ImageImportProps {
   onClose: () => void;
@@ -12,55 +13,136 @@ export default function ImageImport({ onClose }: ImageImportProps) {
   const { gridWidth, gridHeight, initializeGrid, saveToHistory } = useEditorStore();
 
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageData, setImageData] = useState<ImageData | null>(null);
   const [maxColors, setMaxColors] = useState(16);
   const [processing, setProcessing] = useState(false);
+  const [previewGrid, setPreviewGrid] = useState<PixelGrid | null>(null);
+  const [previewColors, setPreviewColors] = useState<number>(0);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const previewTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Load image and extract ImageData
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      setImageUrl(event.target?.result as string);
+      const url = event.target?.result as string;
+      setImageUrl(url);
+
+      // Load image and extract ImageData for preview
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          setImageData(ctx.getImageData(0, 0, img.width, img.height));
+        }
+      };
+      img.src = url;
     };
     reader.readAsDataURL(file);
   }, []);
 
-  const handleImport = useCallback(async () => {
-    if (!imageUrl) return;
+  // Debounced preview generation
+  useEffect(() => {
+    if (!imageData) {
+      setPreviewGrid(null);
+      return;
+    }
 
-    setProcessing(true);
+    // Clear existing timeout
+    if (previewTimeoutRef.current) {
+      clearTimeout(previewTimeoutRef.current);
+    }
 
-    try {
-      const img = new Image();
-      img.src = imageUrl;
+    setIsGeneratingPreview(true);
 
-      await new Promise((resolve) => {
-        img.onload = resolve;
-      });
-
-      // Create canvas and get image data
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext("2d");
-
-      if (!ctx) {
-        throw new Error("Could not get canvas context");
-      }
-
-      ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, img.width, img.height);
-
-      // Process image to pixel grid
+    // Debounce preview generation
+    previewTimeoutRef.current = setTimeout(() => {
       const { grid, usedColors } = processImageToGrid(
         imageData,
         gridWidth,
         gridHeight,
         maxColors
       );
+      setPreviewGrid(grid);
+      setPreviewColors(usedColors.length);
+      setIsGeneratingPreview(false);
+    }, 150);
+
+    return () => {
+      if (previewTimeoutRef.current) {
+        clearTimeout(previewTimeoutRef.current);
+      }
+    };
+  }, [imageData, maxColors, gridWidth, gridHeight]);
+
+  // Render preview to canvas
+  useEffect(() => {
+    if (!previewGrid || !previewCanvasRef.current) return;
+
+    const canvas = previewCanvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Set canvas size
+    const maxPreviewSize = 300;
+    const aspectRatio = gridWidth / gridHeight;
+    let canvasWidth = maxPreviewSize;
+    let canvasHeight = maxPreviewSize;
+
+    if (aspectRatio > 1) {
+      canvasHeight = maxPreviewSize / aspectRatio;
+    } else {
+      canvasWidth = maxPreviewSize * aspectRatio;
+    }
+
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
+    const cellWidth = canvasWidth / gridWidth;
+    const cellHeight = canvasHeight / gridHeight;
+
+    // Clear canvas
+    ctx.fillStyle = "#1e293b";
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // Draw pixels
+    for (let y = 0; y < previewGrid.length; y++) {
+      for (let x = 0; x < previewGrid[y].length; x++) {
+        const dmcNumber = previewGrid[y][x];
+        if (dmcNumber) {
+          const color = getDmcColorByNumber(dmcNumber);
+          if (color) {
+            ctx.fillStyle = color.hex;
+            ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
+          }
+        }
+      }
+    }
+  }, [previewGrid, gridWidth, gridHeight]);
+
+  const handleImport = useCallback(async () => {
+    if (!imageData) return;
+
+    setProcessing(true);
+
+    try {
+      // Use the preview grid if available, otherwise recompute
+      let grid: PixelGrid;
+      if (previewGrid) {
+        grid = previewGrid;
+      } else {
+        const result = processImageToGrid(imageData, gridWidth, gridHeight, maxColors);
+        grid = result.grid;
+      }
 
       // Save to history and update grid
       saveToHistory();
@@ -73,7 +155,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
     } finally {
       setProcessing(false);
     }
-  }, [imageUrl, gridWidth, gridHeight, maxColors, saveToHistory, initializeGrid, onClose]);
+  }, [imageData, previewGrid, gridWidth, gridHeight, maxColors, saveToHistory, initializeGrid, onClose]);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -105,14 +187,33 @@ export default function ImageImport({ onClose }: ImageImportProps) {
           </button>
         </div>
 
-        {/* Preview */}
+        {/* Preview - show original and processed side by side */}
         {imageUrl && (
           <div className="mb-4">
-            <img
-              src={imageUrl}
-              alt="Preview"
-              className="w-full h-48 object-contain bg-slate-900 rounded-lg"
-            />
+            <div className="flex gap-3">
+              {/* Original image */}
+              <div className="flex-1">
+                <p className="text-xs text-slate-400 mb-1 text-center">Original</p>
+                <img
+                  src={imageUrl}
+                  alt="Original"
+                  className="w-full h-36 object-contain bg-slate-900 rounded-lg"
+                />
+              </div>
+              {/* Processed preview */}
+              <div className="flex-1">
+                <p className="text-xs text-slate-400 mb-1 text-center">
+                  Preview {isGeneratingPreview ? "(updating...)" : `(${previewColors} colors)`}
+                </p>
+                <div className="w-full h-36 bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden">
+                  <canvas
+                    ref={previewCanvasRef}
+                    className="max-w-full max-h-full object-contain"
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -151,10 +252,10 @@ export default function ImageImport({ onClose }: ImageImportProps) {
           </button>
           <button
             onClick={handleImport}
-            disabled={!imageUrl || processing}
+            disabled={!imageData || processing || isGeneratingPreview}
             className="flex-1 py-2 px-4 bg-rose-900 text-white rounded-lg hover:bg-rose-950 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {processing ? "Processing..." : "Import"}
+            {processing ? "Importing..." : isGeneratingPreview ? "Generating preview..." : "Import"}
           </button>
         </div>
       </div>

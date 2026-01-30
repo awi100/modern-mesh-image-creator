@@ -27,6 +27,11 @@ export const TEXT_FONTS = [
   { id: "mono", name: "Monospace", family: "Courier New, monospace" },
   { id: "block", name: "Block", family: "Impact, Arial Black, sans-serif" },
   { id: "script", name: "Script", family: "Brush Script MT, cursive" },
+  { id: "rounded", name: "Rounded", family: "Verdana, Geneva, sans-serif" },
+  { id: "narrow", name: "Narrow", family: "Arial Narrow, sans-serif" },
+  { id: "classic", name: "Classic", family: "Palatino Linotype, Book Antiqua, serif" },
+  { id: "handwritten", name: "Handwritten", family: "Comic Sans MS, cursive" },
+  { id: "stencil", name: "Stencil", family: "Stencil, fantasy" },
 ];
 
 /**

@@ -21,6 +21,11 @@ export default function ColorPicker() {
   const [replaceTo, setReplaceTo] = useState<DmcColor | null>(null);
   const [selectingFor, setSelectingFor] = useState<'from' | 'to' | null>(null);
 
+  // Remove color mode
+  const [showRemovePanel, setShowRemovePanel] = useState(false);
+  const [removeColor, setRemoveColor] = useState<DmcColor | null>(null);
+  const [selectingRemove, setSelectingRemove] = useState(false);
+
   // Inventory: fetch stock for the relevant thread size (14 mesh → size 5, 18 mesh → size 8)
   const [inStockSet, setInStockSet] = useState<Set<string>>(new Set());
 
@@ -50,6 +55,9 @@ export default function ColorPicker() {
     } else if (selectingFor === 'to') {
       setReplaceTo(color);
       setSelectingFor(null);
+    } else if (selectingRemove) {
+      setRemoveColor(color);
+      setSelectingRemove(false);
     } else {
       setCurrentColor(color);
     }
@@ -69,6 +77,20 @@ export default function ColorPicker() {
     setReplaceFrom(null);
     setReplaceTo(null);
     setSelectingFor(null);
+  };
+
+  const handleRemove = () => {
+    if (removeColor) {
+      replaceAllColor(removeColor.dmcNumber, null);
+      setRemoveColor(null);
+      setShowRemovePanel(false);
+    }
+  };
+
+  const handleCloseRemove = () => {
+    setShowRemovePanel(false);
+    setRemoveColor(null);
+    setSelectingRemove(false);
   };
 
   return (
@@ -238,6 +260,92 @@ export default function ColorPicker() {
         </div>
       )}
 
+      {/* Remove color toggle */}
+      <div className="p-2 border-b border-slate-700">
+        <button
+          onClick={() => {
+            setShowRemovePanel(!showRemovePanel);
+            if (showReplacePanel) handleCloseReplace();
+          }}
+          className={`w-full py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2 ${
+            showRemovePanel
+              ? "bg-red-600 text-white"
+              : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Remove Color
+        </button>
+      </div>
+
+      {/* Remove color panel */}
+      {showRemovePanel && (
+        <div className="p-3 border-b border-slate-700 bg-slate-750 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400 uppercase tracking-wider">Remove Color</span>
+            <button
+              onClick={handleCloseRemove}
+              className="text-slate-400 hover:text-white p-1"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-400">
+            Select a color to remove all its stitches (make them empty).
+            Great for removing backgrounds from imported images.
+          </p>
+
+          {/* Color to remove slot */}
+          <button
+            onClick={() => setSelectingRemove(true)}
+            className={`w-full p-2 rounded-lg border-2 transition-all ${
+              selectingRemove
+                ? 'border-red-500 bg-slate-700'
+                : 'border-slate-600 bg-slate-700 hover:border-slate-500'
+            }`}
+          >
+            <div className="text-xs text-slate-400 mb-1">Color to remove</div>
+            {removeColor ? (
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-8 h-8 rounded border border-white/20"
+                  style={{ backgroundColor: removeColor.hex }}
+                />
+                <span className="text-white text-sm">DMC {removeColor.dmcNumber} - {removeColor.name}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded border-2 border-dashed border-slate-500 flex items-center justify-center">
+                  <span className="text-slate-500 text-lg">+</span>
+                </div>
+                <span className="text-slate-500 text-sm">Click to select a color</span>
+              </div>
+            )}
+          </button>
+
+          {/* Selection hint */}
+          {selectingRemove && (
+            <p className="text-xs text-red-400 text-center">
+              Click a color below to select it for removal
+            </p>
+          )}
+
+          {/* Remove button */}
+          <button
+            onClick={handleRemove}
+            disabled={!removeColor}
+            className="w-full py-2 px-3 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Remove All Instances
+          </button>
+        </div>
+      )}
+
       {/* Color grid */}
       <div
         className="flex-1 overflow-y-auto p-2 min-h-0 max-h-[40vh] md:max-h-none overscroll-contain"
@@ -248,7 +356,8 @@ export default function ColorPicker() {
             const isCurrentColor = currentColor?.dmcNumber === color.dmcNumber;
             const isReplaceFrom = replaceFrom?.dmcNumber === color.dmcNumber;
             const isReplaceTo = replaceTo?.dmcNumber === color.dmcNumber;
-            const isSelecting = selectingFor !== null;
+            const isRemoveTarget = removeColor?.dmcNumber === color.dmcNumber;
+            const isSelecting = selectingFor !== null || selectingRemove;
             const isInStock = inStockSet.has(color.dmcNumber);
 
             return (
@@ -256,13 +365,17 @@ export default function ColorPicker() {
                 key={color.dmcNumber}
                 onClick={() => handleColorClick(color)}
                 className={`aspect-square rounded-md border-2 transition-all flex items-center justify-center relative ${
-                  isReplaceFrom
+                  isRemoveTarget
+                    ? "border-red-500 scale-110 z-10 ring-2 ring-red-500/50"
+                    : isReplaceFrom
                     ? "border-orange-500 scale-110 z-10 ring-2 ring-orange-500/50"
                     : isReplaceTo
                     ? "border-green-500 scale-110 z-10 ring-2 ring-green-500/50"
                     : isCurrentColor && !isSelecting
                     ? "border-white scale-110 z-10"
-                    : isSelecting
+                    : selectingRemove
+                    ? "border-transparent hover:border-red-400 hover:scale-105"
+                    : selectingFor
                     ? "border-transparent hover:border-orange-400 hover:scale-105"
                     : "border-transparent hover:border-white/50"
                 }${!isInStock && inStockSet.size > 0 ? " opacity-40" : ""}`}

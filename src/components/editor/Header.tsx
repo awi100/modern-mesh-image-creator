@@ -56,6 +56,7 @@ interface HeaderProps {
   onShowCanvasResize: () => void;
   onShowExport: () => void;
   onShowTextDialog: () => void;
+  onShowShapeDialog: () => void;
 }
 
 export default function Header({
@@ -63,6 +64,7 @@ export default function Header({
   onShowCanvasResize,
   onShowExport,
   onShowTextDialog,
+  onShowShapeDialog,
 }: HeaderProps) {
   const router = useRouter();
 
@@ -261,6 +263,18 @@ export default function Header({
           >
             <span className="md:hidden">Aa</span>
             <span className="hidden md:inline">Text</span>
+          </button>
+          <button
+            onClick={onShowShapeDialog}
+            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            title="Add Shape"
+          >
+            <span className="md:hidden">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+            </span>
+            <span className="hidden md:inline">Shapes</span>
           </button>
           <button
             onClick={onShowImageImport}

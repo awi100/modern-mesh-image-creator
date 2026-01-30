@@ -40,7 +40,9 @@ export default function Toolbar() {
     copySelectionToClipboard,
     cutSelectionToClipboard,
     deleteSelection,
+    pasteFromClipboard,
     selection,
+    clipboard,
   } = useEditorStore();
 
   const [showHelp, setShowHelp] = useState(false);
@@ -269,25 +271,46 @@ export default function Toolbar() {
           </button>
         </div>
 
-        {/* Selection actions */}
+        {/* Clipboard actions - always visible */}
+        <div className="w-px h-8 bg-slate-600 hidden sm:block" />
+        <div className="hidden sm:flex items-center gap-1">
+          <button
+            onClick={copySelectionToClipboard}
+            disabled={!selection}
+            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            title="Copy (Ctrl+C)"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+          </button>
+          <button
+            onClick={cutSelectionToClipboard}
+            disabled={!selection}
+            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            title="Cut (Ctrl+X)"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+            </svg>
+          </button>
+          <button
+            onClick={() => pasteFromClipboard(0, 0)}
+            disabled={!clipboard}
+            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            title="Paste (Ctrl+V)"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Selection actions - contextual when selection exists */}
         {selection && (
           <>
             <div className="w-px h-8 bg-slate-600" />
             <div className="flex items-center gap-1">
-              <button
-                onClick={copySelectionToClipboard}
-                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation"
-                title="Copy (Ctrl+C)"
-              >
-                Copy
-              </button>
-              <button
-                onClick={cutSelectionToClipboard}
-                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:block"
-                title="Cut (Ctrl+X)"
-              >
-                Cut
-              </button>
               <button
                 onClick={deleteSelection}
                 className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation"

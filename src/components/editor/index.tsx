@@ -12,6 +12,7 @@ import CanvasResize from "./CanvasResize";
 import ExportPanel from "./ExportPanel";
 import MobileBottomBar from "./MobileBottomBar";
 import AddTextDialog from "./AddTextDialog";
+import AddShapeDialog from "./AddShapeDialog";
 
 interface EditorProps {
   designId?: string;
@@ -48,6 +49,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false);
   const [showTextDialog, setShowTextDialog] = useState(false);
+  const [showShapeDialog, setShowShapeDialog] = useState(false);
   const [colorPanelCollapsed, setColorPanelCollapsed] = useState(false);
   const [pendingText, setPendingText] = useState<{
     pixels: (string | null)[][];
@@ -92,6 +94,12 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const handleTextAdded = useCallback((pixels: (string | null)[][], width: number, height: number) => {
     setPendingText({ pixels, width, height });
     setShowTextDialog(false);
+  }, []);
+
+  // Handle shape added from dialog (reuse the same pending text mechanism)
+  const handleShapeAdded = useCallback((pixels: (string | null)[][], width: number, height: number) => {
+    setPendingText({ pixels, width, height });
+    setShowShapeDialog(false);
   }, []);
 
   // Handle text placement on canvas
@@ -186,6 +194,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
         onShowCanvasResize={() => setShowCanvasResize(true)}
         onShowExport={() => setShowExport(true)}
         onShowTextDialog={() => setShowTextDialog(true)}
+        onShowShapeDialog={() => setShowShapeDialog(true)}
       />
       <Toolbar />
 
@@ -303,6 +312,12 @@ export default function Editor({ designId, initialData }: EditorProps) {
         <AddTextDialog
           onClose={() => setShowTextDialog(false)}
           onAddText={handleTextAdded}
+        />
+      )}
+      {showShapeDialog && (
+        <AddShapeDialog
+          onClose={() => setShowShapeDialog(false)}
+          onAddShape={handleShapeAdded}
         />
       )}
     </div>
