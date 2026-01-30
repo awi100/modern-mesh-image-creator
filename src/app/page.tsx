@@ -378,7 +378,6 @@ export default function HomePage() {
         meshCount: design.meshCount,
         designName: design.name,
         usedColors,
-        fitToOnePage: false,
       });
 
       doc.save(`${design.name.replace(/\s+/g, "_")}_stitch_guide.pdf`);

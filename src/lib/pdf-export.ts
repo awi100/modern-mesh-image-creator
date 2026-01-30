@@ -78,9 +78,9 @@ export function exportArtworkPdf(options: ExportOptions): jsPDF {
   return doc;
 }
 
-// Export stitch guide PDF - with grid, legend, and cover page
+// Export stitch guide PDF - single page with image and legend
 export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
-  const { grid, widthInches, heightInches, meshCount, designName, usedColors, fitToOnePage = false } = options;
+  const { grid, widthInches, heightInches, meshCount, designName, usedColors } = options;
 
   const gridHeight = grid.length;
   const gridWidth = grid[0]?.length || 0;
@@ -94,46 +94,58 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
     colorSymbols.set(color.dmcNumber, SYMBOLS[i % SYMBOLS.length]);
   });
 
-  // Use letter size for stitch guide (or landscape if wider)
-  const isWide = gridWidth > gridHeight * 1.3;
+  // Always use landscape for better layout with image + legend side by side
   const doc = new jsPDF({
-    orientation: fitToOnePage && isWide ? "landscape" : "portrait",
+    orientation: "landscape",
     unit: "in",
     format: "letter",
   });
 
-  const pageWidth = fitToOnePage && isWide ? 11 : 8.5;
-  const pageHeight = fitToOnePage && isWide ? 8.5 : 11;
-  const margin = 0.5;
-  const contentWidth = pageWidth - 2 * margin;
-  const contentHeight = pageHeight - 2 * margin;
+  const pageWidth = 11;
+  const pageHeight = 8.5;
+  const margin = 0.4;
 
   // Calculate total stitches
   const totalStitches = Array.from(stitchCounts.values()).reduce((a, b) => a + b, 0);
 
-  // --- Cover Page ---
-  doc.setFontSize(24);
+  // --- Title at top ---
+  doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text(designName, pageWidth / 2, 2, { align: "center" });
+  doc.text(designName, pageWidth / 2, margin + 0.2, { align: "center" });
 
-  doc.setFontSize(14);
+  doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(`${widthInches}" × ${heightInches}" at ${meshCount} mesh`, pageWidth / 2, 2.5, { align: "center" });
-  doc.text(`${gridWidth} × ${gridHeight} grid (${totalStitches.toLocaleString()} total stitches)`, pageWidth / 2, 2.9, { align: "center" });
-  doc.text(`${usedColors.length} colors`, pageWidth / 2, 3.2, { align: "center" });
+  doc.text(
+    `${widthInches}" × ${heightInches}" at ${meshCount} mesh | ${gridWidth} × ${gridHeight} grid | ${totalStitches.toLocaleString()} stitches | ${usedColors.length} colors`,
+    pageWidth / 2,
+    margin + 0.45,
+    { align: "center" }
+  );
 
-  // Preview image
-  const previewSize = 4;
-  const previewX = (pageWidth - previewSize) / 2;
-  const previewY = 3.8;
+  const contentStartY = margin + 0.7;
+  const contentHeight = pageHeight - contentStartY - margin;
 
-  const cellSize = previewSize / Math.max(gridWidth, gridHeight);
-  const previewWidth = cellSize * gridWidth;
-  const previewHeight = cellSize * gridHeight;
-  const actualPreviewX = previewX + (previewSize - previewWidth) / 2;
-  const actualPreviewY = previewY + (previewSize - previewHeight) / 2;
+  // Layout: Image on left (60%), Legend on right (40%)
+  const imageAreaWidth = (pageWidth - 2 * margin) * 0.58;
+  const legendAreaWidth = (pageWidth - 2 * margin) * 0.38;
+  const gapBetween = (pageWidth - 2 * margin) * 0.04;
 
-  // Draw preview
+  // --- Draw the stitch image on the left ---
+  const imageX = margin;
+  const imageY = contentStartY;
+
+  // Calculate cell size to fit image in available space
+  const maxImageWidth = imageAreaWidth;
+  const maxImageHeight = contentHeight;
+  const cellSize = Math.min(maxImageWidth / gridWidth, maxImageHeight / gridHeight);
+  const actualImageWidth = cellSize * gridWidth;
+  const actualImageHeight = cellSize * gridHeight;
+
+  // Center the image in its area
+  const imageOffsetX = imageX + (maxImageWidth - actualImageWidth) / 2;
+  const imageOffsetY = imageY + (maxImageHeight - actualImageHeight) / 2;
+
+  // Draw pixels
   for (let y = 0; y < gridHeight; y++) {
     for (let x = 0; x < gridWidth; x++) {
       const dmcNumber = grid[y][x];
@@ -144,8 +156,8 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
 
       doc.setFillColor(color.rgb.r, color.rgb.g, color.rgb.b);
       doc.rect(
-        actualPreviewX + x * cellSize,
-        actualPreviewY + y * cellSize,
+        imageOffsetX + x * cellSize,
+        imageOffsetY + y * cellSize,
         cellSize,
         cellSize,
         "F"
@@ -153,203 +165,79 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
     }
   }
 
-  // Draw border around preview
+  // Draw border around image
   doc.setDrawColor(0);
   doc.setLineWidth(0.01);
-  doc.rect(actualPreviewX, actualPreviewY, previewWidth, previewHeight);
+  doc.rect(imageOffsetX, imageOffsetY, actualImageWidth, actualImageHeight);
 
-  // --- Legend Page ---
-  doc.addPage();
+  // --- Draw legend on the right ---
+  const legendX = margin + imageAreaWidth + gapBetween;
+  const legendY = contentStartY;
 
-  doc.setFontSize(18);
+  doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("Color Legend", margin, margin + 0.3);
+  doc.text("Color Legend", legendX, legendY + 0.15);
 
-  const legendStartY = margin + 0.8;
-  const colorBoxSize = 0.35;
-  const legendLineHeight = 0.55;
-  const colWidth = contentWidth / 2;
+  const legendStartY = legendY + 0.4;
+  const colorBoxSize = 0.25;
+  const legendLineHeight = 0.38;
+
+  // Calculate how many colors can fit
+  const maxLegendRows = Math.floor((contentHeight - 0.4) / legendLineHeight);
 
   usedColors.forEach((color, i) => {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const x = margin + col * colWidth;
-    const y = legendStartY + row * legendLineHeight;
+    if (i >= maxLegendRows) return; // Skip if too many colors
 
-    // Skip if off page
-    if (y > pageHeight - margin) return;
+    const y = legendStartY + i * legendLineHeight;
 
     // Color box with symbol
     doc.setFillColor(color.rgb.r, color.rgb.g, color.rgb.b);
-    doc.rect(x, y, colorBoxSize, colorBoxSize, "F");
+    doc.rect(legendX, y, colorBoxSize, colorBoxSize, "F");
     doc.setDrawColor(0);
-    doc.rect(x, y, colorBoxSize, colorBoxSize);
+    doc.setLineWidth(0.005);
+    doc.rect(legendX, y, colorBoxSize, colorBoxSize);
 
     // Draw symbol in center of color box
     const symbol = colorSymbols.get(color.dmcNumber) || "●";
     const contrastColor = getContrastColor(color.rgb.r, color.rgb.g, color.rgb.b);
     doc.setTextColor(contrastColor);
-    doc.setFontSize(12);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-    doc.text(symbol, x + colorBoxSize / 2, y + colorBoxSize / 2 + 0.05, { align: "center" });
+    doc.text(symbol, legendX + colorBoxSize / 2, y + colorBoxSize / 2 + 0.03, { align: "center" });
 
     // Reset text color
     doc.setTextColor(0, 0, 0);
 
-    // DMC number and name
-    doc.setFontSize(10);
+    // DMC number, name, and stitch count on one line
+    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
     const count = stitchCounts.get(color.dmcNumber) || 0;
-    doc.text(`DMC ${color.dmcNumber}`, x + colorBoxSize + 0.1, y + 0.12);
+    doc.text(`${color.dmcNumber}`, legendX + colorBoxSize + 0.08, y + 0.1);
+
     doc.setFont("helvetica", "normal");
-    doc.text(color.name, x + colorBoxSize + 0.1, y + 0.25);
-    doc.setFontSize(9);
+    doc.setFontSize(7);
+    // Truncate name if too long
+    const maxNameLength = 18;
+    const displayName = color.name.length > maxNameLength
+      ? color.name.substring(0, maxNameLength - 1) + "…"
+      : color.name;
+    doc.text(displayName, legendX + colorBoxSize + 0.08, y + 0.22);
+
     doc.setTextColor(100, 100, 100);
-    doc.text(`${count.toLocaleString()} stitches`, x + colorBoxSize + 0.1, y + 0.38);
+    doc.text(`${count.toLocaleString()}`, legendX + legendAreaWidth - 0.1, y + 0.16, { align: "right" });
     doc.setTextColor(0, 0, 0);
   });
 
-  // --- Pattern Pages ---
-  // Calculate how to tile the pattern across multiple pages
-
-  let pagesX: number;
-  let pagesY: number;
-  let cellsPerPageX: number;
-  let cellsPerPageY: number;
-  let actualCellSize: number;
-
-  if (fitToOnePage) {
-    // Scale to fit entire pattern on one page
-    actualCellSize = Math.min(
-      contentWidth / gridWidth,
-      contentHeight / gridHeight
+  // If there are more colors than fit, show a note
+  if (usedColors.length > maxLegendRows) {
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.text(
+      `+ ${usedColors.length - maxLegendRows} more colors`,
+      legendX,
+      legendStartY + maxLegendRows * legendLineHeight + 0.1
     );
-    cellsPerPageX = gridWidth;
-    cellsPerPageY = gridHeight;
-    pagesX = 1;
-    pagesY = 1;
-  } else {
-    // Target cell size for readability (in inches)
-    const targetCellSize = 0.15; // ~10.5 cells per inch
-
-    // Calculate cells per page
-    cellsPerPageX = Math.floor(contentWidth / targetCellSize);
-    cellsPerPageY = Math.floor(contentHeight / targetCellSize);
-
-    // Calculate number of pages needed
-    pagesX = Math.ceil(gridWidth / cellsPerPageX);
-    pagesY = Math.ceil(gridHeight / cellsPerPageY);
-
-    // Actual cell size to fit evenly
-    actualCellSize = Math.min(
-      contentWidth / Math.min(gridWidth, cellsPerPageX),
-      contentHeight / Math.min(gridHeight, cellsPerPageY)
-    );
-  }
-
-  for (let pageY = 0; pageY < pagesY; pageY++) {
-    for (let pageX = 0; pageX < pagesX; pageX++) {
-      doc.addPage();
-
-      const startX = pageX * cellsPerPageX;
-      const startY = pageY * cellsPerPageY;
-      const endX = Math.min(startX + cellsPerPageX, gridWidth);
-      const endY = Math.min(startY + cellsPerPageY, gridHeight);
-
-      // Page header
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text(
-        `Page ${pageY * pagesX + pageX + 1} of ${pagesX * pagesY} | Columns ${startX + 1}-${endX} | Rows ${startY + 1}-${endY}`,
-        margin,
-        margin - 0.1
-      );
-
-      // Draw grid
-      // Calculate font size for symbols based on cell size
-      const symbolFontSize = Math.max(4, Math.min(10, actualCellSize * 50));
-
-      for (let y = startY; y < endY; y++) {
-        for (let x = startX; x < endX; x++) {
-          const drawX = margin + (x - startX) * actualCellSize;
-          const drawY = margin + (y - startY) * actualCellSize;
-
-          const dmcNumber = grid[y][x];
-
-          if (dmcNumber !== null) {
-            const color = getDmcColorByNumber(dmcNumber);
-            if (color) {
-              // Fill cell with color
-              doc.setFillColor(color.rgb.r, color.rgb.g, color.rgb.b);
-              doc.rect(drawX, drawY, actualCellSize, actualCellSize, "F");
-
-              // Draw symbol in cell (only if cell is large enough)
-              if (actualCellSize >= 0.08) {
-                const symbol = colorSymbols.get(dmcNumber) || "●";
-                const contrastColor = getContrastColor(color.rgb.r, color.rgb.g, color.rgb.b);
-                doc.setTextColor(contrastColor);
-                doc.setFontSize(symbolFontSize);
-                doc.setFont("helvetica", "bold");
-                doc.text(
-                  symbol,
-                  drawX + actualCellSize / 2,
-                  drawY + actualCellSize / 2 + actualCellSize * 0.15,
-                  { align: "center" }
-                );
-              }
-            }
-          }
-
-          // Grid line
-          doc.setDrawColor(200, 200, 200);
-          doc.setLineWidth(0.005);
-          doc.rect(drawX, drawY, actualCellSize, actualCellSize);
-        }
-      }
-
-      // Reset text color
-      doc.setTextColor(0, 0, 0);
-
-      // Draw heavier lines every 10 cells
-      doc.setDrawColor(100, 100, 100);
-      doc.setLineWidth(0.015);
-
-      for (let x = startX; x <= endX; x++) {
-        if (x % 10 === 0) {
-          const drawX = margin + (x - startX) * actualCellSize;
-          doc.line(drawX, margin, drawX, margin + (endY - startY) * actualCellSize);
-        }
-      }
-
-      for (let y = startY; y <= endY; y++) {
-        if (y % 10 === 0) {
-          const drawY = margin + (y - startY) * actualCellSize;
-          doc.line(margin, drawY, margin + (endX - startX) * actualCellSize, drawY);
-        }
-      }
-
-      // Row/column numbers
-      doc.setFontSize(6);
-      doc.setTextColor(100, 100, 100);
-
-      // Column numbers at top
-      for (let x = startX; x < endX; x++) {
-        if ((x + 1) % 5 === 0) {
-          const drawX = margin + (x - startX) * actualCellSize + actualCellSize / 2;
-          doc.text(String(x + 1), drawX, margin - 0.05, { align: "center" });
-        }
-      }
-
-      // Row numbers at left
-      for (let y = startY; y < endY; y++) {
-        if ((y + 1) % 5 === 0) {
-          const drawY = margin + (y - startY) * actualCellSize + actualCellSize / 2 + 0.02;
-          doc.text(String(y + 1), margin - 0.05, drawY, { align: "right" });
-        }
-      }
-
-      doc.setTextColor(0, 0, 0);
-    }
+    doc.setTextColor(0, 0, 0);
   }
 
   return doc;

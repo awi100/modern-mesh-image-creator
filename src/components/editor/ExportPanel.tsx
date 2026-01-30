@@ -24,7 +24,6 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
   const grid = flattenLayers();
 
   const [exporting, setExporting] = useState(false);
-  const [fitToOnePage, setFitToOnePage] = useState(false);
 
   const usedColors = getUsedColors();
 
@@ -59,7 +58,6 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
         meshCount,
         designName,
         usedColors,
-        fitToOnePage,
       });
 
       doc.save(`${designName.replace(/\s+/g, "_")}_stitch_guide.pdf`);
@@ -135,32 +133,21 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
           </button>
 
           {/* Stitch Guide PDF */}
-          <div className="p-4 bg-slate-700 rounded-lg">
-            <button
-              onClick={handleExportGuide}
-              disabled={exporting}
-              className="w-full text-left hover:opacity-80 transition-opacity disabled:opacity-50"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">📋</span>
-                <div>
-                  <p className="text-white font-medium">Stitch Guide (PDF)</p>
-                  <p className="text-sm text-slate-400">
-                    Cover page, legend, and gridded pattern
-                  </p>
-                </div>
+          <button
+            onClick={handleExportGuide}
+            disabled={exporting}
+            className="w-full p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📋</span>
+              <div>
+                <p className="text-white font-medium">Stitch Guide (PDF)</p>
+                <p className="text-sm text-slate-400">
+                  Single page with image and color legend
+                </p>
               </div>
-            </button>
-            <label className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-600 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={fitToOnePage}
-                onChange={(e) => setFitToOnePage(e.target.checked)}
-                className="w-4 h-4 text-rose-900 bg-slate-600 border-slate-500 rounded focus:ring-rose-800"
-              />
-              <span className="text-sm text-slate-300">Fit pattern to one page</span>
-            </label>
-          </div>
+            </div>
+          </button>
 
           {/* Image Exports */}
           <div className="flex gap-2">
