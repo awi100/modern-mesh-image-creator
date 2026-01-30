@@ -28,6 +28,7 @@ export interface YarnUsage {
   yarnYards: number;
   withBuffer: number; // yards with buffer
   skeinsNeeded: number;
+  usesFullSkein: boolean; // true if > 4 yards needed, meaning full skein(s) used
 }
 
 // Standard DMC Pearl Cotton skein length in yards
@@ -58,11 +59,17 @@ export function calculateYarnUsage(
 
   const results: YarnUsage[] = [];
 
+  // Threshold for using full skeins vs wound portions
+  const FULL_SKEIN_THRESHOLD = 4; // yards
+
   for (const [dmcNumber, stitchCount] of stitchCounts) {
     const squareInches = stitchCount / stitchesPerSqIn;
     const yarnYards = squareInches * yardsPerSqIn;
     const withBuffer = yarnYards * (1 + bufferPercent / 100);
-    const skeinsNeeded = Math.ceil(withBuffer / SKEIN_YARDS);
+
+    // If more than 4 yards needed, use full skein(s); otherwise wind the exact amount
+    const usesFullSkein = withBuffer > FULL_SKEIN_THRESHOLD;
+    const skeinsNeeded = usesFullSkein ? Math.ceil(withBuffer / SKEIN_YARDS) : 1;
 
     results.push({
       dmcNumber,
@@ -71,6 +78,7 @@ export function calculateYarnUsage(
       yarnYards: Math.round(yarnYards * 100) / 100,
       withBuffer: Math.round(withBuffer * 100) / 100,
       skeinsNeeded,
+      usesFullSkein,
     });
   }
 

@@ -206,7 +206,7 @@ export async function DELETE(
   }
 }
 
-// PATCH for partial updates (folder, canvas printed counter)
+// PATCH for partial updates (folder, canvas printed counter, kits ready)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -225,13 +225,22 @@ export async function PATCH(
       data.folderId = body.folderId;
     }
 
-    if (body.canvasPrintedDelta !== undefined) {
+    // Handle delta updates for counters
+    if (body.canvasPrintedDelta !== undefined || body.kitsReadyDelta !== undefined) {
       const current = await prisma.design.findUnique({
         where: { id },
-        select: { canvasPrinted: true },
+        select: { canvasPrinted: true, kitsReady: true },
       });
-      const newVal = (current?.canvasPrinted ?? 0) + body.canvasPrintedDelta;
-      data.canvasPrinted = Math.max(0, newVal);
+
+      if (body.canvasPrintedDelta !== undefined) {
+        const newVal = (current?.canvasPrinted ?? 0) + body.canvasPrintedDelta;
+        data.canvasPrinted = Math.max(0, newVal);
+      }
+
+      if (body.kitsReadyDelta !== undefined) {
+        const newVal = (current?.kitsReady ?? 0) + body.kitsReadyDelta;
+        data.kitsReady = Math.max(0, newVal);
+      }
     }
 
     const design = await prisma.design.update({
