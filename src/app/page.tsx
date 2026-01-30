@@ -75,6 +75,8 @@ export default function HomePage() {
     size8: new Set(),
   });
   const [exportingDesignId, setExportingDesignId] = useState<string | null>(null);
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [editingFolderName, setEditingFolderName] = useState("");
 
   useEffect(() => {
     fetchDesigns();
@@ -301,6 +303,35 @@ export default function HomePage() {
     } catch (error) {
       console.error("Error deleting folder:", error);
     }
+  };
+
+  const handleRenameFolder = async (folderId: string) => {
+    if (!editingFolderName.trim()) {
+      setEditingFolderId(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/folders/${folderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editingFolderName.trim() }),
+      });
+
+      if (response.ok) {
+        const updatedFolder = await response.json();
+        setFolders(folders.map(f => f.id === folderId ? updatedFolder : f));
+      }
+    } catch (error) {
+      console.error("Error renaming folder:", error);
+    }
+    setEditingFolderId(null);
+    setEditingFolderName("");
+  };
+
+  const startEditingFolder = (folder: Folder) => {
+    setEditingFolderId(folder.id);
+    setEditingFolderName(folder.name);
   };
 
   const handleUpdateCanvasPrinted = async (designId: string, delta: number) => {
@@ -610,25 +641,53 @@ export default function HomePage() {
                 </button>
                 {folders.map((folder) => (
                   <div key={folder.id} className="group flex items-center">
-                    <button
-                      onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); }}
-                      className={`flex-1 text-left px-3 py-2 rounded-lg transition-colors ${
-                        selectedFolder === folder.id && !showTrash
-                          ? "bg-rose-900/20 text-rose-400"
-                          : "text-slate-300 hover:bg-slate-800"
-                      }`}
-                    >
-                      📁 {folder.name}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteFolder(folder.id)}
-                      className="p-1 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete folder"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    {editingFolderId === folder.id ? (
+                      <div className="flex-1 flex gap-1">
+                        <input
+                          type="text"
+                          value={editingFolderName}
+                          onChange={(e) => setEditingFolderName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleRenameFolder(folder.id);
+                            if (e.key === "Escape") { setEditingFolderId(null); setEditingFolderName(""); }
+                          }}
+                          onBlur={() => handleRenameFolder(folder.id)}
+                          className="flex-1 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                          autoFocus
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); }}
+                          className={`flex-1 text-left px-3 py-2 rounded-lg transition-colors ${
+                            selectedFolder === folder.id && !showTrash
+                              ? "bg-rose-900/20 text-rose-400"
+                              : "text-slate-300 hover:bg-slate-800"
+                          }`}
+                        >
+                          📁 {folder.name}
+                        </button>
+                        <button
+                          onClick={() => startEditingFolder(folder)}
+                          className="p-1 text-slate-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Rename folder"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteFolder(folder.id)}
+                          className="p-1 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Delete folder"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
                   </div>
                 ))}
 
