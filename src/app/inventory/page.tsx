@@ -34,7 +34,7 @@ export default function InventoryPage() {
   const [addSearch, setAddSearch] = useState("");
   const [selectedColor, setSelectedColor] = useState<DmcColor | null>(null);
   const [addSize, setAddSize] = useState<5 | 8>(5);
-  const [addSkeins, setAddSkeins] = useState(1);
+  const [addSkeins, setAddSkeins] = useState("1");
   const [adding, setAdding] = useState(false);
 
   // Track pending skein values being typed (before blur/Enter commits)
@@ -94,7 +94,8 @@ export default function InventoryPage() {
   }, [searchQuery, filteredItems.length, items, sizeFilter]);
 
   const handleAdd = async () => {
-    if (!selectedColor || addSkeins < 1) return;
+    const skeinsNum = Math.max(1, Number(addSkeins) || 1);
+    if (!selectedColor) return;
     setAdding(true);
     try {
       const response = await fetch("/api/inventory", {
@@ -103,14 +104,14 @@ export default function InventoryPage() {
         body: JSON.stringify({
           dmcNumber: selectedColor.dmcNumber,
           size: addSize,
-          skeins: addSkeins,
+          skeins: skeinsNum,
         }),
       });
       if (response.ok) {
         await fetchInventory();
         setSelectedColor(null);
         setAddSearch("");
-        setAddSkeins(1);
+        setAddSkeins("1");
         setShowAddForm(false);
       }
     } catch (error) {
@@ -486,6 +487,7 @@ export default function InventoryPage() {
                   setShowAddForm(false);
                   setSelectedColor(null);
                   setAddSearch("");
+                  setAddSkeins("1");
                 }}
                 className="p-1 text-slate-400 hover:text-white"
               >
@@ -607,7 +609,7 @@ export default function InventoryPage() {
                 </label>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => setAddSkeins(Math.max(1, addSkeins - 1))}
+                    onClick={() => setAddSkeins(String(Math.max(1, (Number(addSkeins) || 1) - 1)))}
                     className="p-2 bg-slate-700 rounded-lg text-slate-300 hover:bg-slate-600"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -618,18 +620,19 @@ export default function InventoryPage() {
                     type="number"
                     min="1"
                     value={addSkeins}
-                    onChange={(e) => setAddSkeins(Math.max(1, Number(e.target.value)))}
+                    onChange={(e) => setAddSkeins(e.target.value)}
+                    onBlur={() => setAddSkeins(String(Math.max(1, Number(addSkeins) || 1)))}
                     className="w-20 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
                   />
                   <button
-                    onClick={() => setAddSkeins(addSkeins + 1)}
+                    onClick={() => setAddSkeins(String((Number(addSkeins) || 0) + 1))}
                     className="p-2 bg-slate-700 rounded-lg text-slate-300 hover:bg-slate-600"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                   </button>
-                  <span className="text-slate-400 text-sm">{addSkeins * 27} yards</span>
+                  <span className="text-slate-400 text-sm">{(Number(addSkeins) || 0) * 27} yards</span>
                 </div>
               </div>
             </div>
@@ -640,6 +643,7 @@ export default function InventoryPage() {
                   setShowAddForm(false);
                   setSelectedColor(null);
                   setAddSearch("");
+                  setAddSkeins("1");
                 }}
                 className="flex-1 py-2.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm font-medium"
               >
