@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import NewDesignDialog from "@/components/NewDesignDialog";
 import { exportStitchGuidePdf } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
-import pako from "pako";
 
 interface Tag {
   id: string;
@@ -342,22 +341,19 @@ export default function HomePage() {
   const handleExportStitchGuide = async (design: Design) => {
     setExportingDesignId(design.id);
     try {
-      // Fetch full design data with pixelData
+      // Fetch full design data with grid
       const response = await fetch(`/api/designs/${design.id}`);
       if (!response.ok) {
         throw new Error("Failed to fetch design");
       }
       const fullDesign = await response.json();
 
-      if (!fullDesign.pixelData) {
+      if (!fullDesign.grid || fullDesign.grid.length === 0) {
         alert("No pixel data available for this design.");
         return;
       }
 
-      // Decompress pixel data
-      const compressed = Uint8Array.from(atob(fullDesign.pixelData), c => c.charCodeAt(0));
-      const decompressed = pako.inflate(compressed, { to: "string" });
-      const grid: (string | null)[][] = JSON.parse(decompressed);
+      const grid: (string | null)[][] = fullDesign.grid;
 
       // Get used colors from the grid
       const colorSet = new Set<string>();

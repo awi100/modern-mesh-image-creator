@@ -80,7 +80,7 @@ export function exportArtworkPdf(options: ExportOptions): jsPDF {
 
 // Export stitch guide PDF - single page with image and legend
 export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
-  const { grid, widthInches, heightInches, meshCount, designName, usedColors } = options;
+  const { grid, designName, usedColors } = options;
 
   const gridHeight = grid.length;
   const gridWidth = grid[0]?.length || 0;
@@ -103,34 +103,22 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
 
   const pageWidth = 11;
   const pageHeight = 8.5;
-  const margin = 0.4;
-
-  // Calculate total stitches
-  const totalStitches = Array.from(stitchCounts.values()).reduce((a, b) => a + b, 0);
+  const margin = 0.35;
 
   // --- Title at top ---
-  doc.setFontSize(18);
+  doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
   doc.text(designName, pageWidth / 2, margin + 0.2, { align: "center" });
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text(
-    `${widthInches}" × ${heightInches}" at ${meshCount} mesh | ${gridWidth} × ${gridHeight} grid | ${totalStitches.toLocaleString()} stitches | ${usedColors.length} colors`,
-    pageWidth / 2,
-    margin + 0.45,
-    { align: "center" }
-  );
-
-  const contentStartY = margin + 0.7;
+  const contentStartY = margin + 0.4;
   const contentHeight = pageHeight - contentStartY - margin;
 
-  // Layout: Image on left (60%), Legend on right (40%)
-  const imageAreaWidth = (pageWidth - 2 * margin) * 0.58;
-  const legendAreaWidth = (pageWidth - 2 * margin) * 0.38;
+  // Layout: Image on left (70%), Legend on right (30%)
+  const imageAreaWidth = (pageWidth - 2 * margin) * 0.68;
+  const legendAreaWidth = (pageWidth - 2 * margin) * 0.28;
   const gapBetween = (pageWidth - 2 * margin) * 0.04;
 
-  // --- Draw the stitch image on the left ---
+  // --- Draw the stitch image on the left with symbols ---
   const imageX = margin;
   const imageY = contentStartY;
 
@@ -145,7 +133,11 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
   const imageOffsetX = imageX + (maxImageWidth - actualImageWidth) / 2;
   const imageOffsetY = imageY + (maxImageHeight - actualImageHeight) / 2;
 
-  // Draw pixels
+  // Calculate symbol font size based on cell size
+  const symbolFontSize = Math.max(3, Math.min(8, cellSize * 55));
+  const showSymbols = cellSize >= 0.04; // Only show symbols if cells are large enough
+
+  // Draw pixels with symbols
   for (let y = 0; y < gridHeight; y++) {
     for (let x = 0; x < gridWidth; x++) {
       const dmcNumber = grid[y][x];
@@ -154,88 +146,97 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
       const color = getDmcColorByNumber(dmcNumber);
       if (!color) continue;
 
+      const cellX = imageOffsetX + x * cellSize;
+      const cellY = imageOffsetY + y * cellSize;
+
+      // Fill cell with color
       doc.setFillColor(color.rgb.r, color.rgb.g, color.rgb.b);
-      doc.rect(
-        imageOffsetX + x * cellSize,
-        imageOffsetY + y * cellSize,
-        cellSize,
-        cellSize,
-        "F"
-      );
+      doc.rect(cellX, cellY, cellSize, cellSize, "F");
+
+      // Draw symbol in cell if large enough
+      if (showSymbols) {
+        const symbol = colorSymbols.get(dmcNumber) || "●";
+        const contrastColor = getContrastColor(color.rgb.r, color.rgb.g, color.rgb.b);
+        doc.setTextColor(contrastColor);
+        doc.setFontSize(symbolFontSize);
+        doc.setFont("helvetica", "bold");
+        doc.text(
+          symbol,
+          cellX + cellSize / 2,
+          cellY + cellSize / 2 + cellSize * 0.15,
+          { align: "center" }
+        );
+      }
     }
   }
+
+  // Reset text color
+  doc.setTextColor(0, 0, 0);
 
   // Draw border around image
   doc.setDrawColor(0);
   doc.setLineWidth(0.01);
   doc.rect(imageOffsetX, imageOffsetY, actualImageWidth, actualImageHeight);
 
-  // --- Draw legend on the right ---
+  // --- Draw compact legend on the right ---
   const legendX = margin + imageAreaWidth + gapBetween;
   const legendY = contentStartY;
 
-  doc.setFontSize(12);
+  doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
-  doc.text("Color Legend", legendX, legendY + 0.15);
+  doc.text("Legend", legendX, legendY + 0.12);
 
-  const legendStartY = legendY + 0.4;
-  const colorBoxSize = 0.25;
-  const legendLineHeight = 0.38;
+  const legendStartY = legendY + 0.3;
+  const colorBoxSize = 0.18;
+  const legendLineHeight = 0.26;
 
   // Calculate how many colors can fit
-  const maxLegendRows = Math.floor((contentHeight - 0.4) / legendLineHeight);
+  const maxLegendRows = Math.floor((contentHeight - 0.3) / legendLineHeight);
 
   usedColors.forEach((color, i) => {
     if (i >= maxLegendRows) return; // Skip if too many colors
 
     const y = legendStartY + i * legendLineHeight;
 
-    // Color box with symbol
+    // Color box
     doc.setFillColor(color.rgb.r, color.rgb.g, color.rgb.b);
     doc.rect(legendX, y, colorBoxSize, colorBoxSize, "F");
     doc.setDrawColor(0);
-    doc.setLineWidth(0.005);
+    doc.setLineWidth(0.003);
     doc.rect(legendX, y, colorBoxSize, colorBoxSize);
 
-    // Draw symbol in center of color box
+    // Draw symbol centered in color box
     const symbol = colorSymbols.get(color.dmcNumber) || "●";
     const contrastColor = getContrastColor(color.rgb.r, color.rgb.g, color.rgb.b);
     doc.setTextColor(contrastColor);
-    doc.setFontSize(9);
+    doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
-    doc.text(symbol, legendX + colorBoxSize / 2, y + colorBoxSize / 2 + 0.03, { align: "center" });
+    doc.text(symbol, legendX + colorBoxSize / 2, y + colorBoxSize * 0.65, { align: "center" });
 
     // Reset text color
     doc.setTextColor(0, 0, 0);
 
-    // DMC number, name, and stitch count on one line
-    doc.setFontSize(8);
+    // DMC number and stitch count
+    doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
     const count = stitchCounts.get(color.dmcNumber) || 0;
-    doc.text(`${color.dmcNumber}`, legendX + colorBoxSize + 0.08, y + 0.1);
+    doc.text(`${color.dmcNumber}`, legendX + colorBoxSize + 0.06, y + 0.08);
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    // Truncate name if too long
-    const maxNameLength = 18;
-    const displayName = color.name.length > maxNameLength
-      ? color.name.substring(0, maxNameLength - 1) + "…"
-      : color.name;
-    doc.text(displayName, legendX + colorBoxSize + 0.08, y + 0.22);
-
-    doc.setTextColor(100, 100, 100);
-    doc.text(`${count.toLocaleString()}`, legendX + legendAreaWidth - 0.1, y + 0.16, { align: "right" });
+    doc.setFontSize(6);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`${count.toLocaleString()}`, legendX + colorBoxSize + 0.06, y + 0.17);
     doc.setTextColor(0, 0, 0);
   });
 
   // If there are more colors than fit, show a note
   if (usedColors.length > maxLegendRows) {
-    doc.setFontSize(7);
+    doc.setFontSize(6);
     doc.setTextColor(100, 100, 100);
     doc.text(
-      `+ ${usedColors.length - maxLegendRows} more colors`,
+      `+ ${usedColors.length - maxLegendRows} more`,
       legendX,
-      legendStartY + maxLegendRows * legendLineHeight + 0.1
+      legendStartY + maxLegendRows * legendLineHeight + 0.08
     );
     doc.setTextColor(0, 0, 0);
   }
