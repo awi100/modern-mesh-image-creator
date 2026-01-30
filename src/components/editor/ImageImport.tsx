@@ -19,6 +19,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
   const [previewGrid, setPreviewGrid] = useState<PixelGrid | null>(null);
   const [previewColors, setPreviewColors] = useState<number>(0);
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [treatWhiteAsEmpty, setTreatWhiteAsEmpty] = useState(true); // Default to true for better imports
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -70,7 +71,9 @@ export default function ImageImport({ onClose }: ImageImportProps) {
         imageData,
         gridWidth,
         gridHeight,
-        maxColors
+        maxColors,
+        undefined, // dmcSubset
+        treatWhiteAsEmpty
       );
       setPreviewGrid(grid);
       setPreviewColors(usedColors.length);
@@ -82,7 +85,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
         clearTimeout(previewTimeoutRef.current);
       }
     };
-  }, [imageData, maxColors, gridWidth, gridHeight]);
+  }, [imageData, maxColors, gridWidth, gridHeight, treatWhiteAsEmpty]);
 
   // Render preview to canvas
   useEffect(() => {
@@ -140,7 +143,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
       if (previewGrid) {
         grid = previewGrid;
       } else {
-        const result = processImageToGrid(imageData, gridWidth, gridHeight, maxColors);
+        const result = processImageToGrid(imageData, gridWidth, gridHeight, maxColors, undefined, treatWhiteAsEmpty);
         grid = result.grid;
       }
 
@@ -155,7 +158,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
     } finally {
       setProcessing(false);
     }
-  }, [imageData, previewGrid, gridWidth, gridHeight, maxColors, saveToHistory, initializeGrid, onClose]);
+  }, [imageData, previewGrid, gridWidth, gridHeight, maxColors, treatWhiteAsEmpty, saveToHistory, initializeGrid, onClose]);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -232,6 +235,22 @@ export default function ImageImport({ onClose }: ImageImportProps) {
           />
           <p className="text-xs text-slate-500 mt-1">
             Fewer colors = simpler design, more colors = more detail
+          </p>
+        </div>
+
+        {/* Treat white as empty option */}
+        <div className="mb-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={treatWhiteAsEmpty}
+              onChange={(e) => setTreatWhiteAsEmpty(e.target.checked)}
+              className="w-4 h-4 text-rose-900 bg-slate-700 border-slate-600 rounded focus:ring-rose-800"
+            />
+            <span className="text-slate-300 text-sm">Treat white/light backgrounds as empty</span>
+          </label>
+          <p className="text-xs text-slate-500 mt-1 ml-6">
+            Removes white backgrounds from images, leaving those areas empty
           </p>
         </div>
 

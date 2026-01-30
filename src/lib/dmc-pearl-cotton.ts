@@ -54,13 +54,20 @@ export function findNearestDmcColor(r: number, g: number, b: number): DmcColor {
 
   for (const color of DMC_PEARL_COTTON) {
     const distance = deltaE76(targetLab, color.lab);
-    if (distance < minDistance) {
+    // Prefer BLANC over B5200 for pure/near white (BLANC is more common in needlepoint)
+    if (distance < minDistance ||
+        (distance === minDistance && color.dmcNumber === "BLANC")) {
       minDistance = distance;
       nearest = color;
     }
   }
 
   return nearest;
+}
+
+// Check if a color is near-white (for treating as empty/background)
+export function isNearWhite(r: number, g: number, b: number, threshold: number = 250): boolean {
+  return r >= threshold && g >= threshold && b >= threshold;
 }
 
 // Find nearest from a subset of colors

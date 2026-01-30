@@ -1,6 +1,6 @@
 // Color utilities for image processing and pixel manipulation
 
-import { DmcColor, findNearestDmcColor, findNearestFromSubset, rgbToLab, deltaE76 } from "./dmc-pearl-cotton";
+import { DmcColor, findNearestDmcColor, findNearestFromSubset, rgbToLab, deltaE76, isNearWhite } from "./dmc-pearl-cotton";
 
 export type PixelGrid = (string | null)[][]; // DMC number or null for empty
 
@@ -68,7 +68,9 @@ export function processImageToGrid(
   gridWidth: number,
   gridHeight: number,
   maxColors: number = 16,
-  dmcSubset?: DmcColor[]
+  dmcSubset?: DmcColor[],
+  treatWhiteAsEmpty: boolean = false,
+  whiteThreshold: number = 250
 ): { grid: PixelGrid; usedColors: DmcColor[] } {
   const { data, width, height } = imageData;
 
@@ -85,6 +87,9 @@ export function processImageToGrid(
 
       // Skip transparent pixels
       if (data[idx + 3] < 128) continue;
+
+      // Skip near-white pixels if treating white as empty
+      if (treatWhiteAsEmpty && isNearWhite(data[idx], data[idx + 1], data[idx + 2], whiteThreshold)) continue;
 
       sampledColors.push({
         r: data[idx],
@@ -125,6 +130,12 @@ export function processImageToGrid(
       }
 
       const pixelColor = { r: data[idx], g: data[idx + 1], b: data[idx + 2] };
+
+      // Near-white = empty cell (if option enabled)
+      if (treatWhiteAsEmpty && isNearWhite(pixelColor.r, pixelColor.g, pixelColor.b, whiteThreshold)) {
+        row.push(null);
+        continue;
+      }
 
       // Find nearest DMC color from our limited palette
       const nearestDmc = findNearestFromSubset(pixelColor.r, pixelColor.g, pixelColor.b, uniqueDmcColors);
