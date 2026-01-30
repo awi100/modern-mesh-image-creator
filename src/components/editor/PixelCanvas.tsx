@@ -11,15 +11,21 @@ interface PixelCanvasProps {
     pixels: (string | null)[][];
     width: number;
     height: number;
+    isShape?: boolean;
+    basePixels?: boolean[][];
+    dmcNumber?: string;
+    scale?: number;
   } | null;
   onTextPlaced?: (x: number, y: number) => void;
   onCancelTextPlacement?: () => void;
+  onResizePendingShape?: (delta: number) => void;
 }
 
 export default function PixelCanvas({
   pendingText,
   onTextPlaced,
   onCancelTextPlacement,
+  onResizePendingShape,
 }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -931,10 +937,34 @@ export default function PixelCanvas({
         />
       </div>
 
-      {/* Text placement mode indicator */}
+      {/* Text/Shape placement mode indicator */}
       {pendingText && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 z-10">
-          <span className="text-sm font-medium">Click to place text</span>
+          {/* Resize buttons for shapes */}
+          {pendingText.isShape && onResizePendingShape && (
+            <div className="flex items-center gap-1 mr-2 border-r border-blue-400 pr-3">
+              <button
+                onClick={() => onResizePendingShape(-0.25)}
+                className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded-lg text-lg font-bold"
+                title="Make smaller"
+              >
+                −
+              </button>
+              <span className="text-xs w-12 text-center">
+                {pendingText.width}×{pendingText.height}
+              </span>
+              <button
+                onClick={() => onResizePendingShape(0.25)}
+                className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded-lg text-lg font-bold"
+                title="Make larger"
+              >
+                +
+              </button>
+            </div>
+          )}
+          <span className="text-sm font-medium">
+            Click to place {pendingText.isShape ? "shape" : "text"}
+          </span>
           <button
             onClick={onCancelTextPlacement}
             className="text-blue-200 hover:text-white text-sm underline"

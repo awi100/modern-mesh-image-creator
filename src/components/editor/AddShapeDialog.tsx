@@ -13,7 +13,13 @@ import {
 
 interface AddShapeDialogProps {
   onClose: () => void;
-  onAddShape: (pixels: (string | null)[][], width: number, height: number) => void;
+  onAddShape: (
+    pixels: (string | null)[][],
+    width: number,
+    height: number,
+    basePixels?: boolean[][],
+    dmcNumber?: string
+  ) => void;
 }
 
 export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogProps) {
@@ -125,7 +131,8 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
       displayHeight
     );
     const grid = shapeToGrid(scaledPixels, dmcNumber);
-    onAddShape(grid, displayWidth, displayHeight);
+    // Pass basePixels and dmcNumber for resize capability during placement
+    onAddShape(grid, displayWidth, displayHeight, selectedShape.basePixels, dmcNumber);
   }, [selectedShape, displayWidth, displayHeight, dmcNumber, onAddShape]);
 
   // Group shapes by category

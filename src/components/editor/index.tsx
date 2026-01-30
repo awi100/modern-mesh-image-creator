@@ -58,6 +58,11 @@ export default function Editor({ designId, initialData }: EditorProps) {
     pixels: (string | null)[][];
     width: number;
     height: number;
+    // For resizable shapes
+    isShape?: boolean;
+    basePixels?: boolean[][];
+    dmcNumber?: string;
+    scale?: number;
   } | null>(null);
 
   // Initialize editor with design data
@@ -100,10 +105,49 @@ export default function Editor({ designId, initialData }: EditorProps) {
   }, []);
 
   // Handle shape added from dialog (reuse the same pending text mechanism)
-  const handleShapeAdded = useCallback((pixels: (string | null)[][], width: number, height: number) => {
-    setPendingText({ pixels, width, height });
+  const handleShapeAdded = useCallback((
+    pixels: (string | null)[][],
+    width: number,
+    height: number,
+    basePixels?: boolean[][],
+    dmcNumber?: string
+  ) => {
+    setPendingText({
+      pixels,
+      width,
+      height,
+      isShape: !!basePixels,
+      basePixels,
+      dmcNumber,
+      scale: 1,
+    });
     setShowShapeDialog(false);
   }, []);
+
+  // Resize pending shape
+  const handleResizePendingShape = useCallback((delta: number) => {
+    if (!pendingText?.isShape || !pendingText.basePixels || !pendingText.dmcNumber) return;
+
+    const newScale = Math.max(0.25, Math.min(4, (pendingText.scale || 1) + delta));
+    const baseHeight = pendingText.basePixels.length;
+    const baseWidth = pendingText.basePixels[0]?.length || 0;
+
+    const newWidth = Math.max(3, Math.round(baseWidth * newScale));
+    const newHeight = Math.max(3, Math.round(baseHeight * newScale));
+
+    // Import and use the shape utilities
+    import("@/lib/shapes").then(({ scaleShape, shapeToGrid }) => {
+      const scaledPixels = scaleShape(pendingText.basePixels!, newWidth, newHeight);
+      const newPixels = shapeToGrid(scaledPixels, pendingText.dmcNumber!);
+      setPendingText({
+        ...pendingText,
+        pixels: newPixels,
+        width: newWidth,
+        height: newHeight,
+        scale: newScale,
+      });
+    });
+  }, [pendingText]);
 
   // Handle text placement on canvas
   const handleTextPlaced = useCallback((x: number, y: number) => {
@@ -239,6 +283,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
           pendingText={pendingText}
           onTextPlaced={handleTextPlaced}
           onCancelTextPlacement={handleCancelTextPlacement}
+          onResizePendingShape={handleResizePendingShape}
         />
 
         {/* Right side panels */}
