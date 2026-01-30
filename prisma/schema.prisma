@@ -107,6 +107,9 @@ model Design {
   // Draft status
   isDraft               Boolean @default(false)
 
+  // Soft delete (trash)
+  deletedAt             DateTime?
+
   // Organization
   folderId  String?
   folder    Folder?     @relation(fields: [folderId], references: [id])
@@ -118,6 +121,7 @@ model Design {
 
   @@index([folderId])
   @@index([createdAt])
+  @@index([deletedAt])
   @@map("designs")
 }
 

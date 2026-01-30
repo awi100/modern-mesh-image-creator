@@ -191,10 +191,21 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const permanent = searchParams.get("permanent") === "true";
 
-    await prisma.design.delete({
-      where: { id },
-    });
+    if (permanent) {
+      // Permanent delete - actually remove from database
+      await prisma.design.delete({
+        where: { id },
+      });
+    } else {
+      // Soft delete - move to trash
+      await prisma.design.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -206,7 +217,7 @@ export async function DELETE(
   }
 }
 
-// PATCH for partial updates (folder, canvas printed counter, kits ready)
+// PATCH for partial updates (folder, canvas printed counter, kits ready, restore from trash)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -220,6 +231,11 @@ export async function PATCH(
     const body = await request.json();
 
     const data: Record<string, unknown> = {};
+
+    // Restore from trash
+    if (body.restore === true) {
+      data.deletedAt = null;
+    }
 
     if (body.folderId !== undefined) {
       data.folderId = body.folderId;

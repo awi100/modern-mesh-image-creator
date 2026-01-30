@@ -33,8 +33,18 @@ interface Design {
   kitSkeinCount: number;
   colorsUsed: string | null;
   isDraft: boolean;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// Calculate days remaining before permanent deletion
+function getDaysUntilPermanentDelete(deletedAt: string): number {
+  const deletedDate = new Date(deletedAt);
+  const expiryDate = new Date(deletedDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const daysRemaining = Math.ceil((expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+  return Math.max(0, daysRemaining);
 }
 
 interface InventoryItem {
@@ -56,6 +66,8 @@ export default function HomePage() {
   const [newFolderName, setNewFolderName] = useState("");
   const [movingDesignId, setMovingDesignId] = useState<string | null>(null);
   const [showNewDesignDialog, setShowNewDesignDialog] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashCount, setTrashCount] = useState(0);
   const [inventoryBySize, setInventoryBySize] = useState<{ size5: Set<string>; size8: Set<string> }>({
     size5: new Set(),
     size8: new Set(),
@@ -66,7 +78,8 @@ export default function HomePage() {
     fetchFolders();
     fetchTags();
     fetchInventory();
-  }, [selectedFolder, selectedTag, searchQuery]);
+    fetchTrashCount();
+  }, [selectedFolder, selectedTag, searchQuery, showTrash]);
 
   const fetchInventory = async () => {
     try {
@@ -106,8 +119,12 @@ export default function HomePage() {
   const fetchDesigns = async () => {
     try {
       const params = new URLSearchParams();
-      if (selectedFolder !== null) params.set("folderId", selectedFolder || "null");
-      if (selectedTag) params.set("tagId", selectedTag);
+      if (showTrash) {
+        params.set("deleted", "true");
+      } else {
+        if (selectedFolder !== null) params.set("folderId", selectedFolder || "null");
+        if (selectedTag) params.set("tagId", selectedTag);
+      }
       if (searchQuery) params.set("search", searchQuery);
 
       const response = await fetch(`/api/designs?${params.toString()}`);
@@ -119,6 +136,18 @@ export default function HomePage() {
       console.error("Error fetching designs:", error);
     }
     setLoading(false);
+  };
+
+  const fetchTrashCount = async () => {
+    try {
+      const response = await fetch("/api/designs?deleted=true");
+      if (response.ok) {
+        const data = await response.json();
+        setTrashCount(data.length);
+      }
+    } catch (error) {
+      console.error("Error fetching trash count:", error);
+    }
   };
 
   const fetchFolders = async () => {
@@ -146,15 +175,61 @@ export default function HomePage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this design?")) return;
+    if (!confirm("Move this design to trash? It will be permanently deleted after 14 days.")) return;
 
     try {
       const response = await fetch(`/api/designs/${id}`, { method: "DELETE" });
       if (response.ok) {
         setDesigns(designs.filter((d) => d.id !== id));
+        fetchTrashCount();
       }
     } catch (error) {
       console.error("Error deleting design:", error);
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      const response = await fetch(`/api/designs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restore: true }),
+      });
+      if (response.ok) {
+        setDesigns(designs.filter((d) => d.id !== id));
+        fetchTrashCount();
+      }
+    } catch (error) {
+      console.error("Error restoring design:", error);
+    }
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    if (!confirm("Permanently delete this design? This cannot be undone.")) return;
+
+    try {
+      const response = await fetch(`/api/designs/${id}?permanent=true`, { method: "DELETE" });
+      if (response.ok) {
+        setDesigns(designs.filter((d) => d.id !== id));
+        fetchTrashCount();
+      }
+    } catch (error) {
+      console.error("Error permanently deleting design:", error);
+    }
+  };
+
+  const handleEmptyTrash = async () => {
+    if (!confirm(`Permanently delete all ${trashCount} items in trash? This cannot be undone.`)) return;
+
+    try {
+      // Delete each item permanently
+      for (const design of designs) {
+        await fetch(`/api/designs/${design.id}?permanent=true`, { method: "DELETE" });
+      }
+      setDesigns([]);
+      setTrashCount(0);
+    } catch (error) {
+      console.error("Error emptying trash:", error);
     }
   };
 
@@ -459,9 +534,9 @@ export default function HomePage() {
 
               <div className="space-y-1">
                 <button
-                  onClick={() => setSelectedFolder(null)}
+                  onClick={() => { setSelectedFolder(null); setShowTrash(false); }}
                   className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                    selectedFolder === null
+                    selectedFolder === null && !showTrash
                       ? "bg-rose-900/20 text-rose-400"
                       : "text-slate-300 hover:bg-slate-800"
                   }`}
@@ -469,9 +544,9 @@ export default function HomePage() {
                   All Designs
                 </button>
                 <button
-                  onClick={() => setSelectedFolder("")}
+                  onClick={() => { setSelectedFolder(""); setShowTrash(false); }}
                   className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                    selectedFolder === ""
+                    selectedFolder === "" && !showTrash
                       ? "bg-rose-900/20 text-rose-400"
                       : "text-slate-300 hover:bg-slate-800"
                   }`}
@@ -481,9 +556,9 @@ export default function HomePage() {
                 {folders.map((folder) => (
                   <div key={folder.id} className="group flex items-center">
                     <button
-                      onClick={() => setSelectedFolder(folder.id)}
+                      onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); }}
                       className={`flex-1 text-left px-3 py-2 rounded-lg transition-colors ${
-                        selectedFolder === folder.id
+                        selectedFolder === folder.id && !showTrash
                           ? "bg-rose-900/20 text-rose-400"
                           : "text-slate-300 hover:bg-slate-800"
                       }`}
@@ -501,6 +576,25 @@ export default function HomePage() {
                     </button>
                   </div>
                 ))}
+
+                {/* Trash */}
+                <div className="pt-2 mt-2 border-t border-slate-700">
+                  <button
+                    onClick={() => { setShowTrash(true); setSelectedFolder(null); setSelectedTag(null); }}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between ${
+                      showTrash
+                        ? "bg-rose-900/20 text-rose-400"
+                        : "text-slate-300 hover:bg-slate-800"
+                    }`}
+                  >
+                    <span>🗑️ Trash</span>
+                    {trashCount > 0 && (
+                      <span className="text-xs bg-slate-600 text-slate-300 px-2 py-0.5 rounded-full">
+                        {trashCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -533,6 +627,28 @@ export default function HomePage() {
 
           {/* Main content */}
           <main className="flex-1 min-w-0">
+            {/* Trash header */}
+            {showTrash && (
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-700">
+                <div>
+                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                    🗑️ Trash
+                  </h2>
+                  <p className="text-sm text-slate-400">
+                    Items are permanently deleted after 14 days
+                  </p>
+                </div>
+                {designs.length > 0 && (
+                  <button
+                    onClick={handleEmptyTrash}
+                    className="px-3 py-1.5 bg-red-900/50 text-red-400 rounded-lg hover:bg-red-900 text-sm font-medium transition-colors"
+                  >
+                    Empty Trash
+                  </button>
+                )}
+              </div>
+            )}
+
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="text-white flex items-center gap-3">
@@ -547,20 +663,32 @@ export default function HomePage() {
               <div className="text-center py-12 md:py-16">
                 <div className="w-14 h-14 md:w-16 md:h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-7 h-7 md:w-8 md:h-8 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    {showTrash ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    )}
                   </svg>
                 </div>
-                <h2 className="text-lg md:text-xl font-semibold text-white mb-2">No designs yet</h2>
-                <p className="text-slate-400 mb-6 text-sm md:text-base px-4">Create your first needlepoint design to get started.</p>
-                <button
-                  onClick={() => setShowNewDesignDialog(true)}
-                  className="inline-flex items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-rose-900 to-rose-800 text-white rounded-lg hover:from-rose-950 hover:to-rose-900 transition-all text-sm md:text-base"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Create New Design
-                </button>
+                <h2 className="text-lg md:text-xl font-semibold text-white mb-2">
+                  {showTrash ? "Trash is empty" : "No designs yet"}
+                </h2>
+                <p className="text-slate-400 mb-6 text-sm md:text-base px-4">
+                  {showTrash
+                    ? "Deleted designs will appear here for 14 days before being permanently removed."
+                    : "Create your first needlepoint design to get started."}
+                </p>
+                {!showTrash && (
+                  <button
+                    onClick={() => setShowNewDesignDialog(true)}
+                    className="inline-flex items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-rose-900 to-rose-800 text-white rounded-lg hover:from-rose-950 hover:to-rose-900 transition-all text-sm md:text-base"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Create New Design
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
@@ -667,72 +795,104 @@ export default function HomePage() {
 
                       {/* Actions */}
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-500">
-                          {new Date(design.updatedAt).toLocaleDateString()}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          {/* Move to folder */}
-                          <div className="relative">
-                            <button
-                              onClick={() => setMovingDesignId(movingDesignId === design.id ? null : design.id)}
-                              className="p-1.5 text-slate-500 hover:text-white transition-colors"
-                              title="Move to folder"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                              </svg>
-                            </button>
-                            {movingDesignId === design.id && (
-                              <div className="absolute right-0 bottom-full mb-1 w-40 bg-slate-700 rounded-lg shadow-lg border border-slate-600 py-1 z-10">
+                        {showTrash && design.deletedAt ? (
+                          <>
+                            <span className="text-xs text-red-400">
+                              {getDaysUntilPermanentDelete(design.deletedAt)} days left
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {/* Restore */}
+                              <button
+                                onClick={() => handleRestore(design.id)}
+                                className="p-1.5 text-slate-500 hover:text-green-400 transition-colors"
+                                title="Restore"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                </svg>
+                              </button>
+                              {/* Permanent Delete */}
+                              <button
+                                onClick={() => handlePermanentDelete(design.id)}
+                                className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                                title="Delete permanently"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs text-slate-500">
+                              {new Date(design.updatedAt).toLocaleDateString()}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {/* Move to folder */}
+                              <div className="relative">
                                 <button
-                                  onClick={() => handleMoveToFolder(design.id, null)}
-                                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-600 ${!design.folder ? 'text-rose-400' : 'text-slate-300'}`}
+                                  onClick={() => setMovingDesignId(movingDesignId === design.id ? null : design.id)}
+                                  className="p-1.5 text-slate-500 hover:text-white transition-colors"
+                                  title="Move to folder"
                                 >
-                                  Unfiled
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                  </svg>
                                 </button>
-                                {folders.map((folder) => (
-                                  <button
-                                    key={folder.id}
-                                    onClick={() => handleMoveToFolder(design.id, folder.id)}
-                                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-600 ${design.folder?.id === folder.id ? 'text-rose-400' : 'text-slate-300'}`}
-                                  >
-                                    📁 {folder.name}
-                                  </button>
-                                ))}
+                                {movingDesignId === design.id && (
+                                  <div className="absolute right-0 bottom-full mb-1 w-40 bg-slate-700 rounded-lg shadow-lg border border-slate-600 py-1 z-10">
+                                    <button
+                                      onClick={() => handleMoveToFolder(design.id, null)}
+                                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-600 ${!design.folder ? 'text-rose-400' : 'text-slate-300'}`}
+                                    >
+                                      Unfiled
+                                    </button>
+                                    {folders.map((folder) => (
+                                      <button
+                                        key={folder.id}
+                                        onClick={() => handleMoveToFolder(design.id, folder.id)}
+                                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-600 ${design.folder?.id === folder.id ? 'text-rose-400' : 'text-slate-300'}`}
+                                      >
+                                        📁 {folder.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                          {/* Kit */}
-                          <Link
-                            href={`/design/${design.id}/kit`}
-                            className="p-1.5 text-slate-500 hover:text-emerald-400 transition-colors"
-                            title="Kit"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                            </svg>
-                          </Link>
-                          {/* Duplicate */}
-                          <button
-                            onClick={() => handleDuplicate(design.id)}
-                            className="p-1.5 text-slate-500 hover:text-blue-400 transition-colors"
-                            title="Duplicate"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          </button>
-                          {/* Delete */}
-                          <button
-                            onClick={() => handleDelete(design.id)}
-                            className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
-                            title="Delete"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
+                              {/* Kit */}
+                              <Link
+                                href={`/design/${design.id}/kit`}
+                                className="p-1.5 text-slate-500 hover:text-emerald-400 transition-colors"
+                                title="Kit"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                              </Link>
+                              {/* Duplicate */}
+                              <button
+                                onClick={() => handleDuplicate(design.id)}
+                                className="p-1.5 text-slate-500 hover:text-blue-400 transition-colors"
+                                title="Duplicate"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              </button>
+                              {/* Delete */}
+                              <button
+                                onClick={() => handleDelete(design.id)}
+                                className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                                title="Delete"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

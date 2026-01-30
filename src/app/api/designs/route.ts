@@ -15,8 +15,16 @@ export async function GET(request: NextRequest) {
     const folderId = searchParams.get("folderId");
     const tagId = searchParams.get("tagId");
     const search = searchParams.get("search");
+    const showDeleted = searchParams.get("deleted") === "true";
 
     const where: Record<string, unknown> = {};
+
+    // Filter by deleted status
+    if (showDeleted) {
+      where.deletedAt = { not: null };
+    } else {
+      where.deletedAt = null;
+    }
 
     if (folderId === "null") {
       where.folderId = null;
