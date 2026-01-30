@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import NewDesignDialog from "@/components/NewDesignDialog";
-import { exportStitchGuidePdf } from "@/lib/pdf-export";
+import { exportStitchGuideImage } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
 interface Tag {
@@ -366,8 +366,8 @@ export default function HomePage() {
         .map(dmcNumber => getDmcColorByNumber(dmcNumber))
         .filter((c): c is NonNullable<typeof c> => c !== null);
 
-      // Generate PDF
-      const doc = exportStitchGuidePdf({
+      // Generate image
+      const dataUrl = exportStitchGuideImage({
         grid,
         widthInches: design.widthInches,
         heightInches: design.heightInches,
@@ -376,7 +376,12 @@ export default function HomePage() {
         usedColors,
       });
 
-      doc.save(`${design.name.replace(/\s+/g, "_")}_stitch_guide.pdf`);
+      if (dataUrl) {
+        const link = document.createElement("a");
+        link.download = `${design.name.replace(/\s+/g, "_")}_stitch_guide.png`;
+        link.href = dataUrl;
+        link.click();
+      }
     } catch (error) {
       console.error("Error exporting stitch guide:", error);
       alert("Failed to export stitch guide. Please try again.");

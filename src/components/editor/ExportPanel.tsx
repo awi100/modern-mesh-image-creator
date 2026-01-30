@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { exportArtworkPdf, exportStitchGuidePdf, generatePreviewImage, generateFullResImage } from "@/lib/pdf-export";
+import { exportArtworkPdf, exportStitchGuideImage, generatePreviewImage, generateFullResImage } from "@/lib/pdf-export";
 
 interface ExportPanelProps {
   onClose: () => void;
@@ -51,7 +51,7 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
   const handleExportGuide = async () => {
     setExporting(true);
     try {
-      const doc = exportStitchGuidePdf({
+      const dataUrl = exportStitchGuideImage({
         grid,
         widthInches,
         heightInches,
@@ -60,10 +60,15 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
         usedColors,
       });
 
-      doc.save(`${designName.replace(/\s+/g, "_")}_stitch_guide.pdf`);
+      if (dataUrl) {
+        const link = document.createElement("a");
+        link.download = `${designName.replace(/\s+/g, "_")}_stitch_guide.png`;
+        link.href = dataUrl;
+        link.click();
+      }
     } catch (error) {
       console.error("Export error:", error);
-      alert("Failed to export PDF. Please try again.");
+      alert("Failed to export stitch guide. Please try again.");
     } finally {
       setExporting(false);
     }
@@ -132,7 +137,7 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
             </div>
           </button>
 
-          {/* Stitch Guide PDF */}
+          {/* Stitch Guide Image */}
           <button
             onClick={handleExportGuide}
             disabled={exporting}
@@ -141,9 +146,9 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
             <div className="flex items-center gap-3">
               <span className="text-2xl">📋</span>
               <div>
-                <p className="text-white font-medium">Stitch Guide (PDF)</p>
+                <p className="text-white font-medium">Stitch Guide (PNG)</p>
                 <p className="text-sm text-slate-400">
-                  Single page with image and color legend
+                  Image with color legend
                 </p>
               </div>
             </div>

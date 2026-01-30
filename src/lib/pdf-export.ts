@@ -70,41 +70,51 @@ export function exportArtworkPdf(options: ExportOptions): jsPDF {
   return doc;
 }
 
-// Export stitch guide PDF - single page with image and legend
-export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
+// Export stitch guide as image with design and legend side by side
+export function exportStitchGuideImage(options: ExportOptions): string {
   const { grid, designName, usedColors } = options;
 
   const gridHeight = grid.length;
   const gridWidth = grid[0]?.length || 0;
 
+  if (gridWidth === 0 || gridHeight === 0) {
+    return "";
+  }
+
   // Count stitches per color
   const stitchCounts = countStitches(grid);
 
-  // Always use landscape for better layout with image + legend side by side
-  const doc = new jsPDF({
-    orientation: "landscape",
-    unit: "in",
-    format: "letter",
-  });
+  // Canvas dimensions (landscape, similar to letter size ratio)
+  const canvasWidth = 2200;
+  const canvasHeight = 1700;
+  const margin = 40;
 
-  const pageWidth = 11;
-  const pageHeight = 8.5;
-  const margin = 0.35;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) return "";
+
+  // Fill background
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   // --- Title at top ---
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  doc.text(designName, pageWidth / 2, margin + 0.2, { align: "center" });
+  ctx.fillStyle = "#000000";
+  ctx.font = "bold 48px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(designName, canvasWidth / 2, margin + 40);
 
-  const contentStartY = margin + 0.4;
-  const contentHeight = pageHeight - contentStartY - margin;
+  const contentStartY = margin + 70;
+  const contentHeight = canvasHeight - contentStartY - margin;
 
   // Layout: Image on left (70%), Legend on right (30%)
-  const imageAreaWidth = (pageWidth - 2 * margin) * 0.68;
-  const legendAreaWidth = (pageWidth - 2 * margin) * 0.28;
-  const gapBetween = (pageWidth - 2 * margin) * 0.04;
+  const imageAreaWidth = (canvasWidth - 2 * margin) * 0.70;
+  const legendAreaWidth = (canvasWidth - 2 * margin) * 0.26;
+  const gapBetween = (canvasWidth - 2 * margin) * 0.04;
 
-  // --- Draw the stitch image on the left with symbols ---
+  // --- Draw the stitch image on the left ---
   const imageX = margin;
   const imageY = contentStartY;
 
@@ -128,36 +138,36 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
       const color = getDmcColorByNumber(dmcNumber);
       if (!color) continue;
 
-      doc.setFillColor(color.rgb.r, color.rgb.g, color.rgb.b);
-      doc.rect(
+      ctx.fillStyle = color.hex;
+      ctx.fillRect(
         imageOffsetX + x * cellSize,
         imageOffsetY + y * cellSize,
         cellSize,
-        cellSize,
-        "F"
+        cellSize
       );
     }
   }
 
   // Draw border around image
-  doc.setDrawColor(0);
-  doc.setLineWidth(0.01);
-  doc.rect(imageOffsetX, imageOffsetY, actualImageWidth, actualImageHeight);
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(imageOffsetX, imageOffsetY, actualImageWidth, actualImageHeight);
 
   // --- Draw compact legend on the right ---
   const legendX = margin + imageAreaWidth + gapBetween;
   const legendY = contentStartY;
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.text("Legend", legendX, legendY + 0.12);
+  ctx.fillStyle = "#000000";
+  ctx.font = "bold 28px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText("Legend", legendX, legendY + 25);
 
-  const legendStartY = legendY + 0.3;
-  const colorBoxSize = 0.18;
-  const legendLineHeight = 0.26;
+  const legendStartY = legendY + 50;
+  const colorBoxSize = 36;
+  const legendLineHeight = 50;
 
   // Calculate how many colors can fit
-  const maxLegendRows = Math.floor((contentHeight - 0.3) / legendLineHeight);
+  const maxLegendRows = Math.floor((contentHeight - 50) / legendLineHeight);
 
   usedColors.forEach((color, i) => {
     if (i >= maxLegendRows) return; // Skip if too many colors
@@ -165,38 +175,35 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
     const y = legendStartY + i * legendLineHeight;
 
     // Color box
-    doc.setFillColor(color.rgb.r, color.rgb.g, color.rgb.b);
-    doc.rect(legendX, y, colorBoxSize, colorBoxSize, "F");
-    doc.setDrawColor(0);
-    doc.setLineWidth(0.003);
-    doc.rect(legendX, y, colorBoxSize, colorBoxSize);
+    ctx.fillStyle = color.hex;
+    ctx.fillRect(legendX, y, colorBoxSize, colorBoxSize);
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(legendX, y, colorBoxSize, colorBoxSize);
 
     // DMC number and stitch count
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
+    ctx.fillStyle = "#000000";
+    ctx.font = "bold 20px Arial";
     const count = stitchCounts.get(color.dmcNumber) || 0;
-    doc.text(`${color.dmcNumber}`, legendX + colorBoxSize + 0.06, y + 0.08);
+    ctx.fillText(`${color.dmcNumber}`, legendX + colorBoxSize + 12, y + 16);
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6);
-    doc.setTextColor(80, 80, 80);
-    doc.text(`${count.toLocaleString()}`, legendX + colorBoxSize + 0.06, y + 0.17);
-    doc.setTextColor(0, 0, 0);
+    ctx.font = "16px Arial";
+    ctx.fillStyle = "#666666";
+    ctx.fillText(`${count.toLocaleString()}`, legendX + colorBoxSize + 12, y + 34);
   });
 
   // If there are more colors than fit, show a note
   if (usedColors.length > maxLegendRows) {
-    doc.setFontSize(6);
-    doc.setTextColor(100, 100, 100);
-    doc.text(
+    ctx.font = "16px Arial";
+    ctx.fillStyle = "#888888";
+    ctx.fillText(
       `+ ${usedColors.length - maxLegendRows} more`,
       legendX,
-      legendStartY + maxLegendRows * legendLineHeight + 0.08
+      legendStartY + maxLegendRows * legendLineHeight + 20
     );
-    doc.setTextColor(0, 0, 0);
   }
 
-  return doc;
+  return canvas.toDataURL("image/png");
 }
 
 // Generate preview image as data URL
