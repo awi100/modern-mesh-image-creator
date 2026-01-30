@@ -55,6 +55,17 @@ interface AlertSummary {
   healthyCount: number;
 }
 
+interface MostUsedColor {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  totalStitches: number;
+  designCount: number;
+  totalSkeinsNeeded: number;
+  inventorySkeins: number;
+  threadSize: 5 | 8;
+}
+
 type TabType = "threads" | "kits" | "canvases" | "alerts";
 
 function getContrastTextColor(hex: string): string {
@@ -72,6 +83,7 @@ export default function InventoryPage() {
   const [designs, setDesigns] = useState<Design[]>([]);
   const [alerts, setAlerts] = useState<StockAlert[]>([]);
   const [alertSummary, setAlertSummary] = useState<AlertSummary | null>(null);
+  const [mostUsedColors, setMostUsedColors] = useState<MostUsedColor[]>([]);
   const [loading, setLoading] = useState(true);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [sizeFilter, setSizeFilter] = useState<number | null>(null);
@@ -136,6 +148,7 @@ export default function InventoryPage() {
         const data = await response.json();
         setAlerts(data.alerts);
         setAlertSummary(data.summary);
+        setMostUsedColors(data.mostUsedColors || []);
       }
     } catch (error) {
       console.error("Error fetching stock alerts:", error);
@@ -955,6 +968,121 @@ export default function InventoryPage() {
                 The capacity is limited by the color with the lowest stock relative to what&apos;s needed.
               </p>
             </div>
+
+            {/* Most Used Colors Section */}
+            {mostUsedColors.length > 0 && (
+              <div className="bg-slate-800 rounded-xl border border-slate-700 mb-6 overflow-hidden">
+                <div className="p-4 border-b border-slate-700">
+                  <h3 className="text-white font-semibold flex items-center gap-2">
+                    <svg className="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Most Used Colors Across All Designs
+                  </h3>
+                  <p className="text-slate-400 text-sm mt-1">
+                    Colors ranked by total stitches across your portfolio. Plan inventory around these high-demand threads.
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-700 text-left">
+                        <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Color</th>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">DMC #</th>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden sm:table-cell">Name</th>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Designs</th>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right hidden md:table-cell">Stitches</th>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Need</th>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Have</th>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                      {mostUsedColors.map((color, index) => {
+                        const stockStatus = color.inventorySkeins >= color.totalSkeinsNeeded
+                          ? "healthy"
+                          : color.inventorySkeins >= color.totalSkeinsNeeded * 0.5
+                          ? "low"
+                          : "critical";
+
+                        return (
+                          <tr key={color.dmcNumber} className="hover:bg-slate-750 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-slate-500 text-xs w-4">{index + 1}</span>
+                                <div
+                                  className="w-8 h-8 rounded border border-white/20 flex items-center justify-center"
+                                  style={{ backgroundColor: color.hex }}
+                                >
+                                  <span
+                                    className="text-[6px] font-bold select-none"
+                                    style={{ color: getContrastTextColor(color.hex) }}
+                                  >
+                                    {color.dmcNumber}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-white font-medium">{color.dmcNumber}</span>
+                            </td>
+                            <td className="px-4 py-3 hidden sm:table-cell">
+                              <span className="text-slate-300 truncate block max-w-[150px]">{color.colorName}</span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className="text-white">{color.designCount}</span>
+                            </td>
+                            <td className="px-4 py-3 text-right hidden md:table-cell">
+                              <span className="text-slate-300">{color.totalStitches.toLocaleString()}</span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className="text-white">{color.totalSkeinsNeeded}</span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className={stockStatus === "healthy" ? "text-green-400" : stockStatus === "low" ? "text-yellow-400" : "text-red-400"}>
+                                {color.inventorySkeins}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                stockStatus === "healthy"
+                                  ? "bg-green-900/50 text-green-400"
+                                  : stockStatus === "low"
+                                  ? "bg-yellow-900/50 text-yellow-400"
+                                  : "bg-red-900/50 text-red-400"
+                              }`}>
+                                {stockStatus === "healthy" ? "OK" : stockStatus === "low" ? "Low" : "Need"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Summary row */}
+                <div className="p-4 bg-slate-700/30 border-t border-slate-700 flex flex-wrap gap-4 text-sm">
+                  <div>
+                    <span className="text-slate-400">Colors tracked:</span>{" "}
+                    <span className="text-white font-medium">{mostUsedColors.length}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Low/Critical:</span>{" "}
+                    <span className="text-yellow-400 font-medium">
+                      {mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded).length}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Multi-design colors:</span>{" "}
+                    <span className="text-white font-medium">
+                      {mostUsedColors.filter(c => c.designCount > 1).length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Refresh button */}
             <div className="mb-6">

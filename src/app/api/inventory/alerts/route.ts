@@ -26,6 +26,17 @@ interface DesignAlert {
   totalSkeinsPerKit: number;
 }
 
+interface MostUsedColor {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  totalStitches: number;
+  designCount: number;
+  totalSkeinsNeeded: number; // Combined skeins needed for all designs
+  inventorySkeins: number;
+  threadSize: 5 | 8;
+}
+
 // GET - Calculate stock alerts for all non-draft designs
 export async function GET() {
   if (!(await isAuthenticated())) {
@@ -61,6 +72,13 @@ export async function GET() {
 
     const alerts: DesignAlert[] = [];
 
+    // Aggregate color usage tracking
+    const colorUsageMap = new Map<string, {
+      totalStitches: number;
+      designIds: Set<string>;
+      skeinsNeededBySize: { 5: number; 8: number };
+    }>();
+
     for (const design of designs) {
       if (!design.pixelData) continue;
 
@@ -84,8 +102,30 @@ export async function GET() {
           design.bufferPercent
         );
 
-        // Get inventory for correct thread size
+        // Track aggregate color usage
         const threadSize = meshCount === 14 ? 5 : 8;
+        for (const [dmcNumber, stitchCount] of stitchCounts.entries()) {
+          const existing = colorUsageMap.get(dmcNumber);
+          const usage = yarnUsage.find((u) => u.dmcNumber === dmcNumber);
+          const skeinsNeeded = usage?.skeinsNeeded ?? 0;
+
+          if (existing) {
+            existing.totalStitches += stitchCount;
+            existing.designIds.add(design.id);
+            existing.skeinsNeededBySize[threadSize] += skeinsNeeded;
+          } else {
+            colorUsageMap.set(dmcNumber, {
+              totalStitches: stitchCount,
+              designIds: new Set([design.id]),
+              skeinsNeededBySize: {
+                5: threadSize === 5 ? skeinsNeeded : 0,
+                8: threadSize === 8 ? skeinsNeeded : 0,
+              },
+            });
+          }
+        }
+
+        // Get inventory for correct thread size
         const inventoryMap = inventoryBySize[threadSize];
 
         // Calculate fulfillment capacity for each color
@@ -133,6 +173,35 @@ export async function GET() {
     // Sort by fulfillment capacity (lowest first = most urgent)
     alerts.sort((a, b) => a.fulfillmentCapacity - b.fulfillmentCapacity);
 
+    // Build most used colors list
+    const mostUsedColors: MostUsedColor[] = [];
+    for (const [dmcNumber, data] of colorUsageMap.entries()) {
+      const dmcColor = getDmcColorByNumber(dmcNumber);
+      // Determine primary thread size (the one with more skeins needed)
+      const primarySize: 5 | 8 = data.skeinsNeededBySize[5] >= data.skeinsNeededBySize[8] ? 5 : 8;
+      const totalSkeinsNeeded = data.skeinsNeededBySize[5] + data.skeinsNeededBySize[8];
+      const inventorySkeins = (inventoryBySize[5].get(dmcNumber) ?? 0) + (inventoryBySize[8].get(dmcNumber) ?? 0);
+
+      mostUsedColors.push({
+        dmcNumber,
+        colorName: dmcColor?.name ?? "Unknown",
+        hex: dmcColor?.hex ?? "#888888",
+        totalStitches: data.totalStitches,
+        designCount: data.designIds.size,
+        totalSkeinsNeeded,
+        inventorySkeins,
+        threadSize: primarySize,
+      });
+    }
+
+    // Sort by total stitches (most used first), then by design count
+    mostUsedColors.sort((a, b) => {
+      if (b.totalStitches !== a.totalStitches) {
+        return b.totalStitches - a.totalStitches;
+      }
+      return b.designCount - a.designCount;
+    });
+
     // Summary stats
     const summary = {
       totalDesigns: alerts.length,
@@ -141,7 +210,7 @@ export async function GET() {
       healthyCount: alerts.filter((a) => a.fulfillmentCapacity >= 7).length,
     };
 
-    return NextResponse.json({ alerts, summary });
+    return NextResponse.json({ alerts, summary, mostUsedColors: mostUsedColors.slice(0, 25) });
   } catch (error) {
     console.error("Error calculating stock alerts:", error);
     return NextResponse.json(
