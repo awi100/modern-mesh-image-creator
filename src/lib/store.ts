@@ -645,17 +645,81 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   rotate90: (clockwise) => {
-    const { grid } = get();
+    const { grid, selection, gridWidth, gridHeight } = get();
     get().saveToHistory();
 
-    const newGrid = clockwise ? rotate90Clockwise(grid) : rotate90Clockwise(rotate90Clockwise(rotate90Clockwise(grid)));
+    // If there's a selection, rotate only the selected area
+    if (selection) {
+      const bounds = getSelectionBounds(selection);
+      if (!bounds) return;
 
-    set({
-      grid: newGrid,
-      gridWidth: newGrid[0]?.length || 0,
-      gridHeight: newGrid.length,
-      isDirty: true,
-    });
+      const { minX, minY, maxX, maxY } = bounds;
+      const selWidth = maxX - minX + 1;
+      const selHeight = maxY - minY + 1;
+
+      // Extract selected pixels into a mini-grid
+      const extracted: PixelGrid = [];
+      for (let y = minY; y <= maxY; y++) {
+        const row: (string | null)[] = [];
+        for (let x = minX; x <= maxX; x++) {
+          row.push(selection[y]?.[x] ? grid[y]?.[x] : null);
+        }
+        extracted.push(row);
+      }
+
+      // Rotate the extracted grid
+      const rotated = clockwise
+        ? rotate90Clockwise(extracted)
+        : rotate90Clockwise(rotate90Clockwise(rotate90Clockwise(extracted)));
+
+      const newSelWidth = rotated[0]?.length || 0;
+      const newSelHeight = rotated.length;
+
+      // Calculate new position to keep centered on original center
+      const centerX = minX + selWidth / 2;
+      const centerY = minY + selHeight / 2;
+      const newMinX = Math.round(centerX - newSelWidth / 2);
+      const newMinY = Math.round(centerY - newSelHeight / 2);
+
+      // Create new grid with selected area cleared and rotated content placed
+      const newGrid = grid.map(row => [...row]);
+
+      // Clear original selection area
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          if (selection[y]?.[x]) {
+            newGrid[y][x] = null;
+          }
+        }
+      }
+
+      // Place rotated content
+      const newSelection = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(false));
+      for (let y = 0; y < newSelHeight; y++) {
+        for (let x = 0; x < newSelWidth; x++) {
+          const targetX = newMinX + x;
+          const targetY = newMinY + y;
+          if (targetX >= 0 && targetX < gridWidth && targetY >= 0 && targetY < gridHeight) {
+            if (rotated[y][x] !== null) {
+              newGrid[targetY][targetX] = rotated[y][x];
+              newSelection[targetY][targetX] = true;
+            }
+          }
+        }
+      }
+
+      set({ grid: newGrid, selection: newSelection, isDirty: true });
+    } else {
+      // No selection - rotate entire canvas
+      const newGrid = clockwise ? rotate90Clockwise(grid) : rotate90Clockwise(rotate90Clockwise(rotate90Clockwise(grid)));
+
+      set({
+        grid: newGrid,
+        gridWidth: newGrid[0]?.length || 0,
+        gridHeight: newGrid.length,
+        isDirty: true,
+      });
+    }
   },
 
   saveToHistory: () => {
