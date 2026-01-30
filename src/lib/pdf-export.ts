@@ -3,7 +3,6 @@
 import { jsPDF } from "jspdf";
 import { PixelGrid } from "./color-utils";
 import { DmcColor, getDmcColorByNumber } from "./dmc-pearl-cotton";
-import { SYMBOLS } from "./symbols";
 
 const DPI = 72; // jsPDF uses 72 DPI
 
@@ -28,13 +27,6 @@ function countStitches(grid: PixelGrid): Map<string, number> {
     }
   }
   return counts;
-}
-
-// Get contrasting color (black or white) for text/symbols on a background
-function getContrastColor(r: number, g: number, b: number): string {
-  // Calculate luminance
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
 // Export artwork PDF - exact size, no grid, for printing
@@ -88,12 +80,6 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
   // Count stitches per color
   const stitchCounts = countStitches(grid);
 
-  // Create symbol map for colors
-  const colorSymbols = new Map<string, string>();
-  usedColors.forEach((color, i) => {
-    colorSymbols.set(color.dmcNumber, SYMBOLS[i % SYMBOLS.length]);
-  });
-
   // Always use landscape for better layout with image + legend side by side
   const doc = new jsPDF({
     orientation: "landscape",
@@ -133,11 +119,7 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
   const imageOffsetX = imageX + (maxImageWidth - actualImageWidth) / 2;
   const imageOffsetY = imageY + (maxImageHeight - actualImageHeight) / 2;
 
-  // Calculate symbol font size based on cell size
-  const symbolFontSize = Math.max(3, Math.min(8, cellSize * 55));
-  const showSymbols = cellSize >= 0.04; // Only show symbols if cells are large enough
-
-  // Draw pixels with symbols
+  // Draw pixels
   for (let y = 0; y < gridHeight; y++) {
     for (let x = 0; x < gridWidth; x++) {
       const dmcNumber = grid[y][x];
@@ -146,32 +128,16 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
       const color = getDmcColorByNumber(dmcNumber);
       if (!color) continue;
 
-      const cellX = imageOffsetX + x * cellSize;
-      const cellY = imageOffsetY + y * cellSize;
-
-      // Fill cell with color
       doc.setFillColor(color.rgb.r, color.rgb.g, color.rgb.b);
-      doc.rect(cellX, cellY, cellSize, cellSize, "F");
-
-      // Draw symbol in cell if large enough
-      if (showSymbols) {
-        const symbol = colorSymbols.get(dmcNumber) || "●";
-        const contrastColor = getContrastColor(color.rgb.r, color.rgb.g, color.rgb.b);
-        doc.setTextColor(contrastColor);
-        doc.setFontSize(symbolFontSize);
-        doc.setFont("helvetica", "bold");
-        doc.text(
-          symbol,
-          cellX + cellSize / 2,
-          cellY + cellSize / 2 + cellSize * 0.15,
-          { align: "center" }
-        );
-      }
+      doc.rect(
+        imageOffsetX + x * cellSize,
+        imageOffsetY + y * cellSize,
+        cellSize,
+        cellSize,
+        "F"
+      );
     }
   }
-
-  // Reset text color
-  doc.setTextColor(0, 0, 0);
 
   // Draw border around image
   doc.setDrawColor(0);
@@ -204,17 +170,6 @@ export function exportStitchGuidePdf(options: ExportOptions): jsPDF {
     doc.setDrawColor(0);
     doc.setLineWidth(0.003);
     doc.rect(legendX, y, colorBoxSize, colorBoxSize);
-
-    // Draw symbol centered in color box
-    const symbol = colorSymbols.get(color.dmcNumber) || "●";
-    const contrastColor = getContrastColor(color.rgb.r, color.rgb.g, color.rgb.b);
-    doc.setTextColor(contrastColor);
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.text(symbol, legendX + colorBoxSize / 2, y + colorBoxSize * 0.65, { align: "center" });
-
-    // Reset text color
-    doc.setTextColor(0, 0, 0);
 
     // DMC number and stitch count
     doc.setFontSize(7);
