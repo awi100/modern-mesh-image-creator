@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { DmcColor, DMC_PEARL_COTTON, getDmcColorByNumber } from "./dmc-pearl-cotton";
-import { PixelGrid, floodFill, replaceColor, createEmptyGrid, copySelection, pasteData, getSelectionBounds, mirrorHorizontal, mirrorVertical, rotate90Clockwise, countStitchesByColor, getUsedColors } from "./color-utils";
+import { PixelGrid, floodFill, replaceColor, createEmptyGrid, copySelection, pasteData, getSelectionBounds, mirrorHorizontal, mirrorVertical, rotate90Clockwise, countStitchesByColor, getUsedColors, moveSelectionByOffset, movePixelsByOffset } from "./color-utils";
 import { calculateYarnUsage, YarnUsage, StitchType } from "./yarn-calculator";
 
 export type Tool = "pencil" | "brush" | "eraser" | "fill" | "rectangle" | "select" | "magicWand" | "eyedropper" | "move";
@@ -38,6 +38,10 @@ interface EditorState {
   // Selection
   selection: boolean[][] | null;
   selectionStart: { x: number; y: number } | null;
+
+  // Move selection state
+  moveStart: { x: number; y: number } | null;
+  moveOffset: { x: number; y: number } | null;
 
   // Clipboard
   clipboard: Clipboard | null;
@@ -112,6 +116,12 @@ interface EditorState {
   pasteFromClipboard: (x: number, y: number) => void;
   deleteSelection: () => void;
 
+  // Move selection operations
+  startMove: (x: number, y: number) => void;
+  updateMoveOffset: (x: number, y: number) => void;
+  commitMove: () => void;
+  cancelMove: () => void;
+
   // Pixel overlay (for text placement, stamps, etc.)
   applyPixelOverlay: (pixels: (string | null)[][], x: number, y: number) => void;
 
@@ -174,6 +184,8 @@ const createInitialState = () => ({
   currentColor: DMC_PEARL_COTTON[0],
   selection: null,
   selectionStart: null,
+  moveStart: null,
+  moveOffset: null,
   clipboard: null,
   history: [] as HistoryEntry[],
   historyIndex: -1,
@@ -480,6 +492,65 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     );
 
     set({ grid: newGrid, selection: null, isDirty: true });
+  },
+
+  // Move selection operations
+  startMove: (x, y) => {
+    set({
+      moveStart: { x, y },
+      moveOffset: { x: 0, y: 0 },
+    });
+  },
+
+  updateMoveOffset: (x, y) => {
+    const { moveStart } = get();
+    if (!moveStart) return;
+
+    set({
+      moveOffset: {
+        x: x - moveStart.x,
+        y: y - moveStart.y,
+      },
+    });
+  },
+
+  commitMove: () => {
+    const { grid, selection, moveOffset, gridWidth, gridHeight } = get();
+    if (!selection || !moveOffset) return;
+    if (moveOffset.x === 0 && moveOffset.y === 0) {
+      // No actual movement, just clear move state
+      set({ moveStart: null, moveOffset: null });
+      return;
+    }
+
+    get().saveToHistory();
+
+    // Move the pixels
+    const newGrid = movePixelsByOffset(grid, selection, moveOffset.x, moveOffset.y);
+
+    // Move the selection bounds
+    const newSelection = moveSelectionByOffset(
+      selection,
+      moveOffset.x,
+      moveOffset.y,
+      gridWidth,
+      gridHeight
+    );
+
+    set({
+      grid: newGrid,
+      selection: newSelection,
+      moveStart: null,
+      moveOffset: null,
+      isDirty: true,
+    });
+  },
+
+  cancelMove: () => {
+    set({
+      moveStart: null,
+      moveOffset: null,
+    });
   },
 
   mirrorHorizontal: () => {

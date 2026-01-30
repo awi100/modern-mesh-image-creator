@@ -425,3 +425,75 @@ export function countStitchesByColor(grid: PixelGrid): Map<string, number> {
 export function createEmptyGrid(width: number, height: number): PixelGrid {
   return Array.from({ length: height }, () => Array(width).fill(null));
 }
+
+// Check if a point is inside a selection
+export function isPointInSelection(
+  x: number,
+  y: number,
+  selection: boolean[][] | null
+): boolean {
+  if (!selection) return false;
+  return selection[y]?.[x] === true;
+}
+
+// Move selection by offset
+export function moveSelectionByOffset(
+  selection: boolean[][],
+  offsetX: number,
+  offsetY: number,
+  gridWidth: number,
+  gridHeight: number
+): boolean[][] {
+  const newSelection = Array.from({ length: gridHeight }, () =>
+    Array(gridWidth).fill(false)
+  );
+
+  for (let y = 0; y < selection.length; y++) {
+    for (let x = 0; x < selection[y].length; x++) {
+      if (selection[y][x]) {
+        const newX = x + offsetX;
+        const newY = y + offsetY;
+        if (newX >= 0 && newX < gridWidth && newY >= 0 && newY < gridHeight) {
+          newSelection[newY][newX] = true;
+        }
+      }
+    }
+  }
+
+  return newSelection;
+}
+
+// Move pixels by offset (based on selection)
+export function movePixelsByOffset(
+  grid: PixelGrid,
+  selection: boolean[][],
+  offsetX: number,
+  offsetY: number
+): PixelGrid {
+  const newGrid = grid.map(row => [...row]);
+  const movedPixels: { x: number; y: number; color: string | null }[] = [];
+
+  // Collect pixels to move and clear originals
+  for (let y = 0; y < selection.length; y++) {
+    for (let x = 0; x < selection[y].length; x++) {
+      if (selection[y][x]) {
+        movedPixels.push({ x, y, color: grid[y][x] });
+        newGrid[y][x] = null; // Clear original
+      }
+    }
+  }
+
+  // Place at new positions
+  const gridHeight = newGrid.length;
+  const gridWidth = newGrid[0]?.length || 0;
+
+  for (const { x, y, color } of movedPixels) {
+    const newX = x + offsetX;
+    const newY = y + offsetY;
+    if (newX >= 0 && newX < gridWidth && newY >= 0 && newY < gridHeight) {
+      newGrid[newY][newX] = color;
+    }
+  }
+
+  return newGrid;
+}

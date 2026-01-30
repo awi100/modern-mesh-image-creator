@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useCallback, useState, useMemo } from "react"
 import { useEditorStore } from "@/lib/store";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { SYMBOLS, hexLuminance } from "@/lib/symbols";
+import { isPointInSelection } from "@/lib/color-utils";
 
 interface PixelCanvasProps {
   pendingText?: {
@@ -49,6 +50,9 @@ export default function PixelCanvas({
     isPanning: boolean;
   } | null>(null);
 
+  // Move selection ref
+  const moveRef = useRef<{ startX: number; startY: number } | null>(null);
+
   const {
     grid,
     gridWidth,
@@ -74,6 +78,11 @@ export default function PixelCanvas({
     saveToHistory,
     setZoom,
     setPan,
+    moveOffset,
+    startMove,
+    updateMoveOffset,
+    commitMove,
+    cancelMove,
   } = useEditorStore();
 
   const cellSize = 20 * zoom;
@@ -212,6 +221,30 @@ export default function PixelCanvas({
           }
         }
       }
+
+      // Draw move preview if moving selection
+      if (moveOffset && (moveOffset.x !== 0 || moveOffset.y !== 0)) {
+        ctx.globalAlpha = 0.6;
+        for (let y = 0; y < gridHeight; y++) {
+          for (let x = 0; x < gridWidth; x++) {
+            if (selection[y]?.[x]) {
+              const dmcNumber = grid[y]?.[x];
+              if (dmcNumber) {
+                const color = getDmcColorByNumber(dmcNumber);
+                if (color) {
+                  ctx.fillStyle = color.hex;
+                  const newX = x + moveOffset.x;
+                  const newY = y + moveOffset.y;
+                  if (newX >= 0 && newX < gridWidth && newY >= 0 && newY < gridHeight) {
+                    ctx.fillRect(newX * cellSize, newY * cellSize, cellSize, cellSize);
+                  }
+                }
+              }
+            }
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
     }
 
     // Draw pending text overlay
@@ -248,26 +281,33 @@ export default function PixelCanvas({
       );
       ctx.setLineDash([]);
     }
-  }, [grid, gridWidth, gridHeight, cellSize, showGrid, showSymbols, colorSymbolMap, selection, referenceImageUrl, referenceImageOpacity, zoom, pendingText, textPlacementPos]);
+  }, [grid, gridWidth, gridHeight, cellSize, showGrid, showSymbols, colorSymbolMap, selection, referenceImageUrl, referenceImageOpacity, zoom, pendingText, textPlacementPos, moveOffset]);
 
   useEffect(() => {
     draw();
   }, [draw]);
 
-  // Handle escape key to cancel text placement
+  // Handle escape key to cancel text placement or move operation
   useEffect(() => {
-    if (!pendingText) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && onCancelTextPlacement) {
-        onCancelTextPlacement();
-        setTextPlacementPos(null);
+      if (e.key === "Escape") {
+        // Cancel move operation
+        if (moveRef.current) {
+          cancelMove();
+          moveRef.current = null;
+          return;
+        }
+        // Cancel text placement
+        if (pendingText && onCancelTextPlacement) {
+          onCancelTextPlacement();
+          setTextPlacementPos(null);
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pendingText, onCancelTextPlacement]);
+  }, [pendingText, onCancelTextPlacement, cancelMove]);
 
   // Get grid coordinates from mouse or touch event
   const getGridCoords = useCallback((clientX: number, clientY: number) => {
@@ -342,11 +382,19 @@ export default function PixelCanvas({
         }
       }
     } else if (currentTool === "select") {
-      startSelection(coords.x, coords.y);
+      // Check if clicking inside existing selection to move it
+      if (selection && isPointInSelection(coords.x, coords.y, selection)) {
+        // Start move operation
+        moveRef.current = { startX: coords.x, startY: coords.y };
+        startMove(coords.x, coords.y);
+      } else {
+        // Create new selection
+        startSelection(coords.x, coords.y);
+      }
     } else if (currentTool === "magicWand") {
       selectByColor(coords.x, coords.y);
     }
-  }, [currentTool, currentColor, eraserSize, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, startDragTracking]);
+  }, [currentTool, currentColor, eraserSize, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, startDragTracking, selection, startMove]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
@@ -517,9 +565,14 @@ export default function PixelCanvas({
       }
       lastPosRef.current = coords;
     } else if (currentTool === "select") {
-      updateSelection(coords.x, coords.y);
+      // If moving selection, update offset; otherwise update selection rectangle
+      if (moveRef.current) {
+        updateMoveOffset(coords.x, coords.y);
+      } else {
+        updateSelection(coords.x, coords.y);
+      }
     }
-  }, [currentTool, currentColor, eraserSize, setPixel, setBrushPixels, updateSelection]);
+  }, [currentTool, currentColor, eraserSize, setPixel, setBrushPixels, updateSelection, updateMoveOffset]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
@@ -543,10 +596,16 @@ export default function PixelCanvas({
       return;
     }
 
+    // Handle move selection
+    if (moveRef.current && coords) {
+      updateMoveOffset(coords.x, coords.y);
+      return;
+    }
+
     if (!isDrawingRef.current) return;
     if (!coords) return;
     handleDrawMove(coords);
-  }, [getMouseCoords, handleDrawMove, pendingText, setPan]);
+  }, [getMouseCoords, handleDrawMove, pendingText, setPan, updateMoveOffset]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -634,18 +693,34 @@ export default function PixelCanvas({
       return;
     }
 
+    // Handle move selection
+    if (moveRef.current) {
+      const coords = getTouchCoords(e);
+      if (coords) {
+        updateMoveOffset(coords.x, coords.y);
+      }
+      return;
+    }
+
     if (!isDrawingRef.current) return;
     const coords = getTouchCoords(e);
     if (!coords) return;
     handleDrawMove(coords);
-  }, [getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawMove, setZoom, setPan]);
+  }, [getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawMove, setZoom, setPan, updateMoveOffset]);
 
   const handleDrawEnd = useCallback(() => {
     isDrawingRef.current = false;
     lastPosRef.current = null;
   }, []);
 
-  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseUp = useCallback((_e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Handle move selection end
+    if (moveRef.current) {
+      commitMove();
+      moveRef.current = null;
+      return;
+    }
+
     // Handle pencil drag-to-pan end: if didn't pan, treat as a click to place pixel
     if (dragRef.current) {
       if (!dragRef.current.isPanning) {
@@ -658,7 +733,7 @@ export default function PixelCanvas({
     }
 
     handleDrawEnd();
-  }, [handleDrawEnd, saveToHistory, setPixel, currentColor]);
+  }, [handleDrawEnd, saveToHistory, setPixel, currentColor, commitMove]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -668,6 +743,13 @@ export default function PixelCanvas({
       if (e.touches.length < 2) {
         pinchRef.current = null;
       }
+      return;
+    }
+
+    // Handle move selection end
+    if (moveRef.current) {
+      commitMove();
+      moveRef.current = null;
       return;
     }
 
@@ -684,7 +766,7 @@ export default function PixelCanvas({
 
     isDrawingRef.current = false;
     lastPosRef.current = null;
-  }, [saveToHistory, setPixel, currentColor]);
+  }, [saveToHistory, setPixel, currentColor, commitMove]);
 
   const handleMouseLeave = useCallback(() => {
     dragRef.current = null;
