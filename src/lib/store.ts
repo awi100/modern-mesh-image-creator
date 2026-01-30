@@ -176,6 +176,7 @@ interface EditorState {
   toggleLayerLock: (index: number) => void;
   moveLayerUp: (index: number) => void;
   moveLayerDown: (index: number) => void;
+  reorderLayer: (fromIndex: number, toIndex: number) => void;
   mergeLayerDown: (index: number) => void;
   flattenLayers: () => PixelGrid;
   getActiveLayerGrid: () => PixelGrid;
@@ -1115,6 +1116,38 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       newActiveIndex = index + 1;
     } else if (activeLayerIndex === index + 1) {
       newActiveIndex = index;
+    }
+
+    set({
+      layers: newLayers,
+      activeLayerIndex: newActiveIndex,
+      isDirty: true,
+    });
+  },
+
+  reorderLayer: (fromIndex, toIndex) => {
+    const { layers, activeLayerIndex } = get();
+    if (fromIndex === toIndex) return;
+    if (fromIndex < 0 || fromIndex >= layers.length) return;
+    if (toIndex < 0 || toIndex >= layers.length) return;
+
+    get().saveToHistory();
+
+    const newLayers = [...layers];
+    const [movedLayer] = newLayers.splice(fromIndex, 1);
+    newLayers.splice(toIndex, 0, movedLayer);
+
+    // Adjust active layer index to follow the previously active layer
+    let newActiveIndex = activeLayerIndex;
+    if (activeLayerIndex === fromIndex) {
+      // The active layer was moved
+      newActiveIndex = toIndex;
+    } else if (fromIndex < activeLayerIndex && toIndex >= activeLayerIndex) {
+      // Layer moved from below to above active layer
+      newActiveIndex = activeLayerIndex - 1;
+    } else if (fromIndex > activeLayerIndex && toIndex <= activeLayerIndex) {
+      // Layer moved from above to below active layer
+      newActiveIndex = activeLayerIndex + 1;
     }
 
     set({

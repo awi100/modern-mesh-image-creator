@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { useEditorStore, Layer } from "@/lib/store";
 
 export default function LayersPanel() {
@@ -17,6 +17,7 @@ export default function LayersPanel() {
     toggleLayerLock,
     moveLayerUp,
     moveLayerDown,
+    reorderLayer,
     mergeLayerDown,
     flattenLayers,
     saveToHistory,
@@ -25,6 +26,11 @@ export default function LayersPanel() {
   const [editingLayerIndex, setEditingLayerIndex] = useState<number | null>(null);
   const [tempName, setTempName] = useState("");
   const [showMenu, setShowMenu] = useState(false);
+
+  // Drag and drop state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  const dragCounter = useRef(0);
 
   const handleStartRename = useCallback((index: number, currentName: string) => {
     setEditingLayerIndex(index);
@@ -49,6 +55,59 @@ export default function LayersPanel() {
     store.initializeGrid(store.gridWidth, store.gridHeight, flatGrid);
     setShowMenu(false);
   }, [layers.length, flattenLayers, saveToHistory]);
+
+  // Drag and drop handlers
+  const handleDragStart = useCallback((e: React.DragEvent, actualIndex: number) => {
+    setDraggedIndex(actualIndex);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(actualIndex));
+    // Add a slight delay to allow the drag image to be created
+    setTimeout(() => {
+      const target = e.target as HTMLElement;
+      target.style.opacity = "0.5";
+    }, 0);
+  }, []);
+
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    const target = e.target as HTMLElement;
+    target.style.opacity = "1";
+    setDraggedIndex(null);
+    setDropTargetIndex(null);
+    dragCounter.current = 0;
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent, actualIndex: number) => {
+    e.preventDefault();
+    dragCounter.current++;
+    if (draggedIndex !== null && draggedIndex !== actualIndex) {
+      setDropTargetIndex(actualIndex);
+    }
+  }, [draggedIndex]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setDropTargetIndex(null);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, targetActualIndex: number) => {
+    e.preventDefault();
+    dragCounter.current = 0;
+
+    if (draggedIndex !== null && draggedIndex !== targetActualIndex) {
+      reorderLayer(draggedIndex, targetActualIndex);
+    }
+
+    setDraggedIndex(null);
+    setDropTargetIndex(null);
+  }, [draggedIndex, reorderLayer]);
 
   // Render layers in reverse order (top layer first in UI)
   const reversedLayers = [...layers].reverse();
@@ -106,21 +165,41 @@ export default function LayersPanel() {
           const actualIndex = layers.length - 1 - reversedIndex;
           const isActive = actualIndex === activeLayerIndex;
           const isEditing = editingLayerIndex === actualIndex;
+          const isDragging = draggedIndex === actualIndex;
+          const isDropTarget = dropTargetIndex === actualIndex;
 
           return (
             <div
               key={layer.id}
-              className={`rounded-lg border transition-colors ${
-                isActive
+              draggable={!isEditing}
+              onDragStart={(e) => handleDragStart(e, actualIndex)}
+              onDragEnd={handleDragEnd}
+              onDragEnter={(e) => handleDragEnter(e, actualIndex)}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, actualIndex)}
+              className={`rounded-lg border transition-all ${
+                isDragging
+                  ? "opacity-50"
+                  : isDropTarget
+                  ? "border-rose-500 border-2 bg-rose-900/20"
+                  : isActive
                   ? "bg-rose-900/30 border-rose-800"
                   : "bg-slate-700/50 border-slate-600 hover:border-slate-500"
-              }`}
+              } ${!isEditing ? "cursor-grab active:cursor-grabbing" : ""}`}
             >
               {/* Layer header */}
               <div
-                className="flex items-center gap-2 p-2 cursor-pointer"
-                onClick={() => setActiveLayer(actualIndex)}
+                className="flex items-center gap-2 p-2"
+                onClick={() => !isDragging && setActiveLayer(actualIndex)}
               >
+                {/* Drag handle */}
+                <div className="text-slate-500 hover:text-slate-400 cursor-grab active:cursor-grabbing">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                  </svg>
+                </div>
+
                 {/* Visibility toggle */}
                 <button
                   onClick={(e) => {
