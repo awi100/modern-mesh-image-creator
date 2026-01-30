@@ -80,6 +80,19 @@ export default function InventoryPage() {
     return searchDmcColors(addSearch).slice(0, 20);
   }, [addSearch]);
 
+  // Search results for main search - colors not in inventory
+  const mainSearchSuggestions = useMemo(() => {
+    if (!searchQuery || filteredItems.length > 0) return [];
+    const matches = searchDmcColors(searchQuery).slice(0, 10);
+    // Filter out colors already in inventory (for the current size filter or both if no filter)
+    const inventoryDmcNumbers = new Set(
+      items
+        .filter((item) => sizeFilter === null || item.size === sizeFilter)
+        .map((item) => item.dmcNumber)
+    );
+    return matches.filter((color) => !inventoryDmcNumbers.has(color.dmcNumber));
+  }, [searchQuery, filteredItems.length, items, sizeFilter]);
+
   const handleAdd = async () => {
     if (!selectedColor || addSkeins < 1) return;
     setAdding(true);
@@ -305,6 +318,47 @@ export default function InventoryPage() {
                 </svg>
                 Add Your First Thread
               </button>
+            )}
+
+            {/* Quick-add suggestions when searching */}
+            {searchQuery && mainSearchSuggestions.length > 0 && (
+              <div className="mt-8 max-w-lg mx-auto">
+                <p className="text-slate-400 text-sm mb-3">Add to inventory:</p>
+                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                  {mainSearchSuggestions.map((color) => (
+                    <div
+                      key={color.dmcNumber}
+                      className="flex items-center gap-3 p-3 border-b border-slate-700 last:border-b-0 hover:bg-slate-750"
+                    >
+                      <div
+                        className="w-10 h-10 rounded-lg border border-white/20 flex-shrink-0 flex items-center justify-center"
+                        style={{ backgroundColor: color.hex }}
+                      >
+                        <span
+                          className="text-[7px] font-bold"
+                          style={{ color: getContrastTextColor(color.hex) }}
+                        >
+                          {color.dmcNumber}
+                        </span>
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="text-white text-sm font-medium">DMC {color.dmcNumber}</p>
+                        <p className="text-slate-400 text-xs">{color.name}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedColor(color);
+                          setAddSearch("");
+                          setShowAddForm(true);
+                        }}
+                        className="px-3 py-1.5 bg-rose-900 text-white text-xs font-medium rounded-lg hover:bg-rose-950 transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         ) : (
