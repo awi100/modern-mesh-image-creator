@@ -10,13 +10,18 @@ interface ExportPanelProps {
 
 export default function ExportPanel({ onClose }: ExportPanelProps) {
   const {
-    grid,
+    flattenLayers,
+    gridWidth,
+    gridHeight,
     widthInches,
     heightInches,
     meshCount,
     designName,
     getUsedColors,
   } = useEditorStore();
+
+  // Get flattened grid for export
+  const grid = flattenLayers();
 
   const [exporting, setExporting] = useState(false);
   const [fitToOnePage, setFitToOnePage] = useState(true);
@@ -191,7 +196,7 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
             </button>
           </div>
           <p className="text-xs text-slate-500 text-center">
-            Image size: {grid[0]?.length || 0} × {grid.length} cells × {meshCount} = {(grid[0]?.length || 0) * meshCount} × {grid.length * meshCount} px
+            Image size: {gridWidth} × {gridHeight} cells × {meshCount} = {gridWidth * meshCount} × {gridHeight * meshCount} px
           </p>
         </div>
 

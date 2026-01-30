@@ -6,9 +6,10 @@ import { useEditorStore } from "@/lib/store";
 interface MobileBottomBarProps {
   onShowColors: () => void;
   onShowMetrics: () => void;
+  onShowLayers?: () => void;
 }
 
-export default function MobileBottomBar({ onShowColors, onShowMetrics }: MobileBottomBarProps) {
+export default function MobileBottomBar({ onShowColors, onShowMetrics, onShowLayers }: MobileBottomBarProps) {
   const { currentColor, undo, redo, canUndo, canRedo } = useEditorStore();
 
   return (
@@ -43,13 +44,26 @@ export default function MobileBottomBar({ onShowColors, onShowMetrics }: MobileB
         </button>
       </div>
 
+      {/* Layers panel */}
+      {onShowLayers && (
+        <button
+          onClick={onShowLayers}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600"
+        >
+          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          <span className="text-white text-sm hidden xs:inline">Layers</span>
+        </button>
+      )}
+
       {/* Info panel */}
       <button
         onClick={onShowMetrics}
         className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600"
       >
         <span className="text-lg">📊</span>
-        <span className="text-white text-sm">Info</span>
+        <span className="text-white text-sm hidden xs:inline">Info</span>
       </button>
     </div>
   );

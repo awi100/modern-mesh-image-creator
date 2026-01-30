@@ -78,7 +78,7 @@ export default function Header({
     meshCount,
     gridWidth,
     gridHeight,
-    grid,
+    flattenLayers,
     stitchType,
     bufferPercent,
     referenceImageUrl,
@@ -100,6 +100,9 @@ export default function Header({
     setSaving(true);
 
     try {
+      // Flatten all layers for storage (save as single grid)
+      const grid = flattenLayers();
+
       // Compress pixel data
       const pixelDataJson = JSON.stringify(grid);
       const compressed = pako.deflate(pixelDataJson);
@@ -163,7 +166,7 @@ export default function Header({
     meshCount,
     gridWidth,
     gridHeight,
-    grid,
+    flattenLayers,
     stitchType,
     bufferPercent,
     referenceImageUrl,

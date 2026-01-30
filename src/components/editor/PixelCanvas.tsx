@@ -54,7 +54,8 @@ export default function PixelCanvas({
   const moveRef = useRef<{ startX: number; startY: number } | null>(null);
 
   const {
-    grid,
+    layers,
+    activeLayerIndex,
     gridWidth,
     gridHeight,
     currentTool,
@@ -85,22 +86,26 @@ export default function PixelCanvas({
     cancelMove,
   } = useEditorStore();
 
+  const activeLayer = layers[activeLayerIndex];
+
   const cellSize = 20 * zoom;
 
-  // Build a stable color → symbol map based on the order colors appear in the grid
+  // Build a stable color → symbol map based on the order colors appear in all layers
   const colorSymbolMap = useMemo(() => {
     const map = new Map<string, string>();
     let idx = 0;
-    for (const row of grid) {
-      for (const cell of row) {
-        if (cell && !map.has(cell)) {
-          map.set(cell, SYMBOLS[idx % SYMBOLS.length]);
-          idx++;
+    for (const layer of layers) {
+      for (const row of layer.grid) {
+        for (const cell of row) {
+          if (cell && !map.has(cell)) {
+            map.set(cell, SYMBOLS[idx % SYMBOLS.length]);
+            idx++;
+          }
         }
       }
     }
     return map;
-  }, [grid]);
+  }, [layers]);
 
   // Draw canvas
   const draw = useCallback(() => {
@@ -129,30 +134,56 @@ export default function PixelCanvas({
       }
     }
 
-    // Draw pixels
-    for (let y = 0; y < gridHeight; y++) {
-      for (let x = 0; x < gridWidth; x++) {
-        const dmcNumber = grid[y]?.[x];
-        if (dmcNumber) {
-          const color = getDmcColorByNumber(dmcNumber);
-          if (color) {
-            ctx.fillStyle = color.hex;
-            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+    // Draw all layers from bottom (index 0) to top
+    for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
+      const layer = layers[layerIndex];
+      if (!layer.visible) continue;
+
+      ctx.globalAlpha = layer.opacity;
+
+      // Draw pixels for this layer
+      for (let y = 0; y < gridHeight; y++) {
+        for (let x = 0; x < gridWidth; x++) {
+          const dmcNumber = layer.grid[y]?.[x];
+          if (dmcNumber) {
+            const color = getDmcColorByNumber(dmcNumber);
+            if (color) {
+              ctx.fillStyle = color.hex;
+              ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+            }
           }
         }
       }
+
+      ctx.globalAlpha = 1;
     }
 
-    // Draw symbols on colored cells
+    // Draw symbols on colored cells (composite view)
     if (showSymbols && cellSize >= 10) {
       const fontSize = Math.max(6, Math.round(cellSize * 0.6));
       ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
+      // Build composite grid for symbol display
+      const compositeGrid: (string | null)[][] = Array.from({ length: gridHeight }, () =>
+        Array(gridWidth).fill(null)
+      );
+      for (const layer of layers) {
+        if (!layer.visible) continue;
+        for (let y = 0; y < gridHeight; y++) {
+          for (let x = 0; x < gridWidth; x++) {
+            const dmcNumber = layer.grid[y]?.[x];
+            if (dmcNumber) {
+              compositeGrid[y][x] = dmcNumber;
+            }
+          }
+        }
+      }
+
       for (let y = 0; y < gridHeight; y++) {
         for (let x = 0; x < gridWidth; x++) {
-          const dmcNumber = grid[y]?.[x];
+          const dmcNumber = compositeGrid[y][x];
           if (dmcNumber) {
             const symbol = colorSymbolMap.get(dmcNumber);
             if (symbol) {
@@ -223,12 +254,12 @@ export default function PixelCanvas({
       }
 
       // Draw move preview if moving selection
-      if (moveOffset && (moveOffset.x !== 0 || moveOffset.y !== 0)) {
+      if (moveOffset && (moveOffset.x !== 0 || moveOffset.y !== 0) && activeLayer) {
         ctx.globalAlpha = 0.6;
         for (let y = 0; y < gridHeight; y++) {
           for (let x = 0; x < gridWidth; x++) {
             if (selection[y]?.[x]) {
-              const dmcNumber = grid[y]?.[x];
+              const dmcNumber = activeLayer.grid[y]?.[x];
               if (dmcNumber) {
                 const color = getDmcColorByNumber(dmcNumber);
                 if (color) {
@@ -323,7 +354,7 @@ export default function PixelCanvas({
       );
       ctx.setLineDash([]);
     }
-  }, [grid, gridWidth, gridHeight, cellSize, showGrid, showSymbols, colorSymbolMap, selection, referenceImageUrl, referenceImageOpacity, zoom, pendingText, textPlacementPos, moveOffset]);
+  }, [layers, activeLayer, gridWidth, gridHeight, cellSize, showGrid, showSymbols, colorSymbolMap, selection, referenceImageUrl, referenceImageOpacity, zoom, pendingText, textPlacementPos, moveOffset]);
 
   useEffect(() => {
     draw();
@@ -427,9 +458,17 @@ export default function PixelCanvas({
     } else if (currentTool === "fill") {
       fillArea(coords.x, coords.y, currentColor?.dmcNumber || null);
     } else if (currentTool === "eyedropper") {
-      const dmcNumber = grid[coords.y]?.[coords.x];
-      if (dmcNumber) {
-        const color = getDmcColorByNumber(dmcNumber);
+      // Sample from the composite of all visible layers
+      let sampledColor: string | null = null;
+      for (let i = layers.length - 1; i >= 0; i--) {
+        const layer = layers[i];
+        if (layer.visible && layer.grid[coords.y]?.[coords.x]) {
+          sampledColor = layer.grid[coords.y][coords.x];
+          break;
+        }
+      }
+      if (sampledColor) {
+        const color = getDmcColorByNumber(sampledColor);
         if (color) {
           setCurrentColor(color);
           // Switch to pencil tool after picking a color
@@ -449,7 +488,7 @@ export default function PixelCanvas({
     } else if (currentTool === "magicWand") {
       selectByColor(coords.x, coords.y);
     }
-  }, [currentTool, currentColor, eraserSize, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, startDragTracking, selection, startMove, panX, panY]);
+  }, [currentTool, currentColor, eraserSize, layers, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, startDragTracking, selection, startMove, panX, panY]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);

@@ -12,7 +12,7 @@ export default function MetricsPanel() {
     meshCount,
     gridWidth,
     gridHeight,
-    grid,
+    getCompositeGrid,
     stitchType,
     bufferPercent,
     setStitchType,
@@ -21,6 +21,9 @@ export default function MetricsPanel() {
     getYarnUsage,
     getTotalStitches,
   } = useEditorStore();
+
+  // Get composite grid for preview
+  const grid = getCompositeGrid();
 
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const usedColors = getUsedColors();
@@ -65,7 +68,7 @@ export default function MetricsPanel() {
         }
       }
     }
-  }, [grid, gridWidth, gridHeight]);
+  }, [getCompositeGrid, gridWidth, gridHeight]);
 
   return (
     <div className="bg-slate-800 lg:border-l border-slate-700 w-full lg:w-72 flex flex-col overflow-auto">

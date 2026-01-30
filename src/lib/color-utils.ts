@@ -497,3 +497,39 @@ export function movePixelsByOffset(
 
   return newGrid;
 }
+
+// Layer interface for composite function
+interface Layer {
+  grid: PixelGrid;
+  visible: boolean;
+  opacity: number;
+}
+
+// Composite all visible layers into a single grid
+// Renders from bottom (index 0) to top, respecting visibility and opacity
+export function compositeLayers(
+  layers: Layer[],
+  gridWidth: number,
+  gridHeight: number
+): PixelGrid {
+  const result: PixelGrid = createEmptyGrid(gridWidth, gridHeight);
+
+  // Render layers from bottom to top
+  for (const layer of layers) {
+    if (!layer.visible) continue;
+
+    for (let y = 0; y < gridHeight; y++) {
+      for (let x = 0; x < gridWidth; x++) {
+        const pixel = layer.grid[y]?.[x];
+        // For pixel art, we simply overlay non-null pixels
+        // Opacity is handled during canvas rendering, not here
+        // (since we're storing DMC color codes, not actual colors)
+        if (pixel !== null) {
+          result[y][x] = pixel;
+        }
+      }
+    }
+  }
+
+  return result;
+}

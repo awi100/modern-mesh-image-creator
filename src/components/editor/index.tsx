@@ -7,6 +7,7 @@ import Toolbar from "./Toolbar";
 import PixelCanvas from "./PixelCanvas";
 import ColorPicker from "./ColorPicker";
 import MetricsPanel from "./MetricsPanel";
+import LayersPanel from "./LayersPanel";
 import ImageImport from "./ImageImport";
 import CanvasResize from "./CanvasResize";
 import ExportPanel from "./ExportPanel";
@@ -48,9 +49,11 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const [showExport, setShowExport] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false);
+  const [showLayers, setShowLayers] = useState(false);
   const [showTextDialog, setShowTextDialog] = useState(false);
   const [showShapeDialog, setShowShapeDialog] = useState(false);
   const [colorPanelCollapsed, setColorPanelCollapsed] = useState(false);
+  const [layersPanelCollapsed, setLayersPanelCollapsed] = useState(false);
   const [pendingText, setPendingText] = useState<{
     pixels: (string | null)[][];
     width: number;
@@ -238,8 +241,40 @@ export default function Editor({ designId, initialData }: EditorProps) {
           onCancelTextPlacement={handleCancelTextPlacement}
         />
 
-        {/* Metrics panel - hidden on mobile, shown via bottom drawer */}
-        <div className="hidden lg:block">
+        {/* Right side panels */}
+        <div className="hidden lg:flex lg:flex-row">
+          {/* Layers panel */}
+          {layersPanelCollapsed ? (
+            <div className="bg-slate-800 border-l border-slate-700 flex flex-col items-center py-2">
+              <button
+                onClick={() => setLayersPanelCollapsed(false)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                title="Show layers panel"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div className="mt-2 text-xs text-slate-500 writing-mode-vertical rotate-180" style={{ writingMode: 'vertical-rl' }}>
+                Layers
+              </div>
+            </div>
+          ) : (
+            <div className="relative">
+              <button
+                onClick={() => setLayersPanelCollapsed(true)}
+                className="absolute top-2 right-2 z-10 p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                title="Collapse layers panel"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              <LayersPanel />
+            </div>
+          )}
+
+          {/* Metrics panel */}
           <MetricsPanel />
         </div>
       </div>
@@ -248,6 +283,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
       <MobileBottomBar
         onShowColors={() => setShowColorPicker(true)}
         onShowMetrics={() => setShowMetrics(true)}
+        onShowLayers={() => setShowLayers(true)}
       />
 
       {/* Mobile Color Picker Drawer */}
@@ -293,6 +329,30 @@ export default function Editor({ designId, initialData }: EditorProps) {
             </div>
             <div className="overflow-auto max-h-[calc(70vh-60px)]">
               <MetricsPanel />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Layers Drawer */}
+      {showLayers && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowLayers(false)}
+          />
+          <div className="absolute bottom-0 left-0 right-0 bg-slate-800 rounded-t-2xl max-h-[70vh] overflow-hidden animate-slide-up">
+            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+              <h2 className="text-white font-semibold">Layers</h2>
+              <button
+                onClick={() => setShowLayers(false)}
+                className="p-2 text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="overflow-auto max-h-[calc(70vh-60px)]">
+              <LayersPanel />
             </div>
           </div>
         </div>

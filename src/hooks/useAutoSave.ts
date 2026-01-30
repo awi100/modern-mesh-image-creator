@@ -59,7 +59,7 @@ export function useAutoSave() {
     meshCount,
     gridWidth,
     gridHeight,
-    grid,
+    flattenLayers,
     stitchType,
     bufferPercent,
     referenceImageUrl,
@@ -85,6 +85,9 @@ export function useAutoSave() {
     setAutoSaveStatus('saving');
 
     try {
+      // Flatten all layers for storage
+      const grid = flattenLayers();
+
       // Compress pixel data
       const pixelDataJson = JSON.stringify(grid);
       const compressed = pako.deflate(pixelDataJson);
@@ -149,7 +152,7 @@ export function useAutoSave() {
     meshCount,
     gridWidth,
     gridHeight,
-    grid,
+    flattenLayers,
     stitchType,
     bufferPercent,
     referenceImageUrl,

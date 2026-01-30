@@ -1,12 +1,23 @@
 import { create } from "zustand";
 import { DmcColor, DMC_PEARL_COTTON, getDmcColorByNumber } from "./dmc-pearl-cotton";
-import { PixelGrid, floodFill, replaceColor, createEmptyGrid, copySelection, pasteData, getSelectionBounds, mirrorHorizontal, mirrorVertical, rotate90Clockwise, countStitchesByColor, getUsedColors, moveSelectionByOffset, movePixelsByOffset } from "./color-utils";
+import { PixelGrid, floodFill, replaceColor, createEmptyGrid, copySelection, pasteData, getSelectionBounds, mirrorHorizontal, mirrorVertical, rotate90Clockwise, countStitchesByColor, getUsedColors, moveSelectionByOffset, movePixelsByOffset, compositeLayers } from "./color-utils";
 import { calculateYarnUsage, YarnUsage, StitchType } from "./yarn-calculator";
 
 export type Tool = "pencil" | "brush" | "eraser" | "fill" | "rectangle" | "select" | "magicWand" | "eyedropper" | "move" | "pan";
 
-interface HistoryEntry {
+// Layer interface for multi-layer support
+export interface Layer {
+  id: string;
+  name: string;
   grid: PixelGrid;
+  visible: boolean;
+  opacity: number; // 0-1
+  locked: boolean;
+}
+
+interface HistoryEntry {
+  layers: Layer[];
+  activeLayerIndex: number;
   timestamp: number;
 }
 
@@ -28,8 +39,9 @@ interface EditorState {
   gridWidth: number;
   gridHeight: number;
 
-  // Pixel data
-  grid: PixelGrid;
+  // Layer data
+  layers: Layer[];
+  activeLayerIndex: number;
 
   // Tool state
   currentTool: Tool;
@@ -153,6 +165,22 @@ interface EditorState {
   setStitchType: (type: StitchType) => void;
   setBufferPercent: (percent: number) => void;
 
+  // Layer management
+  addLayer: () => void;
+  deleteLayer: (index: number) => void;
+  duplicateLayer: (index: number) => void;
+  setActiveLayer: (index: number) => void;
+  renameLayer: (index: number, name: string) => void;
+  toggleLayerVisibility: (index: number) => void;
+  setLayerOpacity: (index: number, opacity: number) => void;
+  toggleLayerLock: (index: number) => void;
+  moveLayerUp: (index: number) => void;
+  moveLayerDown: (index: number) => void;
+  mergeLayerDown: (index: number) => void;
+  flattenLayers: () => PixelGrid;
+  getActiveLayerGrid: () => PixelGrid;
+  getCompositeGrid: () => PixelGrid;
+
   // Computed values
   getUsedColors: () => DmcColor[];
   getStitchCounts: () => Map<string, number>;
@@ -170,42 +198,59 @@ interface EditorState {
   reset: () => void;
 }
 
-const createInitialState = () => ({
-  designId: null,
-  designName: "Untitled Design",
-  folderId: null as string | null,
-  isDraft: false,
-  widthInches: 8,
-  heightInches: 8,
-  meshCount: 14 as 14 | 18,
-  gridWidth: 112,
-  gridHeight: 112,
-  grid: createEmptyGrid(112, 112),
-  currentTool: "pencil" as Tool,
-  currentColor: DMC_PEARL_COTTON[0],
-  selection: null,
-  selectionStart: null,
-  moveStart: null,
-  moveOffset: null,
-  clipboard: null,
-  history: [] as HistoryEntry[],
-  historyIndex: -1,
-  maxHistorySize: 100,
-  referenceImageUrl: null,
-  referenceImageOpacity: 0.5,
-  zoom: 1,
-  panX: 0,
-  panY: 0,
-  showGrid: true,
-  showSymbols: true,
-  brushSize: 1,
-  eraserSize: 1,
-  stitchType: "continental" as StitchType,
-  bufferPercent: 20,
-  isDirty: false,
-  lastSavedAt: null,
-  autoSaveStatus: 'idle' as 'idle' | 'saving' | 'saved' | 'error',
+// Helper to generate unique layer IDs
+const generateLayerId = () => `layer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+// Helper to create a new layer
+const createLayer = (name: string, width: number, height: number, existingGrid?: PixelGrid): Layer => ({
+  id: generateLayerId(),
+  name,
+  grid: existingGrid || createEmptyGrid(width, height),
+  visible: true,
+  opacity: 1,
+  locked: false,
 });
+
+const createInitialState = () => {
+  const initialLayer = createLayer("Layer 1", 112, 112);
+  return {
+    designId: null,
+    designName: "Untitled Design",
+    folderId: null as string | null,
+    isDraft: false,
+    widthInches: 8,
+    heightInches: 8,
+    meshCount: 14 as 14 | 18,
+    gridWidth: 112,
+    gridHeight: 112,
+    layers: [initialLayer] as Layer[],
+    activeLayerIndex: 0,
+    currentTool: "pencil" as Tool,
+    currentColor: DMC_PEARL_COTTON[0],
+    selection: null,
+    selectionStart: null,
+    moveStart: null,
+    moveOffset: null,
+    clipboard: null,
+    history: [] as HistoryEntry[],
+    historyIndex: -1,
+    maxHistorySize: 100,
+    referenceImageUrl: null,
+    referenceImageOpacity: 0.5,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    showGrid: true,
+    showSymbols: true,
+    brushSize: 1,
+    eraserSize: 1,
+    stitchType: "continental" as StitchType,
+    bufferPercent: 20,
+    isDirty: false,
+    lastSavedAt: null,
+    autoSaveStatus: 'idle' as 'idle' | 'saving' | 'saved' | 'error',
+  };
+};
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...createInitialState(),
@@ -236,12 +281,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   initializeGrid: (width, height, existingGrid) => {
-    const grid = existingGrid || createEmptyGrid(width, height);
+    const layer = createLayer("Layer 1", width, height, existingGrid);
+    const layers = [layer];
     set({
       gridWidth: width,
       gridHeight: height,
-      grid,
-      history: [{ grid: grid.map(row => [...row]), timestamp: Date.now() }],
+      layers,
+      activeLayerIndex: 0,
+      history: [{
+        layers: layers.map(l => ({ ...l, grid: l.grid.map(row => [...row]) })),
+        activeLayerIndex: 0,
+        timestamp: Date.now()
+      }],
       historyIndex: 0,
       selection: null,
       isDirty: false,
@@ -253,19 +304,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setCurrentColor: (color) => set({ currentColor: color }),
 
   setPixel: (x, y, color) => {
-    const { grid, gridWidth, gridHeight } = get();
+    const { layers, activeLayerIndex, gridWidth, gridHeight } = get();
     if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) return;
 
-    const newGrid = grid.map(row => [...row]);
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
+    const newGrid = activeLayer.grid.map(row => [...row]);
     newGrid[y][x] = color;
 
-    set({ grid: newGrid, isDirty: true });
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   setBrushPixels: (x, y, color, sizeOverride?) => {
-    const { grid, gridWidth, gridHeight, brushSize } = get();
+    const { layers, activeLayerIndex, gridWidth, gridHeight, brushSize } = get();
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
     const size = sizeOverride ?? brushSize;
-    const newGrid = grid.map(row => [...row]);
+    const newGrid = activeLayer.grid.map(row => [...row]);
     const radius = Math.floor(size / 2);
 
     for (let dy = -radius; dy <= radius; dy++) {
@@ -278,7 +338,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
-    set({ grid: newGrid, isDirty: true });
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   setBrushSize: (size) => set({ brushSize: Math.max(1, Math.min(10, size)) }),
@@ -286,21 +349,38 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setEraserSize: (size) => set({ eraserSize: size }),
 
   fillArea: (x, y, color) => {
-    const { grid } = get();
-    const newGrid = floodFill(grid, x, y, color);
+    const { layers, activeLayerIndex } = get();
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
+    const newGrid = floodFill(activeLayer.grid, x, y, color);
     get().saveToHistory();
-    set({ grid: newGrid, isDirty: true });
+
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   replaceAllColor: (oldColor, newColor) => {
-    const { grid } = get();
+    const { layers, activeLayerIndex } = get();
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
     get().saveToHistory();
-    const newGrid = replaceColor(grid, oldColor, newColor);
-    set({ grid: newGrid, isDirty: true });
+    const newGrid = replaceColor(activeLayer.grid, oldColor, newColor);
+
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   drawRectangle: (x1, y1, x2, y2, color, filled) => {
-    const { grid, gridWidth, gridHeight } = get();
+    const { layers, activeLayerIndex, gridWidth, gridHeight } = get();
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
     get().saveToHistory();
 
     const minX = Math.max(0, Math.min(x1, x2));
@@ -308,7 +388,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const minY = Math.max(0, Math.min(y1, y2));
     const maxY = Math.min(gridHeight - 1, Math.max(y1, y2));
 
-    const newGrid = grid.map(row => [...row]);
+    const newGrid = activeLayer.grid.map(row => [...row]);
 
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
@@ -318,14 +398,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
-    set({ grid: newGrid, isDirty: true });
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   drawLine: (x1, y1, x2, y2, color) => {
-    const { grid, gridWidth, gridHeight } = get();
+    const { layers, activeLayerIndex, gridWidth, gridHeight } = get();
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
     get().saveToHistory();
 
-    const newGrid = grid.map(row => [...row]);
+    const newGrid = activeLayer.grid.map(row => [...row]);
 
     // Bresenham's line algorithm
     const dx = Math.abs(x2 - x1);
@@ -355,7 +441,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
-    set({ grid: newGrid, isDirty: true });
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   startSelection: (x, y) => {
@@ -388,8 +477,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clearSelection: () => set({ selection: null, selectionStart: null }),
 
   centerSelection: () => {
-    const { selection, grid, gridWidth, gridHeight, saveToHistory } = get();
+    const { selection, layers, activeLayerIndex, gridWidth, gridHeight, saveToHistory } = get();
     if (!selection) return;
+
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
 
     // Find selection bounds
     const bounds = getSelectionBounds(selection);
@@ -410,12 +502,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     saveToHistory();
 
     // Move pixels
-    const newGrid = movePixelsByOffset(grid, selection, offsetX, offsetY);
+    const newGrid = movePixelsByOffset(activeLayer.grid, selection, offsetX, offsetY);
 
     // Move selection
     const newSelection = moveSelectionByOffset(selection, offsetX, offsetY, gridWidth, gridHeight);
 
-    set({ grid: newGrid, selection: newSelection, isDirty: true });
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, selection: newSelection, isDirty: true });
   },
 
   selectAll: () => {
@@ -425,9 +520,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   selectByColor: (x, y) => {
-    const { grid, gridWidth, gridHeight } = get();
+    const { layers, activeLayerIndex, gridWidth, gridHeight } = get();
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer) return;
     if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) return;
 
+    const grid = activeLayer.grid;
     const targetColor = grid[y][x];
     const selection = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(false));
 
@@ -456,46 +554,65 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   copySelectionToClipboard: () => {
-    const { grid, selection } = get();
+    const { layers, activeLayerIndex, selection } = get();
     if (!selection) return;
 
-    const clipboard = copySelection(grid, selection);
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer) return;
+
+    const clipboard = copySelection(activeLayer.grid, selection);
     if (clipboard) {
       set({ clipboard });
     }
   },
 
   cutSelectionToClipboard: () => {
-    const { grid, selection } = get();
+    const { layers, activeLayerIndex, selection } = get();
     if (!selection) return;
 
-    const clipboard = copySelection(grid, selection);
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
+    const clipboard = copySelection(activeLayer.grid, selection);
     if (clipboard) {
       get().saveToHistory();
 
-      const newGrid = grid.map((row, y) =>
+      const newGrid = activeLayer.grid.map((row, y) =>
         row.map((cell, x) => (selection[y][x] ? null : cell))
       );
 
-      set({ clipboard, grid: newGrid, isDirty: true });
+      const newLayers = [...layers];
+      newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+      set({ clipboard, layers: newLayers, isDirty: true });
     }
   },
 
   pasteFromClipboard: (x, y) => {
-    const { grid, clipboard } = get();
+    const { layers, activeLayerIndex, clipboard } = get();
     if (!clipboard) return;
 
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
     get().saveToHistory();
-    const newGrid = pasteData(grid, clipboard, x, y);
-    set({ grid: newGrid, isDirty: true });
+    const newGrid = pasteData(activeLayer.grid, clipboard, x, y);
+
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   applyPixelOverlay: (pixels, x, y) => {
-    const { grid, gridWidth, gridHeight } = get();
+    const { layers, activeLayerIndex, gridWidth, gridHeight } = get();
     if (pixels.length === 0) return;
 
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
     get().saveToHistory();
-    const newGrid = grid.map(row => [...row]);
+    const newGrid = activeLayer.grid.map(row => [...row]);
 
     for (let py = 0; py < pixels.length; py++) {
       for (let px = 0; px < (pixels[py]?.length || 0); px++) {
@@ -510,20 +627,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
-    set({ grid: newGrid, isDirty: true });
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   deleteSelection: () => {
-    const { grid, selection } = get();
+    const { layers, activeLayerIndex, selection } = get();
     if (!selection) return;
+
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
 
     get().saveToHistory();
 
-    const newGrid = grid.map((row, y) =>
+    const newGrid = activeLayer.grid.map((row, y) =>
       row.map((cell, x) => (selection[y][x] ? null : cell))
     );
 
-    set({ grid: newGrid, selection: null, isDirty: true });
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, selection: null, isDirty: true });
   },
 
   // Move selection operations
@@ -547,8 +673,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   commitMove: () => {
-    const { grid, selection, moveOffset, gridWidth, gridHeight } = get();
+    const { layers, activeLayerIndex, selection, moveOffset, gridWidth, gridHeight } = get();
     if (!selection || !moveOffset) return;
+
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) {
+      set({ moveStart: null, moveOffset: null });
+      return;
+    }
+
     if (moveOffset.x === 0 && moveOffset.y === 0) {
       // No actual movement, just clear move state
       set({ moveStart: null, moveOffset: null });
@@ -558,7 +691,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().saveToHistory();
 
     // Move the pixels
-    const newGrid = movePixelsByOffset(grid, selection, moveOffset.x, moveOffset.y);
+    const newGrid = movePixelsByOffset(activeLayer.grid, selection, moveOffset.x, moveOffset.y);
 
     // Move the selection bounds
     const newSelection = moveSelectionByOffset(
@@ -569,8 +702,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       gridHeight
     );
 
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
     set({
-      grid: newGrid,
+      layers: newLayers,
       selection: newSelection,
       moveStart: null,
       moveOffset: null,
@@ -586,43 +722,54 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   mirrorHorizontal: () => {
-    const { grid, selection } = get();
+    const { layers, activeLayerIndex, selection } = get();
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
     get().saveToHistory();
 
     if (selection) {
       const bounds = getSelectionBounds(selection);
       if (bounds) {
-        const newGrid = grid.map(row => [...row]);
+        const newGrid = activeLayer.grid.map(row => [...row]);
         const { minX, maxX, minY, maxY } = bounds;
-        const width = maxX - minX + 1;
 
         for (let y = minY; y <= maxY; y++) {
           for (let x = minX; x <= maxX; x++) {
             const mirrorX = maxX - (x - minX);
             if (selection[y][x] && selection[y][mirrorX]) {
               const temp = newGrid[y][x];
-              newGrid[y][x] = grid[y][mirrorX];
+              newGrid[y][x] = activeLayer.grid[y][mirrorX];
               newGrid[y][mirrorX] = temp;
             }
           }
         }
 
-        set({ grid: newGrid, isDirty: true });
+        const newLayers = [...layers];
+        newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+        set({ layers: newLayers, isDirty: true });
         return;
       }
     }
 
-    set({ grid: mirrorHorizontal(grid), isDirty: true });
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: mirrorHorizontal(activeLayer.grid) };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   mirrorVertical: () => {
-    const { grid, selection } = get();
+    const { layers, activeLayerIndex, selection } = get();
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
     get().saveToHistory();
 
     if (selection) {
       const bounds = getSelectionBounds(selection);
       if (bounds) {
-        const newGrid = grid.map(row => [...row]);
+        const newGrid = activeLayer.grid.map(row => [...row]);
         const { minX, maxX, minY, maxY } = bounds;
 
         for (let y = minY; y <= maxY; y++) {
@@ -630,22 +777,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             const mirrorY = maxY - (y - minY);
             if (selection[y][x] && selection[mirrorY]?.[x]) {
               const temp = newGrid[y][x];
-              newGrid[y][x] = grid[mirrorY][x];
+              newGrid[y][x] = activeLayer.grid[mirrorY][x];
               newGrid[mirrorY][x] = temp;
             }
           }
         }
 
-        set({ grid: newGrid, isDirty: true });
+        const newLayers = [...layers];
+        newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+        set({ layers: newLayers, isDirty: true });
         return;
       }
     }
 
-    set({ grid: mirrorVertical(grid), isDirty: true });
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: mirrorVertical(activeLayer.grid) };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   rotate90: (clockwise) => {
-    const { grid, selection, gridWidth, gridHeight } = get();
+    const { layers, activeLayerIndex, selection, gridWidth, gridHeight } = get();
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
     get().saveToHistory();
 
     // If there's a selection, rotate only the selected area
@@ -662,7 +818,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       for (let y = minY; y <= maxY; y++) {
         const row: (string | null)[] = [];
         for (let x = minX; x <= maxX; x++) {
-          row.push(selection[y]?.[x] ? grid[y]?.[x] : null);
+          row.push(selection[y]?.[x] ? activeLayer.grid[y]?.[x] : null);
         }
         extracted.push(row);
       }
@@ -682,7 +838,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const newMinY = Math.round(centerY - newSelHeight / 2);
 
       // Create new grid with selected area cleared and rotated content placed
-      const newGrid = grid.map(row => [...row]);
+      const newGrid = activeLayer.grid.map(row => [...row]);
 
       // Clear original selection area
       for (let y = minY; y <= maxY; y++) {
@@ -708,28 +864,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
       }
 
-      set({ grid: newGrid, selection: newSelection, isDirty: true });
+      const newLayers = [...layers];
+      newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+      set({ layers: newLayers, selection: newSelection, isDirty: true });
     } else {
-      // No selection - rotate entire canvas
-      const newGrid = clockwise ? rotate90Clockwise(grid) : rotate90Clockwise(rotate90Clockwise(rotate90Clockwise(grid)));
+      // No selection - rotate entire canvas (all layers)
+      const newLayers = layers.map(layer => {
+        const newGrid = clockwise
+          ? rotate90Clockwise(layer.grid)
+          : rotate90Clockwise(rotate90Clockwise(rotate90Clockwise(layer.grid)));
+        return { ...layer, grid: newGrid };
+      });
 
       set({
-        grid: newGrid,
-        gridWidth: newGrid[0]?.length || 0,
-        gridHeight: newGrid.length,
+        layers: newLayers,
+        gridWidth: newLayers[0]?.grid[0]?.length || 0,
+        gridHeight: newLayers[0]?.grid.length || 0,
         isDirty: true,
       });
     }
   },
 
   saveToHistory: () => {
-    const { grid, history, historyIndex, maxHistorySize } = get();
+    const { layers, activeLayerIndex, history, historyIndex, maxHistorySize } = get();
 
     // Remove any redo entries
     const newHistory = history.slice(0, historyIndex + 1);
 
-    // Add current state
-    newHistory.push({ grid: grid.map(row => [...row]), timestamp: Date.now() });
+    // Add current state (deep copy all layers)
+    newHistory.push({
+      layers: layers.map(l => ({ ...l, grid: l.grid.map(row => [...row]) })),
+      activeLayerIndex,
+      timestamp: Date.now()
+    });
 
     // Trim if too long
     while (newHistory.length > maxHistorySize) {
@@ -747,7 +915,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const entry = history[newIndex];
 
     set({
-      grid: entry.grid.map(row => [...row]),
+      layers: entry.layers.map(l => ({ ...l, grid: l.grid.map(row => [...row]) })),
+      activeLayerIndex: entry.activeLayerIndex,
       historyIndex: newIndex,
       isDirty: true,
     });
@@ -761,7 +930,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const entry = history[newIndex];
 
     set({
-      grid: entry.grid.map(row => [...row]),
+      layers: entry.layers.map(l => ({ ...l, grid: l.grid.map(row => [...row]) })),
+      activeLayerIndex: entry.activeLayerIndex,
       historyIndex: newIndex,
       isDirty: true,
     });
@@ -798,8 +968,213 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setBufferPercent: (percent) => set({ bufferPercent: percent, isDirty: true }),
 
+  // Layer management actions
+  addLayer: () => {
+    const { layers, gridWidth, gridHeight } = get();
+    if (layers.length >= 10) return; // Maximum 10 layers
+
+    get().saveToHistory();
+
+    const newLayer = createLayer(`Layer ${layers.length + 1}`, gridWidth, gridHeight);
+    const newLayers = [...layers, newLayer];
+
+    set({
+      layers: newLayers,
+      activeLayerIndex: newLayers.length - 1,
+      isDirty: true,
+    });
+  },
+
+  deleteLayer: (index) => {
+    const { layers } = get();
+    if (layers.length <= 1) return; // Must have at least one layer
+    if (index < 0 || index >= layers.length) return;
+
+    get().saveToHistory();
+
+    const newLayers = layers.filter((_, i) => i !== index);
+    const newActiveIndex = Math.min(get().activeLayerIndex, newLayers.length - 1);
+
+    set({
+      layers: newLayers,
+      activeLayerIndex: newActiveIndex,
+      isDirty: true,
+    });
+  },
+
+  duplicateLayer: (index) => {
+    const { layers, gridWidth, gridHeight } = get();
+    if (layers.length >= 10) return; // Maximum 10 layers
+    if (index < 0 || index >= layers.length) return;
+
+    get().saveToHistory();
+
+    const originalLayer = layers[index];
+    const duplicatedLayer: Layer = {
+      id: generateLayerId(),
+      name: `${originalLayer.name} copy`,
+      grid: originalLayer.grid.map(row => [...row]),
+      visible: originalLayer.visible,
+      opacity: originalLayer.opacity,
+      locked: false,
+    };
+
+    const newLayers = [...layers];
+    newLayers.splice(index + 1, 0, duplicatedLayer);
+
+    set({
+      layers: newLayers,
+      activeLayerIndex: index + 1,
+      isDirty: true,
+    });
+  },
+
+  setActiveLayer: (index) => {
+    const { layers } = get();
+    if (index < 0 || index >= layers.length) return;
+    set({ activeLayerIndex: index });
+  },
+
+  renameLayer: (index, name) => {
+    const { layers } = get();
+    if (index < 0 || index >= layers.length) return;
+
+    const newLayers = [...layers];
+    newLayers[index] = { ...newLayers[index], name };
+
+    set({ layers: newLayers, isDirty: true });
+  },
+
+  toggleLayerVisibility: (index) => {
+    const { layers } = get();
+    if (index < 0 || index >= layers.length) return;
+
+    const newLayers = [...layers];
+    newLayers[index] = { ...newLayers[index], visible: !newLayers[index].visible };
+
+    set({ layers: newLayers, isDirty: true });
+  },
+
+  setLayerOpacity: (index, opacity) => {
+    const { layers } = get();
+    if (index < 0 || index >= layers.length) return;
+
+    const clampedOpacity = Math.max(0, Math.min(1, opacity));
+    const newLayers = [...layers];
+    newLayers[index] = { ...newLayers[index], opacity: clampedOpacity };
+
+    set({ layers: newLayers, isDirty: true });
+  },
+
+  toggleLayerLock: (index) => {
+    const { layers } = get();
+    if (index < 0 || index >= layers.length) return;
+
+    const newLayers = [...layers];
+    newLayers[index] = { ...newLayers[index], locked: !newLayers[index].locked };
+
+    set({ layers: newLayers });
+  },
+
+  moveLayerUp: (index) => {
+    const { layers, activeLayerIndex } = get();
+    if (index <= 0 || index >= layers.length) return;
+
+    get().saveToHistory();
+
+    const newLayers = [...layers];
+    [newLayers[index - 1], newLayers[index]] = [newLayers[index], newLayers[index - 1]];
+
+    // Adjust active layer index if needed
+    let newActiveIndex = activeLayerIndex;
+    if (activeLayerIndex === index) {
+      newActiveIndex = index - 1;
+    } else if (activeLayerIndex === index - 1) {
+      newActiveIndex = index;
+    }
+
+    set({
+      layers: newLayers,
+      activeLayerIndex: newActiveIndex,
+      isDirty: true,
+    });
+  },
+
+  moveLayerDown: (index) => {
+    const { layers, activeLayerIndex } = get();
+    if (index < 0 || index >= layers.length - 1) return;
+
+    get().saveToHistory();
+
+    const newLayers = [...layers];
+    [newLayers[index], newLayers[index + 1]] = [newLayers[index + 1], newLayers[index]];
+
+    // Adjust active layer index if needed
+    let newActiveIndex = activeLayerIndex;
+    if (activeLayerIndex === index) {
+      newActiveIndex = index + 1;
+    } else if (activeLayerIndex === index + 1) {
+      newActiveIndex = index;
+    }
+
+    set({
+      layers: newLayers,
+      activeLayerIndex: newActiveIndex,
+      isDirty: true,
+    });
+  },
+
+  mergeLayerDown: (index) => {
+    const { layers, gridWidth, gridHeight } = get();
+    if (index <= 0 || index >= layers.length) return;
+
+    const topLayer = layers[index];
+    const bottomLayer = layers[index - 1];
+
+    if (bottomLayer.locked) return;
+
+    get().saveToHistory();
+
+    // Merge top layer onto bottom layer
+    const mergedGrid = bottomLayer.grid.map(row => [...row]);
+    for (let y = 0; y < gridHeight; y++) {
+      for (let x = 0; x < gridWidth; x++) {
+        const topPixel = topLayer.grid[y]?.[x];
+        if (topPixel !== null && topLayer.visible) {
+          mergedGrid[y][x] = topPixel;
+        }
+      }
+    }
+
+    const newLayers = layers.filter((_, i) => i !== index);
+    newLayers[index - 1] = { ...bottomLayer, grid: mergedGrid };
+
+    const newActiveIndex = Math.min(get().activeLayerIndex, newLayers.length - 1);
+
+    set({
+      layers: newLayers,
+      activeLayerIndex: newActiveIndex,
+      isDirty: true,
+    });
+  },
+
+  flattenLayers: () => {
+    const { layers, gridWidth, gridHeight } = get();
+    return compositeLayers(layers, gridWidth, gridHeight);
+  },
+
+  getActiveLayerGrid: () => {
+    const { layers, activeLayerIndex } = get();
+    return layers[activeLayerIndex]?.grid || createEmptyGrid(get().gridWidth, get().gridHeight);
+  },
+
+  getCompositeGrid: () => {
+    const { layers, gridWidth, gridHeight } = get();
+    return compositeLayers(layers, gridWidth, gridHeight);
+  },
+
   getUsedColors: () => {
-    const { grid } = get();
+    const grid = get().getCompositeGrid();
     const colorNumbers = getUsedColors(grid);
     return colorNumbers
       .map(num => getDmcColorByNumber(num))
@@ -807,7 +1182,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   getStitchCounts: () => {
-    const { grid } = get();
+    const grid = get().getCompositeGrid();
     return countStitchesByColor(grid);
   },
 

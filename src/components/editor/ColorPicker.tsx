@@ -13,7 +13,7 @@ function getContrastTextColor(hex: string): string {
 }
 
 export default function ColorPicker() {
-  const { currentColor, setCurrentColor, getUsedColors, replaceAllColor, grid, meshCount } = useEditorStore();
+  const { currentColor, setCurrentColor, getUsedColors, replaceAllColor, meshCount } = useEditorStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [showReplacePanel, setShowReplacePanel] = useState(false);

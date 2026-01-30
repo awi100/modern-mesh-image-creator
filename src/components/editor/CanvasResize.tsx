@@ -36,7 +36,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
     meshCount,
     gridWidth,
     gridHeight,
-    grid,
+    flattenLayers,
     setDesignInfo,
     initializeGrid,
     saveToHistory,
@@ -66,11 +66,13 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
   const handleApply = () => {
     saveToHistory();
 
+    // Flatten all layers before resizing
+    const currentGrid = flattenLayers();
     let newGrid;
 
     if (scaleContent && (newGridWidth !== gridWidth || newGridHeight !== gridHeight)) {
       // Scale existing content to fit new dimensions
-      newGrid = scalePixelGrid(grid, newGridWidth, newGridHeight);
+      newGrid = scalePixelGrid(currentGrid, newGridWidth, newGridHeight);
     } else if (!scaleContent) {
       // Create new empty grid or crop/extend existing
       newGrid = createEmptyGrid(newGridWidth, newGridHeight);
@@ -78,11 +80,11 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
       // Copy existing content that fits
       for (let y = 0; y < Math.min(gridHeight, newGridHeight); y++) {
         for (let x = 0; x < Math.min(gridWidth, newGridWidth); x++) {
-          newGrid[y][x] = grid[y]?.[x] ?? null;
+          newGrid[y][x] = currentGrid[y]?.[x] ?? null;
         }
       }
     } else {
-      newGrid = grid;
+      newGrid = currentGrid;
     }
 
     setDesignInfo({
