@@ -284,11 +284,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   initializeGrid: (width, height, existingGrid) => {
     const layer = createLayer("Layer 1", width, height, existingGrid);
     const layers = [layer];
+
+    // Set current color to first used color in the design, if any
+    let currentColor: DmcColor | null = get().currentColor;
+    if (existingGrid) {
+      const usedDmcNumbers = getUsedColors(existingGrid);
+      if (usedDmcNumbers.length > 0) {
+        const firstUsedColor = getDmcColorByNumber(usedDmcNumbers[0]);
+        if (firstUsedColor) {
+          currentColor = firstUsedColor;
+        }
+      }
+    }
+
     set({
       gridWidth: width,
       gridHeight: height,
       layers,
       activeLayerIndex: 0,
+      currentColor,
       history: [{
         layers: layers.map(l => ({ ...l, grid: l.grid.map(row => [...row]) })),
         activeLayerIndex: 0,
