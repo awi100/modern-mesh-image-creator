@@ -136,9 +136,9 @@ export async function GET() {
     // Summary stats
     const summary = {
       totalDesigns: alerts.length,
-      criticalCount: alerts.filter((a) => a.fulfillmentCapacity < 5).length,
-      lowCount: alerts.filter((a) => a.fulfillmentCapacity >= 5 && a.fulfillmentCapacity < 10).length,
-      healthyCount: alerts.filter((a) => a.fulfillmentCapacity >= 10).length,
+      criticalCount: alerts.filter((a) => a.fulfillmentCapacity <= 3).length,
+      lowCount: alerts.filter((a) => a.fulfillmentCapacity >= 4 && a.fulfillmentCapacity <= 6).length,
+      healthyCount: alerts.filter((a) => a.fulfillmentCapacity >= 7).length,
     };
 
     return NextResponse.json({ alerts, summary });

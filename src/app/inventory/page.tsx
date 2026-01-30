@@ -934,15 +934,15 @@ export default function InventoryPage() {
                   <p className="text-xl font-bold text-white">{alertSummary.totalDesigns}</p>
                 </div>
                 <div className="bg-red-900/30 rounded-lg p-3 border border-red-800/50">
-                  <p className="text-xs text-red-400 uppercase tracking-wider">Critical (&lt;5)</p>
+                  <p className="text-xs text-red-400 uppercase tracking-wider">Critical (≤3)</p>
                   <p className="text-xl font-bold text-red-400">{alertSummary.criticalCount}</p>
                 </div>
                 <div className="bg-yellow-900/30 rounded-lg p-3 border border-yellow-800/50">
-                  <p className="text-xs text-yellow-400 uppercase tracking-wider">Low (5-9)</p>
+                  <p className="text-xs text-yellow-400 uppercase tracking-wider">Low (4-6)</p>
                   <p className="text-xl font-bold text-yellow-400">{alertSummary.lowCount}</p>
                 </div>
                 <div className="bg-green-900/30 rounded-lg p-3 border border-green-800/50">
-                  <p className="text-xs text-green-400 uppercase tracking-wider">Healthy (10+)</p>
+                  <p className="text-xs text-green-400 uppercase tracking-wider">Healthy (7+)</p>
                   <p className="text-xl font-bold text-green-400">{alertSummary.healthyCount}</p>
                 </div>
               </div>
@@ -988,15 +988,15 @@ export default function InventoryPage() {
             ) : (
               <div className="space-y-4">
                 {alerts.map((alert) => {
-                  const statusColor = alert.fulfillmentCapacity < 5
+                  const statusColor = alert.fulfillmentCapacity <= 3
                     ? "border-red-800/50 bg-red-900/20"
-                    : alert.fulfillmentCapacity < 10
+                    : alert.fulfillmentCapacity <= 6
                     ? "border-yellow-800/50 bg-yellow-900/20"
                     : "border-green-800/50 bg-green-900/20";
 
-                  const capacityColor = alert.fulfillmentCapacity < 5
+                  const capacityColor = alert.fulfillmentCapacity <= 3
                     ? "text-red-400"
-                    : alert.fulfillmentCapacity < 10
+                    : alert.fulfillmentCapacity <= 6
                     ? "text-yellow-400"
                     : "text-green-400";
 
