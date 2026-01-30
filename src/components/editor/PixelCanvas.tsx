@@ -41,6 +41,7 @@ export default function PixelCanvas({
 
   // Pencil mode: click to place pixel, drag to pan
   const PAN_THRESHOLD = 6; // pixels of screen movement before switching to pan
+  const TAP_HOLD_TIME = 120; // ms - touch must be held this long to count as intentional tap (prevents accidental drawing while panning)
   const dragRef = useRef<{
     startScreenX: number;
     startScreenY: number;
@@ -48,6 +49,7 @@ export default function PixelCanvas({
     startPanX: number;
     startPanY: number;
     isPanning: boolean;
+    startTime: number; // timestamp when touch/click started
   } | null>(null);
 
   // Move selection ref
@@ -90,16 +92,28 @@ export default function PixelCanvas({
 
   const cellSize = 20 * zoom;
 
-  // Build a stable color → symbol map based on the order colors appear in all layers
+  // Build a stable color → symbol map using a hash of the DMC number
+  // This ensures symbols stay consistent regardless of layer/iteration order
   const colorSymbolMap = useMemo(() => {
     const map = new Map<string, string>();
-    let idx = 0;
+
+    // Simple hash function for DMC number string
+    const hashDmcNumber = (dmcNumber: string): number => {
+      let hash = 0;
+      for (let i = 0; i < dmcNumber.length; i++) {
+        const char = dmcNumber.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash);
+    };
+
     for (const layer of layers) {
       for (const row of layer.grid) {
         for (const cell of row) {
           if (cell && !map.has(cell)) {
-            map.set(cell, SYMBOLS[idx % SYMBOLS.length]);
-            idx++;
+            const symbolIndex = hashDmcNumber(cell) % SYMBOLS.length;
+            map.set(cell, SYMBOLS[symbolIndex]);
           }
         }
       }
@@ -418,6 +432,7 @@ export default function PixelCanvas({
       startPanX: panX,
       startPanY: panY,
       isPanning: false,
+      startTime: Date.now(),
     };
   }, [panX, panY]);
 
@@ -432,6 +447,7 @@ export default function PixelCanvas({
         startPanX: panX,
         startPanY: panY,
         isPanning: true, // Start panning immediately
+        startTime: Date.now(),
       };
       return;
     }
@@ -848,8 +864,10 @@ export default function PixelCanvas({
     }
 
     // Handle pencil drag-to-pan end: if didn't pan, treat as a tap to place pixel
+    // On touch devices, require the touch to be held for TAP_HOLD_TIME to prevent accidental drawing
     if (dragRef.current) {
-      if (!dragRef.current.isPanning) {
+      const touchDuration = Date.now() - dragRef.current.startTime;
+      if (!dragRef.current.isPanning && touchDuration >= TAP_HOLD_TIME) {
         const coords = dragRef.current.startGridCoords;
         saveToHistory();
         setPixel(coords.x, coords.y, currentColor?.dmcNumber || null);
