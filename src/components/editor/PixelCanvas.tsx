@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useCallback, useState, useMemo } from "react"
 import { useEditorStore } from "@/lib/store";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { SYMBOLS, hexLuminance } from "@/lib/symbols";
-import { isPointInSelection } from "@/lib/color-utils";
+import { isPointInSelection, getSelectionBounds } from "@/lib/color-utils";
 
 interface PixelCanvasProps {
   pendingText?: {
@@ -244,6 +244,48 @@ export default function PixelCanvas({
           }
         }
         ctx.globalAlpha = 1;
+
+        // Draw center snap lines when selection is centered
+        const bounds = getSelectionBounds(selection);
+        if (bounds) {
+          const newMinX = bounds.minX + moveOffset.x;
+          const newMinY = bounds.minY + moveOffset.y;
+          const newMaxX = bounds.maxX + moveOffset.x;
+          const newMaxY = bounds.maxY + moveOffset.y;
+          const selWidth = newMaxX - newMinX + 1;
+          const selHeight = newMaxY - newMinY + 1;
+
+          // Check if horizontally centered
+          const expectedCenterX = Math.floor((gridWidth - selWidth) / 2);
+          const isCenteredH = newMinX === expectedCenterX;
+
+          // Check if vertically centered
+          const expectedCenterY = Math.floor((gridHeight - selHeight) / 2);
+          const isCenteredV = newMinY === expectedCenterY;
+
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+
+          // Draw vertical center line (when horizontally centered)
+          if (isCenteredH) {
+            ctx.strokeStyle = "rgba(34, 197, 94, 0.9)"; // Green
+            ctx.beginPath();
+            ctx.moveTo((gridWidth / 2) * cellSize, 0);
+            ctx.lineTo((gridWidth / 2) * cellSize, height);
+            ctx.stroke();
+          }
+
+          // Draw horizontal center line (when vertically centered)
+          if (isCenteredV) {
+            ctx.strokeStyle = "rgba(34, 197, 94, 0.9)"; // Green
+            ctx.beginPath();
+            ctx.moveTo(0, (gridHeight / 2) * cellSize);
+            ctx.lineTo(width, (gridHeight / 2) * cellSize);
+            ctx.stroke();
+          }
+
+          ctx.setLineDash([]);
+        }
       }
     }
 
@@ -350,6 +392,19 @@ export default function PixelCanvas({
 
   // Shared drawing logic for mouse and touch
   const handleDrawStart = useCallback((coords: { x: number; y: number }, screenX?: number, screenY?: number) => {
+    // Pan tool: always pan, never draw
+    if (currentTool === "pan" && screenX !== undefined && screenY !== undefined) {
+      dragRef.current = {
+        startScreenX: screenX,
+        startScreenY: screenY,
+        startGridCoords: coords,
+        startPanX: panX,
+        startPanY: panY,
+        isPanning: true, // Start panning immediately
+      };
+      return;
+    }
+
     // Pencil mode: defer drawing, track for pan vs tap
     if (currentTool === "pencil" && screenX !== undefined && screenY !== undefined) {
       startDragTracking(screenX, screenY, coords);
@@ -394,7 +449,7 @@ export default function PixelCanvas({
     } else if (currentTool === "magicWand") {
       selectByColor(coords.x, coords.y);
     }
-  }, [currentTool, currentColor, eraserSize, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, startDragTracking, selection, startMove]);
+  }, [currentTool, currentColor, eraserSize, grid, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, startDragTracking, selection, startMove, panX, panY]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
@@ -807,7 +862,7 @@ export default function PixelCanvas({
       >
         <canvas
           ref={canvasRef}
-          className={`shadow-lg touch-none ${pendingText ? "cursor-cell" : "cursor-crosshair"}`}
+          className={`shadow-lg touch-none ${pendingText ? "cursor-cell" : currentTool === "pan" ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair"}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}

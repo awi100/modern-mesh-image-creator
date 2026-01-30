@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useEditorStore, Tool } from "@/lib/store";
 
 const tools: { id: Tool; label: string; icon: string; description: string }[] = [
   { id: "pencil", label: "Pencil", icon: "✏️", description: "Draw single pixels. Tap to place, drag to pan." },
+  { id: "pan", label: "Pan", icon: "✋", description: "Move around the canvas without drawing. Perfect for touch devices." },
   { id: "brush", label: "Brush", icon: "🖌️", description: "Draw multiple pixels at once. Adjust size with +/- buttons." },
   { id: "eraser", label: "Eraser", icon: "🧼", description: "Remove color from pixels. Choose S/M/L size." },
   { id: "fill", label: "Fill", icon: "🪣", description: "Fill an area with the current color." },
@@ -36,6 +38,7 @@ export default function Toolbar() {
     mirrorVertical,
     rotate90,
     clearSelection,
+    centerSelection,
     selectAll,
     copySelectionToClipboard,
     cutSelectionToClipboard,
@@ -79,6 +82,15 @@ export default function Toolbar() {
               <p className="text-sm text-slate-400">
                 <strong className="text-white">Tip:</strong> On iPad, use two fingers to zoom and pan the canvas.
               </p>
+            </div>
+            <div className="border-t border-slate-600 pt-3 mt-3">
+              <Link
+                href="/help"
+                target="_blank"
+                className="block w-full py-2 px-4 bg-rose-900 text-white text-center rounded-lg hover:bg-rose-800 text-sm font-medium"
+              >
+                View Full User Guide
+              </Link>
             </div>
           </div>
         </div>
@@ -311,6 +323,14 @@ export default function Toolbar() {
           <>
             <div className="w-px h-8 bg-slate-600" />
             <div className="flex items-center gap-1">
+              <button
+                onClick={centerSelection}
+                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation"
+                title="Center selection on canvas"
+              >
+                <span className="hidden sm:inline">Center</span>
+                <span className="sm:hidden">⊕</span>
+              </button>
               <button
                 onClick={deleteSelection}
                 className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation"

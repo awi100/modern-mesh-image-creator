@@ -3,7 +3,7 @@ import { DmcColor, DMC_PEARL_COTTON, getDmcColorByNumber } from "./dmc-pearl-cot
 import { PixelGrid, floodFill, replaceColor, createEmptyGrid, copySelection, pasteData, getSelectionBounds, mirrorHorizontal, mirrorVertical, rotate90Clockwise, countStitchesByColor, getUsedColors, moveSelectionByOffset, movePixelsByOffset } from "./color-utils";
 import { calculateYarnUsage, YarnUsage, StitchType } from "./yarn-calculator";
 
-export type Tool = "pencil" | "brush" | "eraser" | "fill" | "rectangle" | "select" | "magicWand" | "eyedropper" | "move";
+export type Tool = "pencil" | "brush" | "eraser" | "fill" | "rectangle" | "select" | "magicWand" | "eyedropper" | "move" | "pan";
 
 interface HistoryEntry {
   grid: PixelGrid;
@@ -109,6 +109,7 @@ interface EditorState {
   startSelection: (x: number, y: number) => void;
   updateSelection: (x: number, y: number) => void;
   clearSelection: () => void;
+  centerSelection: () => void;
   selectAll: () => void;
   selectByColor: (x: number, y: number) => void;
   copySelectionToClipboard: () => void;
@@ -385,6 +386,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   clearSelection: () => set({ selection: null, selectionStart: null }),
+
+  centerSelection: () => {
+    const { selection, grid, gridWidth, gridHeight, saveToHistory } = get();
+    if (!selection) return;
+
+    // Find selection bounds
+    const bounds = getSelectionBounds(selection);
+    if (!bounds) return;
+
+    const { minX, minY, maxX, maxY } = bounds;
+    const selectionWidth = maxX - minX + 1;
+    const selectionHeight = maxY - minY + 1;
+
+    // Calculate center offset
+    const targetX = Math.floor((gridWidth - selectionWidth) / 2);
+    const targetY = Math.floor((gridHeight - selectionHeight) / 2);
+    const offsetX = targetX - minX;
+    const offsetY = targetY - minY;
+
+    if (offsetX === 0 && offsetY === 0) return; // Already centered
+
+    saveToHistory();
+
+    // Move pixels
+    const newGrid = movePixelsByOffset(grid, selection, offsetX, offsetY);
+
+    // Move selection
+    const newSelection = moveSelectionByOffset(selection, offsetX, offsetY, gridWidth, gridHeight);
+
+    set({ grid: newGrid, selection: newSelection, isDirty: true });
+  },
 
   selectAll: () => {
     const { gridWidth, gridHeight } = get();
