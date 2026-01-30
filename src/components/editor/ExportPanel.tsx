@@ -24,7 +24,7 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
   const grid = flattenLayers();
 
   const [exporting, setExporting] = useState(false);
-  const [fitToOnePage, setFitToOnePage] = useState(true);
+  const [fitToOnePage, setFitToOnePage] = useState(false);
 
   const usedColors = getUsedColors();
 
