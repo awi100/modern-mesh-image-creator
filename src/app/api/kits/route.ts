@@ -17,9 +17,9 @@ export async function GET() {
   }
 
   try {
-    // Fetch all non-draft designs
+    // Fetch all non-draft designs with folder info
     const designs = await prisma.design.findMany({
-      where: { isDraft: false },
+      where: { isDraft: false, deletedAt: null },
       select: {
         id: true,
         name: true,
@@ -32,8 +32,14 @@ export async function GET() {
         pixelData: true,
         kitsReady: true,
         canvasPrinted: true,
+        folder: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
-      orderBy: { name: "asc" },
+      orderBy: [{ folder: { name: "asc" } }, { name: "asc" }],
     });
 
     // Get all inventory
@@ -136,6 +142,7 @@ export async function GET() {
           totalSkeins,
           allInStock: kitContents.every((c) => c.inStock),
           kitContents,
+          folder: design.folder,
         });
       } catch (e) {
         console.error(`Error processing design ${design.id}:`, e);
