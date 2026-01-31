@@ -246,7 +246,7 @@ const createInitialState = () => {
     brushSize: 1,
     eraserSize: 1,
     stitchType: "continental" as StitchType,
-    bufferPercent: 40,
+    bufferPercent: 30,
     isDirty: false,
     lastSavedAt: null,
     autoSaveStatus: 'idle' as 'idle' | 'saving' | 'saved' | 'error',
