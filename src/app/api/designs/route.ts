@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const tagId = searchParams.get("tagId");
     const search = searchParams.get("search");
     const showDeleted = searchParams.get("deleted") === "true";
+    const skillLevel = searchParams.get("skillLevel");
+    const sizeCategory = searchParams.get("sizeCategory");
 
     const where: Record<string, unknown> = {};
 
@@ -38,6 +40,14 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       where.name = { contains: search, mode: "insensitive" };
+    }
+
+    if (skillLevel) {
+      where.skillLevel = skillLevel;
+    }
+
+    if (sizeCategory) {
+      where.sizeCategory = sizeCategory;
     }
 
     const designs = await prisma.design.findMany({
@@ -100,10 +110,15 @@ export async function POST(request: NextRequest) {
     // Precompute kit summary from pixel data
     let kitColorCount = 0;
     let kitSkeinCount = 0;
+    let totalStitches = 0;
     try {
       const decompressed = pako.inflate(pixelDataBuffer, { to: "string" });
       const grid: (string | null)[][] = JSON.parse(decompressed);
       const stitchCounts = countStitchesByColor(grid);
+      // Calculate total stitches
+      for (const count of stitchCounts.values()) {
+        totalStitches += count;
+      }
       const yarnUsage = calculateYarnUsage(
         stitchCounts,
         (meshCount || 14) as 14 | 18,
@@ -129,6 +144,7 @@ export async function POST(request: NextRequest) {
         bufferPercent: bufferPercent || 20,
         kitColorCount,
         kitSkeinCount,
+        totalStitches,
         referenceImageUrl,
         referenceImageOpacity: referenceImageOpacity || 0.5,
         folderId,

@@ -39,6 +39,9 @@ interface Design {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  skillLevel: string | null;
+  sizeCategory: string | null;
+  totalStitches: number;
 }
 
 // Calculate days remaining before permanent deletion
@@ -60,7 +63,9 @@ function buildDesignsUrl(
   showTrash: boolean,
   selectedFolder: string | null,
   selectedTag: string | null,
-  searchQuery: string
+  searchQuery: string,
+  skillLevel: string | null,
+  sizeCategory: string | null
 ): string {
   const params = new URLSearchParams();
   if (showTrash) {
@@ -68,6 +73,8 @@ function buildDesignsUrl(
   } else {
     if (selectedFolder !== null) params.set("folderId", selectedFolder || "null");
     if (selectedTag) params.set("tagId", selectedTag);
+    if (skillLevel) params.set("skillLevel", skillLevel);
+    if (sizeCategory) params.set("sizeCategory", sizeCategory);
   }
   if (searchQuery) params.set("search", searchQuery);
   return `/api/designs?${params.toString()}`;
@@ -81,6 +88,8 @@ export default function HomePage() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showTrash, setShowTrash] = useState(false);
+  const [selectedSkillLevel, setSelectedSkillLevel] = useState<string | null>(null);
+  const [selectedSizeCategory, setSelectedSizeCategory] = useState<string | null>(null);
 
   // UI state
   const [showFilters, setShowFilters] = useState(false);
@@ -126,7 +135,7 @@ export default function HomePage() {
   }), [inventory5, inventory8]);
 
   // SWR for designs (refetches when filters change via key)
-  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery);
+  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory);
   const { data: designs = [], isLoading: loading, mutate: mutateDesigns } = useSWR<Design[]>(
     designsUrl,
     {
@@ -353,6 +362,27 @@ export default function HomePage() {
     }
   };
 
+  const handleUpdateDesignField = async (designId: string, field: "skillLevel" | "sizeCategory", value: string | null) => {
+    try {
+      const response = await fetch(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (response.ok) {
+        // Optimistically update
+        mutateDesigns(
+          designs.map(d =>
+            d.id === designId ? { ...d, [field]: value } : d
+          ),
+          false
+        );
+      }
+    } catch (error) {
+      console.error("Error updating design:", error);
+    }
+  };
+
   const handleExportStitchGuide = async (design: Design) => {
     setExportingDesignId(design.id);
     try {
@@ -555,6 +585,50 @@ export default function HomePage() {
                   </div>
                 </div>
               )}
+
+              {/* Skill Level */}
+              <div>
+                <h3 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                  Skill Level
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {["easy", "intermediate", "advanced"].map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => setSelectedSkillLevel(selectedSkillLevel === level ? null : level)}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors capitalize ${
+                        selectedSkillLevel === level
+                          ? "bg-rose-900 text-white"
+                          : "bg-slate-700 text-slate-300"
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Size Category */}
+              <div>
+                <h3 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                  Size
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {["small", "medium", "large"].map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => setSelectedSizeCategory(selectedSizeCategory === size ? null : size)}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors capitalize ${
+                        selectedSizeCategory === size
+                          ? "bg-rose-900 text-white"
+                          : "bg-slate-700 text-slate-300"
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -730,6 +804,50 @@ export default function HomePage() {
                 )}
               </div>
             </div>
+
+            {/* Skill Level */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">
+                Skill Level
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {["easy", "intermediate", "advanced"].map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => setSelectedSkillLevel(selectedSkillLevel === level ? null : level)}
+                    className={`px-3 py-1 rounded-lg text-sm transition-colors capitalize ${
+                      selectedSkillLevel === level
+                        ? "bg-rose-900 text-white"
+                        : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    }`}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Size Category */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">
+                Size
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {["small", "medium", "large"].map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setSelectedSizeCategory(selectedSizeCategory === size ? null : size)}
+                    className={`px-3 py-1 rounded-lg text-sm transition-colors capitalize ${
+                      selectedSizeCategory === size
+                        ? "bg-rose-900 text-white"
+                        : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
           </aside>
 
           {/* Main content */}
@@ -869,6 +987,37 @@ export default function HomePage() {
                         </div>
                       )}
 
+                      {/* Skill Level & Size Category */}
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <select
+                          value={design.skillLevel || ""}
+                          onChange={(e) => handleUpdateDesignField(design.id, "skillLevel", e.target.value || null)}
+                          className={`text-xs px-2 py-0.5 rounded border-0 cursor-pointer ${
+                            design.skillLevel === "easy" ? "bg-green-900/50 text-green-400" :
+                            design.skillLevel === "intermediate" ? "bg-yellow-900/50 text-yellow-400" :
+                            design.skillLevel === "advanced" ? "bg-red-900/50 text-red-400" :
+                            "bg-slate-700 text-slate-400"
+                          }`}
+                        >
+                          <option value="">Skill...</option>
+                          <option value="easy">Easy</option>
+                          <option value="intermediate">Intermediate</option>
+                          <option value="advanced">Advanced</option>
+                        </select>
+                        <select
+                          value={design.sizeCategory || ""}
+                          onChange={(e) => handleUpdateDesignField(design.id, "sizeCategory", e.target.value || null)}
+                          className={`text-xs px-2 py-0.5 rounded border-0 cursor-pointer ${
+                            design.sizeCategory ? "bg-slate-600 text-white" : "bg-slate-700 text-slate-400"
+                          }`}
+                        >
+                          <option value="">Size...</option>
+                          <option value="small">Small</option>
+                          <option value="medium">Medium</option>
+                          <option value="large">Large</option>
+                        </select>
+                      </div>
+
                       {/* Folder indicator */}
                       {design.folder && (
                         <p className="text-xs text-slate-500 mb-2">
@@ -878,6 +1027,11 @@ export default function HomePage() {
 
                       {/* Kit summary + tracking counters */}
                       <div className="flex flex-wrap items-center gap-2 mb-2 text-xs">
+                        {design.totalStitches > 0 && (
+                          <span className="text-slate-400">
+                            {design.totalStitches.toLocaleString()} stitches
+                          </span>
+                        )}
                         {design.kitColorCount > 0 && (
                           <span className="text-slate-400">
                             {design.kitColorCount} colors &middot; {design.kitSkeinCount} skeins

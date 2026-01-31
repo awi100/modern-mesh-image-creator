@@ -107,6 +107,11 @@ model Design {
   // Draft status
   isDraft               Boolean @default(false)
 
+  // Product categorization
+  skillLevel            String? // "easy", "intermediate", "advanced"
+  sizeCategory          String? // "small", "medium", "large"
+  totalStitches         Int     @default(0) // Precomputed total stitch count
+
   // Soft delete (trash)
   deletedAt             DateTime?
 

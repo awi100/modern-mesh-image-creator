@@ -100,11 +100,17 @@ export async function PUT(
     let kitColorCount: number | undefined;
     let kitSkeinCount: number | undefined;
     let colorsUsed: string | undefined;
+    let totalStitches: number | undefined;
     if (pixelDataBuffer) {
       try {
         const decompressed = pako.inflate(pixelDataBuffer, { to: "string" });
         const grid: (string | null)[][] = JSON.parse(decompressed);
         const stitchCounts = countStitchesByColor(grid);
+        // Calculate total stitches
+        totalStitches = 0;
+        for (const count of stitchCounts.values()) {
+          totalStitches += count;
+        }
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
           (meshCount || 14) as 14 | 18,
@@ -141,6 +147,7 @@ export async function PUT(
         kitColorCount,
         kitSkeinCount,
         colorsUsed,
+        totalStitches,
       },
       include: {
         folder: true,
@@ -239,6 +246,14 @@ export async function PATCH(
 
     if (body.folderId !== undefined) {
       data.folderId = body.folderId;
+    }
+
+    if (body.skillLevel !== undefined) {
+      data.skillLevel = body.skillLevel || null;
+    }
+
+    if (body.sizeCategory !== undefined) {
+      data.sizeCategory = body.sizeCategory || null;
     }
 
     // Handle delta updates for counters
