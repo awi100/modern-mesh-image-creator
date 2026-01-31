@@ -8,6 +8,7 @@ import pako from "pako";
 
 const SKEIN_YARDS = 27;
 const BOBBIN_MAX = 20;
+const FULL_SKEIN_THRESHOLD = 5; // If more than 5 yards needed, use full skein(s) instead of bobbin
 
 // GET - Compute kit contents for a design
 export async function GET(
@@ -74,12 +75,18 @@ export async function GET(
       const inventorySkeins = inventoryMap.get(usage.dmcNumber) ?? 0;
       const yardsWithoutBuffer = Math.round(usage.yarnYards * 10) / 10;
       const yardsWithBuffer = Math.round(usage.withBuffer * 10) / 10;
-      let fullSkeins = Math.floor(yardsWithBuffer / SKEIN_YARDS);
-      let bobbinYards =
-        Math.round((yardsWithBuffer - fullSkeins * SKEIN_YARDS) * 10) / 10;
-      if (bobbinYards > BOBBIN_MAX) {
-        fullSkeins += 1;
+
+      let fullSkeins = 0;
+      let bobbinYards = 0;
+
+      if (yardsWithBuffer > FULL_SKEIN_THRESHOLD) {
+        // More than 5 yards: use full skein(s)
+        fullSkeins = Math.ceil(yardsWithBuffer / SKEIN_YARDS);
         bobbinYards = 0;
+      } else {
+        // 5 yards or less: use bobbin
+        fullSkeins = 0;
+        bobbinYards = yardsWithBuffer;
       }
 
       return {
