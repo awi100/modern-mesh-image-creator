@@ -202,6 +202,17 @@ export default function InventoryPage() {
         );
       });
     }
+    // Sort by DMC number numerically
+    result = [...result].sort((a, b) => {
+      const numA = parseInt(a.dmcNumber, 10);
+      const numB = parseInt(b.dmcNumber, 10);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      if (!isNaN(numA)) return -1;
+      if (!isNaN(numB)) return 1;
+      return a.dmcNumber.localeCompare(b.dmcNumber);
+    });
     return result;
   }, [items, sizeFilter, searchQuery]);
 
