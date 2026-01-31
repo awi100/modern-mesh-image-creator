@@ -125,6 +125,21 @@ export async function GET() {
           };
         });
 
+        // Sort kit contents by DMC number numerically
+        kitContents.sort((a, b) => {
+          const numA = parseInt(a.dmcNumber, 10);
+          const numB = parseInt(b.dmcNumber, 10);
+          // If both are valid numbers, sort numerically
+          if (!isNaN(numA) && !isNaN(numB)) {
+            return numA - numB;
+          }
+          // If only one is a number, numbers come first
+          if (!isNaN(numA)) return -1;
+          if (!isNaN(numB)) return 1;
+          // Otherwise sort alphabetically
+          return a.dmcNumber.localeCompare(b.dmcNumber);
+        });
+
         const totalSkeins = kitContents.reduce((sum, c) => sum + (c.fullSkeins > 0 ? c.fullSkeins : 1), 0);
 
         kits.push({
