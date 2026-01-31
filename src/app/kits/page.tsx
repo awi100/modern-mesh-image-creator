@@ -219,33 +219,41 @@ export default function KitsPage() {
               {/* Expanded kit contents */}
               {expandedKit === kit.designId && (
                 <div className="border-t border-slate-700">
-                  {/* Color swatches row */}
+                  {/* Color list with amounts */}
                   <div className="p-4 bg-slate-700/30">
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                       {kit.kitContents.map((item) => (
                         <div
                           key={item.dmcNumber}
-                          className={`relative group ${!item.inStock ? "ring-2 ring-red-500 ring-offset-1 ring-offset-slate-800" : ""}`}
+                          className={`flex items-center gap-2 p-2 rounded-lg bg-slate-800/50 ${
+                            !item.inStock ? "ring-1 ring-red-500" : ""
+                          }`}
                         >
                           <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center cursor-default"
+                            className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center"
                             style={{ backgroundColor: item.hex }}
-                            title={`DMC ${item.dmcNumber} - ${item.colorName}: ${item.fullSkeins > 0 ? `${item.fullSkeins} skein${item.fullSkeins > 1 ? "s" : ""}` : `${item.bobbinYards} yds`}`}
                           >
                             <span
-                              className="text-[8px] font-bold"
+                              className="text-[7px] font-bold"
                               style={{ color: getContrastTextColor(item.hex) }}
                             >
                               {item.dmcNumber}
                             </span>
                           </div>
-                          {/* Tooltip on hover */}
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-900 rounded text-xs text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                            {item.colorName}
-                            <br />
-                            {item.fullSkeins > 0 ? `${item.fullSkeins} skein${item.fullSkeins > 1 ? "s" : ""}` : `${item.bobbinYards} yds bobbin`}
-                            {!item.inStock && <span className="text-red-400"> (Out of stock)</span>}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-white text-xs font-medium truncate">
+                              {item.dmcNumber}
+                            </p>
+                            <p className={`text-xs ${item.bobbinYards > 0 ? "text-amber-400" : "text-slate-400"}`}>
+                              {item.fullSkeins > 0
+                                ? `${item.fullSkeins} skein${item.fullSkeins > 1 ? "s" : ""}`
+                                : `${item.bobbinYards} yd bobbin`
+                              }
+                            </p>
                           </div>
+                          {!item.inStock && (
+                            <span className="text-red-400 text-xs">!</span>
+                          )}
                         </div>
                       ))}
                     </div>
