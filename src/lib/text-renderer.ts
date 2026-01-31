@@ -6,6 +6,7 @@ export interface TextRenderOptions {
   heightInStitches: number;
   bold?: boolean;
   italic?: boolean;
+  letterSpacing?: number; // Extra pixels between characters (can be negative)
 }
 
 export interface BorderOptions {
@@ -43,7 +44,7 @@ export function renderTextToPixels(
   options: TextRenderOptions,
   dmcNumber: string
 ): RenderedText {
-  const { text, fontFamily, heightInStitches, bold = false, italic = false } = options;
+  const { text, fontFamily, heightInStitches, bold = false, italic = false, letterSpacing = 0 } = options;
 
   if (!text.trim()) {
     return { pixels: [], width: 0, height: 0 };
@@ -64,9 +65,15 @@ export function renderTextToPixels(
   const baseSize = 200;
   ctx.font = `${fontStyle}${baseSize}px ${fontFamily}`;
 
-  // Measure text at base size
+  // Measure text at base size (character by character for spacing)
+  let textWidth = 0;
+  for (let i = 0; i < text.length; i++) {
+    textWidth += ctx.measureText(text[i]).width;
+    if (i < text.length - 1) {
+      textWidth += letterSpacing * baseSize / 10; // Scale spacing relative to font size
+    }
+  }
   const metrics = ctx.measureText(text);
-  const textWidth = metrics.width;
   const textHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
 
   if (textHeight === 0) {
@@ -96,8 +103,13 @@ export function renderTextToPixels(
   const scaledMetrics = ctx.measureText(text);
   const yOffset = (finalHeight - (scaledMetrics.actualBoundingBoxAscent + scaledMetrics.actualBoundingBoxDescent)) / 2;
 
-  // Render text
-  ctx.fillText(text, 0, yOffset);
+  // Render text character by character with spacing
+  let xPos = 0;
+  const scaledSpacing = letterSpacing * scaledFontSize / 10;
+  for (let i = 0; i < text.length; i++) {
+    ctx.fillText(text[i], xPos, yOffset);
+    xPos += ctx.measureText(text[i]).width + (i < text.length - 1 ? scaledSpacing : 0);
+  }
 
   // Sample pixels from canvas
   const imageData = ctx.getImageData(0, 0, finalWidth, finalHeight);

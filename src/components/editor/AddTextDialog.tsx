@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useEditorStore } from "@/lib/store";
-import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { getDmcColorByNumber, DMC_PEARL_COTTON, DmcColor } from "@/lib/dmc-pearl-cotton";
 import {
   renderTextToPixels,
   addBorder,
@@ -13,11 +13,27 @@ import {
 
 interface AddTextDialogProps {
   onClose: () => void;
-  onAddText: (pixels: (string | null)[][], width: number, height: number) => void;
+  onAddText: (
+    pixels: (string | null)[][],
+    width: number,
+    height: number,
+    textOptions?: {
+      text: string;
+      fontFamily: string;
+      heightInStitches: number;
+      bold: boolean;
+      italic: boolean;
+      letterSpacing: number;
+      borderEnabled: boolean;
+      borderWidth: number;
+      borderPadding: number;
+    },
+    dmcNumber?: string
+  ) => void;
 }
 
 export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps) {
-  const { currentColor } = useEditorStore();
+  const { currentColor, setCurrentColor } = useEditorStore();
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Text settings
@@ -26,11 +42,15 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
   const [heightInStitches, setHeightInStitches] = useState(12);
   const [bold, setBold] = useState(false);
   const [italic, setItalic] = useState(false);
+  const [letterSpacing, setLetterSpacing] = useState(0);
 
   // Border settings
   const [borderEnabled, setBorderEnabled] = useState(false);
   const [borderWidth, setBorderWidth] = useState(1);
   const [borderPadding, setBorderPadding] = useState(2);
+
+  // Color picker state
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   // Rendered result
   const [rendered, setRendered] = useState<RenderedText | null>(null);
@@ -55,6 +75,7 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
         heightInStitches,
         bold,
         italic,
+        letterSpacing,
       },
       dmcNumber
     );
@@ -67,7 +88,7 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
 
     const withBorder = addBorder(result, borderOptions, dmcNumber);
     setRendered(withBorder);
-  }, [text, fontFamily, heightInStitches, bold, italic, borderEnabled, borderWidth, borderPadding, dmcNumber]);
+  }, [text, fontFamily, heightInStitches, bold, italic, letterSpacing, borderEnabled, borderWidth, borderPadding, dmcNumber]);
 
   // Draw preview
   useEffect(() => {
@@ -150,9 +171,26 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
 
   const handleAdd = useCallback(() => {
     if (rendered && rendered.width > 0) {
-      onAddText(rendered.pixels, rendered.width, rendered.height);
+      // Pass text options for resize capability during placement
+      onAddText(
+        rendered.pixels,
+        rendered.width,
+        rendered.height,
+        {
+          text,
+          fontFamily,
+          heightInStitches,
+          bold,
+          italic,
+          letterSpacing,
+          borderEnabled,
+          borderWidth,
+          borderPadding,
+        },
+        dmcNumber
+      );
     }
-  }, [rendered, onAddText]);
+  }, [rendered, onAddText, text, fontFamily, heightInStitches, bold, italic, letterSpacing, borderEnabled, borderWidth, borderPadding, dmcNumber]);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -209,7 +247,7 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
           </div>
         </div>
 
-        {/* Bold/Italic toggles */}
+        {/* Bold/Italic toggles and color */}
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => setBold(!bold)}
@@ -234,11 +272,38 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
           <div className="flex-1" />
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-400">Color:</span>
-            <div
-              className="w-8 h-8 rounded border border-slate-600"
+            <button
+              onClick={() => setShowColorPicker(true)}
+              className="w-8 h-8 rounded border-2 border-slate-500 hover:border-rose-500 transition-colors cursor-pointer"
               style={{ backgroundColor: textColor }}
-              title={currentColor ? `DMC ${currentColor.dmcNumber}` : "No color selected"}
+              title={currentColor ? `DMC ${currentColor.dmcNumber} - Click to change` : "Click to select color"}
             />
+            {currentColor && (
+              <span className="text-xs text-slate-400">{currentColor.dmcNumber}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Letter spacing */}
+        <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
+          <label className="block text-sm text-slate-400 mb-2">Letter Spacing</label>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min="-5"
+              max="20"
+              value={letterSpacing}
+              onChange={(e) => setLetterSpacing(Number(e.target.value))}
+              className="flex-1"
+            />
+            <span className="text-sm text-slate-300 w-12 text-right">
+              {letterSpacing > 0 ? `+${letterSpacing}` : letterSpacing}
+            </span>
+          </div>
+          <div className="flex justify-between text-xs text-slate-500 mt-1">
+            <span>Tight</span>
+            <span>Normal</span>
+            <span>Wide</span>
           </div>
         </div>
 
@@ -320,6 +385,41 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
           </button>
         </div>
       </div>
+
+      {/* Color picker modal */}
+      {showColorPicker && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]">
+          <div className="bg-slate-800 rounded-xl p-4 w-full max-w-md max-h-[80vh] overflow-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-white">Select Color</h3>
+              <button
+                onClick={() => setShowColorPicker(false)}
+                className="p-1 text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="grid grid-cols-8 gap-1">
+              {DMC_PEARL_COTTON.map((color: DmcColor) => (
+                <button
+                  key={color.dmcNumber}
+                  onClick={() => {
+                    setCurrentColor(color);
+                    setShowColorPicker(false);
+                  }}
+                  className={`w-8 h-8 rounded border-2 transition-all ${
+                    currentColor?.dmcNumber === color.dmcNumber
+                      ? "border-rose-500 scale-110"
+                      : "border-transparent hover:border-slate-400"
+                  }`}
+                  style={{ backgroundColor: color.hex }}
+                  title={`DMC ${color.dmcNumber} - ${color.name}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -63,6 +63,19 @@ export default function Editor({ designId, initialData }: EditorProps) {
     basePixels?: boolean[][];
     dmcNumber?: string;
     scale?: number;
+    // For resizable text
+    isText?: boolean;
+    textOptions?: {
+      text: string;
+      fontFamily: string;
+      heightInStitches: number;
+      bold: boolean;
+      italic: boolean;
+      letterSpacing: number;
+      borderEnabled: boolean;
+      borderWidth: number;
+      borderPadding: number;
+    };
   } | null>(null);
 
   // Initialize editor with design data
@@ -99,8 +112,32 @@ export default function Editor({ designId, initialData }: EditorProps) {
   }, [designId, initialData, setDesignInfo, initializeGrid, setStitchType, setBufferPercent, setReferenceImage]);
 
   // Handle text added from dialog
-  const handleTextAdded = useCallback((pixels: (string | null)[][], width: number, height: number) => {
-    setPendingText({ pixels, width, height });
+  const handleTextAdded = useCallback((
+    pixels: (string | null)[][],
+    width: number,
+    height: number,
+    textOptions?: {
+      text: string;
+      fontFamily: string;
+      heightInStitches: number;
+      bold: boolean;
+      italic: boolean;
+      letterSpacing: number;
+      borderEnabled: boolean;
+      borderWidth: number;
+      borderPadding: number;
+    },
+    dmcNumber?: string
+  ) => {
+    setPendingText({
+      pixels,
+      width,
+      height,
+      isText: !!textOptions,
+      textOptions,
+      dmcNumber,
+      scale: 1,
+    });
     setShowTextDialog(false);
   }, []);
 
@@ -124,29 +161,76 @@ export default function Editor({ designId, initialData }: EditorProps) {
     setShowShapeDialog(false);
   }, []);
 
-  // Resize pending shape
+  // Resize pending shape or text
   const handleResizePendingShape = useCallback((delta: number) => {
-    if (!pendingText?.isShape || !pendingText.basePixels || !pendingText.dmcNumber) return;
+    if (!pendingText) return;
 
-    const newScale = Math.max(0.25, Math.min(4, (pendingText.scale || 1) + delta));
-    const baseHeight = pendingText.basePixels.length;
-    const baseWidth = pendingText.basePixels[0]?.length || 0;
+    // Handle shape resize
+    if (pendingText.isShape && pendingText.basePixels && pendingText.dmcNumber) {
+      const newScale = Math.max(0.25, Math.min(4, (pendingText.scale || 1) + delta));
+      const baseHeight = pendingText.basePixels.length;
+      const baseWidth = pendingText.basePixels[0]?.length || 0;
 
-    const newWidth = Math.max(3, Math.round(baseWidth * newScale));
-    const newHeight = Math.max(3, Math.round(baseHeight * newScale));
+      const newWidth = Math.max(3, Math.round(baseWidth * newScale));
+      const newHeight = Math.max(3, Math.round(baseHeight * newScale));
 
-    // Import and use the shape utilities
-    import("@/lib/shapes").then(({ scaleShape, shapeToGrid }) => {
-      const scaledPixels = scaleShape(pendingText.basePixels!, newWidth, newHeight);
-      const newPixels = shapeToGrid(scaledPixels, pendingText.dmcNumber!);
-      setPendingText({
-        ...pendingText,
-        pixels: newPixels,
-        width: newWidth,
-        height: newHeight,
-        scale: newScale,
+      import("@/lib/shapes").then(({ scaleShape, shapeToGrid }) => {
+        const scaledPixels = scaleShape(pendingText.basePixels!, newWidth, newHeight);
+        const newPixels = shapeToGrid(scaledPixels, pendingText.dmcNumber!);
+        setPendingText({
+          ...pendingText,
+          pixels: newPixels,
+          width: newWidth,
+          height: newHeight,
+          scale: newScale,
+        });
       });
-    });
+      return;
+    }
+
+    // Handle text resize
+    if (pendingText.isText && pendingText.textOptions && pendingText.dmcNumber) {
+      const currentHeight = pendingText.textOptions.heightInStitches;
+      const heightDelta = delta > 0 ? 2 : -2; // Change by 2 stitches at a time
+      const newHeight = Math.max(6, Math.min(100, currentHeight + heightDelta));
+
+      if (newHeight === currentHeight) return;
+
+      import("@/lib/text-renderer").then(({ renderTextToPixels, addBorder }) => {
+        const result = renderTextToPixels(
+          {
+            text: pendingText.textOptions!.text,
+            fontFamily: pendingText.textOptions!.fontFamily,
+            heightInStitches: newHeight,
+            bold: pendingText.textOptions!.bold,
+            italic: pendingText.textOptions!.italic,
+            letterSpacing: pendingText.textOptions!.letterSpacing,
+          },
+          pendingText.dmcNumber!
+        );
+
+        const withBorder = addBorder(
+          result,
+          {
+            enabled: pendingText.textOptions!.borderEnabled,
+            width: pendingText.textOptions!.borderWidth,
+            padding: pendingText.textOptions!.borderPadding,
+          },
+          pendingText.dmcNumber!
+        );
+
+        setPendingText({
+          ...pendingText,
+          pixels: withBorder.pixels,
+          width: withBorder.width,
+          height: withBorder.height,
+          textOptions: {
+            ...pendingText.textOptions!,
+            heightInStitches: newHeight,
+          },
+        });
+      });
+    }
   }, [pendingText]);
 
   // Handle text placement on canvas

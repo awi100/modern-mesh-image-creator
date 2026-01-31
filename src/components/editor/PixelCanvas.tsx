@@ -15,6 +15,18 @@ interface PixelCanvasProps {
     basePixels?: boolean[][];
     dmcNumber?: string;
     scale?: number;
+    isText?: boolean;
+    textOptions?: {
+      text: string;
+      fontFamily: string;
+      heightInStitches: number;
+      bold: boolean;
+      italic: boolean;
+      letterSpacing: number;
+      borderEnabled: boolean;
+      borderWidth: number;
+      borderPadding: number;
+    };
   } | null;
   onTextPlaced?: (x: number, y: number) => void;
   onCancelTextPlacement?: () => void;
@@ -940,8 +952,8 @@ export default function PixelCanvas({
       {/* Text/Shape placement mode indicator */}
       {pendingText && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 z-10">
-          {/* Resize buttons for shapes */}
-          {pendingText.isShape && onResizePendingShape && (
+          {/* Resize buttons for shapes and text */}
+          {(pendingText.isShape || pendingText.isText) && onResizePendingShape && (
             <div className="flex items-center gap-1 mr-2 border-r border-blue-400 pr-3">
               <button
                 onClick={() => onResizePendingShape(-0.25)}
