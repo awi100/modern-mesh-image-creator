@@ -66,6 +66,18 @@ interface MostUsedColor {
   threadSize: 5 | 8;
 }
 
+interface ColorUsageDesign {
+  id: string;
+  name: string;
+  previewImageUrl: string | null;
+  meshCount: number;
+}
+
+interface ColorUsage {
+  dmcNumber: string;
+  designs: ColorUsageDesign[];
+}
+
 type TabType = "threads" | "kits" | "canvases" | "alerts";
 
 function getContrastTextColor(hex: string): string {
@@ -84,10 +96,12 @@ export default function InventoryPage() {
   const [alerts, setAlerts] = useState<StockAlert[]>([]);
   const [alertSummary, setAlertSummary] = useState<AlertSummary | null>(null);
   const [mostUsedColors, setMostUsedColors] = useState<MostUsedColor[]>([]);
+  const [colorUsage, setColorUsage] = useState<Map<string, ColorUsageDesign[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [sizeFilter, setSizeFilter] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [expandedColor, setExpandedColor] = useState<string | null>(null);
 
   // Add form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -105,7 +119,24 @@ export default function InventoryPage() {
   useEffect(() => {
     fetchInventory();
     fetchDesigns();
+    fetchColorUsage();
   }, []);
+
+  const fetchColorUsage = async () => {
+    try {
+      const response = await fetch("/api/colors/usage");
+      if (response.ok) {
+        const data: ColorUsage[] = await response.json();
+        const usageMap = new Map<string, ColorUsageDesign[]>();
+        for (const item of data) {
+          usageMap.set(item.dmcNumber, item.designs);
+        }
+        setColorUsage(usageMap);
+      }
+    } catch (error) {
+      console.error("Error fetching color usage:", error);
+    }
+  };
 
   // Fetch alerts when tab changes to alerts
   useEffect(() => {
@@ -544,41 +575,79 @@ export default function InventoryPage() {
 
                 {/* Quick-add suggestions when searching */}
                 {searchQuery && mainSearchSuggestions.length > 0 && (
-                  <div className="mt-8 max-w-lg mx-auto">
+                  <div className="mt-8 max-w-2xl mx-auto">
                     <p className="text-slate-400 text-sm mb-3">Add to inventory:</p>
                     <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                      {mainSearchSuggestions.map((color) => (
-                        <div
-                          key={color.dmcNumber}
-                          className="flex items-center gap-3 p-3 border-b border-slate-700 last:border-b-0 hover:bg-slate-750"
-                        >
+                      {mainSearchSuggestions.map((color) => {
+                        const usedInDesigns = colorUsage.get(color.dmcNumber) || [];
+                        return (
                           <div
-                            className="w-10 h-10 rounded-lg border border-white/20 flex-shrink-0 flex items-center justify-center"
-                            style={{ backgroundColor: color.hex }}
+                            key={color.dmcNumber}
+                            className="p-3 border-b border-slate-700 last:border-b-0 hover:bg-slate-750"
                           >
-                            <span
-                              className="text-[7px] font-bold"
-                              style={{ color: getContrastTextColor(color.hex) }}
-                            >
-                              {color.dmcNumber}
-                            </span>
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-10 h-10 rounded-lg border border-white/20 flex-shrink-0 flex items-center justify-center"
+                                style={{ backgroundColor: color.hex }}
+                              >
+                                <span
+                                  className="text-[7px] font-bold"
+                                  style={{ color: getContrastTextColor(color.hex) }}
+                                >
+                                  {color.dmcNumber}
+                                </span>
+                              </div>
+                              <div className="flex-1 text-left min-w-0">
+                                <p className="text-white text-sm font-medium">DMC {color.dmcNumber}</p>
+                                <p className="text-slate-400 text-xs">{color.name}</p>
+                              </div>
+                              {usedInDesigns.length > 0 && (
+                                <span className="text-xs text-rose-400 hidden sm:block">
+                                  Used in {usedInDesigns.length} design{usedInDesigns.length !== 1 ? "s" : ""}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setSelectedColor(color);
+                                  setAddSearch("");
+                                  setShowAddForm(true);
+                                }}
+                                className="px-3 py-1.5 bg-rose-900 text-white text-xs font-medium rounded-lg hover:bg-rose-950 transition-colors flex-shrink-0"
+                              >
+                                Add
+                              </button>
+                            </div>
+                            {/* Show designs using this color */}
+                            {usedInDesigns.length > 0 && (
+                              <div className="mt-2 pl-13 flex flex-wrap gap-1.5">
+                                {usedInDesigns.slice(0, 5).map((design) => (
+                                  <Link
+                                    key={design.id}
+                                    href={`/design/${design.id}`}
+                                    className="flex items-center gap-1 bg-slate-700/50 rounded px-2 py-0.5 hover:bg-slate-600 transition-colors"
+                                  >
+                                    {design.previewImageUrl ? (
+                                      <img
+                                        src={design.previewImageUrl}
+                                        alt={design.name}
+                                        className="w-4 h-4 object-cover rounded"
+                                      />
+                                    ) : (
+                                      <div className="w-4 h-4 bg-slate-600 rounded" />
+                                    )}
+                                    <span className="text-xs text-slate-300 truncate max-w-[100px]">{design.name}</span>
+                                  </Link>
+                                ))}
+                                {usedInDesigns.length > 5 && (
+                                  <span className="text-xs text-slate-500 px-2 py-0.5">
+                                    +{usedInDesigns.length - 5} more
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex-1 text-left">
-                            <p className="text-white text-sm font-medium">DMC {color.dmcNumber}</p>
-                            <p className="text-slate-400 text-xs">{color.name}</p>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setSelectedColor(color);
-                              setAddSearch("");
-                              setShowAddForm(true);
-                            }}
-                            className="px-3 py-1.5 bg-rose-900 text-white text-xs font-medium rounded-lg hover:bg-rose-950 transition-colors"
-                          >
-                            Add
-                          </button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -594,101 +663,177 @@ export default function InventoryPage() {
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Size</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Skeins</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Yards</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden lg:table-cell">Used In</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700">
                     {filteredItems.map((item) => {
                       const color = getDmcColorByNumber(item.dmcNumber);
+                      const usedInDesigns = colorUsage.get(item.dmcNumber) || [];
+                      const isExpanded = expandedColor === item.dmcNumber;
                       return (
-                        <tr key={item.id} className="hover:bg-slate-750 transition-colors">
-                          <td className="px-4 py-3">
-                            <div
-                              className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center"
-                              style={{ backgroundColor: color?.hex || "#666" }}
-                            >
-                              <span
-                                className="text-[7px] font-bold select-none"
-                                style={{ color: color ? getContrastTextColor(color.hex) : "#fff" }}
+                        <React.Fragment key={item.id}>
+                          <tr className="hover:bg-slate-750 transition-colors">
+                            <td className="px-4 py-3">
+                              <div
+                                className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center"
+                                style={{ backgroundColor: color?.hex || "#666" }}
                               >
-                                {item.dmcNumber}
+                                <span
+                                  className="text-[7px] font-bold select-none"
+                                  style={{ color: color ? getContrastTextColor(color.hex) : "#fff" }}
+                                >
+                                  {item.dmcNumber}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-white font-medium">{item.dmcNumber}</span>
+                            </td>
+                            <td className="px-4 py-3 hidden sm:table-cell">
+                              <span className="text-slate-300">{color?.name || "Unknown"}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                item.size === 5
+                                  ? "bg-blue-900/50 text-blue-300"
+                                  : "bg-purple-900/50 text-purple-300"
+                              }`}>
+                                Size {item.size}
                               </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-white font-medium">{item.dmcNumber}</span>
-                          </td>
-                          <td className="px-4 py-3 hidden sm:table-cell">
-                            <span className="text-slate-300">{color?.name || "Unknown"}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                              item.size === 5
-                                ? "bg-blue-900/50 text-blue-300"
-                                : "bg-purple-900/50 text-purple-300"
-                            }`}>
-                              Size {item.size}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleUpdateSkeins(item.id, item.skeins - 1)}
-                                className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                                title="Remove 1 skein"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                </svg>
-                              </button>
-                              <input
-                                type="number"
-                                min="0"
-                                value={pendingSkeins[item.id] ?? item.skeins}
-                                onChange={(e) => setPendingSkeins((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                                onBlur={() => {
-                                  const val = pendingSkeins[item.id];
-                                  if (val !== undefined) {
-                                    handleUpdateSkeins(item.id, Number(val));
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleUpdateSkeins(item.id, item.skeins - 1)}
+                                  className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                  title="Remove 1 skein"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                  </svg>
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={pendingSkeins[item.id] ?? item.skeins}
+                                  onChange={(e) => setPendingSkeins((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                  onBlur={() => {
                                     const val = pendingSkeins[item.id];
                                     if (val !== undefined) {
                                       handleUpdateSkeins(item.id, Number(val));
                                     }
-                                    (e.target as HTMLInputElement).blur();
-                                  }
-                                }}
-                                className="w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
-                              />
-                              <button
-                                onClick={() => handleUpdateSkeins(item.id, item.skeins + 1)}
-                                className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                                title="Add 1 skein"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                              </button>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 hidden md:table-cell">
-                            <span className="text-slate-400">{item.skeins * 27} yds</span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => handleDelete(item.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
-                              title="Remove from inventory"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </td>
-                        </tr>
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      const val = pendingSkeins[item.id];
+                                      if (val !== undefined) {
+                                        handleUpdateSkeins(item.id, Number(val));
+                                      }
+                                      (e.target as HTMLInputElement).blur();
+                                    }
+                                  }}
+                                  className="w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
+                                />
+                                <button
+                                  onClick={() => handleUpdateSkeins(item.id, item.skeins + 1)}
+                                  className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                  title="Add 1 skein"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 hidden md:table-cell">
+                              <span className="text-slate-400">{item.skeins * 27} yds</span>
+                            </td>
+                            <td className="px-4 py-3 hidden lg:table-cell">
+                              {usedInDesigns.length > 0 ? (
+                                <button
+                                  onClick={() => setExpandedColor(isExpanded ? null : item.dmcNumber)}
+                                  className="flex items-center gap-1 text-sm text-rose-400 hover:text-rose-300"
+                                >
+                                  <span>{usedInDesigns.length} design{usedInDesigns.length !== 1 ? "s" : ""}</span>
+                                  <svg
+                                    className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              ) : (
+                                <span className="text-slate-500 text-sm">Not used</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                {/* Show expand button on smaller screens */}
+                                <button
+                                  onClick={() => setExpandedColor(isExpanded ? null : item.dmcNumber)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-400 transition-colors lg:hidden"
+                                  title={`Used in ${usedInDesigns.length} designs`}
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(item.id)}
+                                  className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
+                                  title="Remove from inventory"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {/* Expanded row showing designs */}
+                          {isExpanded && usedInDesigns.length > 0 && (
+                            <tr>
+                              <td colSpan={8} className="px-4 py-3 bg-slate-750">
+                                <div className="pl-4 border-l-2 border-rose-800">
+                                  <p className="text-xs text-slate-400 mb-2">Used in {usedInDesigns.length} design{usedInDesigns.length !== 1 ? "s" : ""}:</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {usedInDesigns.map((design) => (
+                                      <Link
+                                        key={design.id}
+                                        href={`/design/${design.id}`}
+                                        className="flex items-center gap-2 bg-slate-700 rounded-lg px-3 py-1.5 hover:bg-slate-600 transition-colors"
+                                      >
+                                        {design.previewImageUrl ? (
+                                          <img
+                                            src={design.previewImageUrl}
+                                            alt={design.name}
+                                            className="w-6 h-6 object-cover rounded"
+                                          />
+                                        ) : (
+                                          <div className="w-6 h-6 bg-slate-600 rounded flex items-center justify-center">
+                                            <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                          </div>
+                                        )}
+                                        <span className="text-sm text-white">{design.name}</span>
+                                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                          design.meshCount === 14 ? "bg-blue-900/50 text-blue-300" : "bg-purple-900/50 text-purple-300"
+                                        }`}>
+                                          {design.meshCount}
+                                        </span>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
