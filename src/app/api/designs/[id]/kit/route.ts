@@ -7,8 +7,11 @@ import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 
 const SKEIN_YARDS = 27;
-const BOBBIN_MAX = 20;
-const FULL_SKEIN_THRESHOLD = 5; // If more than 5 yards needed, use full skein(s) instead of bobbin
+// If total yards <= this, use bobbin only (small amount, not worth a full skein)
+const BOBBIN_ONLY_MAX = 5;
+// When using skeins, if remainder after whole skeins is <= this, buffer covers it
+// If remainder > this, add another skein
+const LEFTOVER_THRESHOLD = 5;
 
 // GET - Compute kit contents for a design
 export async function GET(
@@ -79,14 +82,28 @@ export async function GET(
       let fullSkeins = 0;
       let bobbinYards = 0;
 
-      if (yardsWithBuffer > FULL_SKEIN_THRESHOLD) {
-        // More than 5 yards: use full skein(s)
-        fullSkeins = Math.ceil(yardsWithBuffer / SKEIN_YARDS);
-        bobbinYards = 0;
-      } else {
-        // 5 yards or less: use bobbin
+      if (yardsWithBuffer <= BOBBIN_ONLY_MAX) {
+        // Small amount (5 yards or less): use bobbin only
         fullSkeins = 0;
         bobbinYards = yardsWithBuffer;
+      } else {
+        // More than 5 yards: use full skeins
+        const baseSkeins = Math.floor(yardsWithBuffer / SKEIN_YARDS);
+        const remainder = yardsWithBuffer - (baseSkeins * SKEIN_YARDS);
+
+        if (baseSkeins === 0) {
+          // Between 5 and 27 yards: 1 skein covers it
+          fullSkeins = 1;
+          bobbinYards = 0;
+        } else if (remainder <= LEFTOVER_THRESHOLD) {
+          // Remainder is small (≤5 yards), buffer covers it
+          fullSkeins = baseSkeins;
+          bobbinYards = 0;
+        } else {
+          // Remainder > 5 yards, need another skein
+          fullSkeins = baseSkeins + 1;
+          bobbinYards = 0;
+        }
       }
 
       return {
