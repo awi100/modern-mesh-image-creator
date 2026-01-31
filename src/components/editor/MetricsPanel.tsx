@@ -29,7 +29,8 @@ export default function MetricsPanel() {
   const usedColors = getUsedColors();
   const yarnUsage = getYarnUsage();
   const totalStitches = getTotalStitches();
-  const totalYards = yarnUsage.reduce((sum, u) => sum + u.withBuffer, 0);
+  const totalYardsWithoutBuffer = yarnUsage.reduce((sum, u) => sum + u.yarnYards, 0);
+  const totalYardsWithBuffer = yarnUsage.reduce((sum, u) => sum + u.withBuffer, 0);
 
   // Draw preview thumbnail
   useEffect(() => {
@@ -151,10 +152,14 @@ export default function MetricsPanel() {
             />
           </div>
 
-          <div className="bg-slate-700 rounded-lg p-3">
+          <div className="bg-slate-700 rounded-lg p-3 space-y-1">
             <div className="flex justify-between text-sm">
-              <span className="text-slate-400">Total Yarn</span>
-              <span className="text-white font-medium">{totalYards.toFixed(1)} yards</span>
+              <span className="text-slate-400">Base Yarn</span>
+              <span className="text-slate-300">{totalYardsWithoutBuffer.toFixed(1)} yards</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-400">With Buffer</span>
+              <span className="text-white font-medium">{totalYardsWithBuffer.toFixed(1)} yards</span>
             </div>
           </div>
         </div>
@@ -192,7 +197,8 @@ export default function MetricsPanel() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-white text-sm">{usage.withBuffer.toFixed(1)} yd</p>
+                    <p className="text-slate-400 text-xs">{usage.yarnYards.toFixed(1)} yd</p>
+                    <p className="text-white text-sm">{usage.withBuffer.toFixed(1)} yd <span className="text-slate-500 text-xs">w/ buffer</span></p>
                     <p className="text-slate-400 text-xs">{usage.skeinsNeeded} skein{usage.skeinsNeeded !== 1 ? "s" : ""}</p>
                   </div>
                 </div>

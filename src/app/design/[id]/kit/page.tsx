@@ -10,7 +10,8 @@ interface KitItem {
   hex: string;
   stitchCount: number;
   skeinsNeeded: number;
-  yardsNeeded: number;
+  yardsWithoutBuffer: number;
+  yardsWithBuffer: number;
   fullSkeins: number;
   bobbinYards: number;
   inventorySkeins: number;
@@ -291,6 +292,7 @@ export default function KitPage() {
                   <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
                   <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Stitches</th>
                   <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Yards</th>
+                  <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">w/ Buffer</th>
                   <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Amount</th>
                   <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">In Stock</th>
                 </tr>
@@ -314,7 +316,8 @@ export default function KitPage() {
                     <td className="px-4 py-3 text-white font-mono text-sm">{item.dmcNumber}</td>
                     <td className="px-4 py-3 text-slate-300 text-sm">{item.colorName}</td>
                     <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.stitchCount.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.yardsNeeded}</td>
+                    <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.yardsWithoutBuffer}</td>
+                    <td className="px-4 py-3 text-white font-medium text-sm text-right">{item.yardsWithBuffer}</td>
                     <td className="px-4 py-3 text-white font-medium text-sm text-right">
                       {item.fullSkeins > 0 && (
                         <span>{item.fullSkeins} {item.fullSkeins === 1 ? "skein" : "skeins"}</span>
@@ -369,7 +372,7 @@ export default function KitPage() {
                     DMC {item.dmcNumber} - {item.colorName}
                   </p>
                   <p className="text-slate-400 text-xs">
-                    {item.stitchCount.toLocaleString()} stitches &middot; {item.yardsNeeded} yds
+                    {item.stitchCount.toLocaleString()} stitches &middot; {item.yardsWithoutBuffer} yds ({item.yardsWithBuffer} w/ buffer)
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">

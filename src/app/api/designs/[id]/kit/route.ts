@@ -72,10 +72,11 @@ export async function GET(
     const kitContents = yarnUsage.map((usage) => {
       const dmcColor = getDmcColorByNumber(usage.dmcNumber);
       const inventorySkeins = inventoryMap.get(usage.dmcNumber) ?? 0;
-      const yardsNeeded = Math.round(usage.withBuffer * 10) / 10;
-      let fullSkeins = Math.floor(yardsNeeded / SKEIN_YARDS);
+      const yardsWithoutBuffer = Math.round(usage.yarnYards * 10) / 10;
+      const yardsWithBuffer = Math.round(usage.withBuffer * 10) / 10;
+      let fullSkeins = Math.floor(yardsWithBuffer / SKEIN_YARDS);
       let bobbinYards =
-        Math.round((yardsNeeded - fullSkeins * SKEIN_YARDS) * 10) / 10;
+        Math.round((yardsWithBuffer - fullSkeins * SKEIN_YARDS) * 10) / 10;
       if (bobbinYards > BOBBIN_MAX) {
         fullSkeins += 1;
         bobbinYards = 0;
@@ -87,7 +88,8 @@ export async function GET(
         hex: dmcColor?.hex ?? "#888888",
         stitchCount: usage.stitchCount,
         skeinsNeeded: usage.skeinsNeeded,
-        yardsNeeded,
+        yardsWithoutBuffer,
+        yardsWithBuffer,
         fullSkeins,
         bobbinYards,
         inventorySkeins,
