@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 
 interface KitItem {
   dmcNumber: string;
@@ -43,29 +44,16 @@ function getContrastTextColor(hex: string): string {
 }
 
 export default function KitsPage() {
-  const [kits, setKits] = useState<KitSummary[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expandedKit, setExpandedKit] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "in-stock" | "out-of-stock">("all");
 
-  useEffect(() => {
-    fetchAllKits();
-  }, []);
+  // Use SWR for caching - data persists across navigations
+  const { data: kits, isLoading: loading } = useSWR<KitSummary[]>("/api/kits", {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
 
-  const fetchAllKits = async () => {
-    try {
-      const res = await fetch("/api/kits");
-      if (res.ok) {
-        const data = await res.json();
-        setKits(data);
-      }
-    } catch (error) {
-      console.error("Error fetching kits:", error);
-    }
-    setLoading(false);
-  };
-
-  const filteredKits = kits.filter((kit) => {
+  const filteredKits = (kits || []).filter((kit) => {
     if (filter === "in-stock") return kit.allInStock;
     if (filter === "out-of-stock") return !kit.allInStock;
     return true;

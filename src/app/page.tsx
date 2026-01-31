@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import useSWR, { mutate } from "swr";
 import NewDesignDialog from "@/components/NewDesignDialog";
 import { exportStitchGuideImage } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
@@ -54,62 +55,89 @@ interface InventoryItem {
   skeins: number;
 }
 
+// Build the designs API URL based on filters
+function buildDesignsUrl(
+  showTrash: boolean,
+  selectedFolder: string | null,
+  selectedTag: string | null,
+  searchQuery: string
+): string {
+  const params = new URLSearchParams();
+  if (showTrash) {
+    params.set("deleted", "true");
+  } else {
+    if (selectedFolder !== null) params.set("folderId", selectedFolder || "null");
+    if (selectedTag) params.set("tagId", selectedTag);
+  }
+  if (searchQuery) params.set("search", searchQuery);
+  return `/api/designs?${params.toString()}`;
+}
+
 export default function HomePage() {
   const router = useRouter();
-  const [designs, setDesigns] = useState<Design[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  // Filter state
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showTrash, setShowTrash] = useState(false);
+
+  // UI state
   const [showFilters, setShowFilters] = useState(false);
   const [showNewFolderInput, setShowNewFolderInput] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [movingDesignId, setMovingDesignId] = useState<string | null>(null);
   const [showNewDesignDialog, setShowNewDesignDialog] = useState(false);
-  const [showTrash, setShowTrash] = useState(false);
-  const [trashCount, setTrashCount] = useState(0);
-  const [inventoryBySize, setInventoryBySize] = useState<{ size5: Set<string>; size8: Set<string> }>({
-    size5: new Set(),
-    size8: new Set(),
-  });
   const [exportingDesignId, setExportingDesignId] = useState<string | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState("");
 
-  useEffect(() => {
-    fetchDesigns();
-    fetchFolders();
-    fetchTags();
-    fetchInventory();
-    fetchTrashCount();
-  }, [selectedFolder, selectedTag, searchQuery, showTrash]);
+  // SWR for static data (cached, doesn't refetch on filter changes)
+  const { data: folders = [] } = useSWR<Folder[]>("/api/folders", {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
 
-  const fetchInventory = async () => {
-    try {
-      // Fetch inventory for both thread sizes
-      const [res5, res8] = await Promise.all([
-        fetch("/api/inventory?size=5"),
-        fetch("/api/inventory?size=8"),
-      ]);
+  const { data: tags = [] } = useSWR<Tag[]>("/api/tags", {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
 
-      if (res5.ok && res8.ok) {
-        const data5: InventoryItem[] = await res5.json();
-        const data8: InventoryItem[] = await res8.json();
+  const { data: inventory5 = [] } = useSWR<InventoryItem[]>("/api/inventory?size=5", {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
 
-        setInventoryBySize({
-          size5: new Set(data5.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
-          size8: new Set(data8.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching inventory:", error);
+  const { data: inventory8 = [] } = useSWR<InventoryItem[]>("/api/inventory?size=8", {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
+
+  const { data: trashData = [] } = useSWR<Design[]>("/api/designs?deleted=true", {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
+  const trashCount = trashData.length;
+
+  // Memoize inventory sets to avoid recreating on every render
+  const inventoryBySize = useMemo(() => ({
+    size5: new Set(inventory5.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
+    size8: new Set(inventory8.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
+  }), [inventory5, inventory8]);
+
+  // SWR for designs (refetches when filters change via key)
+  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery);
+  const { data: designs = [], isLoading: loading, mutate: mutateDesigns } = useSWR<Design[]>(
+    designsUrl,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      keepPreviousData: true,
     }
-  };
+  );
 
   // Check if a design has colors not in inventory
-  const getMissingColors = (design: Design): string[] => {
+  const getMissingColors = useCallback((design: Design): string[] => {
     if (!design.colorsUsed) return [];
 
     try {
@@ -119,65 +147,7 @@ export default function HomePage() {
     } catch {
       return [];
     }
-  };
-
-  const fetchDesigns = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (showTrash) {
-        params.set("deleted", "true");
-      } else {
-        if (selectedFolder !== null) params.set("folderId", selectedFolder || "null");
-        if (selectedTag) params.set("tagId", selectedTag);
-      }
-      if (searchQuery) params.set("search", searchQuery);
-
-      const response = await fetch(`/api/designs?${params.toString()}`);
-      if (response.ok) {
-        const data = await response.json();
-        setDesigns(data);
-      }
-    } catch (error) {
-      console.error("Error fetching designs:", error);
-    }
-    setLoading(false);
-  };
-
-  const fetchTrashCount = async () => {
-    try {
-      const response = await fetch("/api/designs?deleted=true");
-      if (response.ok) {
-        const data = await response.json();
-        setTrashCount(data.length);
-      }
-    } catch (error) {
-      console.error("Error fetching trash count:", error);
-    }
-  };
-
-  const fetchFolders = async () => {
-    try {
-      const response = await fetch("/api/folders");
-      if (response.ok) {
-        const data = await response.json();
-        setFolders(data);
-      }
-    } catch (error) {
-      console.error("Error fetching folders:", error);
-    }
-  };
-
-  const fetchTags = async () => {
-    try {
-      const response = await fetch("/api/tags");
-      if (response.ok) {
-        const data = await response.json();
-        setTags(data);
-      }
-    } catch (error) {
-      console.error("Error fetching tags:", error);
-    }
-  };
+  }, [inventoryBySize]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Move this design to trash? It will be permanently deleted after 14 days.")) return;
@@ -185,8 +155,10 @@ export default function HomePage() {
     try {
       const response = await fetch(`/api/designs/${id}`, { method: "DELETE" });
       if (response.ok) {
-        setDesigns(designs.filter((d) => d.id !== id));
-        fetchTrashCount();
+        // Optimistically update current view
+        mutateDesigns(designs.filter((d) => d.id !== id), false);
+        // Revalidate trash count
+        mutate("/api/designs?deleted=true");
       }
     } catch (error) {
       console.error("Error deleting design:", error);
@@ -201,8 +173,10 @@ export default function HomePage() {
         body: JSON.stringify({ restore: true }),
       });
       if (response.ok) {
-        setDesigns(designs.filter((d) => d.id !== id));
-        fetchTrashCount();
+        // Optimistically update current view
+        mutateDesigns(designs.filter((d) => d.id !== id), false);
+        // Revalidate trash count
+        mutate("/api/designs?deleted=true");
       }
     } catch (error) {
       console.error("Error restoring design:", error);
@@ -215,8 +189,10 @@ export default function HomePage() {
     try {
       const response = await fetch(`/api/designs/${id}?permanent=true`, { method: "DELETE" });
       if (response.ok) {
-        setDesigns(designs.filter((d) => d.id !== id));
-        fetchTrashCount();
+        // Optimistically update current view
+        mutateDesigns(designs.filter((d) => d.id !== id), false);
+        // Revalidate trash count
+        mutate("/api/designs?deleted=true");
       }
     } catch (error) {
       console.error("Error permanently deleting design:", error);
@@ -231,8 +207,9 @@ export default function HomePage() {
       for (const design of designs) {
         await fetch(`/api/designs/${design.id}?permanent=true`, { method: "DELETE" });
       }
-      setDesigns([]);
-      setTrashCount(0);
+      // Clear current view and revalidate trash
+      mutateDesigns([], false);
+      mutate("/api/designs?deleted=true");
     } catch (error) {
       console.error("Error emptying trash:", error);
     }
@@ -255,8 +232,8 @@ export default function HomePage() {
       });
 
       if (response.ok) {
-        const newFolder = await response.json();
-        setFolders([...folders, newFolder]);
+        // Revalidate folders cache
+        mutate("/api/folders");
         setNewFolderName("");
         setShowNewFolderInput(false);
       }
@@ -274,14 +251,16 @@ export default function HomePage() {
       });
 
       if (response.ok) {
-        setDesigns(designs.map(d =>
-          d.id === designId
-            ? { ...d, folder: folderId ? folders.find(f => f.id === folderId) || null : null }
-            : d
-        ));
+        // Optimistically update the design in current view
+        mutateDesigns(
+          designs.map(d =>
+            d.id === designId
+              ? { ...d, folder: folderId ? folders.find(f => f.id === folderId) || null : null }
+              : d
+          ),
+          false
+        );
         setMovingDesignId(null);
-        // Refresh to update counts
-        fetchDesigns();
       }
     } catch (error) {
       console.error("Error moving design:", error);
@@ -294,11 +273,13 @@ export default function HomePage() {
     try {
       const response = await fetch(`/api/folders/${folderId}`, { method: "DELETE" });
       if (response.ok) {
-        setFolders(folders.filter(f => f.id !== folderId));
+        // Revalidate folders cache
+        mutate("/api/folders");
         if (selectedFolder === folderId) {
           setSelectedFolder(null);
         }
-        fetchDesigns();
+        // Revalidate designs since they may have moved to unfiled
+        mutateDesigns();
       }
     } catch (error) {
       console.error("Error deleting folder:", error);
@@ -319,8 +300,8 @@ export default function HomePage() {
       });
 
       if (response.ok) {
-        const updatedFolder = await response.json();
-        setFolders(folders.map(f => f.id === folderId ? updatedFolder : f));
+        // Revalidate folders cache
+        mutate("/api/folders");
       }
     } catch (error) {
       console.error("Error renaming folder:", error);
@@ -342,11 +323,15 @@ export default function HomePage() {
         body: JSON.stringify({ canvasPrintedDelta: delta }),
       });
       if (response.ok) {
-        setDesigns(designs.map(d =>
-          d.id === designId
-            ? { ...d, canvasPrinted: Math.max(0, d.canvasPrinted + delta) }
-            : d
-        ));
+        // Optimistically update
+        mutateDesigns(
+          designs.map(d =>
+            d.id === designId
+              ? { ...d, canvasPrinted: Math.max(0, d.canvasPrinted + delta) }
+              : d
+          ),
+          false
+        );
       }
     } catch (error) {
       console.error("Error updating canvas count:", error);
@@ -360,9 +345,8 @@ export default function HomePage() {
       });
 
       if (response.ok) {
-        const newDesign = await response.json();
-        // Refresh designs list
-        fetchDesigns();
+        // Revalidate designs list
+        mutateDesigns();
       }
     } catch (error) {
       console.error("Error duplicating design:", error);
