@@ -60,7 +60,7 @@ export function calculateYarnUsage(
   const results: YarnUsage[] = [];
 
   // Threshold for using full skeins vs wound portions
-  const FULL_SKEIN_THRESHOLD = 6; // yards - if more than 6 yards needed, use full skein(s)
+  const FULL_SKEIN_THRESHOLD = 5; // yards - if more than 5 yards needed, use full skein(s)
 
   for (const [dmcNumber, stitchCount] of stitchCounts) {
     const squareInches = stitchCount / stitchesPerSqIn;
