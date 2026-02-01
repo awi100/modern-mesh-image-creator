@@ -74,13 +74,37 @@ export function processImageToGrid(
 ): { grid: PixelGrid; usedColors: DmcColor[] } {
   const { data, width, height } = imageData;
 
-  // Sample colors from image
-  const cellWidth = width / gridWidth;
-  const cellHeight = height / gridHeight;
+  // Calculate scaling to preserve aspect ratio
+  // Fit the image within the canvas bounds, centering it
+  const imageAspect = width / height;
+  const canvasAspect = gridWidth / gridHeight;
+
+  let scaledWidth: number;
+  let scaledHeight: number;
+  let offsetX: number;
+  let offsetY: number;
+
+  if (imageAspect > canvasAspect) {
+    // Image is wider than canvas - fit to width
+    scaledWidth = gridWidth;
+    scaledHeight = Math.round(gridWidth / imageAspect);
+    offsetX = 0;
+    offsetY = Math.floor((gridHeight - scaledHeight) / 2);
+  } else {
+    // Image is taller than canvas - fit to height
+    scaledHeight = gridHeight;
+    scaledWidth = Math.round(gridHeight * imageAspect);
+    offsetX = Math.floor((gridWidth - scaledWidth) / 2);
+    offsetY = 0;
+  }
+
+  // Sample colors from image (only from the scaled region)
+  const cellWidth = width / scaledWidth;
+  const cellHeight = height / scaledHeight;
   const sampledColors: { r: number; g: number; b: number }[] = [];
 
-  for (let gy = 0; gy < gridHeight; gy++) {
-    for (let gx = 0; gx < gridWidth; gx++) {
+  for (let gy = 0; gy < scaledHeight; gy++) {
+    for (let gx = 0; gx < scaledWidth; gx++) {
       const centerX = Math.floor((gx + 0.5) * cellWidth);
       const centerY = Math.floor((gy + 0.5) * cellHeight);
       const idx = (centerY * width + centerX) * 4;
@@ -112,15 +136,25 @@ export function processImageToGrid(
     new Map(dmcCentroids.map(c => [c.dmcNumber, c])).values()
   );
 
-  // Create pixel grid
+  // Create pixel grid (full canvas size, with image centered)
   const grid: PixelGrid = [];
 
   for (let gy = 0; gy < gridHeight; gy++) {
     const row: (string | null)[] = [];
 
     for (let gx = 0; gx < gridWidth; gx++) {
-      const centerX = Math.floor((gx + 0.5) * cellWidth);
-      const centerY = Math.floor((gy + 0.5) * cellHeight);
+      // Check if this cell is within the scaled image area
+      const imgX = gx - offsetX;
+      const imgY = gy - offsetY;
+
+      if (imgX < 0 || imgX >= scaledWidth || imgY < 0 || imgY >= scaledHeight) {
+        // Outside image bounds - empty cell
+        row.push(null);
+        continue;
+      }
+
+      const centerX = Math.floor((imgX + 0.5) * cellWidth);
+      const centerY = Math.floor((imgY + 0.5) * cellHeight);
       const idx = (centerY * width + centerX) * 4;
 
       // Transparent = empty cell
