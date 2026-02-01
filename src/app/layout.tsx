@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SWRProvider } from "@/lib/swr-config";
+import PWAProvider from "@/components/PWAProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,6 +51,21 @@ export const metadata: Metadata = {
     shortcut: "/icon.png",
   },
   metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "https://modern-mesh-image-creator.vercel.app"),
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Modern Mesh",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#881337",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -62,7 +78,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SWRProvider>{children}</SWRProvider>
+        <SWRProvider>
+          <PWAProvider>{children}</PWAProvider>
+        </SWRProvider>
       </body>
     </html>
   );
