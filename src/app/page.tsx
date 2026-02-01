@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import NewDesignDialog from "@/components/NewDesignDialog";
+import BatchActionBar from "@/components/BatchActionBar";
 import { exportStitchGuideImage } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
@@ -100,6 +101,10 @@ export default function HomePage() {
   const [exportingDesignId, setExportingDesignId] = useState<string | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState("");
+
+  // Selection mode state
+  const [selectedDesigns, setSelectedDesigns] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   // SWR for static data (cached, doesn't refetch on filter changes)
   const { data: folders = [] } = useSWR<Folder[]>("/api/folders", {
@@ -435,6 +440,225 @@ export default function HomePage() {
     }
   };
 
+  // Selection mode helpers
+  const toggleDesignSelection = useCallback((id: string) => {
+    setSelectedDesigns(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      // Exit selection mode if no items selected
+      if (next.size === 0) {
+        setIsSelectionMode(false);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAllDesigns = useCallback(() => {
+    setSelectedDesigns(new Set(designs.map(d => d.id)));
+  }, [designs]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedDesigns(new Set());
+    setIsSelectionMode(false);
+  }, []);
+
+  const enterSelectionMode = useCallback(() => {
+    setIsSelectionMode(true);
+  }, []);
+
+  // Escape key to exit selection mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isSelectionMode) {
+        clearSelection();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSelectionMode, clearSelection]);
+
+  // Batch action handlers
+  const handleBatchMoveToFolder = async (folderId: string | null) => {
+    try {
+      const response = await fetch("/api/designs/batch", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          designIds: Array.from(selectedDesigns),
+          action: "move",
+          payload: { folderId },
+        }),
+      });
+
+      if (response.ok) {
+        // Optimistically update
+        const targetFolder = folderId ? folders.find(f => f.id === folderId) || null : null;
+        mutateDesigns(
+          designs.map(d =>
+            selectedDesigns.has(d.id) ? { ...d, folder: targetFolder } : d
+          ),
+          false
+        );
+        clearSelection();
+      }
+    } catch (error) {
+      console.error("Batch move error:", error);
+      alert("Failed to move designs. Please try again.");
+    }
+  };
+
+  const handleBatchAddTags = async (tagIds: string[]) => {
+    try {
+      const response = await fetch("/api/designs/batch", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          designIds: Array.from(selectedDesigns),
+          action: "addTags",
+          payload: { tagIds },
+        }),
+      });
+
+      if (response.ok) {
+        // Optimistically update - add the tag(s) to selected designs
+        const newTags = tags.filter(t => tagIds.includes(t.id));
+        mutateDesigns(
+          designs.map(d =>
+            selectedDesigns.has(d.id)
+              ? { ...d, tags: [...d.tags.filter(t => !tagIds.includes(t.id)), ...newTags] }
+              : d
+          ),
+          false
+        );
+        clearSelection();
+      }
+    } catch (error) {
+      console.error("Batch add tags error:", error);
+      alert("Failed to add tags. Please try again.");
+    }
+  };
+
+  const handleBatchRemoveTags = async (tagIds: string[]) => {
+    try {
+      const response = await fetch("/api/designs/batch", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          designIds: Array.from(selectedDesigns),
+          action: "removeTags",
+          payload: { tagIds },
+        }),
+      });
+
+      if (response.ok) {
+        // Optimistically update - remove the tag(s) from selected designs
+        mutateDesigns(
+          designs.map(d =>
+            selectedDesigns.has(d.id)
+              ? { ...d, tags: d.tags.filter(t => !tagIds.includes(t.id)) }
+              : d
+          ),
+          false
+        );
+        clearSelection();
+      }
+    } catch (error) {
+      console.error("Batch remove tags error:", error);
+      alert("Failed to remove tags. Please try again.");
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    try {
+      const response = await fetch("/api/designs/batch", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          designIds: Array.from(selectedDesigns),
+          action: "delete",
+        }),
+      });
+
+      if (response.ok) {
+        // Optimistically remove from view
+        mutateDesigns(
+          designs.filter(d => !selectedDesigns.has(d.id)),
+          false
+        );
+        // Revalidate trash count
+        mutate("/api/designs?deleted=true");
+        clearSelection();
+      }
+    } catch (error) {
+      console.error("Batch delete error:", error);
+      alert("Failed to delete designs. Please try again.");
+    }
+  };
+
+  const handleBatchExportKits = async () => {
+    try {
+      const response = await fetch("/api/designs/batch/kits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          designIds: Array.from(selectedDesigns),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch kit data");
+      }
+
+      const data = await response.json();
+
+      // Create a text file with the kit list
+      let content = `Combined Kit List - ${data.totals.designCount} Designs\n`;
+      content += `${"=".repeat(50)}\n\n`;
+
+      content += `DESIGNS INCLUDED:\n`;
+      for (const design of data.designs) {
+        content += `  - ${design.name} (${design.meshCount} mesh, ${design.colorCount} colors)\n`;
+      }
+      content += `\n`;
+
+      content += `TOTALS:\n`;
+      content += `  Colors: ${data.totals.colors}\n`;
+      content += `  Skeins needed: ${data.totals.skeins}\n`;
+      content += `  Bobbin-only colors: ${data.totals.bobbins}\n`;
+      content += `  Out of stock: ${data.totals.outOfStockCount}\n`;
+      content += `\n`;
+
+      content += `COLOR LIST:\n`;
+      content += `${"─".repeat(50)}\n`;
+      for (const item of data.kitContents) {
+        const stockStatus = item.inStock ? "✓" : "✗";
+        const skeinsInfo = item.bobbinYards > 0
+          ? `${item.bobbinYards} yd bobbin`
+          : `${item.fullSkeins} skein${item.fullSkeins !== 1 ? "s" : ""}`;
+        content += `${stockStatus} DMC ${item.dmcNumber.padEnd(6)} ${item.colorName.padEnd(20)} ${skeinsInfo.padEnd(12)} (${item.stitchCount} stitches)\n`;
+        content += `   Used in: ${item.usedInDesigns.join(", ")}\n`;
+      }
+
+      // Download as text file
+      const blob = new Blob([content], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = `kit_list_${data.totals.designCount}_designs.txt`;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      clearSelection();
+    } catch (error) {
+      console.error("Batch export kits error:", error);
+      alert("Failed to export kit list. Please try again.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900">
       {/* Header */}
@@ -471,6 +695,22 @@ export default function HomePage() {
               </svg>
               <span className="hidden sm:inline">Inventory</span>
             </Link>
+            {/* Select button - toggle selection mode */}
+            {!showTrash && designs.length > 0 && (
+              <button
+                onClick={() => isSelectionMode ? clearSelection() : enterSelectionMode()}
+                className={`px-3 md:px-4 py-2 rounded-lg transition-all flex items-center gap-2 text-sm md:text-base ${
+                  isSelectionMode
+                    ? "bg-rose-900 text-white"
+                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <span className="hidden sm:inline">{isSelectionMode ? "Cancel" : "Select"}</span>
+              </button>
+            )}
             <button
               onClick={() => setShowNewDesignDialog(true)}
               className="px-3 md:px-4 py-2 bg-gradient-to-r from-rose-900 to-rose-800 text-white rounded-lg hover:from-rose-950 hover:to-rose-900 transition-all flex items-center gap-2 text-sm md:text-base"
@@ -916,181 +1156,261 @@ export default function HomePage() {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-                {designs.map((design) => (
-                  <div
-                    key={design.id}
-                    className="bg-slate-800 rounded-xl overflow-hidden border border-slate-700 hover:border-rose-800/50 transition-colors group"
-                  >
-                    {/* Preview */}
-                    <Link href={`/design/${design.id}`} className="block aspect-square relative bg-slate-900">
-                      {design.previewImageUrl ? (
-                        <img
-                          src={design.previewImageUrl}
-                          alt={design.name}
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-600">
-                          <svg className="w-12 h-12 md:w-16 md:h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-                          </svg>
-                        </div>
-                      )}
-                      {/* Draft badge */}
-                      {design.isDraft && (
-                        <div className="absolute top-2 left-2 pointer-events-none">
-                          <span className="bg-slate-600/90 text-slate-200 text-xs font-semibold px-2 py-0.5 rounded">
-                            DRAFT
-                          </span>
-                        </div>
-                      )}
-                      {/* Needs order badge - only show for non-draft designs with missing colors */}
-                      {!design.isDraft && getMissingColors(design).length > 0 && (
-                        <div className="absolute top-2 right-2 pointer-events-none">
-                          <span
-                            className="bg-red-600/90 text-white text-xs font-semibold px-2 py-0.5 rounded flex items-center gap-1"
-                            title={`Missing: ${getMissingColors(design).join(", ")}`}
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                            Order
-                          </span>
-                        </div>
-                      )}
-                    </Link>
+              <>
+                {/* Selection mode header */}
+                {isSelectionMode && (
+                  <div className="flex items-center justify-between mb-4 p-3 bg-slate-800 rounded-lg border border-slate-700">
+                    <span className="text-slate-300 text-sm">
+                      {selectedDesigns.size} of {designs.length} selected
+                    </span>
+                    <button
+                      onClick={selectedDesigns.size === designs.length ? clearSelection : selectAllDesigns}
+                      className="text-rose-400 hover:text-rose-300 text-sm font-medium"
+                    >
+                      {selectedDesigns.size === designs.length ? "Deselect All" : "Select All"}
+                    </button>
+                  </div>
+                )}
 
-                    {/* Info */}
-                    <div className="p-3 md:p-4">
-                      <Link href={`/design/${design.id}`}>
-                        <h3 className="font-semibold text-white mb-1 group-hover:text-rose-400 transition-colors text-sm md:text-base truncate">
-                          {design.name}
-                        </h3>
-                      </Link>
-                      <p className="text-xs md:text-sm text-slate-400 mb-2 md:mb-3">
-                        {design.widthInches}&quot; x {design.heightInches}&quot; @ {design.meshCount} mesh
-                      </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                  {designs.map((design) => {
+                    const isSelected = selectedDesigns.has(design.id);
 
-                      {/* Tags */}
-                      {design.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2 md:mb-3">
-                          {design.tags.map((tag) => (
-                            <span
-                              key={tag.id}
-                              className="px-2 py-0.5 rounded-full text-xs text-white"
-                              style={{ backgroundColor: tag.color }}
-                            >
-                              {tag.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Skill Level & Size Category */}
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <select
-                          value={design.skillLevel || ""}
-                          onChange={(e) => handleUpdateDesignField(design.id, "skillLevel", e.target.value || null)}
-                          className={`text-xs px-2 py-0.5 rounded border-0 cursor-pointer ${
-                            design.skillLevel === "easy" ? "bg-green-900/50 text-green-400" :
-                            design.skillLevel === "intermediate" ? "bg-yellow-900/50 text-yellow-400" :
-                            design.skillLevel === "advanced" ? "bg-red-900/50 text-red-400" :
-                            "bg-slate-700 text-slate-400"
-                          }`}
-                        >
-                          <option value="">Skill...</option>
-                          <option value="easy">Easy</option>
-                          <option value="intermediate">Intermediate</option>
-                          <option value="advanced">Advanced</option>
-                        </select>
-                        <select
-                          value={design.sizeCategory || ""}
-                          onChange={(e) => handleUpdateDesignField(design.id, "sizeCategory", e.target.value || null)}
-                          className={`text-xs px-2 py-0.5 rounded border-0 cursor-pointer ${
-                            design.sizeCategory ? "bg-slate-600 text-white" : "bg-slate-700 text-slate-400"
-                          }`}
-                        >
-                          <option value="">Size...</option>
-                          <option value="small">Small</option>
-                          <option value="medium">Medium</option>
-                          <option value="large">Large</option>
-                        </select>
-                      </div>
-
-                      {/* Folder indicator */}
-                      {design.folder && (
-                        <p className="text-xs text-slate-500 mb-2">
-                          📁 {design.folder.name}
-                        </p>
-                      )}
-
-                      {/* Kit summary + tracking counters */}
-                      <div className="flex flex-wrap items-center gap-2 mb-2 text-xs">
-                        {design.totalStitches > 0 && (
-                          <span className="text-slate-400">
-                            {design.totalStitches.toLocaleString()} stitches
-                          </span>
-                        )}
-                        {design.kitColorCount > 0 && (
-                          <span className="text-slate-400">
-                            {design.kitColorCount} colors &middot; {design.kitSkeinCount} skeins
-                          </span>
-                        )}
-                        <span className="px-1.5 py-0.5 bg-blue-900/40 text-blue-400 rounded flex items-center gap-1">
-                          <button
-                            onClick={() => handleUpdateCanvasPrinted(design.id, -1)}
-                            disabled={design.canvasPrinted <= 0}
-                            className="hover:text-blue-200 disabled:opacity-30"
-                          >-</button>
-                          {design.canvasPrinted} printed
-                          <button
-                            onClick={() => handleUpdateCanvasPrinted(design.id, 1)}
-                            className="hover:text-blue-200"
-                          >+</button>
-                        </span>
-                        <span className="px-1.5 py-0.5 bg-emerald-900/40 text-emerald-400 rounded">
-                          {design.kitsReady} kits ready
-                        </span>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center justify-between">
-                        {showTrash && design.deletedAt ? (
-                          <>
-                            <span className="text-xs text-red-400">
-                              {getDaysUntilPermanentDelete(design.deletedAt)} days left
-                            </span>
-                            <div className="flex items-center gap-1">
-                              {/* Restore */}
+                    return (
+                      <div
+                        key={design.id}
+                        className={`bg-slate-800 rounded-xl overflow-hidden border transition-colors group ${
+                          isSelected
+                            ? "border-rose-500 ring-2 ring-rose-500/50"
+                            : "border-slate-700 hover:border-rose-800/50"
+                        }`}
+                        onClick={(e) => {
+                          if (isSelectionMode) {
+                            e.preventDefault();
+                            toggleDesignSelection(design.id);
+                          }
+                        }}
+                      >
+                        {/* Preview */}
+                        <div className="block aspect-square relative bg-slate-900">
+                          {/* Selection checkbox */}
+                          {isSelectionMode && (
+                            <div className="absolute top-2 left-2 z-10">
                               <button
-                                onClick={() => handleRestore(design.id)}
-                                className="p-1.5 text-slate-500 hover:text-green-400 transition-colors"
-                                title="Restore"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleDesignSelection(design.id);
+                                }}
+                                className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
+                                  isSelected
+                                    ? "bg-rose-500 border-rose-500 text-white"
+                                    : "bg-slate-900/80 border-slate-400 hover:border-rose-400"
+                                }`}
                               >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                </svg>
-                              </button>
-                              {/* Permanent Delete */}
-                              <button
-                                onClick={() => handlePermanentDelete(design.id)}
-                                className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
-                                title="Delete permanently"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
+                                {isSelected && (
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
                               </button>
                             </div>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-xs text-slate-500">
-                              {new Date(design.updatedAt).toLocaleDateString()}
+                          )}
+
+                          {/* Wrap content in Link only when not in selection mode */}
+                          {isSelectionMode ? (
+                            <>
+                              {design.previewImageUrl ? (
+                                <img
+                                  src={design.previewImageUrl}
+                                  alt={design.name}
+                                  className="w-full h-full object-contain cursor-pointer"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-600 cursor-pointer">
+                                  <svg className="w-12 h-12 md:w-16 md:h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                                  </svg>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <Link href={`/design/${design.id}`} className="block w-full h-full">
+                              {design.previewImageUrl ? (
+                                <img
+                                  src={design.previewImageUrl}
+                                  alt={design.name}
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                  <svg className="w-12 h-12 md:w-16 md:h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                                  </svg>
+                                </div>
+                              )}
+                            </Link>
+                          )}
+
+                          {/* Draft badge - adjust position when in selection mode */}
+                          {design.isDraft && (
+                            <div className={`absolute ${isSelectionMode ? "top-2 left-10" : "top-2 left-2"} pointer-events-none`}>
+                              <span className="bg-slate-600/90 text-slate-200 text-xs font-semibold px-2 py-0.5 rounded">
+                                DRAFT
+                              </span>
+                            </div>
+                          )}
+                          {/* Needs order badge - only show for non-draft designs with missing colors */}
+                          {!design.isDraft && getMissingColors(design).length > 0 && (
+                            <div className="absolute top-2 right-2 pointer-events-none">
+                              <span
+                                className="bg-red-600/90 text-white text-xs font-semibold px-2 py-0.5 rounded flex items-center gap-1"
+                                title={`Missing: ${getMissingColors(design).join(", ")}`}
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Order
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="p-3 md:p-4">
+                          {isSelectionMode ? (
+                            <h3 className="font-semibold text-white mb-1 text-sm md:text-base truncate cursor-pointer">
+                              {design.name}
+                            </h3>
+                          ) : (
+                            <Link href={`/design/${design.id}`}>
+                              <h3 className="font-semibold text-white mb-1 group-hover:text-rose-400 transition-colors text-sm md:text-base truncate">
+                                {design.name}
+                              </h3>
+                            </Link>
+                          )}
+                          <p className="text-xs md:text-sm text-slate-400 mb-2 md:mb-3">
+                            {design.widthInches}&quot; x {design.heightInches}&quot; @ {design.meshCount} mesh
+                          </p>
+
+                          {/* Tags */}
+                          {design.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2 md:mb-3">
+                              {design.tags.map((tag) => (
+                                <span
+                                  key={tag.id}
+                                  className="px-2 py-0.5 rounded-full text-xs text-white"
+                                  style={{ backgroundColor: tag.color }}
+                                >
+                                  {tag.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Skill Level & Size Category */}
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <select
+                              value={design.skillLevel || ""}
+                              onChange={(e) => handleUpdateDesignField(design.id, "skillLevel", e.target.value || null)}
+                              className={`text-xs px-2 py-0.5 rounded border-0 cursor-pointer ${
+                                design.skillLevel === "easy" ? "bg-green-900/50 text-green-400" :
+                                design.skillLevel === "intermediate" ? "bg-yellow-900/50 text-yellow-400" :
+                                design.skillLevel === "advanced" ? "bg-red-900/50 text-red-400" :
+                                "bg-slate-700 text-slate-400"
+                              }`}
+                            >
+                              <option value="">Skill...</option>
+                              <option value="easy">Easy</option>
+                              <option value="intermediate">Intermediate</option>
+                              <option value="advanced">Advanced</option>
+                            </select>
+                            <select
+                              value={design.sizeCategory || ""}
+                              onChange={(e) => handleUpdateDesignField(design.id, "sizeCategory", e.target.value || null)}
+                              className={`text-xs px-2 py-0.5 rounded border-0 cursor-pointer ${
+                                design.sizeCategory ? "bg-slate-600 text-white" : "bg-slate-700 text-slate-400"
+                              }`}
+                            >
+                              <option value="">Size...</option>
+                              <option value="small">Small</option>
+                              <option value="medium">Medium</option>
+                              <option value="large">Large</option>
+                            </select>
+                          </div>
+
+                          {/* Folder indicator */}
+                          {design.folder && (
+                            <p className="text-xs text-slate-500 mb-2">
+                              📁 {design.folder.name}
+                            </p>
+                          )}
+
+                          {/* Kit summary + tracking counters */}
+                          <div className="flex flex-wrap items-center gap-2 mb-2 text-xs">
+                            {design.totalStitches > 0 && (
+                              <span className="text-slate-400">
+                                {design.totalStitches.toLocaleString()} stitches
+                              </span>
+                            )}
+                            {design.kitColorCount > 0 && (
+                              <span className="text-slate-400">
+                                {design.kitColorCount} colors &middot; {design.kitSkeinCount} skeins
+                              </span>
+                            )}
+                            <span className="px-1.5 py-0.5 bg-blue-900/40 text-blue-400 rounded flex items-center gap-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleUpdateCanvasPrinted(design.id, -1); }}
+                                disabled={design.canvasPrinted <= 0}
+                                className="hover:text-blue-200 disabled:opacity-30"
+                              >-</button>
+                              {design.canvasPrinted} printed
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleUpdateCanvasPrinted(design.id, 1); }}
+                                className="hover:text-blue-200"
+                              >+</button>
                             </span>
-                            <div className="flex items-center gap-1">
-                              {/* Move to folder */}
+                            <span className="px-1.5 py-0.5 bg-emerald-900/40 text-emerald-400 rounded">
+                              {design.kitsReady} kits ready
+                            </span>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center justify-between">
+                            {showTrash && design.deletedAt ? (
+                              <>
+                                <span className="text-xs text-red-400">
+                                  {getDaysUntilPermanentDelete(design.deletedAt)} days left
+                                </span>
+                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                  {/* Restore */}
+                                  <button
+                                    onClick={() => handleRestore(design.id)}
+                                    className="p-1.5 text-slate-500 hover:text-green-400 transition-colors"
+                                    title="Restore"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                    </svg>
+                                  </button>
+                                  {/* Permanent Delete */}
+                                  <button
+                                    onClick={() => handlePermanentDelete(design.id)}
+                                    className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                                    title="Delete permanently"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-xs text-slate-500">
+                                  {new Date(design.updatedAt).toLocaleDateString()}
+                                </span>
+                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                  {/* Move to folder */}
                               <div className="relative">
                                 <button
                                   onClick={() => setMovingDesignId(movingDesignId === design.id ? null : design.id)}
@@ -1169,18 +1489,35 @@ export default function HomePage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                               </button>
-                            </div>
-                          </>
-                        )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </main>
         </div>
       </div>
+
+      {/* Batch Action Bar */}
+      {selectedDesigns.size > 0 && (
+        <BatchActionBar
+          selectedCount={selectedDesigns.size}
+          onMoveToFolder={handleBatchMoveToFolder}
+          onAddTags={handleBatchAddTags}
+          onRemoveTags={handleBatchRemoveTags}
+          onDelete={handleBatchDelete}
+          onExportKits={handleBatchExportKits}
+          onCancel={clearSelection}
+          folders={folders}
+          tags={tags}
+        />
+      )}
 
       {/* New Design Dialog */}
       {showNewDesignDialog && (
