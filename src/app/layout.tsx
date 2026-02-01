@@ -43,8 +43,11 @@ export const metadata: Metadata = {
     images: ["/og-image.png"],
   },
   icons: {
-    icon: "/icon.png",
+    icon: [
+      { url: "/icon.png", type: "image/png" },
+    ],
     apple: "/apple-touch-icon.png",
+    shortcut: "/icon.png",
   },
   metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "https://modern-mesh-image-creator.vercel.app"),
 };
