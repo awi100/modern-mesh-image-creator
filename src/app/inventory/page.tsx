@@ -71,6 +71,11 @@ interface ColorUsageDesign {
   name: string;
   previewImageUrl: string | null;
   meshCount: number;
+  stitchCount: number;
+  skeinsNeeded: number;
+  yardsWithBuffer: number;
+  fullSkeins: number;
+  bobbinYards: number;
 }
 
 interface ColorUsage {
@@ -646,7 +651,12 @@ export default function InventoryPage() {
                                     ) : (
                                       <div className="w-4 h-4 bg-slate-600 rounded" />
                                     )}
-                                    <span className="text-xs text-slate-300 truncate max-w-[100px]">{design.name}</span>
+                                    <span className="text-xs text-slate-300 truncate max-w-[80px]">{design.name}</span>
+                                    <span className="text-xs text-emerald-400">
+                                      {design.bobbinYards > 0
+                                        ? `${Math.round(design.bobbinYards)}yd`
+                                        : `${design.fullSkeins}sk`}
+                                    </span>
                                   </Link>
                                 ))}
                                 {usedInDesigns.length > 5 && (
@@ -836,6 +846,12 @@ export default function InventoryPage() {
                                           design.meshCount === 14 ? "bg-blue-900/50 text-blue-300" : "bg-purple-900/50 text-purple-300"
                                         }`}>
                                           {design.meshCount}
+                                        </span>
+                                        {/* Yarn usage */}
+                                        <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-300">
+                                          {design.bobbinYards > 0
+                                            ? `${Math.round(design.bobbinYards * 10) / 10} yd`
+                                            : `${design.fullSkeins} skein${design.fullSkeins !== 1 ? "s" : ""}`}
                                         </span>
                                       </Link>
                                     ))}
