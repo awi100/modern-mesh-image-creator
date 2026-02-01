@@ -637,10 +637,9 @@ export default function InventoryPage() {
                             {usedInDesigns.length > 0 && (
                               <div className="mt-2 pl-13 flex flex-wrap gap-1.5">
                                 {usedInDesigns.slice(0, 5).map((design) => (
-                                  <Link
+                                  <div
                                     key={design.id}
-                                    href={`/design/${design.id}`}
-                                    className="flex items-center gap-1 bg-slate-700/50 rounded px-2 py-0.5 hover:bg-slate-600 transition-colors"
+                                    className="flex items-center gap-1 bg-slate-700/50 rounded px-2 py-0.5"
                                   >
                                     {design.previewImageUrl ? (
                                       <img
@@ -651,13 +650,31 @@ export default function InventoryPage() {
                                     ) : (
                                       <div className="w-4 h-4 bg-slate-600 rounded" />
                                     )}
-                                    <span className="text-xs text-slate-300 truncate max-w-[80px]">{design.name}</span>
+                                    <span className="text-xs text-slate-300 truncate max-w-[60px]">{design.name}</span>
                                     <span className="text-xs text-emerald-400">
                                       {design.bobbinYards > 0
                                         ? `${Math.round(design.bobbinYards)}yd`
                                         : `${design.fullSkeins}sk`}
                                     </span>
-                                  </Link>
+                                    <Link
+                                      href={`/design/${design.id}`}
+                                      className="p-0.5 text-slate-400 hover:text-white transition-colors"
+                                      title="Edit design"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </Link>
+                                    <Link
+                                      href={`/design/${design.id}/kit`}
+                                      className="p-0.5 text-slate-400 hover:text-emerald-400 transition-colors"
+                                      title="View kit"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                      </svg>
+                                    </Link>
+                                  </div>
                                 ))}
                                 {usedInDesigns.length > 5 && (
                                   <span className="text-xs text-slate-500 px-2 py-0.5">
@@ -823,10 +840,9 @@ export default function InventoryPage() {
                                   <p className="text-xs text-slate-400 mb-2">Used in {usedInDesigns.length} design{usedInDesigns.length !== 1 ? "s" : ""}:</p>
                                   <div className="flex flex-wrap gap-2">
                                     {usedInDesigns.map((design) => (
-                                      <Link
+                                      <div
                                         key={design.id}
-                                        href={`/design/${design.id}`}
-                                        className="flex items-center gap-2 bg-slate-700 rounded-lg px-3 py-1.5 hover:bg-slate-600 transition-colors"
+                                        className="flex items-center gap-2 bg-slate-700 rounded-lg px-3 py-1.5"
                                       >
                                         {design.previewImageUrl ? (
                                           <img
@@ -853,7 +869,28 @@ export default function InventoryPage() {
                                             ? `${Math.round(design.bobbinYards * 10) / 10} yd`
                                             : `${design.fullSkeins} skein${design.fullSkeins !== 1 ? "s" : ""}`}
                                         </span>
-                                      </Link>
+                                        {/* Action buttons */}
+                                        <div className="flex items-center gap-1 ml-1">
+                                          <Link
+                                            href={`/design/${design.id}`}
+                                            className="p-1 text-slate-400 hover:text-white hover:bg-slate-600 rounded transition-colors"
+                                            title="Edit design"
+                                          >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                          </Link>
+                                          <Link
+                                            href={`/design/${design.id}/kit`}
+                                            className="p-1 text-slate-400 hover:text-emerald-400 hover:bg-slate-600 rounded transition-colors"
+                                            title="View kit"
+                                          >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                            </svg>
+                                          </Link>
+                                        </div>
+                                      </div>
                                     ))}
                                   </div>
                                 </div>
