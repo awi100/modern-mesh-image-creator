@@ -323,6 +323,9 @@ export default function KitsPage() {
                                       <p className="text-white text-xs font-medium truncate">
                                         {item.dmcNumber}
                                       </p>
+                                      <p className="text-slate-500 text-[10px]">
+                                        {item.stitchCount.toLocaleString()} stitches
+                                      </p>
                                       <p className={`text-xs ${item.bobbinYards > 0 ? "text-amber-400" : "text-slate-400"}`}>
                                         {item.fullSkeins > 0
                                           ? `${item.fullSkeins} skein${item.fullSkeins > 1 ? "s" : ""}`
