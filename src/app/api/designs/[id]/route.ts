@@ -119,8 +119,8 @@ export async function PUT(
         );
         kitColorCount = yarnUsage.length;
         kitSkeinCount = yarnUsage.reduce((sum, u) => sum + u.skeinsNeeded, 0);
-        // Store the DMC numbers used
-        colorsUsed = JSON.stringify(Object.keys(stitchCounts));
+        // Store the DMC numbers used (stitchCounts is a Map)
+        colorsUsed = JSON.stringify(Array.from(stitchCounts.keys()));
       } catch (e) {
         console.error("Error computing kit summary:", e);
       }
