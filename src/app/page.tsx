@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import NewDesignDialog from "@/components/NewDesignDialog";
 import BatchActionBar from "@/components/BatchActionBar";
+import ColorSwapDialog from "@/components/ColorSwapDialog";
 import { exportStitchGuideImage } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
@@ -101,6 +102,7 @@ export default function HomePage() {
   const [exportingDesignId, setExportingDesignId] = useState<string | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState("");
+  const [colorSwapDesign, setColorSwapDesign] = useState<{ id: string; name: string } | null>(null);
 
   // Selection mode state
   const [selectedDesigns, setSelectedDesigns] = useState<Set<string>>(new Set());
@@ -1479,6 +1481,16 @@ export default function HomePage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                 </svg>
                               </button>
+                              {/* Color Variant */}
+                              <button
+                                onClick={() => setColorSwapDesign({ id: design.id, name: design.name })}
+                                className="p-1.5 text-slate-500 hover:text-purple-400 transition-colors"
+                                title="Create color variant"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                                </svg>
+                              </button>
                               {/* Delete */}
                               <button
                                 onClick={() => handleDelete(design.id)}
@@ -1524,6 +1536,16 @@ export default function HomePage() {
         <NewDesignDialog
           onClose={() => setShowNewDesignDialog(false)}
           folderId={selectedFolder}
+        />
+      )}
+
+      {/* Color Swap Dialog */}
+      {colorSwapDesign && (
+        <ColorSwapDialog
+          designId={colorSwapDesign.id}
+          designName={colorSwapDesign.name}
+          onClose={() => setColorSwapDesign(null)}
+          onSuccess={() => mutateDesigns()}
         />
       )}
     </div>
