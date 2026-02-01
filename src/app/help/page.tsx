@@ -34,6 +34,8 @@ export default function HelpPage() {
               { id: "getting-started", label: "Getting Started" },
               { id: "drawing-tools", label: "Drawing Tools" },
               { id: "selection-tools", label: "Selection Tools" },
+              { id: "copy-paste", label: "Copy & Paste" },
+              { id: "layers", label: "Layers" },
               { id: "text-tool", label: "Text Tool" },
               { id: "shape-tool", label: "Shape Tool" },
               { id: "image-import", label: "Image Import" },
@@ -42,7 +44,9 @@ export default function HelpPage() {
               { id: "zoom-pan", label: "Zoom & Pan" },
               { id: "export", label: "Export Options" },
               { id: "design-management", label: "Design Management" },
+              { id: "inventory", label: "Inventory & Kits" },
               { id: "keyboard-shortcuts", label: "Keyboard Shortcuts" },
+              { id: "mobile", label: "Mobile & Touch" },
             ].map((item) => (
               <a
                 key={item.id}
@@ -67,17 +71,33 @@ export default function HelpPage() {
               <ol className="list-decimal list-inside space-y-2 ml-4">
                 <li>Click the <strong className="text-white">"New Design"</strong> button on the home page</li>
                 <li>Enter a name for your design</li>
+                <li>Choose a canvas size preset or enter custom dimensions</li>
+                <li>Select mesh count (14 or 18 mesh)</li>
                 <li>Optionally select or create a folder</li>
                 <li>Click <strong className="text-white">Create</strong></li>
               </ol>
-              <p>Your design will start with a default canvas size of 112 x 112 stitches (8" x 8" at 14 mesh).</p>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Canvas Size Presets</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {[
+                  "Coaster (4×4\")",
+                  "Small Ornament (5×5\")",
+                  "Ornament (6×6\")",
+                  "Square 8\" (8×8\")",
+                  "Square 10\" (10×10\")",
+                  "Pillow 12\" (12×12\")",
+                ].map((preset) => (
+                  <div key={preset} className="px-3 py-2 bg-slate-800 rounded">{preset}</div>
+                ))}
+              </div>
 
               <h3 className="text-lg font-semibold text-white mt-6">The Editor Interface</h3>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li><strong className="text-white">Left Panel</strong>: Color Picker - select and manage colors</li>
+                <li><strong className="text-white">Left Panel</strong>: Color Picker - select and manage DMC colors</li>
                 <li><strong className="text-white">Center</strong>: Canvas - your design workspace</li>
-                <li><strong className="text-white">Right Panel</strong>: Metrics Panel - design info and yarn calculations</li>
-                <li><strong className="text-white">Top Toolbar</strong>: Drawing tools and actions</li>
+                <li><strong className="text-white">Right Panel</strong>: Layers and Metrics - manage layers and view design info</li>
+                <li><strong className="text-white">Top Toolbar</strong>: Drawing tools, transforms, and display options</li>
+                <li><strong className="text-white">Header</strong>: Save, Import, Resize, Text, Shapes, Export</li>
               </ul>
               <p className="text-sm text-slate-400">On mobile, side panels are accessible via the bottom navigation bar.</p>
             </div>
@@ -91,12 +111,13 @@ export default function HelpPage() {
             <div className="space-y-4">
               <div className="grid gap-4">
                 {[
-                  { icon: "✏️", name: "Pencil", desc: "Draw single pixels. Click to place, drag to draw lines. Dragging also pans the canvas." },
+                  { icon: "✏️", name: "Pencil", desc: "Draw single pixels. Tap to place a pixel, or drag to pan the canvas. After a short hold (~120ms), dragging will draw." },
+                  { icon: "✋", name: "Pan", desc: "Move around the canvas without drawing. Perfect for navigating large designs or touch devices." },
                   { icon: "🖌️", name: "Brush", desc: "Paint multiple pixels at once. Use +/- buttons to adjust size (1-10 pixels)." },
-                  { icon: "🧼", name: "Eraser", desc: "Remove color from pixels. Choose S (1), M (3), or L (7) stitch size." },
+                  { icon: "🧼", name: "Eraser", desc: "Remove color from pixels. Choose S (1px), M (3px), or L (7px) size." },
                   { icon: "🪣", name: "Fill", desc: "Flood-fill connected areas with the current color." },
-                  { icon: "⬜", name: "Rectangle", desc: "Click and drag to draw filled rectangles." },
-                  { icon: "💧", name: "Eyedropper", desc: "Click any pixel to pick its color. Auto-switches to Pencil after." },
+                  { icon: "⬜", name: "Rectangle", desc: "Click and drag to draw filled rectangles with the current color." },
+                  { icon: "💧", name: "Eyedropper", desc: "Click any pixel to pick its color. Automatically switches to Pencil tool after picking." },
                 ].map((tool) => (
                   <div key={tool.name} className="flex items-start gap-3 p-3 bg-slate-800 rounded-lg">
                     <span className="text-2xl">{tool.icon}</span>
@@ -134,40 +155,102 @@ export default function HelpPage() {
               </div>
 
               <h3 className="text-lg font-semibold text-white mt-6">Selection Actions</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-700">
-                      <th className="text-left py-2 text-white">Action</th>
-                      <th className="text-left py-2 text-white">Shortcut</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-700">
-                    <tr><td className="py-2">Copy</td><td className="py-2 text-slate-400">Ctrl+C / Cmd+C</td></tr>
-                    <tr><td className="py-2">Cut</td><td className="py-2 text-slate-400">Ctrl+X / Cmd+X</td></tr>
-                    <tr><td className="py-2">Paste</td><td className="py-2 text-slate-400">Ctrl+V / Cmd+V</td></tr>
-                    <tr><td className="py-2">Delete</td><td className="py-2 text-slate-400">Delete / Backspace</td></tr>
-                  </tbody>
-                </table>
-              </div>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li><strong className="text-white">Center</strong>: Instantly center the selection on the canvas</li>
+                <li><strong className="text-white">Delete</strong>: Remove all pixels within the selection</li>
+                <li><strong className="text-white">Deselect</strong>: Clear the current selection</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Transform on Selection</h3>
+              <p>When you have an active selection, the transform tools (Flip H, Flip V, Rotate) will only affect the selected area, not the entire canvas.</p>
 
               <h3 className="text-lg font-semibold text-white mt-6">Center Alignment</h3>
               <p>When moving a selection, <strong className="text-white">green guide lines</strong> appear when your selection is centered horizontally or vertically on the canvas. Use the <strong className="text-white">Center</strong> button in the toolbar to instantly center your selection.</p>
             </div>
           </section>
 
+          {/* Copy & Paste */}
+          <section id="copy-paste">
+            <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
+              4. Copy & Paste
+            </h2>
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white">Copying</h3>
+              <ol className="list-decimal list-inside space-y-2 ml-4">
+                <li>Select an area using the Select or Magic Wand tool</li>
+                <li>Press <strong className="text-white">Ctrl+C</strong> (or Cmd+C) to copy, or use the copy button in the toolbar</li>
+                <li>Use <strong className="text-white">Ctrl+X</strong> (or Cmd+X) to cut (removes the original)</li>
+              </ol>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Pasting with Positioning</h3>
+              <ol className="list-decimal list-inside space-y-2 ml-4">
+                <li>Press <strong className="text-white">Ctrl+V</strong> (or Cmd+V) or click the paste button</li>
+                <li>A preview of your pasted content appears following your cursor</li>
+                <li>Move your cursor to position the paste exactly where you want it</li>
+                <li>Click to place the content</li>
+                <li>Press <strong className="text-white">Escape</strong> to cancel</li>
+              </ol>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Flip Before Pasting</h3>
+              <p>While in paste placement mode, you can flip the content before placing it:</p>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li><strong className="text-white">↔️ Flip Horizontal</strong>: Mirror the content left-to-right</li>
+                <li><strong className="text-white">↕️ Flip Vertical</strong>: Mirror the content top-to-bottom</li>
+              </ul>
+              <p className="text-sm text-slate-400 mt-2">The flip buttons appear in the blue placement bar at the top of the canvas.</p>
+            </div>
+          </section>
+
+          {/* Layers */}
+          <section id="layers">
+            <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
+              5. Layers
+            </h2>
+            <div className="space-y-4">
+              <p>Work with up to 10 independent layers, similar to Photoshop or Procreate. Layers allow you to separate different elements of your design for easier editing.</p>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Layer Controls</h3>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li><strong className="text-white">👁️ Visibility</strong>: Toggle layer visibility on/off</li>
+                <li><strong className="text-white">🔒 Lock</strong>: Prevent accidental edits to a layer</li>
+                <li><strong className="text-white">Opacity</strong>: Adjust layer transparency (0-100%)</li>
+                <li><strong className="text-white">Rename</strong>: Click on layer name to edit</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Layer Actions</h3>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li><strong className="text-white">Add Layer (+)</strong>: Create a new empty layer above</li>
+                <li><strong className="text-white">Duplicate</strong>: Copy the current layer</li>
+                <li><strong className="text-white">Delete</strong>: Remove a layer (must have at least one)</li>
+                <li><strong className="text-white">Reorder</strong>: Drag layers or use arrow buttons to change stacking order</li>
+                <li><strong className="text-white">Merge Down</strong>: Combine a layer with the one below it</li>
+                <li><strong className="text-white">Flatten All</strong>: Merge all layers into one</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Working with Layers</h3>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li>Click a layer to make it the active layer for drawing</li>
+                <li>Layers render from bottom to top (top layers appear in front)</li>
+                <li>When saving/exporting, layers are automatically flattened</li>
+              </ul>
+            </div>
+          </section>
+
           {/* Text Tool */}
           <section id="text-tool">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              4. Text Tool
+              6. Text Tool
             </h2>
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white">How to Add Text</h3>
               <ol className="list-decimal list-inside space-y-2 ml-4">
                 <li>Click the <strong className="text-white">Text (Aa)</strong> button in the header</li>
                 <li>Enter your text and configure options</li>
+                <li>Preview updates in real-time</li>
                 <li>Click <strong className="text-white">"Add to Canvas"</strong></li>
-                <li>Click on the canvas to place the text</li>
+                <li>Position the text preview where you want it</li>
+                <li>Use <strong className="text-white">+/-</strong> buttons to resize before placing</li>
+                <li>Click to place the text</li>
                 <li>Press <strong className="text-white">Escape</strong> to cancel</li>
               </ol>
 
@@ -182,7 +265,9 @@ export default function HelpPage() {
               <ul className="list-disc list-inside space-y-2 ml-4">
                 <li><strong className="text-white">Height</strong>: Text height in stitches (6-100)</li>
                 <li><strong className="text-white">Bold/Italic</strong>: Style toggles</li>
-                <li><strong className="text-white">Border</strong>: Add a border around the text</li>
+                <li><strong className="text-white">Letter Spacing</strong>: Adjust space between characters</li>
+                <li><strong className="text-white">Border</strong>: Add a decorative border around the text</li>
+                <li><strong className="text-white">Border Width</strong>: Thickness of the border</li>
                 <li><strong className="text-white">Padding</strong>: Space between text and border</li>
               </ul>
             </div>
@@ -191,7 +276,7 @@ export default function HelpPage() {
           {/* Shape Tool */}
           <section id="shape-tool">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              5. Shape Tool
+              7. Shape Tool
             </h2>
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white">Available Shapes</h3>
@@ -200,6 +285,16 @@ export default function HelpPage() {
                   <div key={shape} className="px-3 py-2 bg-slate-800 rounded">{shape}</div>
                 ))}
               </div>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Adding Shapes</h3>
+              <ol className="list-decimal list-inside space-y-2 ml-4">
+                <li>Click <strong className="text-white">Shapes</strong> in the header</li>
+                <li>Select a shape and configure size</li>
+                <li>Click <strong className="text-white">"Add to Canvas"</strong></li>
+                <li>Position the shape preview where you want it</li>
+                <li>Use <strong className="text-white">+/-</strong> buttons to resize before placing</li>
+                <li>Click to place the shape</li>
+              </ol>
 
               <h3 className="text-lg font-semibold text-white mt-6">Shape Options</h3>
               <ul className="list-disc list-inside space-y-2 ml-4">
@@ -213,14 +308,15 @@ export default function HelpPage() {
           {/* Image Import */}
           <section id="image-import">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              6. Image Import
+              8. Image Import
             </h2>
             <div className="space-y-4">
               <ol className="list-decimal list-inside space-y-2 ml-4">
                 <li>Click the <strong className="text-white">Import</strong> button in the header</li>
-                <li>Select an image file</li>
+                <li>Select an image file (PNG, JPG, etc.)</li>
                 <li>Adjust <strong className="text-white">Maximum Colors</strong> slider (2-64)</li>
                 <li>Toggle <strong className="text-white">"Treat white as empty"</strong> for background removal</li>
+                <li>Preview shows how the image will look as stitches</li>
                 <li>Click <strong className="text-white">Import</strong></li>
               </ol>
 
@@ -230,7 +326,8 @@ export default function HelpPage() {
                   <li>Use images with good contrast</li>
                   <li>Simple images with fewer colors work best</li>
                   <li>Use "treat white as empty" for photos with plain backgrounds</li>
-                  <li>Use Remove Color feature after import to clean up</li>
+                  <li>Resize your canvas first to control the final stitch count</li>
+                  <li>Use Remove Color feature after import to clean up unwanted colors</li>
                 </ul>
               </div>
             </div>
@@ -239,59 +336,56 @@ export default function HelpPage() {
           {/* Color Picker */}
           <section id="color-picker">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              7. Color Picker
+              9. Color Picker
             </h2>
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white">Selecting Colors</h3>
-              <p>Click any color swatch in the Colors panel to select it. Use the <strong className="text-white">Search</strong> box to find colors by DMC number or name.</p>
+              <p>Click any color swatch in the Colors panel to select it. The selected color is highlighted with a ring. Use the <strong className="text-white">Search</strong> box to find colors by DMC number or name.</p>
 
               <h3 className="text-lg font-semibold text-white mt-6">Tabs</h3>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li><strong className="text-white">Used</strong>: Colors currently in your design</li>
-                <li><strong className="text-white">All Colors</strong>: Complete DMC Pearl Cotton palette</li>
+                <li><strong className="text-white">Used</strong>: Colors currently in your design (quick access)</li>
+                <li><strong className="text-white">All Colors</strong>: Complete DMC Pearl Cotton palette (450+ colors)</li>
               </ul>
 
-              <h3 className="text-lg font-semibold text-white mt-6">Replace Color</h3>
-              <p>Replace all instances of one color with another throughout your design.</p>
+              <h3 className="text-lg font-semibold text-white mt-6">Color Actions</h3>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li><strong className="text-white">Replace Color</strong>: Swap all instances of one color with another throughout your design</li>
+                <li><strong className="text-white">Remove Color</strong>: Delete all instances of a color from your design (useful for cleaning up backgrounds)</li>
+              </ul>
 
-              <h3 className="text-lg font-semibold text-white mt-6">Remove Color</h3>
-              <p>Delete all instances of a color from your design. Useful for removing backgrounds from imports.</p>
+              <h3 className="text-lg font-semibold text-white mt-6">Eyedropper Tool</h3>
+              <p>Select the Eyedropper tool (💧) and click on any pixel in your design to pick that color.</p>
             </div>
           </section>
 
           {/* Canvas Management */}
           <section id="canvas-management">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              8. Canvas Management
+              10. Canvas Management
             </h2>
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white">Resizing</h3>
               <ol className="list-decimal list-inside space-y-2 ml-4">
-                <li>Click the <strong className="text-white">Resize</strong> button</li>
+                <li>Click the <strong className="text-white">Resize</strong> button in the header</li>
                 <li>Choose a preset or enter custom dimensions</li>
                 <li>Select mesh count (14 or 18)</li>
                 <li>Check <strong className="text-white">"Scale Content"</strong> to resize your design with the canvas</li>
+                <li>Click <strong className="text-white">Apply</strong></li>
               </ol>
 
-              <h3 className="text-lg font-semibold text-white mt-6">Preset Sizes</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {[
-                  "Coaster (4×4)",
-                  "Small Ornament (5×5)",
-                  "Ornament (6×6)",
-                  "Square 8\" (8×8)",
-                  "Square 10\" (10×10)",
-                  "Pillow 12\" (12×12)",
-                ].map((preset) => (
-                  <div key={preset} className="px-3 py-2 bg-slate-800 rounded">{preset}</div>
-                ))}
-              </div>
-
               <h3 className="text-lg font-semibold text-white mt-6">Transform Options</h3>
+              <p>Found in the toolbar. When you have a selection, transforms apply only to the selected area. Without a selection, they apply to the entire canvas.</p>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li><strong className="text-white">Flip Horizontal</strong>: Mirror left-to-right</li>
-                <li><strong className="text-white">Flip Vertical</strong>: Mirror top-to-bottom</li>
-                <li><strong className="text-white">Rotate 90°</strong>: Rotate clockwise</li>
+                <li><strong className="text-white">↔️ Flip Horizontal</strong>: Mirror left-to-right</li>
+                <li><strong className="text-white">↕️ Flip Vertical</strong>: Mirror top-to-bottom</li>
+                <li><strong className="text-white">↻ Rotate 90°</strong>: Rotate clockwise</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Display Options</h3>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li><strong className="text-white">#️⃣ Grid</strong>: Show/hide pixel grid lines</li>
+                <li><strong className="text-white">Aa Symbols</strong>: Show/hide color symbols on pixels (helpful for distinguishing similar colors)</li>
               </ul>
             </div>
           </section>
@@ -299,45 +393,48 @@ export default function HelpPage() {
           {/* Zoom & Pan */}
           <section id="zoom-pan">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              9. Zoom & Pan
+              11. Zoom & Pan
             </h2>
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white">Zooming</h3>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li><strong className="text-white">Mouse wheel</strong>: Hold Ctrl/Cmd and scroll</li>
+                <li><strong className="text-white">Mouse wheel</strong>: Scroll to zoom in/out (zooms toward cursor)</li>
                 <li><strong className="text-white">Pinch gesture</strong>: Two fingers on touch devices</li>
-                <li><strong className="text-white">Reset button</strong>: Click the circular arrow in toolbar</li>
+                <li><strong className="text-white">🔄 Reset button</strong>: Click in toolbar to reset to 100% and recenter</li>
               </ul>
+              <p className="text-sm text-slate-400">The current zoom level is shown in the toolbar (e.g., "150%").</p>
 
               <h3 className="text-lg font-semibold text-white mt-6">Panning</h3>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li><strong className="text-white">Pencil tool</strong>: Click and drag (activates after 6+ pixels)</li>
+                <li><strong className="text-white">✋ Pan tool</strong>: Click and drag to move the canvas freely</li>
+                <li><strong className="text-white">Pencil tool</strong>: Drag to pan (activates after ~6 pixels of movement)</li>
                 <li><strong className="text-white">Two-finger drag</strong>: On touch devices</li>
               </ul>
 
-              <h3 className="text-lg font-semibold text-white mt-6">Display Options</h3>
-              <ul className="list-disc list-inside space-y-2 ml-4">
-                <li><strong className="text-white">Grid toggle</strong>: Show/hide pixel grid lines</li>
-                <li><strong className="text-white">Symbols toggle</strong>: Show/hide color symbols on pixels</li>
-              </ul>
+              <div className="p-4 bg-slate-800 rounded-lg mt-4">
+                <p className="text-white font-medium mb-2">Pro Tip</p>
+                <p className="text-sm text-slate-400">Use the Pan tool (✋) when navigating large designs. It's dedicated to movement only, so you won't accidentally draw.</p>
+              </div>
             </div>
           </section>
 
           {/* Export */}
           <section id="export">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              10. Export Options
+              12. Export Options
             </h2>
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white">PDF Exports</h3>
+              <p>Click the <strong className="text-white">Export</strong> button in the header to access export options.</p>
+
+              <h3 className="text-lg font-semibold text-white mt-6">PDF Exports</h3>
               <div className="space-y-3">
                 <div className="p-3 bg-slate-800 rounded-lg">
                   <p className="text-white font-medium">Print Artwork</p>
-                  <p className="text-sm text-slate-400">Full-size, exact proportions, no grid. Best for printing and framing.</p>
+                  <p className="text-sm text-slate-400">Full-size PDF at exact proportions, no grid lines. Perfect for printing on canvas or framing.</p>
                 </div>
                 <div className="p-3 bg-slate-800 rounded-lg">
                   <p className="text-white font-medium">Stitch Guide</p>
-                  <p className="text-sm text-slate-400">Multi-page document with cover, color legend, and gridded pattern with symbols.</p>
+                  <p className="text-sm text-slate-400">Multi-page document with cover page, color legend with DMC numbers, and gridded pattern with symbols. Essential for stitching.</p>
                 </div>
               </div>
 
@@ -352,31 +449,89 @@ export default function HelpPage() {
           {/* Design Management */}
           <section id="design-management">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              11. Design Management
+              13. Design Management
             </h2>
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white">Saving</h3>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li><strong className="text-white">Auto-save</strong>: Runs automatically in the background</li>
-                <li><strong className="text-white">Manual save</strong>: Click the Save button in the header</li>
+                <li><strong className="text-white">Auto-save</strong>: Your work is automatically saved in the background</li>
+                <li><strong className="text-white">Manual save</strong>: Click the Save button in the header anytime</li>
               </ul>
 
               <h3 className="text-lg font-semibold text-white mt-6">Organizing</h3>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li><strong className="text-white">Folders</strong>: Create from home page sidebar</li>
-                <li><strong className="text-white">Tags</strong>: Apply color-coded tags to designs</li>
-                <li><strong className="text-white">Draft/Complete</strong>: Toggle status below design name</li>
+                <li><strong className="text-white">Folders</strong>: Create folders from the home page sidebar to group related designs</li>
+                <li><strong className="text-white">Tags</strong>: Apply color-coded tags for easy filtering</li>
+                <li><strong className="text-white">Draft/Complete</strong>: Toggle status to track work in progress</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Categorization</h3>
+              <p>Organize designs for customers by setting:</p>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li><strong className="text-white">Skill Level</strong>: Easy, Intermediate, or Advanced</li>
+                <li><strong className="text-white">Size Category</strong>: Small, Medium, or Large</li>
+              </ul>
+              <p className="text-sm text-slate-400 mt-2">Use the filter buttons on the home page to show designs by skill level or size.</p>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Design Cards</h3>
+              <p>Each design card on the home page shows:</p>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li>Preview image</li>
+                <li>Design name</li>
+                <li>Dimensions (e.g., 8" × 8")</li>
+                <li>Total stitch count</li>
+                <li>Tags and folder</li>
               </ul>
 
               <h3 className="text-lg font-semibold text-white mt-6">Deleting</h3>
-              <p>Deleted designs move to <strong className="text-white">Trash</strong> with a 14-day grace period before permanent deletion.</p>
+              <p>Deleted designs move to <strong className="text-white">Trash</strong> where they're kept for 14 days before permanent deletion. You can restore designs from the trash at any time during this period.</p>
+            </div>
+          </section>
+
+          {/* Inventory & Kits */}
+          <section id="inventory">
+            <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
+              14. Inventory & Kits
+            </h2>
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white">Thread Inventory</h3>
+              <p>Track your DMC Pearl Cotton thread inventory from the <strong className="text-white">Inventory</strong> page (accessible from the sidebar).</p>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li>Add thread by DMC number and size (5 or 8)</li>
+                <li>Track skein quantities</li>
+                <li>See which designs use each color</li>
+                <li>Get low stock alerts</li>
+                <li>Search and filter by color</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Kit View</h3>
+              <p>Each design has a <strong className="text-white">Kit</strong> page showing all materials needed:</p>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li>Canvas size and type</li>
+                <li>Complete thread list with DMC numbers</li>
+                <li>Skeins needed per color</li>
+                <li>Inventory status (in stock / need to order)</li>
+                <li>Total yarn requirements</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Kits Page</h3>
+              <p>The <strong className="text-white">Kits</strong> page shows all designs grouped by collection/folder with:</p>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li>Kits ready count (assembled kits awaiting sale)</li>
+                <li>Canvas printed count</li>
+                <li>Quick access to kit details</li>
+                <li>Record kit sales</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Kit Sales</h3>
+              <p>Track sales history and automatically update inventory when recording a kit sale.</p>
             </div>
           </section>
 
           {/* Keyboard Shortcuts */}
           <section id="keyboard-shortcuts">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              12. Keyboard Shortcuts
+              15. Keyboard Shortcuts
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -389,13 +544,13 @@ export default function HelpPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-700">
                   <tr><td className="py-2">Undo</td><td className="py-2 text-slate-400">Ctrl+Z</td><td className="py-2 text-slate-400">Cmd+Z</td></tr>
-                  <tr><td className="py-2">Redo</td><td className="py-2 text-slate-400">Ctrl+Y</td><td className="py-2 text-slate-400">Cmd+Y</td></tr>
+                  <tr><td className="py-2">Redo</td><td className="py-2 text-slate-400">Ctrl+Y or Ctrl+Shift+Z</td><td className="py-2 text-slate-400">Cmd+Y or Cmd+Shift+Z</td></tr>
                   <tr><td className="py-2">Copy</td><td className="py-2 text-slate-400">Ctrl+C</td><td className="py-2 text-slate-400">Cmd+C</td></tr>
                   <tr><td className="py-2">Cut</td><td className="py-2 text-slate-400">Ctrl+X</td><td className="py-2 text-slate-400">Cmd+X</td></tr>
-                  <tr><td className="py-2">Paste</td><td className="py-2 text-slate-400">Ctrl+V</td><td className="py-2 text-slate-400">Cmd+V</td></tr>
+                  <tr><td className="py-2">Paste (with positioning)</td><td className="py-2 text-slate-400">Ctrl+V</td><td className="py-2 text-slate-400">Cmd+V</td></tr>
                   <tr><td className="py-2">Select All</td><td className="py-2 text-slate-400">Ctrl+A</td><td className="py-2 text-slate-400">Cmd+A</td></tr>
-                  <tr><td className="py-2">Delete</td><td className="py-2 text-slate-400">Delete</td><td className="py-2 text-slate-400">Delete</td></tr>
-                  <tr><td className="py-2">Cancel</td><td className="py-2 text-slate-400">Escape</td><td className="py-2 text-slate-400">Escape</td></tr>
+                  <tr><td className="py-2">Delete Selection</td><td className="py-2 text-slate-400">Delete / Backspace</td><td className="py-2 text-slate-400">Delete / Backspace</td></tr>
+                  <tr><td className="py-2">Cancel (placement, move, etc.)</td><td className="py-2 text-slate-400">Escape</td><td className="py-2 text-slate-400">Escape</td></tr>
                 </tbody>
               </table>
             </div>
@@ -404,20 +559,32 @@ export default function HelpPage() {
           {/* Mobile */}
           <section id="mobile">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              13. Mobile & Touch Support
+              16. Mobile & Touch Support
             </h2>
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white">Touch Gestures</h3>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li><strong className="text-white">Single tap</strong>: Place pixel / Select</li>
-                <li><strong className="text-white">Single finger drag</strong>: Draw / Pan</li>
-                <li><strong className="text-white">Two-finger pinch</strong>: Zoom in/out</li>
-                <li><strong className="text-white">Two-finger drag</strong>: Pan canvas</li>
+                <li><strong className="text-white">Tap and hold</strong>: Place a single pixel (requires ~120ms hold to prevent accidental drawing)</li>
+                <li><strong className="text-white">Single finger drag</strong>: Pan the canvas (with Pencil tool) or draw (with Brush/Eraser)</li>
+                <li><strong className="text-white">Two-finger pinch</strong>: Zoom in/out centered on your fingers</li>
+                <li><strong className="text-white">Two-finger drag</strong>: Pan canvas while zooming</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Mobile Interface</h3>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li><strong className="text-white">Bottom Bar</strong>: Quick access to Colors, Layers, and Design Info panels</li>
+                <li><strong className="text-white">Panels</strong>: Open as slide-up drawers from the bottom</li>
+                <li><strong className="text-white">Toolbar</strong>: Scrolls horizontally on smaller screens</li>
               </ul>
 
               <div className="p-4 bg-slate-800 rounded-lg mt-4">
                 <p className="text-white font-medium mb-2">iPad Tip</p>
-                <p className="text-sm text-slate-400">Use two fingers to zoom and pan the canvas while keeping single-finger actions for drawing.</p>
+                <p className="text-sm text-slate-400">Use the <strong>Pan tool (✋)</strong> when you want to navigate without accidentally placing pixels. Two fingers always pan and zoom regardless of the active tool.</p>
+              </div>
+
+              <div className="p-4 bg-slate-800 rounded-lg mt-4">
+                <p className="text-white font-medium mb-2">Precision Drawing</p>
+                <p className="text-sm text-slate-400">Zoom in close for precise pixel placement. The grid lines become visible at higher zoom levels.</p>
               </div>
             </div>
           </section>

@@ -76,7 +76,42 @@ export default function Editor({ designId, initialData }: EditorProps) {
       borderWidth: number;
       borderPadding: number;
     };
+    // For paste with positioning
+    isPaste?: boolean;
   } | null>(null);
+
+  // Enter paste placement mode - called from toolbar or keyboard shortcut
+  const enterPastePlacementMode = useCallback(() => {
+    const clipboard = useEditorStore.getState().clipboard;
+    if (!clipboard) return;
+
+    setPendingText({
+      pixels: clipboard.data,
+      width: clipboard.width,
+      height: clipboard.height,
+      isPaste: true,
+    });
+  }, []);
+
+  // Flip pending paste horizontally
+  const flipPendingHorizontal = useCallback(() => {
+    if (!pendingText?.isPaste) return;
+    const flippedPixels = pendingText.pixels.map(row => [...row].reverse());
+    setPendingText({
+      ...pendingText,
+      pixels: flippedPixels,
+    });
+  }, [pendingText]);
+
+  // Flip pending paste vertically
+  const flipPendingVertical = useCallback(() => {
+    if (!pendingText?.isPaste) return;
+    const flippedPixels = [...pendingText.pixels].reverse();
+    setPendingText({
+      ...pendingText,
+      pixels: flippedPixels,
+    });
+  }, [pendingText]);
 
   // Initialize editor with design data
   useEffect(() => {
@@ -265,7 +300,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
         return;
       }
 
-      const { undo, redo, canUndo, canRedo, copySelectionToClipboard, cutSelectionToClipboard, pasteFromClipboard, selectAll, deleteSelection, selection, clipboard } = useEditorStore.getState();
+      const { undo, redo, canUndo, canRedo, copySelectionToClipboard, cutSelectionToClipboard, selectAll, deleteSelection, selection, clipboard } = useEditorStore.getState();
 
       if (e.metaKey || e.ctrlKey) {
         switch (e.key.toLowerCase()) {
@@ -296,7 +331,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
           case "v":
             if (clipboard) {
               e.preventDefault();
-              pasteFromClipboard(0, 0);
+              enterPastePlacementMode();
             }
             break;
           case "a":
@@ -316,7 +351,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [enterPastePlacementMode]);
 
   return (
     <div className="h-screen flex flex-col bg-slate-900">
@@ -327,7 +362,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
         onShowTextDialog={() => setShowTextDialog(true)}
         onShowShapeDialog={() => setShowShapeDialog(true)}
       />
-      <Toolbar />
+      <Toolbar onEnterPasteMode={enterPastePlacementMode} />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Color picker - hidden on mobile, shown via bottom drawer */}
@@ -368,6 +403,8 @@ export default function Editor({ designId, initialData }: EditorProps) {
           onTextPlaced={handleTextPlaced}
           onCancelTextPlacement={handleCancelTextPlacement}
           onResizePendingShape={handleResizePendingShape}
+          onFlipPendingHorizontal={flipPendingHorizontal}
+          onFlipPendingVertical={flipPendingVertical}
         />
 
         {/* Right side panels */}

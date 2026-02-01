@@ -4,6 +4,10 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useEditorStore, Tool } from "@/lib/store";
 
+interface ToolbarProps {
+  onEnterPasteMode?: () => void;
+}
+
 const tools: { id: Tool; label: string; icon: string; description: string }[] = [
   { id: "pencil", label: "Pencil", icon: "✏️", description: "Draw single pixels. Tap to place, drag to pan." },
   { id: "pan", label: "Pan", icon: "✋", description: "Move around the canvas without drawing. Perfect for touch devices." },
@@ -16,7 +20,7 @@ const tools: { id: Tool; label: string; icon: string; description: string }[] = 
   { id: "eyedropper", label: "Eyedropper", icon: "💧", description: "Pick a color from the canvas." },
 ];
 
-export default function Toolbar() {
+export default function Toolbar({ onEnterPasteMode }: ToolbarProps) {
   const {
     currentTool,
     setTool,
@@ -43,7 +47,6 @@ export default function Toolbar() {
     copySelectionToClipboard,
     cutSelectionToClipboard,
     deleteSelection,
-    pasteFromClipboard,
     selection,
     clipboard,
   } = useEditorStore();
@@ -307,10 +310,10 @@ export default function Toolbar() {
             </svg>
           </button>
           <button
-            onClick={() => pasteFromClipboard(0, 0)}
+            onClick={onEnterPasteMode}
             disabled={!clipboard}
             className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
-            title="Paste (Ctrl+V)"
+            title="Paste (Ctrl+V) - Click to place"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />

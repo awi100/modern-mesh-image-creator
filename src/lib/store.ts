@@ -128,6 +128,8 @@ interface EditorState {
   cutSelectionToClipboard: () => void;
   pasteFromClipboard: (x: number, y: number) => void;
   deleteSelection: () => void;
+  flipClipboardHorizontal: () => void;
+  flipClipboardVertical: () => void;
 
   // Move selection operations
   startMove: (x: number, y: number) => void;
@@ -617,6 +619,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
 
     set({ layers: newLayers, isDirty: true });
+  },
+
+  flipClipboardHorizontal: () => {
+    const { clipboard } = get();
+    if (!clipboard) return;
+
+    const flippedData = clipboard.data.map(row => [...row].reverse());
+    set({
+      clipboard: {
+        ...clipboard,
+        data: flippedData,
+      },
+    });
+  },
+
+  flipClipboardVertical: () => {
+    const { clipboard } = get();
+    if (!clipboard) return;
+
+    const flippedData = [...clipboard.data].reverse();
+    set({
+      clipboard: {
+        ...clipboard,
+        data: flippedData,
+      },
+    });
   },
 
   applyPixelOverlay: (pixels, x, y) => {

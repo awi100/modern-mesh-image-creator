@@ -27,10 +27,13 @@ interface PixelCanvasProps {
       borderWidth: number;
       borderPadding: number;
     };
+    isPaste?: boolean;
   } | null;
   onTextPlaced?: (x: number, y: number) => void;
   onCancelTextPlacement?: () => void;
   onResizePendingShape?: (delta: number) => void;
+  onFlipPendingHorizontal?: () => void;
+  onFlipPendingVertical?: () => void;
 }
 
 export default function PixelCanvas({
@@ -38,6 +41,8 @@ export default function PixelCanvas({
   onTextPlaced,
   onCancelTextPlacement,
   onResizePendingShape,
+  onFlipPendingHorizontal,
+  onFlipPendingVertical,
 }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -949,7 +954,7 @@ export default function PixelCanvas({
         />
       </div>
 
-      {/* Text/Shape placement mode indicator */}
+      {/* Text/Shape/Paste placement mode indicator */}
       {pendingText && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 z-10">
           {/* Resize buttons for shapes and text */}
@@ -974,8 +979,30 @@ export default function PixelCanvas({
               </button>
             </div>
           )}
+          {/* Flip buttons for paste mode */}
+          {pendingText.isPaste && (
+            <div className="flex items-center gap-1 mr-2 border-r border-blue-400 pr-3">
+              <button
+                onClick={onFlipPendingHorizontal}
+                className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded-lg text-sm"
+                title="Flip Horizontal"
+              >
+                ↔️
+              </button>
+              <button
+                onClick={onFlipPendingVertical}
+                className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded-lg text-sm"
+                title="Flip Vertical"
+              >
+                ↕️
+              </button>
+              <span className="text-xs ml-1">
+                {pendingText.width}×{pendingText.height}
+              </span>
+            </div>
+          )}
           <span className="text-sm font-medium">
-            Click to place {pendingText.isShape ? "shape" : "text"}
+            Click to place {pendingText.isPaste ? "pasted content" : pendingText.isShape ? "shape" : "text"}
           </span>
           <button
             onClick={onCancelTextPlacement}
