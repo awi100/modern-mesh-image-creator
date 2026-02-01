@@ -180,9 +180,21 @@ export async function PUT(
       tags: design.tags.map((dt) => dt.tag),
     });
   } catch (error) {
-    console.error("Error updating design:", error);
+    // Get ID again for logging (may have failed earlier)
+    let designIdForLog = "unknown";
+    try {
+      const { id } = await params;
+      designIdForLog = id;
+    } catch {}
+
+    console.error("[PUT /api/designs] Save failed:", {
+      designId: designIdForLog,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json(
-      { error: "Failed to update design" },
+      { error: "Failed to update design", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

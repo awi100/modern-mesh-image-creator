@@ -138,7 +138,17 @@ export default function Header({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save design");
+        const errorText = await response.text();
+        console.error("[Manual save] Server error:", {
+          status: response.status,
+          statusText: response.statusText,
+          designId,
+          designName,
+          gridWidth,
+          gridHeight,
+          errorResponse: errorText,
+        });
+        throw new Error(`Failed to save: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -151,7 +161,7 @@ export default function Header({
       markClean();
       setLastSavedAt(new Date());
     } catch (error) {
-      console.error("Save error:", error);
+      console.error("[Manual save] Error:", error);
       alert("Failed to save. Please try again.");
     } finally {
       setSaving(false);

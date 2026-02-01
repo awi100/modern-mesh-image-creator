@@ -62,9 +62,8 @@ export default function PixelCanvas({
     gridPointY: number;
   } | null>(null);
 
-  // Pencil mode: click to place pixel, drag to pan
+  // Pan tool: threshold for detecting pan gesture
   const PAN_THRESHOLD = 6; // pixels of screen movement before switching to pan
-  const TAP_HOLD_TIME = 120; // ms - touch must be held this long to count as intentional tap (prevents accidental drawing while panning)
   const dragRef = useRef<{
     startScreenX: number;
     startScreenY: number;
@@ -446,19 +445,6 @@ export default function PixelCanvas({
     return getGridCoords(touch.clientX, touch.clientY);
   }, [getGridCoords]);
 
-  // Start drag tracking for pencil pan detection
-  const startDragTracking = useCallback((screenX: number, screenY: number, gridCoords: { x: number; y: number }) => {
-    dragRef.current = {
-      startScreenX: screenX,
-      startScreenY: screenY,
-      startGridCoords: gridCoords,
-      startPanX: panX,
-      startPanY: panY,
-      isPanning: false,
-      startTime: Date.now(),
-    };
-  }, [panX, panY]);
-
   // Shared drawing logic for mouse and touch
   const handleDrawStart = useCallback((coords: { x: number; y: number }, screenX?: number, screenY?: number) => {
     // Pan tool: always pan, never draw
@@ -475,17 +461,10 @@ export default function PixelCanvas({
       return;
     }
 
-    // Pencil mode: defer drawing, track for pan vs tap
-    if (currentTool === "pencil" && screenX !== undefined && screenY !== undefined) {
-      startDragTracking(screenX, screenY, coords);
-      return;
-    }
-
     isDrawingRef.current = true;
     lastPosRef.current = coords;
 
     if (currentTool === "pencil") {
-      // Fallback if no screen coords (shouldn't happen)
       saveToHistory();
       setPixel(coords.x, coords.y, currentColor?.dmcNumber || null);
     } else if (currentTool === "brush") {
@@ -527,7 +506,7 @@ export default function PixelCanvas({
     } else if (currentTool === "magicWand") {
       selectByColor(coords.x, coords.y);
     }
-  }, [currentTool, currentColor, eraserSize, layers, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, startDragTracking, selection, startMove, panX, panY]);
+  }, [currentTool, currentColor, eraserSize, layers, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, selection, startMove, panX, panY]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
@@ -716,16 +695,11 @@ export default function PixelCanvas({
       return;
     }
 
-    // Handle pencil drag-to-pan
-    if (dragRef.current) {
+    // Handle pan tool drag
+    if (dragRef.current && dragRef.current.isPanning) {
       const dx = e.clientX - dragRef.current.startScreenX;
       const dy = e.clientY - dragRef.current.startScreenY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist > PAN_THRESHOLD || dragRef.current.isPanning) {
-        dragRef.current.isPanning = true;
-        setPan(dragRef.current.startPanX + dx, dragRef.current.startPanY + dy);
-      }
+      setPan(dragRef.current.startPanX + dx, dragRef.current.startPanY + dy);
       return;
     }
 
@@ -812,17 +786,12 @@ export default function PixelCanvas({
       return;
     }
 
-    // Handle pencil drag-to-pan (single finger)
-    if (dragRef.current && e.touches.length === 1) {
+    // Handle pan tool drag (single finger)
+    if (dragRef.current && dragRef.current.isPanning && e.touches.length === 1) {
       const touch = e.touches[0];
       const dx = touch.clientX - dragRef.current.startScreenX;
       const dy = touch.clientY - dragRef.current.startScreenY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist > PAN_THRESHOLD || dragRef.current.isPanning) {
-        dragRef.current.isPanning = true;
-        setPan(dragRef.current.startPanX + dx, dragRef.current.startPanY + dy);
-      }
+      setPan(dragRef.current.startPanX + dx, dragRef.current.startPanY + dy);
       return;
     }
 
@@ -854,19 +823,14 @@ export default function PixelCanvas({
       return;
     }
 
-    // Handle pencil drag-to-pan end: if didn't pan, treat as a click to place pixel
+    // Handle pan tool drag end
     if (dragRef.current) {
-      if (!dragRef.current.isPanning) {
-        const coords = dragRef.current.startGridCoords;
-        saveToHistory();
-        setPixel(coords.x, coords.y, currentColor?.dmcNumber || null);
-      }
       dragRef.current = null;
       return;
     }
 
     handleDrawEnd();
-  }, [handleDrawEnd, saveToHistory, setPixel, currentColor, commitMove]);
+  }, [handleDrawEnd, commitMove]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -886,22 +850,15 @@ export default function PixelCanvas({
       return;
     }
 
-    // Handle pencil drag-to-pan end: if didn't pan, treat as a tap to place pixel
-    // On touch devices, require the touch to be held for TAP_HOLD_TIME to prevent accidental drawing
+    // Handle pan tool drag end
     if (dragRef.current) {
-      const touchDuration = Date.now() - dragRef.current.startTime;
-      if (!dragRef.current.isPanning && touchDuration >= TAP_HOLD_TIME) {
-        const coords = dragRef.current.startGridCoords;
-        saveToHistory();
-        setPixel(coords.x, coords.y, currentColor?.dmcNumber || null);
-      }
       dragRef.current = null;
       return;
     }
 
     isDrawingRef.current = false;
     lastPosRef.current = null;
-  }, [saveToHistory, setPixel, currentColor, commitMove]);
+  }, [commitMove]);
 
   const handleMouseLeave = useCallback(() => {
     dragRef.current = null;

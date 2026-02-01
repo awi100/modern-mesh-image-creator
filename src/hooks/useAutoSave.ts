@@ -120,7 +120,17 @@ export function useAutoSave() {
       });
 
       if (!response.ok) {
-        throw new Error("Auto-save failed");
+        const errorText = await response.text();
+        console.error("[Auto-save] Server error:", {
+          status: response.status,
+          statusText: response.statusText,
+          designId,
+          designName,
+          gridWidth,
+          gridHeight,
+          errorResponse: errorText,
+        });
+        throw new Error(`Auto-save failed: ${response.status} ${response.statusText}`);
       }
 
       markClean();
@@ -132,7 +142,7 @@ export function useAutoSave() {
         setAutoSaveStatus('idle');
       }, 2000);
     } catch (error) {
-      console.error("Auto-save error:", error);
+      console.error("[Auto-save] Error:", error);
       setAutoSaveStatus('error');
 
       // Reset status after showing error
