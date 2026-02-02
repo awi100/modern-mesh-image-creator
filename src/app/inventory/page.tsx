@@ -1,9 +1,16 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DmcColor, searchDmcColors, getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import {
+  ShoppingListItem,
+  generateShoppingListCSV,
+  generateShoppingListHTML,
+  downloadFile,
+  openPrintableWindow,
+} from "@/lib/shopping-list-export";
 
 interface InventoryItem {
   id: string;
@@ -363,6 +370,62 @@ export default function InventoryPage() {
     router.push("/login");
     router.refresh();
   };
+
+  // Export shopping list for low-stock colors
+  const handleExportLowStockCSV = useCallback(() => {
+    const lowStockColors = mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded);
+    if (lowStockColors.length === 0) return;
+
+    const items: ShoppingListItem[] = lowStockColors.map((color) => ({
+      dmcNumber: color.dmcNumber,
+      colorName: color.colorName,
+      quantity: color.totalSkeinsNeeded - color.inventorySkeins,
+      unit: "skeins",
+      hex: color.hex,
+      notes: `Need ${color.totalSkeinsNeeded}, have ${color.inventorySkeins}`,
+    }));
+
+    const csv = generateShoppingListCSV(items, "Low Stock Colors - Shopping List");
+    downloadFile(csv, "low_stock_shopping_list.csv", "text/csv");
+  }, [mostUsedColors]);
+
+  const handlePrintLowStock = useCallback(() => {
+    const lowStockColors = mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded);
+    if (lowStockColors.length === 0) return;
+
+    const items: ShoppingListItem[] = lowStockColors.map((color) => ({
+      dmcNumber: color.dmcNumber,
+      colorName: color.colorName,
+      quantity: color.totalSkeinsNeeded - color.inventorySkeins,
+      unit: "skeins",
+      hex: color.hex,
+      notes: `Need ${color.totalSkeinsNeeded}, have ${color.inventorySkeins}`,
+    }));
+
+    const html = generateShoppingListHTML(
+      items,
+      "Low Stock Colors",
+      `${lowStockColors.length} colors need restocking`
+    );
+    openPrintableWindow(html);
+  }, [mostUsedColors]);
+
+  // Export all most-used colors
+  const handleExportAllColorsCSV = useCallback(() => {
+    if (mostUsedColors.length === 0) return;
+
+    const items: ShoppingListItem[] = mostUsedColors.map((color) => ({
+      dmcNumber: color.dmcNumber,
+      colorName: color.colorName,
+      quantity: color.totalSkeinsNeeded,
+      unit: "skeins",
+      hex: color.hex,
+      notes: `In ${color.designCount} designs, have ${color.inventorySkeins}`,
+    }));
+
+    const csv = generateShoppingListCSV(items, "All Most-Used Colors");
+    downloadFile(csv, "most_used_colors.csv", "text/csv");
+  }, [mostUsedColors]);
 
   const totalSkeins = filteredItems.reduce((sum, item) => sum + item.skeins, 0);
   const totalYards = totalSkeins * 27;
@@ -1182,15 +1245,43 @@ export default function InventoryPage() {
             {mostUsedColors.length > 0 && (
               <div className="bg-slate-800 rounded-xl border border-slate-700 mb-6 overflow-hidden">
                 <div className="p-4 border-b border-slate-700">
-                  <h3 className="text-white font-semibold flex items-center gap-2">
-                    <svg className="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    Most Used Colors Across All Designs
-                  </h3>
-                  <p className="text-slate-400 text-sm mt-1">
-                    Colors ranked by total stitches across your portfolio. Plan inventory around these high-demand threads.
-                  </p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-white font-semibold flex items-center gap-2">
+                        <svg className="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Most Used Colors Across All Designs
+                      </h3>
+                      <p className="text-slate-400 text-sm mt-1">
+                        Colors ranked by total stitches across your portfolio. Plan inventory around these high-demand threads.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={handlePrintLowStock}
+                        disabled={mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded).length === 0}
+                        className="px-3 py-1.5 text-xs bg-red-900/50 text-red-300 rounded-lg hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        title="Print low stock shopping list"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Print Low Stock
+                      </button>
+                      <button
+                        onClick={handleExportLowStockCSV}
+                        disabled={mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded).length === 0}
+                        className="px-3 py-1.5 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        title="Download low stock as CSV"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        CSV
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">

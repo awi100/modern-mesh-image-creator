@@ -1,8 +1,15 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import {
+  ShoppingListItem,
+  generateShoppingListCSV,
+  generateShoppingListHTML,
+  downloadFile,
+  openPrintableWindow,
+} from "@/lib/shopping-list-export";
 
 interface KitItem {
   dmcNumber: string;
@@ -163,6 +170,45 @@ export default function KitPage() {
     }
   };
 
+  // Export shopping list as CSV
+  const handleExportCSV = useCallback(() => {
+    if (!design || kitContents.length === 0) return;
+
+    const items: ShoppingListItem[] = kitContents.map((item) => ({
+      dmcNumber: item.dmcNumber,
+      colorName: item.colorName,
+      quantity: item.skeinsNeeded,
+      unit: "skeins",
+      hex: item.hex,
+      notes: item.bobbinYards > 0 ? `${item.bobbinYards.toFixed(1)} yd on bobbin` : undefined,
+    }));
+
+    const csv = generateShoppingListCSV(items, `Kit Shopping List - ${design.name}`);
+    const filename = `${design.name.replace(/[^a-z0-9]/gi, "_")}_shopping_list.csv`;
+    downloadFile(csv, filename, "text/csv");
+  }, [design, kitContents]);
+
+  // Export shopping list as printable
+  const handlePrint = useCallback(() => {
+    if (!design || kitContents.length === 0) return;
+
+    const items: ShoppingListItem[] = kitContents.map((item) => ({
+      dmcNumber: item.dmcNumber,
+      colorName: item.colorName,
+      quantity: item.skeinsNeeded,
+      unit: "skeins",
+      hex: item.hex,
+      notes: item.bobbinYards > 0 ? `${item.bobbinYards.toFixed(1)} yd bobbin` : undefined,
+    }));
+
+    const html = generateShoppingListHTML(
+      items,
+      design.name,
+      `${design.widthInches}" × ${design.heightInches}" @ ${design.meshCount} mesh`
+    );
+    openPrintableWindow(html);
+  }, [design, kitContents]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -220,6 +266,26 @@ export default function KitPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Export buttons */}
+            <button
+              onClick={handlePrint}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              title="Print shopping list"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+            </button>
+            <button
+              onClick={handleExportCSV}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              title="Download CSV"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </button>
+            <div className="w-px h-6 bg-slate-700 mx-1" />
             {kitsReady > 0 && (
               <button
                 onClick={handleMarkSold}
