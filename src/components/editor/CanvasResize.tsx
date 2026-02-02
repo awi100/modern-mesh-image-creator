@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useEditorStore } from "@/lib/store";
 import { scalePixelGrid, createEmptyGrid, PixelGrid } from "@/lib/color-utils";
+import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
 // Built-in preset canvas sizes
 const BUILTIN_PRESETS = [
@@ -20,6 +21,7 @@ const BUILTIN_PRESETS = [
 
 type ResizeMode = "scale" | "crop";
 type AnchorPosition = "tl" | "tc" | "tr" | "ml" | "mc" | "mr" | "bl" | "bc" | "br";
+type DragHandle = "top" | "bottom" | "left" | "right" | null;
 
 interface CustomPreset {
   id: string;
@@ -52,10 +54,20 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
   const [anchorPosition, setAnchorPosition] = useState<AnchorPosition>("mc"); // middle-center default
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
 
+  // Interactive crop state
+  const [cropOffsets, setCropOffsets] = useState({ top: 0, bottom: 0, left: 0, right: 0 });
+  const [dragHandle, setDragHandle] = useState<DragHandle>(null);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, offset: 0 });
+  const previewRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const newGridWidth = Math.round(newWidthInches * newMeshCount);
   const newGridHeight = Math.round(newHeightInches * newMeshCount);
 
-  const isSizeChanged = newGridWidth !== gridWidth || newGridHeight !== gridHeight || newMeshCount !== meshCount;
+  // Check if using interactive crop (has crop offsets)
+  const hasInteractiveCrop = cropOffsets.top > 0 || cropOffsets.bottom > 0 || cropOffsets.left > 0 || cropOffsets.right > 0;
+
+  const isSizeChanged = newGridWidth !== gridWidth || newGridHeight !== gridHeight || newMeshCount !== meshCount || hasInteractiveCrop;
 
   // Calculate offset based on anchor position
   const getAnchorOffset = (
@@ -86,6 +98,164 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
     };
   };
 
+  // Get current grid for preview
+  const currentGrid = useMemo(() => flattenLayers(), [flattenLayers]);
+
+  // Calculate effective crop dimensions based on drag offsets
+  const effectiveCrop = useMemo(() => {
+    const keepWidth = gridWidth - cropOffsets.left - cropOffsets.right;
+    const keepHeight = gridHeight - cropOffsets.top - cropOffsets.bottom;
+    return {
+      left: cropOffsets.left,
+      top: cropOffsets.top,
+      width: Math.max(1, keepWidth),
+      height: Math.max(1, keepHeight),
+    };
+  }, [gridWidth, gridHeight, cropOffsets]);
+
+  // Update newWidthInches/newHeightInches when crop offsets change
+  useEffect(() => {
+    if (resizeMode === "crop" && (cropOffsets.top !== 0 || cropOffsets.bottom !== 0 || cropOffsets.left !== 0 || cropOffsets.right !== 0)) {
+      const newWidth = effectiveCrop.width / meshCount;
+      const newHeight = effectiveCrop.height / meshCount;
+      setNewWidthInches(Math.round(newWidth * 10) / 10);
+      setNewHeightInches(Math.round(newHeight * 10) / 10);
+    }
+  }, [cropOffsets, effectiveCrop, meshCount, resizeMode]);
+
+  // Reset crop offsets when switching modes or dimensions change manually
+  useEffect(() => {
+    setCropOffsets({ top: 0, bottom: 0, left: 0, right: 0 });
+  }, [resizeMode]);
+
+  // Draw preview canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || resizeMode !== "crop") return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Calculate preview scale to fit in container
+    const maxPreviewWidth = 280;
+    const maxPreviewHeight = 200;
+    const scale = Math.min(
+      maxPreviewWidth / gridWidth,
+      maxPreviewHeight / gridHeight,
+      4 // Max 4px per cell
+    );
+
+    canvas.width = gridWidth * scale;
+    canvas.height = gridHeight * scale;
+
+    // Draw grid with crop overlay
+    for (let y = 0; y < gridHeight; y++) {
+      for (let x = 0; x < gridWidth; x++) {
+        const dmcNumber = currentGrid[y]?.[x];
+        const isCropped = x < cropOffsets.left ||
+                          x >= gridWidth - cropOffsets.right ||
+                          y < cropOffsets.top ||
+                          y >= gridHeight - cropOffsets.bottom;
+
+        if (dmcNumber) {
+          const color = getDmcColorByNumber(dmcNumber);
+          ctx.fillStyle = color?.hex || "#808080";
+        } else {
+          ctx.fillStyle = "#f0f0f0";
+        }
+
+        ctx.fillRect(x * scale, y * scale, scale, scale);
+
+        // Add dark overlay for cropped areas
+        if (isCropped) {
+          ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+          ctx.fillRect(x * scale, y * scale, scale, scale);
+        }
+      }
+    }
+
+    // Draw crop boundary lines
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(
+      cropOffsets.left * scale,
+      cropOffsets.top * scale,
+      effectiveCrop.width * scale,
+      effectiveCrop.height * scale
+    );
+    ctx.setLineDash([]);
+  }, [currentGrid, gridWidth, gridHeight, cropOffsets, effectiveCrop, resizeMode]);
+
+  // Mouse/touch handlers for draggable crop handles
+  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent, handle: DragHandle) => {
+    e.preventDefault();
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+
+    const currentOffset = handle === "top" ? cropOffsets.top :
+                          handle === "bottom" ? cropOffsets.bottom :
+                          handle === "left" ? cropOffsets.left :
+                          cropOffsets.right;
+
+    setDragHandle(handle);
+    setDragStart({ x: clientX, y: clientY, offset: currentOffset });
+  }, [cropOffsets]);
+
+  const handleDragMove = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!dragHandle || !canvasRef.current) return;
+
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+
+    const canvas = canvasRef.current;
+    const scale = canvas.width / gridWidth;
+
+    let delta: number;
+    if (dragHandle === "top" || dragHandle === "bottom") {
+      delta = (clientY - dragStart.y) / scale;
+    } else {
+      delta = (clientX - dragStart.x) / scale;
+    }
+
+    // For top/left, moving down/right increases crop, for bottom/right, moving up/left increases crop
+    if (dragHandle === "bottom" || dragHandle === "right") {
+      delta = -delta;
+    }
+
+    const newOffset = Math.max(0, Math.round(dragStart.offset + delta));
+
+    // Limit so we don't crop more than available
+    const maxCrop = dragHandle === "top" || dragHandle === "bottom"
+      ? gridHeight - 1 - (dragHandle === "top" ? cropOffsets.bottom : cropOffsets.top)
+      : gridWidth - 1 - (dragHandle === "left" ? cropOffsets.right : cropOffsets.left);
+
+    setCropOffsets(prev => ({
+      ...prev,
+      [dragHandle]: Math.min(newOffset, maxCrop),
+    }));
+  }, [dragHandle, dragStart, gridWidth, gridHeight, cropOffsets]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragHandle(null);
+  }, []);
+
+  // Add/remove global mouse listeners for dragging
+  useEffect(() => {
+    if (dragHandle) {
+      window.addEventListener("mousemove", handleDragMove);
+      window.addEventListener("mouseup", handleDragEnd);
+      window.addEventListener("touchmove", handleDragMove);
+      window.addEventListener("touchend", handleDragEnd);
+      return () => {
+        window.removeEventListener("mousemove", handleDragMove);
+        window.removeEventListener("mouseup", handleDragEnd);
+        window.removeEventListener("touchmove", handleDragMove);
+        window.removeEventListener("touchend", handleDragEnd);
+      };
+    }
+  }, [dragHandle, handleDragMove, handleDragEnd]);
+
   // Fetch custom presets on mount
   useEffect(() => {
     fetch("/api/canvas-presets")
@@ -99,20 +269,44 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
   }, []);
 
   const handleApply = () => {
-    if (!isSizeChanged) {
+    if (!isSizeChanged && !hasInteractiveCrop) {
       onClose();
       return;
     }
 
     saveToHistory();
 
-    // Flatten all layers before resizing
-    const currentGrid = flattenLayers();
+    // Get flattened grid
+    const sourceGrid = flattenLayers();
     let newGrid: PixelGrid;
 
     if (resizeMode === "scale") {
       // Scale existing content to fit new dimensions
-      newGrid = scalePixelGrid(currentGrid, newGridWidth, newGridHeight);
+      newGrid = scalePixelGrid(sourceGrid, newGridWidth, newGridHeight);
+    } else if (hasInteractiveCrop) {
+      // Use interactive crop offsets
+      const cropWidth = effectiveCrop.width;
+      const cropHeight = effectiveCrop.height;
+      newGrid = createEmptyGrid(cropWidth, cropHeight);
+
+      for (let y = 0; y < cropHeight; y++) {
+        for (let x = 0; x < cropWidth; x++) {
+          const sourceX = x + effectiveCrop.left;
+          const sourceY = y + effectiveCrop.top;
+          newGrid[y][x] = sourceGrid[sourceY]?.[sourceX] ?? null;
+        }
+      }
+
+      // Update dimensions to match crop
+      setDesignInfo({
+        widthInches: cropWidth / meshCount,
+        heightInches: cropHeight / meshCount,
+        meshCount: meshCount as 14 | 18,
+      });
+
+      initializeGrid(cropWidth, cropHeight, newGrid);
+      onClose();
+      return;
     } else {
       // Crop/extend: create new grid and copy content based on anchor
       newGrid = createEmptyGrid(newGridWidth, newGridHeight);
@@ -125,7 +319,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
           const newY = y + offset.y;
 
           if (newX >= 0 && newX < newGridWidth && newY >= 0 && newY < newGridHeight) {
-            newGrid[newY][newX] = currentGrid[y]?.[x] ?? null;
+            newGrid[newY][newX] = sourceGrid[y]?.[x] ?? null;
           }
         }
       }
@@ -148,6 +342,13 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
 
     if (resizeMode === "scale") {
       return "Design will be stretched/shrunk to fit new dimensions";
+    } else if (hasInteractiveCrop) {
+      const parts = [];
+      if (cropOffsets.top > 0) parts.push(`${cropOffsets.top} from top`);
+      if (cropOffsets.bottom > 0) parts.push(`${cropOffsets.bottom} from bottom`);
+      if (cropOffsets.left > 0) parts.push(`${cropOffsets.left} from left`);
+      if (cropOffsets.right > 0) parts.push(`${cropOffsets.right} from right`);
+      return `Cropping ${parts.join(", ")}`;
     } else {
       const widthChange = newGridWidth - gridWidth;
       const heightChange = newGridHeight - gridHeight;
@@ -161,7 +362,11 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
 
       return parts.length > 0 ? parts.join(", ") : "No change in grid size";
     }
-  }, [resizeMode, newGridWidth, newGridHeight, gridWidth, gridHeight, isSizeChanged]);
+  }, [resizeMode, newGridWidth, newGridHeight, gridWidth, gridHeight, isSizeChanged, hasInteractiveCrop, cropOffsets]);
+
+  // Final dimensions for display (use effectiveCrop when using interactive crop)
+  const finalWidth = hasInteractiveCrop ? effectiveCrop.width : newGridWidth;
+  const finalHeight = hasInteractiveCrop ? effectiveCrop.height : newGridHeight;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -322,49 +527,112 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
             </div>
           </div>
 
-          {/* Anchor position (only for crop mode) */}
+          {/* Interactive Crop Preview (only for crop mode) */}
           {resizeMode === "crop" && (
             <div>
-              <label className="block text-sm text-slate-400 mb-2">Anchor Position</label>
+              <label className="block text-sm text-slate-400 mb-2">Drag edges to crop</label>
               <p className="text-xs text-slate-500 mb-3">
-                Where should the design be positioned when canvas size changes?
+                Drag the red handles to adjust what gets cropped from each side
               </p>
-              <div className="flex justify-center">
-                <div className="grid grid-cols-3 gap-1 p-2 bg-slate-700 rounded-lg">
-                  {(["tl", "tc", "tr", "ml", "mc", "mr", "bl", "bc", "br"] as AnchorPosition[]).map((pos) => (
-                    <button
-                      key={pos}
-                      onClick={() => setAnchorPosition(pos)}
-                      className={`w-10 h-10 rounded flex items-center justify-center transition-colors ${
-                        anchorPosition === pos
-                          ? "bg-rose-900 text-white"
-                          : "bg-slate-600 text-slate-400 hover:bg-slate-500"
-                      }`}
-                      title={
-                        pos === "tl" ? "Top Left" :
-                        pos === "tc" ? "Top Center" :
-                        pos === "tr" ? "Top Right" :
-                        pos === "ml" ? "Middle Left" :
-                        pos === "mc" ? "Center" :
-                        pos === "mr" ? "Middle Right" :
-                        pos === "bl" ? "Bottom Left" :
-                        pos === "bc" ? "Bottom Center" :
-                        "Bottom Right"
-                      }
-                    >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
-                        <rect
-                          x={pos.includes("l") ? 2 : pos.includes("r") ? 10 : 6}
-                          y={pos.includes("t") ? 2 : pos.includes("b") ? 10 : 6}
-                          width="4"
-                          height="4"
-                          rx="1"
-                        />
-                      </svg>
-                    </button>
-                  ))}
+              <div ref={previewRef} className="relative flex justify-center items-center bg-slate-900 rounded-lg p-4">
+                <div className="relative">
+                  <canvas ref={canvasRef} className="border border-slate-600 rounded" />
+
+                  {/* Drag handles */}
+                  {/* Top handle */}
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 cursor-ns-resize group"
+                    style={{ top: `${(cropOffsets.top / gridHeight) * 100}%` }}
+                    onMouseDown={(e) => handleDragStart(e, "top")}
+                    onTouchStart={(e) => handleDragStart(e, "top")}
+                  >
+                    <div className={`w-12 h-3 -mt-1.5 rounded-full flex items-center justify-center transition-colors ${
+                      dragHandle === "top" ? "bg-rose-500" : "bg-rose-600 group-hover:bg-rose-500"
+                    }`}>
+                      <div className="w-6 h-0.5 bg-white/70 rounded" />
+                    </div>
+                    {cropOffsets.top > 0 && (
+                      <span className="absolute left-1/2 -translate-x-1/2 -top-5 text-xs text-rose-400 whitespace-nowrap">
+                        -{cropOffsets.top} rows
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Bottom handle */}
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 cursor-ns-resize group"
+                    style={{ bottom: `${(cropOffsets.bottom / gridHeight) * 100}%` }}
+                    onMouseDown={(e) => handleDragStart(e, "bottom")}
+                    onTouchStart={(e) => handleDragStart(e, "bottom")}
+                  >
+                    <div className={`w-12 h-3 -mb-1.5 rounded-full flex items-center justify-center transition-colors ${
+                      dragHandle === "bottom" ? "bg-rose-500" : "bg-rose-600 group-hover:bg-rose-500"
+                    }`}>
+                      <div className="w-6 h-0.5 bg-white/70 rounded" />
+                    </div>
+                    {cropOffsets.bottom > 0 && (
+                      <span className="absolute left-1/2 -translate-x-1/2 -bottom-5 text-xs text-rose-400 whitespace-nowrap">
+                        -{cropOffsets.bottom} rows
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Left handle */}
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize group"
+                    style={{ left: `${(cropOffsets.left / gridWidth) * 100}%` }}
+                    onMouseDown={(e) => handleDragStart(e, "left")}
+                    onTouchStart={(e) => handleDragStart(e, "left")}
+                  >
+                    <div className={`w-3 h-12 -ml-1.5 rounded-full flex items-center justify-center transition-colors ${
+                      dragHandle === "left" ? "bg-rose-500" : "bg-rose-600 group-hover:bg-rose-500"
+                    }`}>
+                      <div className="w-0.5 h-6 bg-white/70 rounded" />
+                    </div>
+                    {cropOffsets.left > 0 && (
+                      <span className="absolute top-1/2 -translate-y-1/2 -left-8 text-xs text-rose-400 whitespace-nowrap">
+                        -{cropOffsets.left}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Right handle */}
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 cursor-ew-resize group"
+                    style={{ right: `${(cropOffsets.right / gridWidth) * 100}%` }}
+                    onMouseDown={(e) => handleDragStart(e, "right")}
+                    onTouchStart={(e) => handleDragStart(e, "right")}
+                  >
+                    <div className={`w-3 h-12 -mr-1.5 rounded-full flex items-center justify-center transition-colors ${
+                      dragHandle === "right" ? "bg-rose-500" : "bg-rose-600 group-hover:bg-rose-500"
+                    }`}>
+                      <div className="w-0.5 h-6 bg-white/70 rounded" />
+                    </div>
+                    {cropOffsets.right > 0 && (
+                      <span className="absolute top-1/2 -translate-y-1/2 -right-8 text-xs text-rose-400 whitespace-nowrap">
+                        -{cropOffsets.right}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {/* Reset crop button */}
+              {hasInteractiveCrop && (
+                <button
+                  onClick={() => setCropOffsets({ top: 0, bottom: 0, left: 0, right: 0 })}
+                  className="mt-2 w-full py-1.5 text-sm text-slate-400 hover:text-white transition-colors"
+                >
+                  ↩️ Reset Crop
+                </button>
+              )}
+
+              {/* Crop summary */}
+              {hasInteractiveCrop && (
+                <div className="mt-2 p-2 bg-rose-900/20 border border-rose-800/50 rounded text-xs text-rose-300">
+                  Cropping to {effectiveCrop.width} × {effectiveCrop.height} stitches
+                </div>
+              )}
             </div>
           )}
 
@@ -376,7 +644,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
           }`}>
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm text-slate-400">New size:</span>
-              <span className="text-white font-medium">{newGridWidth} × {newGridHeight} stitches</span>
+              <span className="text-white font-medium">{finalWidth} × {finalHeight} stitches</span>
             </div>
             <p className="text-xs text-slate-400">{previewDescription}</p>
           </div>
