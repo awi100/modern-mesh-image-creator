@@ -7,6 +7,7 @@ import { useEditorStore } from "@/lib/store";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
+import { triggerSessionExpired } from "@/components/SessionExpiredModal";
 
 // Generate a small preview image as base64 data URL
 function generatePreviewImage(
@@ -148,6 +149,13 @@ export default function Header({
           gridHeight,
           errorResponse: errorText,
         });
+
+        // If unauthorized (401), trigger session expired modal
+        if (response.status === 401) {
+          triggerSessionExpired();
+          throw new Error("Session expired - please sign in again");
+        }
+
         throw new Error(`Failed to save: ${response.status} ${response.statusText}`);
       }
 
@@ -162,7 +170,10 @@ export default function Header({
       setLastSavedAt(new Date());
     } catch (error) {
       console.error("[Manual save] Error:", error);
-      alert("Failed to save. Please try again.");
+      // Don't show alert for session expired - the modal handles it
+      if (error instanceof Error && !error.message.includes("Session expired")) {
+        alert("Failed to save. Please try again.");
+      }
     } finally {
       setSaving(false);
     }

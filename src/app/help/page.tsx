@@ -48,6 +48,7 @@ export default function HelpPage() {
               { id: "inventory", label: "Inventory & Kits" },
               { id: "keyboard-shortcuts", label: "Keyboard Shortcuts" },
               { id: "mobile", label: "Mobile & Touch" },
+              { id: "session", label: "Session Management" },
               { id: "pwa", label: "Install as App" },
             ].map((item) => (
               <a
@@ -228,6 +229,17 @@ export default function HelpPage() {
 
               <h3 className="text-lg font-semibold text-white mt-6">Center Alignment</h3>
               <p>When moving a selection, <strong className="text-white">green guide lines</strong> appear when your selection is centered horizontally or vertically on the canvas. Use the <strong className="text-white">Center</strong> button in the toolbar to instantly center your selection.</p>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Pattern Repeat</h3>
+              <p>Create repeating patterns from your selection:</p>
+              <ol className="list-decimal list-inside space-y-2 ml-4 mt-2">
+                <li>Select an area to use as your pattern tile</li>
+                <li>Click the <strong className="text-white">Repeat</strong> button in the toolbar</li>
+                <li>Choose repeat direction: Both, Horizontal only, or Vertical only</li>
+                <li>Set the number of repeats (1-20 in each direction)</li>
+                <li>Optionally add gaps between tiles</li>
+                <li>Click <strong className="text-white">Apply Repeat</strong> to tile your pattern</li>
+              </ol>
             </div>
           </section>
 
@@ -712,10 +724,34 @@ export default function HelpPage() {
             </div>
           </section>
 
+          {/* Session Management */}
+          <section id="session">
+            <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
+              18. Session Management
+            </h2>
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white">Session Timeout</h3>
+              <p>For security, your session expires after <strong className="text-white">4 hours</strong> of inactivity. When your session expires:</p>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li>A dialog will appear asking you to sign in again</li>
+                <li><strong className="text-white">Your work is not lost</strong> - all unsaved changes are preserved</li>
+                <li>Simply enter the password to continue your session</li>
+                <li>After signing in, auto-save will resume and sync your work</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold text-white mt-6">Tips</h3>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li>The session expiration dialog appears automatically when a save fails due to authentication</li>
+                <li>You can continue designing even while logged out - just re-authenticate to save</li>
+                <li>Keep this tab open to maintain your session</li>
+              </ul>
+            </div>
+          </section>
+
           {/* PWA Installation */}
           <section id="pwa">
             <h2 className="text-2xl font-bold text-white mb-4 pb-2 border-b border-slate-700">
-              18. Install as App
+              19. Install as App
             </h2>
             <div className="space-y-4">
               <p>Modern Mesh can be installed as an app on your phone, tablet, or computer for quick access and offline capabilities.</p>

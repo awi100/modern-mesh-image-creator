@@ -14,6 +14,8 @@ import ExportPanel from "./ExportPanel";
 import MobileBottomBar from "./MobileBottomBar";
 import AddTextDialog from "./AddTextDialog";
 import AddShapeDialog from "./AddShapeDialog";
+import PatternRepeatDialog from "./PatternRepeatDialog";
+import SessionExpiredModal, { useSessionMonitor } from "@/components/SessionExpiredModal";
 
 interface EditorProps {
   designId?: string;
@@ -52,8 +54,12 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const [showLayers, setShowLayers] = useState(false);
   const [showTextDialog, setShowTextDialog] = useState(false);
   const [showShapeDialog, setShowShapeDialog] = useState(false);
+  const [showPatternRepeat, setShowPatternRepeat] = useState(false);
   const [colorPanelCollapsed, setColorPanelCollapsed] = useState(false);
   const [layersPanelCollapsed, setLayersPanelCollapsed] = useState(false);
+
+  // Session expiration monitoring
+  const { isSessionExpired, handleSessionRestored, setIsSessionExpired } = useSessionMonitor();
   const [pendingText, setPendingText] = useState<{
     pixels: (string | null)[][];
     width: number;
@@ -362,7 +368,10 @@ export default function Editor({ designId, initialData }: EditorProps) {
         onShowTextDialog={() => setShowTextDialog(true)}
         onShowShapeDialog={() => setShowShapeDialog(true)}
       />
-      <Toolbar onEnterPasteMode={enterPastePlacementMode} />
+      <Toolbar
+        onEnterPasteMode={enterPastePlacementMode}
+        onShowPatternRepeat={() => setShowPatternRepeat(true)}
+      />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Color picker - hidden on mobile, shown via bottom drawer */}
@@ -546,6 +555,15 @@ export default function Editor({ designId, initialData }: EditorProps) {
           onAddShape={handleShapeAdded}
         />
       )}
+      {showPatternRepeat && (
+        <PatternRepeatDialog onClose={() => setShowPatternRepeat(false)} />
+      )}
+      {/* Session expired modal - highest z-index to ensure visibility */}
+      <SessionExpiredModal
+        isOpen={isSessionExpired}
+        onSessionRestored={handleSessionRestored}
+        onClose={() => setIsSessionExpired(false)}
+      />
     </div>
   );
 }

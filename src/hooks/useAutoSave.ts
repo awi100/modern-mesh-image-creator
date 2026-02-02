@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useEditorStore } from "@/lib/store";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { triggerSessionExpired } from "@/components/SessionExpiredModal";
 import pako from "pako";
 
 const AUTO_SAVE_DELAY = 3000; // 3 seconds after last change
@@ -130,6 +131,13 @@ export function useAutoSave() {
           gridHeight,
           errorResponse: errorText,
         });
+
+        // If unauthorized (401), trigger session expired modal
+        if (response.status === 401) {
+          triggerSessionExpired();
+          throw new Error("Session expired - please sign in again");
+        }
+
         throw new Error(`Auto-save failed: ${response.status} ${response.statusText}`);
       }
 

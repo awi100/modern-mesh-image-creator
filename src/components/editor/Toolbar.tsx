@@ -6,6 +6,7 @@ import { useEditorStore, Tool } from "@/lib/store";
 
 interface ToolbarProps {
   onEnterPasteMode?: () => void;
+  onShowPatternRepeat?: () => void;
 }
 
 const tools: { id: Tool; label: string; icon: string; description: string }[] = [
@@ -20,7 +21,7 @@ const tools: { id: Tool; label: string; icon: string; description: string }[] = 
   { id: "eyedropper", label: "Eyedropper", icon: "💧", description: "Pick a color from the canvas." },
 ];
 
-export default function Toolbar({ onEnterPasteMode }: ToolbarProps) {
+export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: ToolbarProps) {
   const {
     currentTool,
     setTool,
@@ -334,6 +335,18 @@ export default function Toolbar({ onEnterPasteMode }: ToolbarProps) {
                 <span className="hidden sm:inline">Center</span>
                 <span className="sm:hidden">⊕</span>
               </button>
+              {onShowPatternRepeat && (
+                <button
+                  onClick={onShowPatternRepeat}
+                  className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:flex items-center gap-1"
+                  title="Pattern Repeat - Tile selection across canvas"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                  </svg>
+                  <span className="hidden lg:inline">Repeat</span>
+                </button>
+              )}
               <button
                 onClick={deleteSelection}
                 className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation"
