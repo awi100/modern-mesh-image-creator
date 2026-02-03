@@ -1,10 +1,163 @@
 // Color utilities for image processing and pixel manipulation
 
-import { DmcColor, findNearestDmcColor, findNearestFromSubset, rgbToLab, deltaE76, isNearWhite } from "./dmc-pearl-cotton";
+import { DmcColor, findNearestDmcColor, findNearestFromSubset, rgbToLab, labToRgb, deltaE76, isNearWhite } from "./dmc-pearl-cotton";
 
 export type PixelGrid = (string | null)[][]; // DMC number or null for empty
 
-// K-means clustering for color quantization
+// Processing options interface for advanced image conversion
+export interface ProcessingOptions {
+  maxColors?: number;
+  dmcSubset?: DmcColor[];
+  treatWhiteAsEmpty?: boolean;
+  whiteThreshold?: number;
+  // New options
+  colorSpace?: 'rgb' | 'lab';
+  kmeansInit?: 'random' | 'kmeans++';
+  samplingMethod?: 'center' | 'weighted';
+  dithering?: 'none' | 'floydSteinberg';
+  ditheringStrength?: number;
+  contrastEnhance?: number;
+  sharpen?: number;
+}
+
+// Default processing options
+const DEFAULT_OPTIONS: ProcessingOptions = {
+  maxColors: 16,
+  treatWhiteAsEmpty: false,
+  whiteThreshold: 250,
+  colorSpace: 'lab',
+  kmeansInit: 'kmeans++',
+  samplingMethod: 'weighted',
+  dithering: 'none',
+  ditheringStrength: 50,
+  contrastEnhance: 0,
+  sharpen: 0,
+};
+
+// Seeded random number generator for reproducibility
+function seededRandom(seed: number): () => number {
+  return function() {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+}
+
+// Weighted color with frequency and Lab values
+interface WeightedColor {
+  rgb: { r: number; g: number; b: number };
+  lab: { l: number; a: number; b: number };
+  weight: number;
+}
+
+// K-Means++ initialization - picks centroids that are spread apart
+function kMeansPlusPlusInit(
+  colors: WeightedColor[],
+  k: number,
+  rng: () => number = Math.random
+): WeightedColor[] {
+  if (colors.length === 0 || k <= 0) return [];
+  if (colors.length <= k) return colors.slice();
+
+  const centroids: WeightedColor[] = [];
+
+  // First centroid: weighted random selection
+  const totalWeight = colors.reduce((sum, c) => sum + c.weight, 0);
+  let r = rng() * totalWeight;
+  for (const color of colors) {
+    r -= color.weight;
+    if (r <= 0) {
+      centroids.push({ ...color });
+      break;
+    }
+  }
+  if (centroids.length === 0) centroids.push({ ...colors[0] });
+
+  // Subsequent centroids: probability proportional to D^2
+  while (centroids.length < k) {
+    const distances = colors.map(c => {
+      const minDist = Math.min(...centroids.map(cent => deltaE76(c.lab, cent.lab)));
+      return minDist * minDist * c.weight;
+    });
+
+    const totalDist = distances.reduce((sum, d) => sum + d, 0);
+    if (totalDist === 0) break;
+
+    let pick = rng() * totalDist;
+    for (let i = 0; i < colors.length; i++) {
+      pick -= distances[i];
+      if (pick <= 0) {
+        centroids.push({ ...colors[i] });
+        break;
+      }
+    }
+  }
+
+  return centroids;
+}
+
+// Improved K-Means using Lab color space for perceptual accuracy
+export function kMeansClusterLab(
+  colors: WeightedColor[],
+  k: number,
+  options: { maxIterations?: number; seed?: number } = {}
+): { r: number; g: number; b: number }[] {
+  const { maxIterations = 30, seed } = options;
+  const rng = seed !== undefined ? seededRandom(seed) : Math.random;
+
+  if (colors.length === 0 || k <= 0) return [];
+  if (colors.length <= k) return colors.map(c => c.rgb);
+
+  // Initialize with K-Means++
+  let centroids = kMeansPlusPlusInit(colors, k, rng);
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    // Assign colors to nearest centroid using Lab distance
+    const clusters: WeightedColor[][] = Array.from({ length: k }, () => []);
+
+    for (const color of colors) {
+      let minDist = Infinity;
+      let nearestIdx = 0;
+
+      for (let i = 0; i < centroids.length; i++) {
+        const dist = deltaE76(color.lab, centroids[i].lab);
+        if (dist < minDist) {
+          minDist = dist;
+          nearestIdx = i;
+        }
+      }
+
+      clusters[nearestIdx].push(color);
+    }
+
+    // Update centroids (weighted average in Lab space)
+    let converged = true;
+    const newCentroids = clusters.map((cluster, i) => {
+      if (cluster.length === 0) return centroids[i];
+
+      const totalWeight = cluster.reduce((sum, c) => sum + c.weight, 0);
+      const avgL = cluster.reduce((sum, c) => sum + c.lab.l * c.weight, 0) / totalWeight;
+      const avgA = cluster.reduce((sum, c) => sum + c.lab.a * c.weight, 0) / totalWeight;
+      const avgB = cluster.reduce((sum, c) => sum + c.lab.b * c.weight, 0) / totalWeight;
+
+      const rgb = labToRgb(avgL, avgA, avgB);
+      const lab = { l: avgL, a: avgA, b: avgB };
+
+      // Check convergence (deltaE < 1 is imperceptible)
+      if (deltaE76(lab, centroids[i].lab) > 1) {
+        converged = false;
+      }
+
+      return { rgb, lab, weight: totalWeight };
+    });
+
+    centroids = newCentroids;
+    if (converged) break;
+  }
+
+  return centroids.map(c => c.rgb);
+}
+
+// Legacy K-means clustering for backward compatibility (RGB, random init)
 export function kMeansCluster(
   colors: { r: number; g: number; b: number }[],
   k: number,
@@ -62,20 +215,249 @@ export function kMeansCluster(
   return centroids;
 }
 
-// Process image data to pixel grid
-export function processImageToGrid(
+// Gaussian-weighted sampling - center pixels contribute more
+function sampleCellWeighted(
+  data: Uint8ClampedArray,
+  width: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): { r: number; g: number; b: number; a: number } | null {
+  const cellW = x2 - x1;
+  const cellH = y2 - y1;
+  if (cellW <= 0 || cellH <= 0) return null;
+
+  const centerX = (x1 + x2) / 2;
+  const centerY = (y1 + y2) / 2;
+  const sigma = Math.min(cellW, cellH) / 3;
+  const sigma2 = 2 * sigma * sigma;
+
+  let totalWeight = 0;
+  let r = 0, g = 0, b = 0, a = 0;
+  let validPixels = 0;
+
+  for (let y = y1; y < y2; y++) {
+    for (let x = x1; x < x2; x++) {
+      const idx = (y * width + x) * 4;
+      if (data[idx + 3] < 128) continue; // Skip transparent
+
+      const dx = x - centerX;
+      const dy = y - centerY;
+      const weight = Math.exp(-(dx * dx + dy * dy) / sigma2);
+
+      r += data[idx] * weight;
+      g += data[idx + 1] * weight;
+      b += data[idx + 2] * weight;
+      a += data[idx + 3] * weight;
+      totalWeight += weight;
+      validPixels++;
+    }
+  }
+
+  if (validPixels === 0 || totalWeight === 0) return null;
+
+  return {
+    r: Math.round(r / totalWeight),
+    g: Math.round(g / totalWeight),
+    b: Math.round(b / totalWeight),
+    a: Math.round(a / totalWeight),
+  };
+}
+
+// Simple center-point sampling (legacy)
+function sampleCellCenter(
+  data: Uint8ClampedArray,
+  width: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): { r: number; g: number; b: number; a: number } | null {
+  const centerX = Math.floor((x1 + x2) / 2);
+  const centerY = Math.floor((y1 + y2) / 2);
+  const idx = (centerY * width + centerX) * 4;
+
+  if (data[idx + 3] < 128) return null;
+
+  return {
+    r: data[idx],
+    g: data[idx + 1],
+    b: data[idx + 2],
+    a: data[idx + 3],
+  };
+}
+
+// Apply contrast enhancement via histogram stretching
+function enhanceContrast(imageData: ImageData, strength: number): ImageData {
+  if (strength <= 0) return imageData;
+
+  const data = new Uint8ClampedArray(imageData.data);
+  const factor = 1 + (strength / 50); // 0-100 maps to 1-3
+
+  // Find min/max for luminance
+  let minL = 255, maxL = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 128) continue;
+    const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    minL = Math.min(minL, lum);
+    maxL = Math.max(maxL, lum);
+  }
+
+  const rangeL = maxL - minL || 1;
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 128) continue;
+
+    // Apply contrast per channel relative to mid-gray
+    for (let c = 0; c < 3; c++) {
+      const normalized = (data[i + c] - minL) / rangeL;
+      const contrasted = (normalized - 0.5) * factor + 0.5;
+      data[i + c] = Math.max(0, Math.min(255, Math.round(contrasted * 255)));
+    }
+  }
+
+  return new ImageData(data, imageData.width, imageData.height);
+}
+
+// Apply unsharp mask for sharpening
+function applySharpen(imageData: ImageData, strength: number): ImageData {
+  if (strength <= 0) return imageData;
+
+  const { data, width, height } = imageData;
+  const result = new Uint8ClampedArray(data);
+  const amount = strength / 100;
+
+  // Simple 3x3 sharpen kernel
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = (y * width + x) * 4;
+      if (data[idx + 3] < 128) continue;
+
+      for (let c = 0; c < 3; c++) {
+        const center = data[idx + c];
+        const neighbors =
+          data[((y - 1) * width + x) * 4 + c] +
+          data[((y + 1) * width + x) * 4 + c] +
+          data[(y * width + x - 1) * 4 + c] +
+          data[(y * width + x + 1) * 4 + c];
+
+        const laplacian = center * 4 - neighbors;
+        const sharpened = center + laplacian * amount;
+        result[idx + c] = Math.max(0, Math.min(255, Math.round(sharpened)));
+      }
+    }
+  }
+
+  return new ImageData(result, width, height);
+}
+
+// Preprocess image with contrast and sharpening
+function preprocessImage(imageData: ImageData, options: ProcessingOptions): ImageData {
+  let result = imageData;
+
+  if (options.contrastEnhance && options.contrastEnhance > 0) {
+    result = enhanceContrast(result, options.contrastEnhance);
+  }
+
+  if (options.sharpen && options.sharpen > 0) {
+    result = applySharpen(result, options.sharpen);
+  }
+
+  return result;
+}
+
+// Floyd-Steinberg dithering
+function applyFloydSteinbergDithering(
+  grid: PixelGrid,
+  originalColors: ({ r: number; g: number; b: number } | null)[][],
+  palette: DmcColor[],
+  strength: number
+): PixelGrid {
+  const height = grid.length;
+  const width = grid[0]?.length || 0;
+  if (height === 0 || width === 0) return grid;
+
+  // Create float buffer for error diffusion
+  const buffer: { r: number; g: number; b: number }[][] = originalColors.map(row =>
+    row.map(c => (c ? { ...c } : { r: 0, g: 0, b: 0 }))
+  );
+
+  const result: PixelGrid = Array.from({ length: height }, () => Array(width).fill(null));
+  const strengthFactor = strength / 100;
+
+  for (let y = 0; y < height; y++) {
+    // Serpentine scanning
+    const leftToRight = y % 2 === 0;
+    const xStart = leftToRight ? 0 : width - 1;
+    const xEnd = leftToRight ? width : -1;
+    const xStep = leftToRight ? 1 : -1;
+
+    for (let x = xStart; x !== xEnd; x += xStep) {
+      if (originalColors[y][x] === null) {
+        result[y][x] = null;
+        continue;
+      }
+
+      const current = buffer[y][x];
+
+      // Find nearest palette color
+      const nearest = findNearestFromSubset(
+        Math.max(0, Math.min(255, Math.round(current.r))),
+        Math.max(0, Math.min(255, Math.round(current.g))),
+        Math.max(0, Math.min(255, Math.round(current.b))),
+        palette
+      );
+
+      result[y][x] = nearest.dmcNumber;
+
+      // Calculate and diffuse error
+      const error = {
+        r: (current.r - nearest.rgb.r) * strengthFactor,
+        g: (current.g - nearest.rgb.g) * strengthFactor,
+        b: (current.b - nearest.rgb.b) * strengthFactor,
+      };
+
+      // Floyd-Steinberg pattern:    X   7/16
+      //                         3/16 5/16 1/16
+      const diffuse = (dx: number, dy: number, factor: number) => {
+        const nx = x + dx * xStep;
+        const ny = y + dy;
+        if (nx >= 0 && nx < width && ny >= 0 && ny < height && originalColors[ny][nx] !== null) {
+          buffer[ny][nx].r += error.r * factor;
+          buffer[ny][nx].g += error.g * factor;
+          buffer[ny][nx].b += error.b * factor;
+        }
+      };
+
+      diffuse(1, 0, 7 / 16);
+      diffuse(-1, 1, 3 / 16);
+      diffuse(0, 1, 5 / 16);
+      diffuse(1, 1, 1 / 16);
+    }
+  }
+
+  return result;
+}
+
+// Advanced image processing with new options
+function processImageToGridAdvanced(
   imageData: ImageData,
   gridWidth: number,
   gridHeight: number,
-  maxColors: number = 16,
-  dmcSubset?: DmcColor[],
-  treatWhiteAsEmpty: boolean = false,
-  whiteThreshold: number = 250
+  options: ProcessingOptions
 ): { grid: PixelGrid; usedColors: DmcColor[] } {
+  const opts = { ...DEFAULT_OPTIONS, ...options };
   const { data, width, height } = imageData;
 
+  // Apply preprocessing if enabled
+  let processedData = imageData;
+  if ((opts.contrastEnhance && opts.contrastEnhance > 0) || (opts.sharpen && opts.sharpen > 0)) {
+    processedData = preprocessImage(imageData, opts);
+  }
+  const pData = processedData.data;
+
   // Calculate scaling to preserve aspect ratio
-  // Fit the image within the canvas bounds, centering it
   const imageAspect = width / height;
   const canvasAspect = gridWidth / gridHeight;
 
@@ -85,50 +467,84 @@ export function processImageToGrid(
   let offsetY: number;
 
   if (imageAspect > canvasAspect) {
-    // Image is wider than canvas - fit to width
     scaledWidth = gridWidth;
     scaledHeight = Math.round(gridWidth / imageAspect);
     offsetX = 0;
     offsetY = Math.floor((gridHeight - scaledHeight) / 2);
   } else {
-    // Image is taller than canvas - fit to height
     scaledHeight = gridHeight;
     scaledWidth = Math.round(gridHeight * imageAspect);
     offsetX = Math.floor((gridWidth - scaledWidth) / 2);
     offsetY = 0;
   }
 
-  // Sample colors from image (only from the scaled region)
   const cellWidth = width / scaledWidth;
   const cellHeight = height / scaledHeight;
-  const sampledColors: { r: number; g: number; b: number }[] = [];
+
+  // Sample colors using selected method
+  const colorCounts = new Map<string, { rgb: { r: number; g: number; b: number }; count: number }>();
 
   for (let gy = 0; gy < scaledHeight; gy++) {
     for (let gx = 0; gx < scaledWidth; gx++) {
-      const centerX = Math.floor((gx + 0.5) * cellWidth);
-      const centerY = Math.floor((gy + 0.5) * cellHeight);
-      const idx = (centerY * width + centerX) * 4;
+      const x1 = Math.floor(gx * cellWidth);
+      const y1 = Math.floor(gy * cellHeight);
+      const x2 = Math.floor((gx + 1) * cellWidth);
+      const y2 = Math.floor((gy + 1) * cellHeight);
 
-      // Skip transparent pixels
-      if (data[idx + 3] < 128) continue;
+      let sample: { r: number; g: number; b: number; a: number } | null;
 
-      // Skip near-white pixels if treating white as empty
-      if (treatWhiteAsEmpty && isNearWhite(data[idx], data[idx + 1], data[idx + 2], whiteThreshold)) continue;
+      if (opts.samplingMethod === 'weighted') {
+        sample = sampleCellWeighted(pData, width, x1, y1, x2, y2);
+      } else {
+        sample = sampleCellCenter(pData, width, x1, y1, x2, y2);
+      }
 
-      sampledColors.push({
-        r: data[idx],
-        g: data[idx + 1],
-        b: data[idx + 2],
-      });
+      if (!sample) continue;
+      if (opts.treatWhiteAsEmpty && isNearWhite(sample.r, sample.g, sample.b, opts.whiteThreshold || 250)) continue;
+
+      // Quantize to reduce unique colors for counting
+      const qr = Math.floor(sample.r / 8) * 8;
+      const qg = Math.floor(sample.g / 8) * 8;
+      const qb = Math.floor(sample.b / 8) * 8;
+      const key = `${qr},${qg},${qb}`;
+
+      const existing = colorCounts.get(key);
+      if (existing) {
+        existing.count++;
+        // Running average
+        existing.rgb.r = Math.round((existing.rgb.r * (existing.count - 1) + sample.r) / existing.count);
+        existing.rgb.g = Math.round((existing.rgb.g * (existing.count - 1) + sample.g) / existing.count);
+        existing.rgb.b = Math.round((existing.rgb.b * (existing.count - 1) + sample.b) / existing.count);
+      } else {
+        colorCounts.set(key, { rgb: { r: sample.r, g: sample.g, b: sample.b }, count: 1 });
+      }
     }
   }
 
-  // Quantize colors using K-means
-  const quantizedCentroids = kMeansCluster(sampledColors, maxColors);
+  // Convert to weighted colors for clustering
+  const weightedColors: WeightedColor[] = Array.from(colorCounts.values()).map(({ rgb, count }) => ({
+    rgb,
+    lab: rgbToLab(rgb.r, rgb.g, rgb.b),
+    weight: count,
+  }));
+
+  // Quantize using selected algorithm
+  let quantizedCentroids: { r: number; g: number; b: number }[];
+  const maxColors = opts.maxColors || 16;
+
+  if (opts.colorSpace === 'lab' && opts.kmeansInit === 'kmeans++') {
+    quantizedCentroids = kMeansClusterLab(weightedColors, maxColors);
+  } else {
+    // Legacy RGB clustering
+    const flatColors = weightedColors.flatMap(wc =>
+      Array(Math.min(wc.weight, 10)).fill(wc.rgb) // Cap weight to prevent memory issues
+    );
+    quantizedCentroids = kMeansCluster(flatColors, maxColors);
+  }
 
   // Map centroids to DMC colors
   const dmcCentroids = quantizedCentroids.map(c =>
-    dmcSubset ? findNearestFromSubset(c.r, c.g, c.b, dmcSubset) : findNearestDmcColor(c.r, c.g, c.b)
+    opts.dmcSubset ? findNearestFromSubset(c.r, c.g, c.b, opts.dmcSubset) : findNearestDmcColor(c.r, c.g, c.b)
   );
 
   // Remove duplicates
@@ -136,50 +552,101 @@ export function processImageToGrid(
     new Map(dmcCentroids.map(c => [c.dmcNumber, c])).values()
   );
 
-  // Create pixel grid (full canvas size, with image centered)
+  // Create pixel grid and store original colors for dithering
   const grid: PixelGrid = [];
+  const originalColors: ({ r: number; g: number; b: number } | null)[][] = [];
 
   for (let gy = 0; gy < gridHeight; gy++) {
     const row: (string | null)[] = [];
+    const colorRow: ({ r: number; g: number; b: number } | null)[] = [];
 
     for (let gx = 0; gx < gridWidth; gx++) {
-      // Check if this cell is within the scaled image area
       const imgX = gx - offsetX;
       const imgY = gy - offsetY;
 
       if (imgX < 0 || imgX >= scaledWidth || imgY < 0 || imgY >= scaledHeight) {
-        // Outside image bounds - empty cell
         row.push(null);
+        colorRow.push(null);
         continue;
       }
 
-      const centerX = Math.floor((imgX + 0.5) * cellWidth);
-      const centerY = Math.floor((imgY + 0.5) * cellHeight);
-      const idx = (centerY * width + centerX) * 4;
+      const x1 = Math.floor(imgX * cellWidth);
+      const y1 = Math.floor(imgY * cellHeight);
+      const x2 = Math.floor((imgX + 1) * cellWidth);
+      const y2 = Math.floor((imgY + 1) * cellHeight);
 
-      // Transparent = empty cell
-      if (data[idx + 3] < 128) {
+      let sample: { r: number; g: number; b: number; a: number } | null;
+
+      if (opts.samplingMethod === 'weighted') {
+        sample = sampleCellWeighted(pData, width, x1, y1, x2, y2);
+      } else {
+        sample = sampleCellCenter(pData, width, x1, y1, x2, y2);
+      }
+
+      if (!sample) {
         row.push(null);
+        colorRow.push(null);
         continue;
       }
 
-      const pixelColor = { r: data[idx], g: data[idx + 1], b: data[idx + 2] };
-
-      // Near-white = empty cell (if option enabled)
-      if (treatWhiteAsEmpty && isNearWhite(pixelColor.r, pixelColor.g, pixelColor.b, whiteThreshold)) {
+      if (opts.treatWhiteAsEmpty && isNearWhite(sample.r, sample.g, sample.b, opts.whiteThreshold || 250)) {
         row.push(null);
+        colorRow.push(null);
         continue;
       }
 
-      // Find nearest DMC color from our limited palette
-      const nearestDmc = findNearestFromSubset(pixelColor.r, pixelColor.g, pixelColor.b, uniqueDmcColors);
+      colorRow.push({ r: sample.r, g: sample.g, b: sample.b });
+
+      // For non-dithered output, find nearest DMC color now
+      const nearestDmc = findNearestFromSubset(sample.r, sample.g, sample.b, uniqueDmcColors);
       row.push(nearestDmc.dmcNumber);
     }
 
     grid.push(row);
+    originalColors.push(colorRow);
+  }
+
+  // Apply dithering if enabled
+  if (opts.dithering === 'floydSteinberg' && opts.ditheringStrength && opts.ditheringStrength > 0) {
+    const ditheredGrid = applyFloydSteinbergDithering(
+      grid,
+      originalColors,
+      uniqueDmcColors,
+      opts.ditheringStrength
+    );
+    return { grid: ditheredGrid, usedColors: uniqueDmcColors };
   }
 
   return { grid, usedColors: uniqueDmcColors };
+}
+
+// Process image data to pixel grid (backward compatible overload)
+export function processImageToGrid(
+  imageData: ImageData,
+  gridWidth: number,
+  gridHeight: number,
+  arg4?: number | ProcessingOptions,
+  dmcSubset?: DmcColor[],
+  treatWhiteAsEmpty: boolean = false,
+  whiteThreshold: number = 250
+): { grid: PixelGrid; usedColors: DmcColor[] } {
+  // Check if using new options API
+  if (typeof arg4 === 'object' && arg4 !== null) {
+    return processImageToGridAdvanced(imageData, gridWidth, gridHeight, arg4);
+  }
+
+  // Legacy API - use legacy defaults for backward compatibility
+  return processImageToGridAdvanced(imageData, gridWidth, gridHeight, {
+    maxColors: arg4 || 16,
+    dmcSubset,
+    treatWhiteAsEmpty,
+    whiteThreshold,
+    // Legacy defaults - maintain old behavior
+    colorSpace: 'rgb',
+    kmeansInit: 'random',
+    samplingMethod: 'center',
+    dithering: 'none',
+  });
 }
 
 // Reduce colors in existing grid

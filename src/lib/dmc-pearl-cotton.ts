@@ -46,6 +46,46 @@ export function deltaE76(lab1: { l: number; a: number; b: number }, lab2: { l: n
   );
 }
 
+// Lab to RGB conversion (inverse of rgbToLab)
+export function labToRgb(l: number, a: number, b: number): { r: number; g: number; b: number } {
+  // Lab to XYZ
+  let y = (l + 16) / 116;
+  let x = a / 500 + y;
+  let z = y - b / 200;
+
+  const y3 = Math.pow(y, 3);
+  const x3 = Math.pow(x, 3);
+  const z3 = Math.pow(z, 3);
+
+  y = y3 > 0.008856 ? y3 : (y - 16 / 116) / 7.787;
+  x = x3 > 0.008856 ? x3 : (x - 16 / 116) / 7.787;
+  z = z3 > 0.008856 ? z3 : (z - 16 / 116) / 7.787;
+
+  // Apply D65 illuminant
+  x *= 0.95047;
+  y *= 1.00000;
+  z *= 1.08883;
+
+  // XYZ to RGB
+  let rLinear = x * 3.2404542 + y * -1.5371385 + z * -0.4985314;
+  let gLinear = x * -0.9692660 + y * 1.8760108 + z * 0.0415560;
+  let bLinear = x * 0.0556434 + y * -0.2040259 + z * 1.0572252;
+
+  // Apply gamma correction
+  const gammaCorrect = (c: number) =>
+    c > 0.0031308 ? 1.055 * Math.pow(c, 1 / 2.4) - 0.055 : 12.92 * c;
+
+  rLinear = gammaCorrect(rLinear);
+  gLinear = gammaCorrect(gLinear);
+  bLinear = gammaCorrect(bLinear);
+
+  return {
+    r: Math.max(0, Math.min(255, Math.round(rLinear * 255))),
+    g: Math.max(0, Math.min(255, Math.round(gLinear * 255))),
+    b: Math.max(0, Math.min(255, Math.round(bLinear * 255))),
+  };
+}
+
 // Find nearest DMC color to a given RGB
 export function findNearestDmcColor(r: number, g: number, b: number): DmcColor {
   const targetLab = rgbToLab(r, g, b);

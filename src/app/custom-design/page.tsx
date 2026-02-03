@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import pako from "pako";
-import { processImageToGrid, PixelGrid } from "@/lib/color-utils";
+import { processImageToGrid, PixelGrid, ProcessingOptions } from "@/lib/color-utils";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON, DmcColor } from "@/lib/dmc-pearl-cotton";
 
 // Canvas size presets
@@ -74,6 +74,37 @@ export default function CustomDesignPage() {
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Advanced settings state
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [dithering, setDithering] = useState<'none' | 'floydSteinberg'>('none');
+  const [ditheringStrength, setDitheringStrength] = useState(50);
+  const [contrastEnhance, setContrastEnhance] = useState(0);
+  const [sharpen, setSharpen] = useState(0);
+
+  // Quality presets
+  const applyPreset = useCallback((preset: 'photo' | 'graphic' | 'detailed') => {
+    switch (preset) {
+      case 'photo':
+        setDithering('floydSteinberg');
+        setDitheringStrength(60);
+        setContrastEnhance(20);
+        setSharpen(30);
+        break;
+      case 'graphic':
+        setDithering('none');
+        setDitheringStrength(0);
+        setContrastEnhance(40);
+        setSharpen(0);
+        break;
+      case 'detailed':
+        setDithering('floydSteinberg');
+        setDitheringStrength(40);
+        setContrastEnhance(30);
+        setSharpen(50);
+        break;
+    }
+  }, []);
 
   // Create state
   const [designName, setDesignName] = useState("");
@@ -301,13 +332,25 @@ export default function CustomDesignPage() {
     setIsGeneratingPreview(true);
 
     previewTimeoutRef.current = setTimeout(() => {
+      const processingOptions: ProcessingOptions = {
+        maxColors,
+        treatWhiteAsEmpty: true,
+        whiteThreshold: 250,
+        // New advanced options
+        colorSpace: 'lab',
+        kmeansInit: 'kmeans++',
+        samplingMethod: 'weighted',
+        dithering,
+        ditheringStrength,
+        contrastEnhance,
+        sharpen,
+      };
+
       const { grid, usedColors } = processImageToGrid(
         processedImageData,
         canvasWidth,
         canvasHeight,
-        maxColors,
-        undefined,
-        true // treat white as empty
+        processingOptions
       );
 
       // Count pixels per color
@@ -337,7 +380,7 @@ export default function CustomDesignPage() {
         clearTimeout(previewTimeoutRef.current);
       }
     };
-  }, [currentStep, processedImageData, canvasWidth, canvasHeight, maxColors]);
+  }, [currentStep, processedImageData, canvasWidth, canvasHeight, maxColors, dithering, ditheringStrength, contrastEnhance, sharpen]);
 
   // Apply color mappings to grid for display
   const displayGrid = useMemo(() => {
@@ -948,6 +991,118 @@ export default function CustomDesignPage() {
                   }}
                   className="w-full"
                 />
+              </div>
+
+              {/* Advanced Settings */}
+              <div className="mt-4 border-t border-slate-700 pt-4">
+                <button
+                  onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                  className="flex items-center justify-between w-full text-left"
+                >
+                  <span className="text-sm font-medium text-slate-300">Advanced Settings</span>
+                  <svg
+                    className={`w-4 h-4 text-slate-400 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showAdvancedSettings && (
+                  <div className="mt-4 space-y-4">
+                    {/* Quick Presets */}
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-2">Quick Presets</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          onClick={() => applyPreset('photo')}
+                          className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg text-xs hover:bg-slate-600 transition-colors"
+                        >
+                          Photo
+                        </button>
+                        <button
+                          onClick={() => applyPreset('graphic')}
+                          className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg text-xs hover:bg-slate-600 transition-colors"
+                        >
+                          Graphic
+                        </button>
+                        <button
+                          onClick={() => applyPreset('detailed')}
+                          className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg text-xs hover:bg-slate-600 transition-colors"
+                        >
+                          Detailed
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Dithering */}
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-2">Dithering (smooths gradients)</label>
+                      <select
+                        value={dithering}
+                        onChange={(e) => setDithering(e.target.value as 'none' | 'floydSteinberg')}
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
+                      >
+                        <option value="none">None (solid colors)</option>
+                        <option value="floydSteinberg">Floyd-Steinberg (smooth gradients)</option>
+                      </select>
+                      {dithering !== 'none' && (
+                        <div className="mt-2">
+                          <div className="flex justify-between text-xs text-slate-500 mb-1">
+                            <span>Strength</span>
+                            <span>{ditheringStrength}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="10"
+                            max="100"
+                            value={ditheringStrength}
+                            onChange={(e) => setDitheringStrength(Number(e.target.value))}
+                            className="w-full"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Contrast */}
+                    <div>
+                      <div className="flex justify-between text-xs text-slate-500 mb-1">
+                        <span>Contrast Enhancement</span>
+                        <span>{contrastEnhance}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={contrastEnhance}
+                        onChange={(e) => setContrastEnhance(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+
+                    {/* Sharpen */}
+                    <div>
+                      <div className="flex justify-between text-xs text-slate-500 mb-1">
+                        <span>Sharpening</span>
+                        <span>{sharpen}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={sharpen}
+                        onChange={(e) => setSharpen(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <p className="text-xs text-slate-500 italic">
+                      Tip: Use "Photo" for photographs with gradients, "Graphic" for logos/clipart, "Detailed" for complex images.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
