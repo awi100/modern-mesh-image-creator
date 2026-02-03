@@ -90,7 +90,35 @@ interface ColorUsage {
   designs: ColorUsageDesign[];
 }
 
-type TabType = "threads" | "kits" | "canvases" | "alerts";
+type TabType = "threads" | "kits" | "canvases" | "alerts" | "bobbins";
+
+interface BobbinDesign {
+  id: string;
+  name: string;
+  previewImageUrl: string | null;
+  exactYards: number;
+}
+
+interface BobbinSuggestion {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  threadSize: 5 | 8;
+  length: number;
+  quantity: number;
+  designs: BobbinDesign[];
+}
+
+interface BobbinAnalysisSummary {
+  totalColors: number;
+  totalBobbins: number;
+  mostCommonLengths: { length: number; count: number }[];
+}
+
+interface BobbinAnalysisData {
+  suggestions: BobbinSuggestion[];
+  summary: BobbinAnalysisSummary;
+}
 
 function getContrastTextColor(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -111,6 +139,9 @@ export default function InventoryPage() {
   const [colorUsage, setColorUsage] = useState<Map<string, ColorUsageDesign[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [alertsLoading, setAlertsLoading] = useState(false);
+  const [bobbinData, setBobbinData] = useState<BobbinAnalysisData | null>(null);
+  const [bobbinsLoading, setBobbinsLoading] = useState(false);
+  const [bobbinSizeFilter, setBobbinSizeFilter] = useState<number | null>(null);
   const [sizeFilter, setSizeFilter] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedColor, setExpandedColor] = useState<string | null>(null);
@@ -198,6 +229,27 @@ export default function InventoryPage() {
     }
     setAlertsLoading(false);
   };
+
+  const fetchBobbins = async () => {
+    setBobbinsLoading(true);
+    try {
+      const response = await fetch("/api/inventory/bobbin-analysis");
+      if (response.ok) {
+        const data = await response.json();
+        setBobbinData(data);
+      }
+    } catch (error) {
+      console.error("Error fetching bobbin analysis:", error);
+    }
+    setBobbinsLoading(false);
+  };
+
+  // Fetch bobbins when tab changes to bobbins
+  useEffect(() => {
+    if (activeTab === "bobbins" && !bobbinData) {
+      fetchBobbins();
+    }
+  }, [activeTab, bobbinData]);
 
   const filteredItems = useMemo(() => {
     let result = items;
@@ -541,6 +593,24 @@ export default function InventoryPage() {
             {alertSummary && alertSummary.criticalCount > 0 && (
               <span className="ml-1 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">
                 {alertSummary.criticalCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("bobbins")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+              activeTab === "bobbins"
+                ? "bg-rose-900 text-white"
+                : "text-slate-400 hover:text-white hover:bg-slate-700"
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Pre-make Bobbins
+            {bobbinData && (
+              <span className="ml-1 text-xs opacity-75">
+                ({bobbinData.summary.totalBobbins})
               </span>
             )}
           </button>
@@ -1514,6 +1584,189 @@ export default function InventoryPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Pre-make Bobbins Tab */}
+        {activeTab === "bobbins" && (
+          <>
+            {/* Summary stats */}
+            {bobbinData && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider">Colors</p>
+                  <p className="text-xl font-bold text-white">{bobbinData.summary.totalColors}</p>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider">Total Bobbins</p>
+                  <p className="text-xl font-bold text-white">{bobbinData.summary.totalBobbins}</p>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700 col-span-2">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Most Common Lengths</p>
+                  <div className="flex flex-wrap gap-2">
+                    {bobbinData.summary.mostCommonLengths.map((item) => (
+                      <span key={item.length} className="px-2 py-0.5 bg-emerald-900/50 text-emerald-300 rounded text-sm">
+                        {item.length} yd × {item.count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Explanation */}
+            <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700 mb-6">
+              <p className="text-slate-300 text-sm">
+                <strong className="text-white">Pre-make Bobbins</strong> shows thread amounts under 5 yards that are used across multiple designs.
+                Pre-making standard bobbin lengths saves time when assembling kits. Colors are only shown if they have bobbin-sized amounts in 2+ designs.
+              </p>
+            </div>
+
+            {/* Size filter */}
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() => setBobbinSizeFilter(null)}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  bobbinSizeFilter === null
+                    ? "bg-rose-900 text-white"
+                    : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
+                }`}
+              >
+                All Sizes
+              </button>
+              <button
+                onClick={() => setBobbinSizeFilter(5)}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  bobbinSizeFilter === 5
+                    ? "bg-rose-900 text-white"
+                    : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
+                }`}
+              >
+                Size 5 (14 mesh)
+              </button>
+              <button
+                onClick={() => setBobbinSizeFilter(8)}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  bobbinSizeFilter === 8
+                    ? "bg-rose-900 text-white"
+                    : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
+                }`}
+              >
+                Size 8 (18 mesh)
+              </button>
+            </div>
+
+            {bobbinsLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-white flex items-center gap-3">
+                  <svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Analyzing bobbin requirements...
+                </div>
+              </div>
+            ) : !bobbinData || bobbinData.suggestions.length === 0 ? (
+              <div className="text-center py-12 md:py-16">
+                <div className="w-14 h-14 md:w-16 md:h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-7 h-7 md:w-8 md:h-8 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h2 className="text-lg md:text-xl font-semibold text-white mb-2">
+                  No common bobbins found
+                </h2>
+                <p className="text-slate-400 mb-6 text-sm md:text-base px-4">
+                  There are no thread colors that require bobbin-sized amounts (under 5 yards) in multiple designs.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-700 text-left">
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Color</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">DMC #</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden sm:table-cell">Name</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Size</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-center">Length</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider text-center">Qty</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Used In Designs</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700">
+                    {bobbinData.suggestions
+                      .filter((s) => bobbinSizeFilter === null || s.threadSize === bobbinSizeFilter)
+                      .map((suggestion, idx) => (
+                        <tr key={`${suggestion.dmcNumber}-${suggestion.threadSize}-${suggestion.length}-${idx}`} className="hover:bg-slate-750 transition-colors">
+                          <td className="px-4 py-3">
+                            <div
+                              className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center"
+                              style={{ backgroundColor: suggestion.hex }}
+                            >
+                              <span
+                                className="text-[7px] font-bold select-none"
+                                style={{ color: getContrastTextColor(suggestion.hex) }}
+                              >
+                                {suggestion.dmcNumber}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-white font-medium">{suggestion.dmcNumber}</span>
+                          </td>
+                          <td className="px-4 py-3 hidden sm:table-cell">
+                            <span className="text-slate-300">{suggestion.colorName}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              suggestion.threadSize === 5
+                                ? "bg-blue-900/50 text-blue-300"
+                                : "bg-purple-900/50 text-purple-300"
+                            }`}>
+                              Size {suggestion.threadSize}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex items-center px-3 py-1 bg-emerald-900/50 text-emerald-300 rounded-lg text-sm font-bold">
+                              {suggestion.length} yd
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex items-center justify-center w-8 h-8 bg-rose-900/50 text-rose-300 rounded-full text-sm font-bold">
+                              {suggestion.quantity}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1.5">
+                              {suggestion.designs.map((design) => (
+                                <Link
+                                  key={design.id}
+                                  href={`/design/${design.id}/kit`}
+                                  className="flex items-center gap-1 bg-slate-700/50 hover:bg-slate-700 rounded px-2 py-1 transition-colors"
+                                  title={`${design.name} - needs ${design.exactYards} yards`}
+                                >
+                                  {design.previewImageUrl ? (
+                                    <img
+                                      src={design.previewImageUrl}
+                                      alt={design.name}
+                                      className="w-5 h-5 object-cover rounded"
+                                    />
+                                  ) : (
+                                    <div className="w-5 h-5 bg-slate-600 rounded" />
+                                  )}
+                                  <span className="text-xs text-slate-300 truncate max-w-[80px]">{design.name}</span>
+                                  <span className="text-xs text-emerald-400 flex-shrink-0">{design.exactYards}yd</span>
+                                </Link>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </>
