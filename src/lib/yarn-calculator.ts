@@ -34,6 +34,29 @@ export interface YarnUsage {
 // Standard DMC Pearl Cotton skein length in yards
 const SKEIN_YARDS = 27; // DMC Pearl Cotton #5 is approximately 27 yards
 
+// Calculate a smart buffer that scales down for larger amounts
+// This prevents the buffer from causing unnecessary skein increases
+function calculateSmartBuffer(yarnYards: number, bufferPercent: number): number {
+  // For small amounts (< 10 yards): use full buffer - need safety margin
+  // For medium amounts (10-27 yards): use 60% of buffer
+  // For larger amounts (> 27 yards): use 40% of buffer
+  // Reasoning: larger amounts already have more inherent margin, and
+  // full skeins provide built-in buffer (27 yards for 20 needed = 35% extra)
+
+  let effectiveBufferPercent: number;
+  if (yarnYards < 10) {
+    effectiveBufferPercent = bufferPercent;
+  } else if (yarnYards < 27) {
+    effectiveBufferPercent = bufferPercent * 0.6;
+  } else {
+    effectiveBufferPercent = bufferPercent * 0.4;
+  }
+
+  // Add buffer, but minimum 1 yard for any amount
+  const bufferYards = Math.max(1, yarnYards * (effectiveBufferPercent / 100));
+  return yarnYards + bufferYards;
+}
+
 export function calculateYarnUsage(
   stitchCounts: Map<string, number>,
   meshCount: 14 | 18,
@@ -65,11 +88,34 @@ export function calculateYarnUsage(
   for (const [dmcNumber, stitchCount] of stitchCounts) {
     const squareInches = stitchCount / stitchesPerSqIn;
     const yarnYards = squareInches * yardsPerSqIn;
-    const withBuffer = yarnYards * (1 + bufferPercent / 100);
+    const withBuffer = calculateSmartBuffer(yarnYards, bufferPercent);
 
-    // If more than 4 yards needed, use full skein(s); otherwise wind the exact amount
+    // If more than 5 yards needed, use full skein(s); otherwise wind the exact amount
     const usesFullSkein = withBuffer > FULL_SKEIN_THRESHOLD;
-    const skeinsNeeded = usesFullSkein ? Math.ceil(withBuffer / SKEIN_YARDS) : 1;
+
+    // Calculate skeins needed, but be smart about it:
+    // Don't add an extra skein just for a small buffer overage
+    let skeinsNeeded: number;
+    if (!usesFullSkein) {
+      skeinsNeeded = 1;
+    } else {
+      const baseSkeins = Math.floor(yarnYards / SKEIN_YARDS);
+      const remainder = yarnYards - (baseSkeins * SKEIN_YARDS);
+
+      // If the raw yards fit in N skeins with reasonable headroom (>3 yards),
+      // don't bump up to N+1 just because of buffer
+      if (baseSkeins > 0 && remainder <= (SKEIN_YARDS - 3)) {
+        // Check if N skeins provide enough margin (at least 10% over raw yards)
+        const totalFromBase = baseSkeins * SKEIN_YARDS;
+        if (totalFromBase >= yarnYards * 1.1) {
+          skeinsNeeded = baseSkeins;
+        } else {
+          skeinsNeeded = Math.ceil(withBuffer / SKEIN_YARDS);
+        }
+      } else {
+        skeinsNeeded = Math.ceil(withBuffer / SKEIN_YARDS);
+      }
+    }
 
     results.push({
       dmcNumber,

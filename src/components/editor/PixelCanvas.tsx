@@ -64,6 +64,8 @@ export default function PixelCanvas({
 
   // Pan tool: threshold for detecting pan gesture
   const PAN_THRESHOLD = 6; // pixels of screen movement before switching to pan
+  const SCROLL_THRESHOLD = 12; // pixels of movement to detect scroll vs draw on touch
+  const SCROLL_TIME_THRESHOLD = 150; // ms - fast movement suggests scroll
   const dragRef = useRef<{
     startScreenX: number;
     startScreenY: number;
@@ -72,6 +74,15 @@ export default function PixelCanvas({
     startPanY: number;
     isPanning: boolean;
     startTime: number; // timestamp when touch/click started
+  } | null>(null);
+
+  // Touch drawing state - delayed commit to distinguish scroll from draw
+  const touchDrawRef = useRef<{
+    startScreenX: number;
+    startScreenY: number;
+    startGridCoords: { x: number; y: number };
+    startTime: number;
+    committed: boolean; // true once we've decided this is a draw, not scroll
   } | null>(null);
 
   // Move selection ref
@@ -538,6 +549,11 @@ export default function PixelCanvas({
 
     // Two-finger gesture: pinch-to-zoom and pan
     if (e.touches.length >= 2) {
+      // Cancel any pending touch draw
+      touchDrawRef.current = null;
+      isDrawingRef.current = false;
+      lastPosRef.current = null;
+
       const midpoint = getTouchMidpoint(e.touches[0], e.touches[1]);
       const canvas = canvasRef.current;
 
@@ -564,16 +580,15 @@ export default function PixelCanvas({
         gridPointX,
         gridPointY,
       };
-      isDrawingRef.current = false;
-      lastPosRef.current = null;
       return;
     }
 
-    // Single touch: drawing
+    // Single touch: prepare for drawing but don't commit yet
+    // Wait to see if this is a scroll gesture
     const coords = getTouchCoords(e);
     if (!coords) return;
 
-    // Handle text placement mode
+    // Handle text placement mode - this is immediate
     if (pendingText && onTextPlaced) {
       onTextPlaced(coords.x, coords.y);
       setTextPlacementPos(null);
@@ -581,8 +596,31 @@ export default function PixelCanvas({
     }
 
     const touch = e.touches[0];
-    handleDrawStart(coords, touch.clientX, touch.clientY);
-  }, [getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawStart, pendingText, onTextPlaced, zoom, panX, panY]);
+
+    // Pan tool: start panning immediately
+    if (currentTool === "pan") {
+      dragRef.current = {
+        startScreenX: touch.clientX,
+        startScreenY: touch.clientY,
+        startGridCoords: coords,
+        startPanX: panX,
+        startPanY: panY,
+        isPanning: true,
+        startTime: Date.now(),
+      };
+      return;
+    }
+
+    // For drawing tools: store touch start but don't draw yet
+    // Wait to distinguish scroll from draw intent
+    touchDrawRef.current = {
+      startScreenX: touch.clientX,
+      startScreenY: touch.clientY,
+      startGridCoords: coords,
+      startTime: Date.now(),
+      committed: false,
+    };
+  }, [getTouchCoords, getTouchDistance, getTouchMidpoint, pendingText, onTextPlaced, zoom, panX, panY, currentTool, gridWidth, gridHeight]);
 
   // Shared move logic for mouse and touch
   const handleDrawMove = useCallback((coords: { x: number; y: number }) => {
@@ -795,6 +833,52 @@ export default function PixelCanvas({
       return;
     }
 
+    // Handle pending touch draw - detect scroll vs draw intent
+    if (touchDrawRef.current && !touchDrawRef.current.committed && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchDrawRef.current.startScreenX;
+      const dy = touch.clientY - touchDrawRef.current.startScreenY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const elapsed = Date.now() - touchDrawRef.current.startTime;
+
+      // If moved quickly and far, it's a scroll gesture - pan instead
+      if (distance > SCROLL_THRESHOLD && elapsed < SCROLL_TIME_THRESHOLD) {
+        // Convert to pan mode
+        dragRef.current = {
+          startScreenX: touchDrawRef.current.startScreenX,
+          startScreenY: touchDrawRef.current.startScreenY,
+          startGridCoords: touchDrawRef.current.startGridCoords,
+          startPanX: panX,
+          startPanY: panY,
+          isPanning: true,
+          startTime: touchDrawRef.current.startTime,
+        };
+        touchDrawRef.current = null;
+
+        // Apply the pan that's already happened
+        setPan(panX + dx, panY + dy);
+        return;
+      }
+
+      // If moved but slowly, or after initial delay - commit to drawing
+      if (distance > 3 || elapsed > SCROLL_TIME_THRESHOLD) {
+        touchDrawRef.current.committed = true;
+
+        // Now actually start drawing from the original position
+        handleDrawStart(touchDrawRef.current.startGridCoords);
+
+        // And draw to current position
+        const coords = getTouchCoords(e);
+        if (coords) {
+          handleDrawMove(coords);
+        }
+        return;
+      }
+
+      // Still waiting to determine intent
+      return;
+    }
+
     // Handle move selection
     if (moveRef.current) {
       const coords = getTouchCoords(e);
@@ -808,7 +892,7 @@ export default function PixelCanvas({
     const coords = getTouchCoords(e);
     if (!coords) return;
     handleDrawMove(coords);
-  }, [getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawMove, setZoom, setPan, updateMoveOffset]);
+  }, [getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawMove, handleDrawStart, setZoom, setPan, updateMoveOffset, panX, panY]);
 
   const handleDrawEnd = useCallback(() => {
     isDrawingRef.current = false;
@@ -843,6 +927,24 @@ export default function PixelCanvas({
       return;
     }
 
+    // Handle pending touch draw that wasn't committed
+    // This is a tap - draw a single pixel at the start position
+    if (touchDrawRef.current && !touchDrawRef.current.committed) {
+      const elapsed = Date.now() - touchDrawRef.current.startTime;
+      // Only draw if it was a quick tap (not a held touch that we're still deciding on)
+      if (elapsed < 300) {
+        handleDrawStart(touchDrawRef.current.startGridCoords);
+        handleDrawEnd();
+      }
+      touchDrawRef.current = null;
+      return;
+    }
+
+    // Clean up committed touch draw
+    if (touchDrawRef.current) {
+      touchDrawRef.current = null;
+    }
+
     // Handle move selection end
     if (moveRef.current) {
       commitMove();
@@ -858,7 +960,7 @@ export default function PixelCanvas({
 
     isDrawingRef.current = false;
     lastPosRef.current = null;
-  }, [commitMove]);
+  }, [commitMove, handleDrawStart, handleDrawEnd]);
 
   const handleMouseLeave = useCallback(() => {
     dragRef.current = null;
