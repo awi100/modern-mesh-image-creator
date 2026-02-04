@@ -15,6 +15,7 @@ import MobileBottomBar from "./MobileBottomBar";
 import AddTextDialog from "./AddTextDialog";
 import AddShapeDialog from "./AddShapeDialog";
 import PatternRepeatDialog from "./PatternRepeatDialog";
+import DesignPreview from "./DesignPreview";
 import SessionExpiredModal, { useSessionMonitor } from "@/components/SessionExpiredModal";
 
 interface EditorProps {
@@ -55,6 +56,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const [showTextDialog, setShowTextDialog] = useState(false);
   const [showShapeDialog, setShowShapeDialog] = useState(false);
   const [showPatternRepeat, setShowPatternRepeat] = useState(false);
+  const [showDesignPreview, setShowDesignPreview] = useState(false);
   const [colorPanelCollapsed, setColorPanelCollapsed] = useState(false);
   const [layersPanelCollapsed, setLayersPanelCollapsed] = useState(false);
 
@@ -367,6 +369,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
         onShowExport={() => setShowExport(true)}
         onShowTextDialog={() => setShowTextDialog(true)}
         onShowShapeDialog={() => setShowShapeDialog(true)}
+        onShowDesignPreview={() => setShowDesignPreview(true)}
       />
       <Toolbar
         onEnterPasteMode={enterPastePlacementMode}
@@ -557,6 +560,9 @@ export default function Editor({ designId, initialData }: EditorProps) {
       )}
       {showPatternRepeat && (
         <PatternRepeatDialog onClose={() => setShowPatternRepeat(false)} />
+      )}
+      {showDesignPreview && (
+        <DesignPreview onClose={() => setShowDesignPreview(false)} />
       )}
       {/* Session expired modal - highest z-index to ensure visibility */}
       <SessionExpiredModal

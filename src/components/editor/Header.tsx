@@ -58,6 +58,7 @@ interface HeaderProps {
   onShowExport: () => void;
   onShowTextDialog: () => void;
   onShowShapeDialog: () => void;
+  onShowDesignPreview: () => void;
 }
 
 export default function Header({
@@ -66,6 +67,7 @@ export default function Header({
   onShowExport,
   onShowTextDialog,
   onShowShapeDialog,
+  onShowDesignPreview,
 }: HeaderProps) {
   const router = useRouter();
 
@@ -323,6 +325,14 @@ export default function Header({
           >
             <span className="md:hidden">📤</span>
             <span className="hidden md:inline">Export</span>
+          </button>
+          <button
+            onClick={onShowDesignPreview}
+            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            title="Preview Design"
+          >
+            <span className="md:hidden">👁️</span>
+            <span className="hidden md:inline">Preview</span>
           </button>
 
           {/* Auto-save status indicator */}
