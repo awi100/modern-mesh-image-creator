@@ -1414,7 +1414,17 @@ export default function InventoryPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700">
-                      {mostUsedColors.map((color, index) => {
+                      {mostUsedColors
+                        .filter((color) => {
+                          if (alertStatusFilter === "all") return true;
+                          const stockStatus = color.inventorySkeins >= color.totalSkeinsNeeded
+                            ? "healthy"
+                            : color.inventorySkeins >= color.totalSkeinsNeeded * 0.5
+                            ? "low"
+                            : "critical";
+                          return stockStatus === alertStatusFilter;
+                        })
+                        .map((color, index) => {
                         const stockStatus = color.inventorySkeins >= color.totalSkeinsNeeded
                           ? "healthy"
                           : color.inventorySkeins >= color.totalSkeinsNeeded * 0.5
