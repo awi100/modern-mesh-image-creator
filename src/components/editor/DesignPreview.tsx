@@ -38,16 +38,19 @@ export default function DesignPreview({ onClose }: DesignPreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
 
   // Calculate optimal cell size based on grid dimensions
+  // Larger cells = more detail visible in thread texture
   useEffect(() => {
     const maxDimension = Math.max(gridWidth, gridHeight);
-    if (maxDimension <= 50) {
-      setCellSize(20);
+    if (maxDimension <= 40) {
+      setCellSize(28);
+    } else if (maxDimension <= 70) {
+      setCellSize(24);
     } else if (maxDimension <= 100) {
-      setCellSize(16);
+      setCellSize(20);
     } else if (maxDimension <= 150) {
-      setCellSize(12);
+      setCellSize(16);
     } else {
-      setCellSize(8);
+      setCellSize(12);
     }
   }, [gridWidth, gridHeight]);
 
