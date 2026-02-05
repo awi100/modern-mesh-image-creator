@@ -8,16 +8,9 @@ import pako from "pako";
 
 const BOBBIN_ONLY_MAX = 5; // Yards threshold - below this we use bobbins only
 
-// Standard bobbin lengths to round up to (in yards)
-const BOBBIN_INCREMENTS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
-
-function roundUpToIncrement(yards: number): number {
-  for (const increment of BOBBIN_INCREMENTS) {
-    if (yards <= increment) {
-      return increment;
-    }
-  }
-  return 5; // Max bobbin size
+// Round up to whole number yards (2.1, 2.7, 2.9 all become 3)
+function roundUpToWholeYard(yards: number): number {
+  return Math.ceil(yards);
 }
 
 interface BobbinRequirement {
@@ -131,7 +124,7 @@ export async function GET() {
               designName: design.name,
               previewImageUrl: design.previewImageUrl,
               exactYards: Math.round(usage.withBuffer * 10) / 10,
-              roundedYards: roundUpToIncrement(usage.withBuffer),
+              roundedYards: roundUpToWholeYard(usage.withBuffer),
             });
           }
         }

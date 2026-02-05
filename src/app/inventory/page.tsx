@@ -142,6 +142,7 @@ export default function InventoryPage() {
   const [bobbinData, setBobbinData] = useState<BobbinAnalysisData | null>(null);
   const [bobbinsLoading, setBobbinsLoading] = useState(false);
   const [bobbinSizeFilter, setBobbinSizeFilter] = useState<number | null>(null);
+  const [alertStatusFilter, setAlertStatusFilter] = useState<"all" | "critical" | "low" | "healthy">("all");
   const [sizeFilter, setSizeFilter] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedColor, setExpandedColor] = useState<string | null>(null);
@@ -1311,6 +1312,50 @@ export default function InventoryPage() {
               </p>
             </div>
 
+            {/* Status Filter */}
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() => setAlertStatusFilter("all")}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  alertStatusFilter === "all"
+                    ? "bg-rose-900 text-white"
+                    : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
+                }`}
+              >
+                All ({alertSummary?.totalDesigns || 0})
+              </button>
+              <button
+                onClick={() => setAlertStatusFilter("critical")}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  alertStatusFilter === "critical"
+                    ? "bg-red-900 text-white"
+                    : "bg-slate-800 border border-slate-700 text-red-400 hover:bg-slate-700"
+                }`}
+              >
+                Critical ({alertSummary?.criticalCount || 0})
+              </button>
+              <button
+                onClick={() => setAlertStatusFilter("low")}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  alertStatusFilter === "low"
+                    ? "bg-yellow-900 text-white"
+                    : "bg-slate-800 border border-slate-700 text-yellow-400 hover:bg-slate-700"
+                }`}
+              >
+                Low ({alertSummary?.lowCount || 0})
+              </button>
+              <button
+                onClick={() => setAlertStatusFilter("healthy")}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  alertStatusFilter === "healthy"
+                    ? "bg-green-900 text-white"
+                    : "bg-slate-800 border border-slate-700 text-green-400 hover:bg-slate-700"
+                }`}
+              >
+                Healthy ({alertSummary?.healthyCount || 0})
+              </button>
+            </div>
+
             {/* Most Used Colors Section */}
             {mostUsedColors.length > 0 && (
               <div className="bg-slate-800 rounded-xl border border-slate-700 mb-6 overflow-hidden">
@@ -1485,7 +1530,17 @@ export default function InventoryPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {alerts.map((alert) => {
+                {alerts
+                  .filter((alert) => {
+                    if (alertStatusFilter === "all") return true;
+                    const status = alert.fulfillmentCapacity <= 3
+                      ? "critical"
+                      : alert.fulfillmentCapacity <= 6
+                      ? "low"
+                      : "healthy";
+                    return status === alertStatusFilter;
+                  })
+                  .map((alert) => {
                   const statusColor = alert.fulfillmentCapacity <= 3
                     ? "border-red-800/50 bg-red-900/20"
                     : alert.fulfillmentCapacity <= 6
