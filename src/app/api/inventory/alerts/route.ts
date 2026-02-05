@@ -34,6 +34,8 @@ interface MostUsedColor {
   designCount: number;
   totalSkeinsNeeded: number; // Combined skeins needed for all designs
   inventorySkeins: number;
+  skeinsReservedInKits: number; // Skeins already used in assembled kits
+  effectiveInventory: number; // inventorySkeins - skeinsReservedInKits
   threadSize: 5 | 8;
 }
 
@@ -46,7 +48,7 @@ export async function GET() {
   try {
     // Fetch all non-draft designs with pixel data
     const designs = await prisma.design.findMany({
-      where: { isDraft: false },
+      where: { isDraft: false, deletedAt: null },
       select: {
         id: true,
         name: true,
@@ -55,6 +57,7 @@ export async function GET() {
         stitchType: true,
         bufferPercent: true,
         pixelData: true,
+        kitsReady: true,
       },
     });
 
@@ -77,6 +80,7 @@ export async function GET() {
       totalStitches: number;
       designIds: Set<string>;
       skeinsNeededBySize: { 5: number; 8: number };
+      skeinsReservedInKits: { 5: number; 8: number }; // Skeins already used in assembled kits
     }>();
 
     for (const design of designs) {
@@ -104,15 +108,18 @@ export async function GET() {
 
         // Track aggregate color usage
         const threadSize = meshCount === 14 ? 5 : 8;
+        const kitsReady = design.kitsReady || 0;
         for (const [dmcNumber, stitchCount] of stitchCounts.entries()) {
           const existing = colorUsageMap.get(dmcNumber);
           const usage = yarnUsage.find((u) => u.dmcNumber === dmcNumber);
           const skeinsNeeded = usage?.skeinsNeeded ?? 0;
+          const skeinsReserved = skeinsNeeded * kitsReady; // Skeins used in assembled kits
 
           if (existing) {
             existing.totalStitches += stitchCount;
             existing.designIds.add(design.id);
             existing.skeinsNeededBySize[threadSize] += skeinsNeeded;
+            existing.skeinsReservedInKits[threadSize] += skeinsReserved;
           } else {
             colorUsageMap.set(dmcNumber, {
               totalStitches: stitchCount,
@@ -120,6 +127,10 @@ export async function GET() {
               skeinsNeededBySize: {
                 5: threadSize === 5 ? skeinsNeeded : 0,
                 8: threadSize === 8 ? skeinsNeeded : 0,
+              },
+              skeinsReservedInKits: {
+                5: threadSize === 5 ? skeinsReserved : 0,
+                8: threadSize === 8 ? skeinsReserved : 0,
               },
             });
           }
@@ -129,11 +140,14 @@ export async function GET() {
         const inventoryMap = inventoryBySize[threadSize];
 
         // Calculate fulfillment capacity for each color
+        // Account for kitsReady - threads already used in assembled kits
         const colorRequirements: ColorRequirement[] = yarnUsage.map((usage) => {
           const dmcColor = getDmcColorByNumber(usage.dmcNumber);
           const inventorySkeins = inventoryMap.get(usage.dmcNumber) ?? 0;
+          // Effective inventory = current inventory minus skeins already used in kits ready
+          const effectiveInventory = Math.max(0, inventorySkeins - (usage.skeinsNeeded * kitsReady));
           const fulfillmentCapacity = usage.skeinsNeeded > 0
-            ? Math.floor(inventorySkeins / usage.skeinsNeeded)
+            ? Math.floor(effectiveInventory / usage.skeinsNeeded)
             : Infinity;
 
           return {
@@ -181,6 +195,8 @@ export async function GET() {
       const primarySize: 5 | 8 = data.skeinsNeededBySize[5] >= data.skeinsNeededBySize[8] ? 5 : 8;
       const totalSkeinsNeeded = data.skeinsNeededBySize[5] + data.skeinsNeededBySize[8];
       const inventorySkeins = (inventoryBySize[5].get(dmcNumber) ?? 0) + (inventoryBySize[8].get(dmcNumber) ?? 0);
+      const skeinsReservedInKits = data.skeinsReservedInKits[5] + data.skeinsReservedInKits[8];
+      const effectiveInventory = Math.max(0, inventorySkeins - skeinsReservedInKits);
 
       mostUsedColors.push({
         dmcNumber,
@@ -190,6 +206,8 @@ export async function GET() {
         designCount: data.designIds.size,
         totalSkeinsNeeded,
         inventorySkeins,
+        skeinsReservedInKits,
+        effectiveInventory,
         threadSize: primarySize,
       });
     }

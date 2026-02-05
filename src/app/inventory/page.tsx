@@ -70,6 +70,8 @@ interface MostUsedColor {
   designCount: number;
   totalSkeinsNeeded: number;
   inventorySkeins: number;
+  skeinsReservedInKits: number;
+  effectiveInventory: number;
   threadSize: 5 | 8;
 }
 
@@ -424,18 +426,20 @@ export default function InventoryPage() {
     router.refresh();
   };
 
-  // Export shopping list for low-stock colors
+  // Export shopping list for low-stock colors (uses effectiveInventory to account for kits)
   const handleExportLowStockCSV = useCallback(() => {
-    const lowStockColors = mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded);
+    const lowStockColors = mostUsedColors.filter(c => c.effectiveInventory < c.totalSkeinsNeeded);
     if (lowStockColors.length === 0) return;
 
     const items: ShoppingListItem[] = lowStockColors.map((color) => ({
       dmcNumber: color.dmcNumber,
       colorName: color.colorName,
-      quantity: color.totalSkeinsNeeded - color.inventorySkeins,
+      quantity: color.totalSkeinsNeeded - color.effectiveInventory,
       unit: "skeins",
       hex: color.hex,
-      notes: `Need ${color.totalSkeinsNeeded}, have ${color.inventorySkeins}`,
+      notes: color.skeinsReservedInKits > 0
+        ? `Need ${color.totalSkeinsNeeded}, have ${color.effectiveInventory} available (${color.skeinsReservedInKits} in kits)`
+        : `Need ${color.totalSkeinsNeeded}, have ${color.effectiveInventory}`,
     }));
 
     const csv = generateShoppingListCSV(items, "Low Stock Colors - Shopping List");
@@ -443,16 +447,18 @@ export default function InventoryPage() {
   }, [mostUsedColors]);
 
   const handlePrintLowStock = useCallback(() => {
-    const lowStockColors = mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded);
+    const lowStockColors = mostUsedColors.filter(c => c.effectiveInventory < c.totalSkeinsNeeded);
     if (lowStockColors.length === 0) return;
 
     const items: ShoppingListItem[] = lowStockColors.map((color) => ({
       dmcNumber: color.dmcNumber,
       colorName: color.colorName,
-      quantity: color.totalSkeinsNeeded - color.inventorySkeins,
+      quantity: color.totalSkeinsNeeded - color.effectiveInventory,
       unit: "skeins",
       hex: color.hex,
-      notes: `Need ${color.totalSkeinsNeeded}, have ${color.inventorySkeins}`,
+      notes: color.skeinsReservedInKits > 0
+        ? `Need ${color.totalSkeinsNeeded}, have ${color.effectiveInventory} available (${color.skeinsReservedInKits} in kits)`
+        : `Need ${color.totalSkeinsNeeded}, have ${color.effectiveInventory}`,
     }));
 
     const html = generateShoppingListHTML(
@@ -473,7 +479,9 @@ export default function InventoryPage() {
       quantity: color.totalSkeinsNeeded,
       unit: "skeins",
       hex: color.hex,
-      notes: `In ${color.designCount} designs, have ${color.inventorySkeins}`,
+      notes: color.skeinsReservedInKits > 0
+        ? `In ${color.designCount} designs, have ${color.effectiveInventory} available (${color.skeinsReservedInKits} in kits)`
+        : `In ${color.designCount} designs, have ${color.effectiveInventory}`,
     }));
 
     const csv = generateShoppingListCSV(items, "All Most-Used Colors");
@@ -1375,7 +1383,7 @@ export default function InventoryPage() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={handlePrintLowStock}
-                        disabled={mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded).length === 0}
+                        disabled={mostUsedColors.filter(c => c.effectiveInventory < c.totalSkeinsNeeded).length === 0}
                         className="px-3 py-1.5 text-xs bg-red-900/50 text-red-300 rounded-lg hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                         title="Print low stock shopping list"
                       >
@@ -1386,7 +1394,7 @@ export default function InventoryPage() {
                       </button>
                       <button
                         onClick={handleExportLowStockCSV}
-                        disabled={mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded).length === 0}
+                        disabled={mostUsedColors.filter(c => c.effectiveInventory < c.totalSkeinsNeeded).length === 0}
                         className="px-3 py-1.5 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                         title="Download low stock as CSV"
                       >
@@ -1417,17 +1425,19 @@ export default function InventoryPage() {
                       {mostUsedColors
                         .filter((color) => {
                           if (alertStatusFilter === "all") return true;
-                          const stockStatus = color.inventorySkeins >= color.totalSkeinsNeeded
+                          // Use effectiveInventory (accounts for kits already assembled)
+                          const stockStatus = color.effectiveInventory >= color.totalSkeinsNeeded
                             ? "healthy"
-                            : color.inventorySkeins >= color.totalSkeinsNeeded * 0.5
+                            : color.effectiveInventory >= color.totalSkeinsNeeded * 0.5
                             ? "low"
                             : "critical";
                           return stockStatus === alertStatusFilter;
                         })
                         .map((color, index) => {
-                        const stockStatus = color.inventorySkeins >= color.totalSkeinsNeeded
+                        // Use effectiveInventory (accounts for kits already assembled)
+                        const stockStatus = color.effectiveInventory >= color.totalSkeinsNeeded
                           ? "healthy"
-                          : color.inventorySkeins >= color.totalSkeinsNeeded * 0.5
+                          : color.effectiveInventory >= color.totalSkeinsNeeded * 0.5
                           ? "low"
                           : "critical";
 
@@ -1465,9 +1475,16 @@ export default function InventoryPage() {
                               <span className="text-white">{color.totalSkeinsNeeded}</span>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <span className={stockStatus === "healthy" ? "text-green-400" : stockStatus === "low" ? "text-yellow-400" : "text-red-400"}>
-                                {color.inventorySkeins}
-                              </span>
+                              <div className="flex flex-col items-end">
+                                <span className={stockStatus === "healthy" ? "text-green-400" : stockStatus === "low" ? "text-yellow-400" : "text-red-400"}>
+                                  {color.effectiveInventory}
+                                </span>
+                                {color.skeinsReservedInKits > 0 && (
+                                  <span className="text-slate-500 text-xs" title={`${color.inventorySkeins} total - ${color.skeinsReservedInKits} in kits`}>
+                                    ({color.skeinsReservedInKits} in kits)
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-right">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
@@ -1496,7 +1513,7 @@ export default function InventoryPage() {
                   <div>
                     <span className="text-slate-400">Low/Critical:</span>{" "}
                     <span className="text-yellow-400 font-medium">
-                      {mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded).length}
+                      {mostUsedColors.filter(c => c.effectiveInventory < c.totalSkeinsNeeded).length}
                     </span>
                   </div>
                   <div>
@@ -1505,6 +1522,14 @@ export default function InventoryPage() {
                       {mostUsedColors.filter(c => c.designCount > 1).length}
                     </span>
                   </div>
+                  {mostUsedColors.some(c => c.skeinsReservedInKits > 0) && (
+                    <div>
+                      <span className="text-slate-400">Skeins in kits:</span>{" "}
+                      <span className="text-slate-300 font-medium">
+                        {mostUsedColors.reduce((sum, c) => sum + c.skeinsReservedInKits, 0)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
