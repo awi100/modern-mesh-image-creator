@@ -62,6 +62,19 @@ src/
 - Text and shape tools
 - Image import with color quantization
 - Auto-save
+- Touch gesture detection (scroll vs draw) with delayed commit system
+
+### Design Preview
+- **Canvas Preview**: Shows how printed canvas will look before stitching
+  - Canvas background with mesh texture (woven thread pattern)
+  - Printed colors with slight desaturation
+  - Visible mesh holes at intersections
+- **Completed Preview**: Shows realistic stitched appearance
+  - Multi-strand thread texture with gradients
+  - Diagonal stitch direction (continental or basketweave)
+  - 3D highlight/shadow effects
+  - Twist marks for thread realism
+- Zoom controls, canvas color selection, download PNG
 
 ### Organization
 - **Folders**: Organize designs into folders (nested supported)
@@ -72,6 +85,15 @@ src/
 - Track thread stock by DMC number and size (5 or 8)
 - See which colors are in stock when picking colors
 - Shopping list generation for low stock
+- **Stock Alerts**: Shows fulfillment capacity per design
+  - Accounts for "kits ready" (effective inventory = stock - reserved in kits)
+  - Critical/Low/Healthy status indicators
+  - Filter by alert status
+  - Most Used Colors table across all designs
+- **Bobbin Analysis**: Pre-make common bobbins
+  - Analyzes yarn requirements under 5 yards across all designs
+  - Groups by DMC color and rounded length (whole yards only)
+  - Shows which designs share same bobbin requirements
 
 ### Kit Features
 - View kit requirements for each design
@@ -197,20 +219,26 @@ When modifying these files, **update both projects**:
 | `src/lib/store.ts` | Zustand editor state - layers, tools, history |
 | `src/lib/color-utils.ts` | Image processing, color quantization, grid operations |
 | `src/lib/dmc-pearl-cotton.ts` | DMC color database (446 colors) |
-| `src/lib/yarn-calculator.ts` | Yarn usage calculations |
+| `src/lib/yarn-calculator.ts` | Yarn usage calculations with tiered buffer |
 | `src/lib/shapes.ts` | Heart, star, circle shape rendering |
 | `src/lib/text-renderer.ts` | Text to pixel conversion |
 | `src/lib/symbols.ts` | Symbols for stitch charts |
+| `src/lib/stitch-preview.ts` | Canvas & completed stitch preview rendering |
+| `src/components/editor/DesignPreview.tsx` | Preview modal with canvas/completed tabs |
+| `src/components/editor/PixelCanvas.tsx` | Canvas drawing with touch gesture detection |
 
 ### Files Unique to This Project (Internal App)
 
 - `src/lib/session.ts` - iron-session auth (simpler than Supabase)
 - `src/lib/shopping-list-export.ts` - Shopping list export
 - `src/app/api/inventory/` - Inventory management
+  - `route.ts` - CRUD for inventory items
+  - `alerts/route.ts` - Stock alerts with effective inventory calculation
+  - `bobbin-analysis/route.ts` - Bobbin pre-make analysis
 - `src/app/api/kit-sales/` - Kit sale tracking
 - `src/app/api/folders/` - Folder management
 - `src/app/api/tags/` - Tag management
-- `src/app/inventory/` - Inventory page
+- `src/app/inventory/` - Inventory page (threads, kits, alerts, bobbins tabs)
 - `src/app/kits/` - Kits overview page
 
 ### Features Only in Public App (NOT here)
@@ -223,7 +251,6 @@ These features exist in the public app but NOT in this internal app:
 - Multi-user support (userId)
 - Watermarks on exports
 - Color palette suggestions
-- Realistic stitch preview
 - Subscription feature gating
 
 ### Differences From Public App
@@ -262,8 +289,36 @@ The color picker shows stock status:
 Kit requirements are calculated from the design:
 1. Count stitches per color
 2. Calculate yards needed (yarn-calculator.ts)
-3. Add buffer percentage
+3. Add buffer percentage (tiered - see below)
 4. Round up to whole skeins
+
+### Yarn Calculator - Tiered Buffer System
+
+The buffer percentage scales down for larger yarn amounts to prevent unnecessary skein purchases:
+
+```typescript
+// Small amounts (<10 yards): Full buffer (e.g., 30%)
+// Medium amounts (10-27 yards): 60% of buffer (e.g., 18%)
+// Large amounts (>27 yards): 40% of buffer (e.g., 12%)
+```
+
+This prevents scenarios like: 50 yards + 30% buffer = 65 yards = 3 skeins (when 2 should suffice)
+
+### Touch Gesture Detection
+
+The PixelCanvas uses a delayed commit system to distinguish scroll/zoom from drawing:
+
+```typescript
+// Thresholds
+SCROLL_THRESHOLD = 12px    // Movement beyond this = scroll
+SCROLL_TIME_THRESHOLD = 150ms  // Time before commit = likely scroll
+
+// On touch start: queue the draw action
+// On touch move: if movement > threshold, cancel draw
+// On touch end: if time < threshold AND no scroll detected, commit draw
+```
+
+This prevents accidental color placement when scrolling or zooming on touch devices.
 
 ### Session Auth
 
