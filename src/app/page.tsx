@@ -775,9 +775,40 @@ export default function HomePage() {
             <div className="mt-3 p-4 bg-slate-800 rounded-lg border border-slate-700 space-y-4">
               {/* Folders */}
               <div>
-                <h3 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wider">
-                  Folders
-                </h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                    Folders
+                  </h3>
+                  <button
+                    onClick={() => setShowNewFolderInput(!showNewFolderInput)}
+                    className="text-slate-400 hover:text-white p-1"
+                    title="New Folder"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                </div>
+                {/* New folder input - mobile */}
+                {showNewFolderInput && (
+                  <div className="mb-2 flex gap-2">
+                    <input
+                      type="text"
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+                      placeholder="Folder name..."
+                      className="flex-1 px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleCreateFolder}
+                      className="px-3 py-1.5 bg-rose-900 text-white text-sm rounded hover:bg-rose-950"
+                    >
+                      Add
+                    </button>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setSelectedFolder(null)}
