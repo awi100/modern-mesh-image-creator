@@ -230,6 +230,14 @@ export default function HelpPage() {
               <h3 className="text-lg font-semibold text-white mt-6">Center Alignment</h3>
               <p>When moving a selection, <strong className="text-white">green guide lines</strong> appear when your selection is centered horizontally or vertically on the canvas. Use the <strong className="text-white">Center</strong> button in the toolbar to instantly center your selection.</p>
 
+              <h3 className="text-lg font-semibold text-white mt-6">Mirror to Opposite Side</h3>
+              <p>Create symmetric designs by mirroring your selection to the opposite side of the canvas:</p>
+              <ul className="list-disc list-inside space-y-2 ml-4 mt-2">
+                <li><strong className="text-white">Mirror ↔</strong>: Copy and flip your selection to the opposite horizontal side</li>
+                <li><strong className="text-white">Mirror ↕</strong>: Copy and flip your selection to the opposite vertical side</li>
+              </ul>
+              <p className="text-sm text-slate-400 mt-2">This is perfect for creating symmetric borders, corners, or balanced compositions. The original selection stays in place while a mirrored copy is placed on the opposite side.</p>
+
               <h3 className="text-lg font-semibold text-white mt-6">Pattern Repeat</h3>
               <p>Create repeating patterns from your selection:</p>
               <ol className="list-decimal list-inside space-y-2 ml-4 mt-2">
