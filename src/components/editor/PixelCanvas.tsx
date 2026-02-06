@@ -372,7 +372,9 @@ export default function PixelCanvas({
     }
 
     // Draw pending text overlay
-    if (pendingText && textPlacementPos) {
+    // For placed shapes, use placedPosition; otherwise use mouse position (textPlacementPos)
+    const overlayPos = pendingText?.placedPosition || textPlacementPos;
+    if (pendingText && overlayPos) {
       ctx.globalAlpha = 0.7;
       for (let py = 0; py < pendingText.height; py++) {
         for (let px = 0; px < pendingText.width; px++) {
@@ -382,8 +384,8 @@ export default function PixelCanvas({
             if (color) {
               ctx.fillStyle = color.hex;
               ctx.fillRect(
-                (textPlacementPos.x + px) * cellSize,
-                (textPlacementPos.y + py) * cellSize,
+                (overlayPos.x + px) * cellSize,
+                (overlayPos.y + py) * cellSize,
                 cellSize,
                 cellSize
               );
@@ -398,8 +400,8 @@ export default function PixelCanvas({
       ctx.lineWidth = 2;
       ctx.setLineDash([5, 5]);
       ctx.strokeRect(
-        textPlacementPos.x * cellSize,
-        textPlacementPos.y * cellSize,
+        overlayPos.x * cellSize,
+        overlayPos.y * cellSize,
         pendingText.width * cellSize,
         pendingText.height * cellSize
       );
@@ -539,7 +541,13 @@ export default function PixelCanvas({
     // Handle text placement mode
     if (pendingText && onTextPlaced) {
       onTextPlaced(coords.x, coords.y);
-      setTextPlacementPos(null);
+      // For shapes, keep the preview at the placed position (don't clear it)
+      // For text/paste, clear the preview since it commits immediately
+      if (pendingText.isShape) {
+        setTextPlacementPos({ x: coords.x, y: coords.y });
+      } else {
+        setTextPlacementPos(null);
+      }
       return;
     }
 
@@ -604,7 +612,13 @@ export default function PixelCanvas({
     // Handle text placement mode - this is immediate
     if (pendingText && onTextPlaced) {
       onTextPlaced(coords.x, coords.y);
-      setTextPlacementPos(null);
+      // For shapes, keep the preview at the placed position (don't clear it)
+      // For text/paste, clear the preview since it commits immediately
+      if (pendingText.isShape) {
+        setTextPlacementPos({ x: coords.x, y: coords.y });
+      } else {
+        setTextPlacementPos(null);
+      }
       return;
     }
 
