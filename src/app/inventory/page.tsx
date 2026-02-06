@@ -426,20 +426,18 @@ export default function InventoryPage() {
     router.refresh();
   };
 
-  // Export shopping list for low-stock colors (uses effectiveInventory to account for kits)
+  // Export shopping list for low-stock colors
   const handleExportLowStockCSV = useCallback(() => {
-    const lowStockColors = mostUsedColors.filter(c => c.effectiveInventory < c.totalSkeinsNeeded);
+    const lowStockColors = mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded);
     if (lowStockColors.length === 0) return;
 
     const items: ShoppingListItem[] = lowStockColors.map((color) => ({
       dmcNumber: color.dmcNumber,
       colorName: color.colorName,
-      quantity: color.totalSkeinsNeeded - color.effectiveInventory,
+      quantity: color.totalSkeinsNeeded - color.inventorySkeins,
       unit: "skeins",
       hex: color.hex,
-      notes: color.skeinsReservedInKits > 0
-        ? `Need ${color.totalSkeinsNeeded}, have ${color.effectiveInventory} available (${color.skeinsReservedInKits} in kits)`
-        : `Need ${color.totalSkeinsNeeded}, have ${color.effectiveInventory}`,
+      notes: `Need ${color.totalSkeinsNeeded}, have ${color.inventorySkeins}`,
     }));
 
     const csv = generateShoppingListCSV(items, "Low Stock Colors - Shopping List");
@@ -447,18 +445,16 @@ export default function InventoryPage() {
   }, [mostUsedColors]);
 
   const handlePrintLowStock = useCallback(() => {
-    const lowStockColors = mostUsedColors.filter(c => c.effectiveInventory < c.totalSkeinsNeeded);
+    const lowStockColors = mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded);
     if (lowStockColors.length === 0) return;
 
     const items: ShoppingListItem[] = lowStockColors.map((color) => ({
       dmcNumber: color.dmcNumber,
       colorName: color.colorName,
-      quantity: color.totalSkeinsNeeded - color.effectiveInventory,
+      quantity: color.totalSkeinsNeeded - color.inventorySkeins,
       unit: "skeins",
       hex: color.hex,
-      notes: color.skeinsReservedInKits > 0
-        ? `Need ${color.totalSkeinsNeeded}, have ${color.effectiveInventory} available (${color.skeinsReservedInKits} in kits)`
-        : `Need ${color.totalSkeinsNeeded}, have ${color.effectiveInventory}`,
+      notes: `Need ${color.totalSkeinsNeeded}, have ${color.inventorySkeins}`,
     }));
 
     const html = generateShoppingListHTML(
@@ -479,9 +475,7 @@ export default function InventoryPage() {
       quantity: color.totalSkeinsNeeded,
       unit: "skeins",
       hex: color.hex,
-      notes: color.skeinsReservedInKits > 0
-        ? `In ${color.designCount} designs, have ${color.effectiveInventory} available (${color.skeinsReservedInKits} in kits)`
-        : `In ${color.designCount} designs, have ${color.effectiveInventory}`,
+      notes: `In ${color.designCount} designs, have ${color.inventorySkeins}`,
     }));
 
     const csv = generateShoppingListCSV(items, "All Most-Used Colors");
@@ -1383,7 +1377,7 @@ export default function InventoryPage() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={handlePrintLowStock}
-                        disabled={mostUsedColors.filter(c => c.effectiveInventory < c.totalSkeinsNeeded).length === 0}
+                        disabled={mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded).length === 0}
                         className="px-3 py-1.5 text-xs bg-red-900/50 text-red-300 rounded-lg hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                         title="Print low stock shopping list"
                       >
@@ -1394,7 +1388,7 @@ export default function InventoryPage() {
                       </button>
                       <button
                         onClick={handleExportLowStockCSV}
-                        disabled={mostUsedColors.filter(c => c.effectiveInventory < c.totalSkeinsNeeded).length === 0}
+                        disabled={mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded).length === 0}
                         className="px-3 py-1.5 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                         title="Download low stock as CSV"
                       >
@@ -1425,19 +1419,19 @@ export default function InventoryPage() {
                       {mostUsedColors
                         .filter((color) => {
                           if (alertStatusFilter === "all") return true;
-                          // Use effectiveInventory (accounts for kits already assembled)
-                          const stockStatus = color.effectiveInventory >= color.totalSkeinsNeeded
+                          // Use inventorySkeins for stock status
+                          const stockStatus = color.inventorySkeins >= color.totalSkeinsNeeded
                             ? "healthy"
-                            : color.effectiveInventory >= color.totalSkeinsNeeded * 0.5
+                            : color.inventorySkeins >= color.totalSkeinsNeeded * 0.5
                             ? "low"
                             : "critical";
                           return stockStatus === alertStatusFilter;
                         })
                         .map((color, index) => {
-                        // Use effectiveInventory (accounts for kits already assembled)
-                        const stockStatus = color.effectiveInventory >= color.totalSkeinsNeeded
+                        // Use inventorySkeins for stock status
+                        const stockStatus = color.inventorySkeins >= color.totalSkeinsNeeded
                           ? "healthy"
-                          : color.effectiveInventory >= color.totalSkeinsNeeded * 0.5
+                          : color.inventorySkeins >= color.totalSkeinsNeeded * 0.5
                           ? "low"
                           : "critical";
 
@@ -1477,10 +1471,10 @@ export default function InventoryPage() {
                             <td className="px-4 py-3 text-right">
                               <div className="flex flex-col items-end">
                                 <span className={stockStatus === "healthy" ? "text-green-400" : stockStatus === "low" ? "text-yellow-400" : "text-red-400"}>
-                                  {color.effectiveInventory}
+                                  {color.inventorySkeins}
                                 </span>
                                 {color.skeinsReservedInKits > 0 && (
-                                  <span className="text-slate-500 text-xs" title={`${color.inventorySkeins} total - ${color.skeinsReservedInKits} in kits`}>
+                                  <span className="text-slate-500 text-xs" title={`${color.skeinsReservedInKits} skeins allocated to kits ready`}>
                                     ({color.skeinsReservedInKits} in kits)
                                   </span>
                                 )}
@@ -1513,7 +1507,7 @@ export default function InventoryPage() {
                   <div>
                     <span className="text-slate-400">Low/Critical:</span>{" "}
                     <span className="text-yellow-400 font-medium">
-                      {mostUsedColors.filter(c => c.effectiveInventory < c.totalSkeinsNeeded).length}
+                      {mostUsedColors.filter(c => c.inventorySkeins < c.totalSkeinsNeeded).length}
                     </span>
                   </div>
                   <div>
@@ -1522,14 +1516,6 @@ export default function InventoryPage() {
                       {mostUsedColors.filter(c => c.designCount > 1).length}
                     </span>
                   </div>
-                  {mostUsedColors.some(c => c.skeinsReservedInKits > 0) && (
-                    <div>
-                      <span className="text-slate-400">Skeins in kits:</span>{" "}
-                      <span className="text-slate-300 font-medium">
-                        {mostUsedColors.reduce((sum, c) => sum + c.skeinsReservedInKits, 0)}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
