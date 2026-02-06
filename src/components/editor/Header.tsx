@@ -211,14 +211,7 @@ export default function Header({
         {/* Left side - Logo and name */}
         <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
           <button
-            onClick={() => {
-              // If there's browser history, go back; otherwise go home
-              if (window.history.length > 1) {
-                router.back();
-              } else {
-                router.push("/");
-              }
-            }}
+            onClick={() => router.push("/")}
             className="flex-shrink-0 flex items-center gap-2 text-slate-400 hover:text-white"
           >
             <div className="w-8 h-8 bg-gradient-to-br from-rose-900 to-rose-800 rounded-lg flex items-center justify-center">
