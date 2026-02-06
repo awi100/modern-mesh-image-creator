@@ -62,6 +62,15 @@ interface AlertSummary {
   healthyCount: number;
 }
 
+interface ColorDesignUsage {
+  id: string;
+  name: string;
+  previewImageUrl: string | null;
+  stitchCount: number;
+  yardsNeeded: number;
+  skeinsNeeded: number;
+}
+
 interface MostUsedColor {
   dmcNumber: string;
   colorName: string;
@@ -69,10 +78,12 @@ interface MostUsedColor {
   totalStitches: number;
   designCount: number;
   totalSkeinsNeeded: number;
+  totalYardsNeeded: number;
   inventorySkeins: number;
   skeinsReservedInKits: number;
   effectiveInventory: number;
   threadSize: 5 | 8;
+  designs: ColorDesignUsage[];
 }
 
 interface ColorUsageDesign {
@@ -1434,64 +1445,121 @@ export default function InventoryPage() {
                           : color.inventorySkeins >= color.totalSkeinsNeeded * 0.5
                           ? "low"
                           : "critical";
+                        const isExpanded = expandedColor === color.dmcNumber;
 
                         return (
-                          <tr key={color.dmcNumber} className="hover:bg-slate-750 transition-colors">
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-slate-500 text-xs w-4">{index + 1}</span>
-                                <div
-                                  className="w-8 h-8 rounded border border-white/20 flex items-center justify-center"
-                                  style={{ backgroundColor: color.hex }}
-                                >
-                                  <span
-                                    className="text-[6px] font-bold select-none"
-                                    style={{ color: getContrastTextColor(color.hex) }}
+                          <React.Fragment key={color.dmcNumber}>
+                            <tr
+                              className="hover:bg-slate-750 transition-colors cursor-pointer"
+                              onClick={() => setExpandedColor(isExpanded ? null : color.dmcNumber)}
+                            >
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <svg
+                                    className={`w-3 h-3 text-slate-500 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
                                   >
-                                    {color.dmcNumber}
-                                  </span>
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                  <div
+                                    className="w-8 h-8 rounded border border-white/20 flex items-center justify-center"
+                                    style={{ backgroundColor: color.hex }}
+                                  >
+                                    <span
+                                      className="text-[6px] font-bold select-none"
+                                      style={{ color: getContrastTextColor(color.hex) }}
+                                    >
+                                      {color.dmcNumber}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="text-white font-medium">{color.dmcNumber}</span>
-                            </td>
-                            <td className="px-4 py-3 hidden sm:table-cell">
-                              <span className="text-slate-300 truncate block max-w-[150px]">{color.colorName}</span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className="text-white">{color.designCount}</span>
-                            </td>
-                            <td className="px-4 py-3 text-right hidden md:table-cell">
-                              <span className="text-slate-300">{color.totalStitches.toLocaleString()}</span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className="text-white">{color.totalSkeinsNeeded}</span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex flex-col items-end">
-                                <span className={stockStatus === "healthy" ? "text-green-400" : stockStatus === "low" ? "text-yellow-400" : "text-red-400"}>
-                                  {color.inventorySkeins}
-                                </span>
-                                {color.skeinsReservedInKits > 0 && (
-                                  <span className="text-slate-500 text-xs" title={`${color.skeinsReservedInKits} skeins allocated to kits ready`}>
-                                    ({color.skeinsReservedInKits} in kits)
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="text-white font-medium">{color.dmcNumber}</span>
+                              </td>
+                              <td className="px-4 py-3 hidden sm:table-cell">
+                                <span className="text-slate-300 truncate block max-w-[150px]">{color.colorName}</span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className="text-white">{color.designCount}</span>
+                              </td>
+                              <td className="px-4 py-3 text-right hidden md:table-cell">
+                                <span className="text-slate-300">{color.totalStitches.toLocaleString()}</span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className="text-white">{color.totalSkeinsNeeded}</span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex flex-col items-end">
+                                  <span className={stockStatus === "healthy" ? "text-green-400" : stockStatus === "low" ? "text-yellow-400" : "text-red-400"}>
+                                    {color.inventorySkeins}
                                   </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                stockStatus === "healthy"
-                                  ? "bg-green-900/50 text-green-400"
-                                  : stockStatus === "low"
-                                  ? "bg-yellow-900/50 text-yellow-400"
-                                  : "bg-red-900/50 text-red-400"
-                              }`}>
-                                {stockStatus === "healthy" ? "OK" : stockStatus === "low" ? "Low" : "Need"}
-                              </span>
-                            </td>
-                          </tr>
+                                  {color.skeinsReservedInKits > 0 && (
+                                    <span className="text-slate-500 text-xs" title={`${color.skeinsReservedInKits} skeins allocated to kits ready`}>
+                                      ({color.skeinsReservedInKits} in kits)
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                  stockStatus === "healthy"
+                                    ? "bg-green-900/50 text-green-400"
+                                    : stockStatus === "low"
+                                    ? "bg-yellow-900/50 text-yellow-400"
+                                    : "bg-red-900/50 text-red-400"
+                                }`}>
+                                  {stockStatus === "healthy" ? "OK" : stockStatus === "low" ? "Low" : "Need"}
+                                </span>
+                              </td>
+                            </tr>
+                            {/* Expanded details row */}
+                            {isExpanded && color.designs && (
+                              <tr>
+                                <td colSpan={8} className="px-4 py-3 bg-slate-800/50">
+                                  <div className="pl-8">
+                                    <div className="text-xs text-slate-400 mb-2 font-medium">
+                                      Used in {color.designs.length} design{color.designs.length !== 1 ? "s" : ""} ({color.totalYardsNeeded} yards total)
+                                    </div>
+                                    <div className="grid gap-2">
+                                      {color.designs.map((design) => (
+                                        <div
+                                          key={design.id}
+                                          className="flex items-center gap-3 p-2 bg-slate-700/50 rounded-lg"
+                                        >
+                                          {design.previewImageUrl ? (
+                                            <img
+                                              src={design.previewImageUrl}
+                                              alt={design.name}
+                                              className="w-10 h-10 rounded object-cover"
+                                            />
+                                          ) : (
+                                            <div className="w-10 h-10 rounded bg-slate-600 flex items-center justify-center">
+                                              <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                              </svg>
+                                            </div>
+                                          )}
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-white text-sm font-medium truncate">{design.name}</div>
+                                            <div className="text-slate-400 text-xs">
+                                              {design.stitchCount.toLocaleString()} stitches
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <div className="text-white text-sm font-medium">{design.yardsNeeded} yds</div>
+                                            <div className="text-slate-400 text-xs">{design.skeinsNeeded} skein{design.skeinsNeeded !== 1 ? "s" : ""}</div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>

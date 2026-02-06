@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
-import { DMC_PEARL_COTTON, DmcColor, searchDmcColors } from "@/lib/dmc-pearl-cotton";
+import { DMC_PEARL_COTTON, DmcColor, searchDmcColors, findSimilarInStockColor, getSimilarityDescription } from "@/lib/dmc-pearl-cotton";
 
 function getContrastTextColor(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -25,6 +25,13 @@ export default function ColorPicker() {
   const [showRemovePanel, setShowRemovePanel] = useState(false);
   const [removeColor, setRemoveColor] = useState<DmcColor | null>(null);
   const [selectingRemove, setSelectingRemove] = useState(false);
+
+  // Color recommendation for out-of-stock colors
+  const [recommendation, setRecommendation] = useState<{
+    selected: DmcColor;
+    suggested: DmcColor;
+    deltaE: number;
+  } | null>(null);
 
   // Inventory: fetch stock for the relevant thread size (14 mesh → size 5, 18 mesh → size 8)
   const [inStockSet, setInStockSet] = useState<Set<string>>(new Set());
@@ -59,6 +66,22 @@ export default function ColorPicker() {
       setRemoveColor(color);
       setSelectingRemove(false);
     } else {
+      // Check if color is out of stock and we have inventory data
+      const isOutOfStock = inStockSet.size > 0 && !inStockSet.has(color.dmcNumber);
+
+      if (isOutOfStock) {
+        // Try to find a similar in-stock color
+        const similar = findSimilarInStockColor(color, inStockSet);
+        if (similar) {
+          setRecommendation({
+            selected: color,
+            suggested: similar.color,
+            deltaE: similar.deltaE,
+          });
+          return; // Don't select yet, show recommendation modal
+        }
+      }
+
       setCurrentColor(color);
     }
   };
@@ -91,6 +114,20 @@ export default function ColorPicker() {
     setShowRemovePanel(false);
     setRemoveColor(null);
     setSelectingRemove(false);
+  };
+
+  const handleUseRecommended = () => {
+    if (recommendation) {
+      setCurrentColor(recommendation.suggested);
+      setRecommendation(null);
+    }
+  };
+
+  const handleUseOriginal = () => {
+    if (recommendation) {
+      setCurrentColor(recommendation.selected);
+      setRecommendation(null);
+    }
   };
 
   return (
@@ -343,6 +380,79 @@ export default function ColorPicker() {
           >
             Remove All Instances
           </button>
+        </div>
+      )}
+
+      {/* Color recommendation modal */}
+      {recommendation && (
+        <div className="p-3 border-b border-slate-700 bg-amber-900/30 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-amber-400 uppercase tracking-wider font-medium">Out of Stock</span>
+            <button
+              onClick={() => setRecommendation(null)}
+              className="text-slate-400 hover:text-white p-1"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-300">
+            <span className="font-medium text-white">DMC {recommendation.selected.dmcNumber}</span> is not in stock.
+            We found a similar color:
+          </p>
+
+          {/* Color comparison */}
+          <div className="flex items-center gap-3">
+            {/* Selected (out of stock) */}
+            <div className="flex-1 text-center">
+              <div
+                className="w-12 h-12 rounded-lg border-2 border-red-500/50 mx-auto opacity-60"
+                style={{ backgroundColor: recommendation.selected.hex }}
+              />
+              <p className="text-xs text-slate-400 mt-1">DMC {recommendation.selected.dmcNumber}</p>
+              <p className="text-[10px] text-red-400">Out of stock</p>
+            </div>
+
+            {/* Arrow */}
+            <svg className="w-5 h-5 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+
+            {/* Suggested (in stock) */}
+            <div className="flex-1 text-center">
+              <div
+                className="w-12 h-12 rounded-lg border-2 border-green-500/50 mx-auto"
+                style={{ backgroundColor: recommendation.suggested.hex }}
+              />
+              <p className="text-xs text-white mt-1">DMC {recommendation.suggested.dmcNumber}</p>
+              <p className="text-[10px] text-green-400">In stock</p>
+            </div>
+          </div>
+
+          {/* Similarity indicator */}
+          <div className="text-center">
+            <span className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300">
+              {getSimilarityDescription(recommendation.deltaE)}
+            </span>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleUseRecommended}
+              className="flex-1 py-2 px-3 rounded-lg text-sm bg-green-600 text-white hover:bg-green-700 font-medium"
+            >
+              Use {recommendation.suggested.dmcNumber}
+            </button>
+            <button
+              onClick={handleUseOriginal}
+              className="flex-1 py-2 px-3 rounded-lg text-sm bg-slate-600 text-white hover:bg-slate-500"
+            >
+              Use Anyway
+            </button>
+          </div>
         </div>
       )}
 

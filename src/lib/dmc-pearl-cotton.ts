@@ -127,6 +127,43 @@ export function findNearestFromSubset(r: number, g: number, b: number, subset: D
   return nearest;
 }
 
+// Find a similar in-stock color when selected color is out of stock
+export function findSimilarInStockColor(
+  selectedColor: DmcColor,
+  inStockNumbers: Set<string>,
+  maxDeltaE: number = 15
+): { color: DmcColor; deltaE: number } | null {
+  if (inStockNumbers.size === 0) return null;
+
+  const inStockColors = DMC_PEARL_COTTON.filter(c => inStockNumbers.has(c.dmcNumber));
+  if (inStockColors.length === 0) return null;
+
+  let bestMatch: DmcColor | null = null;
+  let bestDeltaE = Infinity;
+
+  for (const color of inStockColors) {
+    const dE = deltaE76(selectedColor.lab, color.lab);
+    if (dE < bestDeltaE) {
+      bestDeltaE = dE;
+      bestMatch = color;
+    }
+  }
+
+  if (bestMatch && bestDeltaE <= maxDeltaE) {
+    return { color: bestMatch, deltaE: Math.round(bestDeltaE * 10) / 10 };
+  }
+  return null;
+}
+
+// Get similarity description based on deltaE
+export function getSimilarityDescription(deltaE: number): string {
+  if (deltaE < 3) return "Nearly identical";
+  if (deltaE < 6) return "Very similar";
+  if (deltaE < 10) return "Similar";
+  if (deltaE < 15) return "Somewhat similar";
+  return "Different";
+}
+
 // Helper to create color entry
 function createColor(dmcNumber: string, name: string, hex: string): DmcColor {
   const r = parseInt(hex.slice(1, 3), 16);

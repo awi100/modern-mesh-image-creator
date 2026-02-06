@@ -15,6 +15,7 @@ interface PixelCanvasProps {
     basePixels?: boolean[][];
     dmcNumber?: string;
     scale?: number;
+    placedPosition?: { x: number; y: number };
     isText?: boolean;
     textOptions?: {
       text: string;
@@ -34,6 +35,7 @@ interface PixelCanvasProps {
   onResizePendingShape?: (delta: number) => void;
   onFlipPendingHorizontal?: () => void;
   onFlipPendingVertical?: () => void;
+  onConfirmShape?: () => void;
 }
 
 export default function PixelCanvas({
@@ -43,6 +45,7 @@ export default function PixelCanvas({
   onResizePendingShape,
   onFlipPendingHorizontal,
   onFlipPendingVertical,
+  onConfirmShape,
 }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -408,6 +411,7 @@ export default function PixelCanvas({
   }, [draw]);
 
   // Handle escape key to cancel text placement or move operation
+  // Handle enter key to confirm shape placement
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -422,12 +426,17 @@ export default function PixelCanvas({
           onCancelTextPlacement();
           setTextPlacementPos(null);
         }
+      } else if (e.key === "Enter") {
+        // Confirm shape placement
+        if (pendingText?.isShape && pendingText?.placedPosition && onConfirmShape) {
+          onConfirmShape();
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pendingText, onCancelTextPlacement, cancelMove]);
+  }, [pendingText, onCancelTextPlacement, cancelMove, onConfirmShape]);
 
   // Get grid coordinates from mouse or touch event
   const getGridCoords = useCallback((clientX: number, clientY: number) => {
@@ -510,14 +519,17 @@ export default function PixelCanvas({
         // Start move operation
         moveRef.current = { startX: coords.x, startY: coords.y };
         startMove(coords.x, coords.y);
+      } else if (selection) {
+        // Clicking outside existing selection - clear it
+        clearSelection();
       } else {
-        // Create new selection
+        // No existing selection - create new selection
         startSelection(coords.x, coords.y);
       }
     } else if (currentTool === "magicWand") {
       selectByColor(coords.x, coords.y);
     }
-  }, [currentTool, currentColor, eraserSize, layers, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, selection, startMove, panX, panY]);
+  }, [currentTool, currentColor, eraserSize, layers, saveToHistory, setPixel, setBrushPixels, fillArea, setCurrentColor, startSelection, selectByColor, selection, startMove, clearSelection, panX, panY]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
@@ -1060,15 +1072,37 @@ export default function PixelCanvas({
               </span>
             </div>
           )}
-          <span className="text-sm font-medium">
-            Click to place {pendingText.isPaste ? "pasted content" : pendingText.isShape ? "shape" : "text"}
-          </span>
-          <button
-            onClick={onCancelTextPlacement}
-            className="text-blue-200 hover:text-white text-sm underline"
-          >
-            Cancel (Esc)
-          </button>
+          {pendingText.isShape && pendingText.placedPosition ? (
+            <>
+              <span className="text-sm font-medium">
+                Drag to move, +/- to resize
+              </span>
+              <button
+                onClick={onConfirmShape}
+                className="px-3 py-1 bg-green-500 hover:bg-green-400 rounded text-sm font-medium"
+              >
+                Confirm (Enter)
+              </button>
+              <button
+                onClick={onCancelTextPlacement}
+                className="text-blue-200 hover:text-white text-sm underline"
+              >
+                Cancel (Esc)
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-sm font-medium">
+                Click to place {pendingText.isPaste ? "pasted content" : pendingText.isShape ? "shape" : "text"}
+              </span>
+              <button
+                onClick={onCancelTextPlacement}
+                className="text-blue-200 hover:text-white text-sm underline"
+              >
+                Cancel (Esc)
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

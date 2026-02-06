@@ -71,6 +71,8 @@ export default function Editor({ designId, initialData }: EditorProps) {
     basePixels?: boolean[][];
     dmcNumber?: string;
     scale?: number;
+    // Position when shape has been placed but not committed
+    placedPosition?: { x: number; y: number };
     // For resizable text
     isText?: boolean;
     textOptions?: {
@@ -276,10 +278,42 @@ export default function Editor({ designId, initialData }: EditorProps) {
     }
   }, [pendingText]);
 
-  // Handle text placement on canvas
+  // Handle text/shape placement on canvas
   const handleTextPlaced = useCallback((x: number, y: number) => {
-    if (pendingText) {
-      useEditorStore.getState().applyPixelOverlay(pendingText.pixels, x, y);
+    if (!pendingText) return;
+
+    // For shapes: first click places, second click (or confirm button) commits
+    if (pendingText.isShape && !pendingText.placedPosition) {
+      // First click - place the shape but don't commit yet
+      setPendingText({
+        ...pendingText,
+        placedPosition: { x, y },
+      });
+      return;
+    }
+
+    // Second click on a placed shape: update position
+    if (pendingText.isShape && pendingText.placedPosition) {
+      setPendingText({
+        ...pendingText,
+        placedPosition: { x, y },
+      });
+      return;
+    }
+
+    // For text and paste: commit immediately
+    useEditorStore.getState().applyPixelOverlay(pendingText.pixels, x, y);
+    setPendingText(null);
+  }, [pendingText]);
+
+  // Confirm shape placement
+  const handleConfirmShape = useCallback(() => {
+    if (pendingText?.isShape && pendingText.placedPosition) {
+      useEditorStore.getState().applyPixelOverlay(
+        pendingText.pixels,
+        pendingText.placedPosition.x,
+        pendingText.placedPosition.y
+      );
       setPendingText(null);
     }
   }, [pendingText]);
@@ -417,6 +451,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
           onResizePendingShape={handleResizePendingShape}
           onFlipPendingHorizontal={flipPendingHorizontal}
           onFlipPendingVertical={flipPendingVertical}
+          onConfirmShape={handleConfirmShape}
         />
 
         {/* Right side panels */}

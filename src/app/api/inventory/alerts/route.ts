@@ -26,6 +26,15 @@ interface DesignAlert {
   totalSkeinsPerKit: number;
 }
 
+interface ColorDesignUsage {
+  id: string;
+  name: string;
+  previewImageUrl: string | null;
+  stitchCount: number;
+  yardsNeeded: number;
+  skeinsNeeded: number;
+}
+
 interface MostUsedColor {
   dmcNumber: string;
   colorName: string;
@@ -33,10 +42,12 @@ interface MostUsedColor {
   totalStitches: number;
   designCount: number;
   totalSkeinsNeeded: number; // Combined skeins needed for all designs
+  totalYardsNeeded: number; // Combined yards needed for all designs
   inventorySkeins: number;
   skeinsReservedInKits: number; // Skeins already used in assembled kits
   effectiveInventory: number; // inventorySkeins - skeinsReservedInKits
   threadSize: 5 | 8;
+  designs: ColorDesignUsage[]; // Which designs use this color with usage details
 }
 
 // GET - Calculate stock alerts for all non-draft designs
@@ -78,7 +89,8 @@ export async function GET() {
     // Aggregate color usage tracking
     const colorUsageMap = new Map<string, {
       totalStitches: number;
-      designIds: Set<string>;
+      totalYards: number;
+      designs: ColorDesignUsage[];
       skeinsNeededBySize: { 5: number; 8: number };
       skeinsReservedInKits: { 5: number; 8: number }; // Skeins already used in assembled kits
     }>();
@@ -113,17 +125,29 @@ export async function GET() {
           const existing = colorUsageMap.get(dmcNumber);
           const usage = yarnUsage.find((u) => u.dmcNumber === dmcNumber);
           const skeinsNeeded = usage?.skeinsNeeded ?? 0;
+          const yardsNeeded = usage?.withBuffer ?? 0;
           const skeinsReserved = skeinsNeeded * kitsReady; // Skeins used in assembled kits
+
+          const designUsage: ColorDesignUsage = {
+            id: design.id,
+            name: design.name,
+            previewImageUrl: design.previewImageUrl,
+            stitchCount,
+            yardsNeeded: Math.round(yardsNeeded * 10) / 10, // Round to 1 decimal
+            skeinsNeeded,
+          };
 
           if (existing) {
             existing.totalStitches += stitchCount;
-            existing.designIds.add(design.id);
+            existing.totalYards += yardsNeeded;
+            existing.designs.push(designUsage);
             existing.skeinsNeededBySize[threadSize] += skeinsNeeded;
             existing.skeinsReservedInKits[threadSize] += skeinsReserved;
           } else {
             colorUsageMap.set(dmcNumber, {
               totalStitches: stitchCount,
-              designIds: new Set([design.id]),
+              totalYards: yardsNeeded,
+              designs: [designUsage],
               skeinsNeededBySize: {
                 5: threadSize === 5 ? skeinsNeeded : 0,
                 8: threadSize === 8 ? skeinsNeeded : 0,
@@ -194,21 +218,27 @@ export async function GET() {
       // Determine primary thread size (the one with more skeins needed)
       const primarySize: 5 | 8 = data.skeinsNeededBySize[5] >= data.skeinsNeededBySize[8] ? 5 : 8;
       const totalSkeinsNeeded = data.skeinsNeededBySize[5] + data.skeinsNeededBySize[8];
+      const totalYardsNeeded = Math.round(data.totalYards * 10) / 10;
       const inventorySkeins = (inventoryBySize[5].get(dmcNumber) ?? 0) + (inventoryBySize[8].get(dmcNumber) ?? 0);
       const skeinsReservedInKits = data.skeinsReservedInKits[5] + data.skeinsReservedInKits[8];
       const effectiveInventory = Math.max(0, inventorySkeins - skeinsReservedInKits);
+
+      // Sort designs by yards needed (highest first)
+      const sortedDesigns = [...data.designs].sort((a, b) => b.yardsNeeded - a.yardsNeeded);
 
       mostUsedColors.push({
         dmcNumber,
         colorName: dmcColor?.name ?? "Unknown",
         hex: dmcColor?.hex ?? "#888888",
         totalStitches: data.totalStitches,
-        designCount: data.designIds.size,
+        designCount: data.designs.length,
         totalSkeinsNeeded,
+        totalYardsNeeded,
         inventorySkeins,
         skeinsReservedInKits,
         effectiveInventory,
         threadSize: primarySize,
+        designs: sortedDesigns,
       });
     }
 
