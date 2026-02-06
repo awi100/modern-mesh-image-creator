@@ -122,6 +122,7 @@ export default function PixelCanvas({
     updateMoveOffset,
     commitMove,
     cancelMove,
+    clearSelection,
   } = useEditorStore();
 
   const activeLayer = layers[activeLayerIndex];

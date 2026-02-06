@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import pako from "pako";
 import { processImageToGrid, PixelGrid, ProcessingOptions } from "@/lib/color-utils";
-import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON, DmcColor } from "@/lib/dmc-pearl-cotton";
+import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 
 // Canvas size presets
 const CANVAS_PRESETS = [
@@ -178,7 +178,7 @@ export default function CustomDesignPage() {
     const deltaY = (e.clientY - dragStart.y) / rect.height;
 
     setCropRegion(prev => {
-      let newRegion = { ...prev };
+      const newRegion = { ...prev };
 
       if (dragType === "move") {
         newRegion.x = Math.max(0, Math.min(1 - prev.width, prev.x + deltaX));
@@ -931,7 +931,7 @@ export default function CustomDesignPage() {
                 <div className="flex justify-between text-sm mt-2">
                   <span className="text-slate-400">Finished Size ({meshCount} mesh):</span>
                   <span className="text-white font-medium">
-                    {(canvasWidth / meshCount).toFixed(1)}\" × {(canvasHeight / meshCount).toFixed(1)}\"
+                    {(canvasWidth / meshCount).toFixed(1)}&quot; × {(canvasHeight / meshCount).toFixed(1)}&quot;
                   </span>
                 </div>
               </div>
@@ -1099,7 +1099,7 @@ export default function CustomDesignPage() {
                     </div>
 
                     <p className="text-xs text-slate-500 italic">
-                      Tip: Use "Photo" for photographs with gradients, "Graphic" for logos/clipart, "Detailed" for complex images.
+                      Tip: Use &quot;Photo&quot; for photographs with gradients, &quot;Graphic&quot; for logos/clipart, &quot;Detailed&quot; for complex images.
                     </p>
                   </div>
                 )}
