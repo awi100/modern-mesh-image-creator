@@ -831,17 +831,27 @@ export default function HomePage() {
                     Unfiled
                   </button>
                   {folders.map((folder) => (
-                    <button
-                      key={folder.id}
-                      onClick={() => setSelectedFolder(folder.id)}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                        selectedFolder === folder.id
-                          ? "bg-rose-900 text-white"
-                          : "bg-slate-700 text-slate-300"
-                      }`}
-                    >
-                      {folder.name}
-                    </button>
+                    <div key={folder.id} className="relative group">
+                      <button
+                        onClick={() => setSelectedFolder(folder.id)}
+                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors pr-7 ${
+                          selectedFolder === folder.id
+                            ? "bg-rose-900 text-white"
+                            : "bg-slate-700 text-slate-300"
+                        }`}
+                      >
+                        {folder.name}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-400"
+                        title="Delete folder"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -875,7 +885,7 @@ export default function HomePage() {
                   Skill Level
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {["easy", "intermediate", "advanced"].map((level) => (
+                  {["beginner", "easy", "intermediate", "advanced"].map((level) => (
                     <button
                       key={level}
                       onClick={() => setSelectedSkillLevel(selectedSkillLevel === level ? null : level)}
@@ -897,7 +907,7 @@ export default function HomePage() {
                   Size
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {["small", "medium", "large"].map((size) => (
+                  {["extra-small", "small", "medium", "large"].map((size) => (
                     <button
                       key={size}
                       onClick={() => setSelectedSizeCategory(selectedSizeCategory === size ? null : size)}
@@ -907,7 +917,7 @@ export default function HomePage() {
                           : "bg-slate-700 text-slate-300"
                       }`}
                     >
-                      {size}
+                      {size === "extra-small" ? "XS" : size}
                     </button>
                   ))}
                 </div>
@@ -1094,7 +1104,7 @@ export default function HomePage() {
                 Skill Level
               </h3>
               <div className="flex flex-wrap gap-2">
-                {["easy", "intermediate", "advanced"].map((level) => (
+                {["beginner", "easy", "intermediate", "advanced"].map((level) => (
                   <button
                     key={level}
                     onClick={() => setSelectedSkillLevel(selectedSkillLevel === level ? null : level)}
@@ -1116,7 +1126,7 @@ export default function HomePage() {
                 Size
               </h3>
               <div className="flex flex-wrap gap-2">
-                {["small", "medium", "large"].map((size) => (
+                {["extra-small", "small", "medium", "large"].map((size) => (
                   <button
                     key={size}
                     onClick={() => setSelectedSizeCategory(selectedSizeCategory === size ? null : size)}
@@ -1126,7 +1136,7 @@ export default function HomePage() {
                         : "bg-slate-700 text-slate-300 hover:bg-slate-600"
                     }`}
                   >
-                    {size}
+                    {size === "extra-small" ? "XS" : size}
                   </button>
                 ))}
               </div>
@@ -1356,6 +1366,7 @@ export default function HomePage() {
                               value={design.skillLevel || ""}
                               onChange={(e) => handleUpdateDesignField(design.id, "skillLevel", e.target.value || null)}
                               className={`text-xs px-2 py-0.5 rounded border-0 cursor-pointer ${
+                                design.skillLevel === "beginner" ? "bg-blue-900/50 text-blue-400" :
                                 design.skillLevel === "easy" ? "bg-green-900/50 text-green-400" :
                                 design.skillLevel === "intermediate" ? "bg-yellow-900/50 text-yellow-400" :
                                 design.skillLevel === "advanced" ? "bg-red-900/50 text-red-400" :
@@ -1363,6 +1374,7 @@ export default function HomePage() {
                               }`}
                             >
                               <option value="">Skill...</option>
+                              <option value="beginner">Beginner</option>
                               <option value="easy">Easy</option>
                               <option value="intermediate">Intermediate</option>
                               <option value="advanced">Advanced</option>
@@ -1375,6 +1387,7 @@ export default function HomePage() {
                               }`}
                             >
                               <option value="">Size...</option>
+                              <option value="extra-small">Extra Small</option>
                               <option value="small">Small</option>
                               <option value="medium">Medium</option>
                               <option value="large">Large</option>

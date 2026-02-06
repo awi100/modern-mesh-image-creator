@@ -727,8 +727,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     if (moveOffset.x === 0 && moveOffset.y === 0) {
-      // No actual movement, just clear move state and selection
-      set({ moveStart: null, moveOffset: null, selection: null, selectionStart: null });
+      // No actual movement, just clear move state (keep selection)
+      set({ moveStart: null, moveOffset: null });
       return;
     }
 
@@ -737,14 +737,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Move the pixels
     const newGrid = movePixelsByOffset(activeLayer.grid, selection, moveOffset.x, moveOffset.y);
 
+    // Move the selection bounds to match the new pixel positions
+    const newSelection = moveSelectionByOffset(
+      selection,
+      moveOffset.x,
+      moveOffset.y,
+      gridWidth,
+      gridHeight
+    );
+
     const newLayers = [...layers];
     newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
 
-    // Clear selection after move completes
+    // Keep selection after move so user can continue adjusting
     set({
       layers: newLayers,
-      selection: null,
-      selectionStart: null,
+      selection: newSelection,
       moveStart: null,
       moveOffset: null,
       isDirty: true,
