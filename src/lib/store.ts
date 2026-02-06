@@ -942,54 +942,57 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!bounds) return;
 
     const { minX, minY, maxX, maxY } = bounds;
+    const selWidth = maxX - minX + 1;
+    const selHeight = maxY - minY + 1;
 
     get().saveToHistory();
 
-    const newGrid = activeLayer.grid.map(row => [...row]);
-
-    if (direction === "horizontal") {
-      // Mirror selection to the opposite horizontal side
-      // Calculate the center line of the canvas
-      const canvasCenterX = gridWidth / 2;
-
-      // For each selected pixel, calculate its mirrored position
-      for (let y = minY; y <= maxY; y++) {
-        for (let x = minX; x <= maxX; x++) {
-          if (selection[y]?.[x] && activeLayer.grid[y]?.[x]) {
-            // Calculate mirror position: reflect across the canvas center
-            const mirrorX = gridWidth - 1 - x;
-            if (mirrorX >= 0 && mirrorX < gridWidth) {
-              // Also flip the content horizontally within the selection
-              const sourceX = maxX - (x - minX);
-              if (selection[y]?.[sourceX]) {
-                newGrid[y][mirrorX] = activeLayer.grid[y][sourceX];
-              } else {
-                newGrid[y][mirrorX] = activeLayer.grid[y][x];
-              }
-            }
-          }
+    // Extract the selected pixels into a 2D array
+    const extracted: (string | null)[][] = [];
+    for (let y = minY; y <= maxY; y++) {
+      const row: (string | null)[] = [];
+      for (let x = minX; x <= maxX; x++) {
+        if (selection[y]?.[x]) {
+          row.push(activeLayer.grid[y]?.[x] ?? null);
+        } else {
+          row.push(null);
         }
       }
-    } else {
-      // Mirror selection to the opposite vertical side
-      // Calculate the center line of the canvas
-      const canvasCenterY = gridHeight / 2;
+      extracted.push(row);
+    }
 
-      // For each selected pixel, calculate its mirrored position
-      for (let y = minY; y <= maxY; y++) {
-        for (let x = minX; x <= maxX; x++) {
-          if (selection[y]?.[x] && activeLayer.grid[y]?.[x]) {
-            // Calculate mirror position: reflect across the canvas center
-            const mirrorY = gridHeight - 1 - y;
-            if (mirrorY >= 0 && mirrorY < gridHeight) {
-              // Also flip the content vertically within the selection
-              const sourceY = maxY - (y - minY);
-              if (selection[sourceY]?.[x]) {
-                newGrid[mirrorY][x] = activeLayer.grid[sourceY][x];
-              } else {
-                newGrid[mirrorY][x] = activeLayer.grid[y][x];
-              }
-            }
+    // Flip the extracted content
+    let flipped: (string | null)[][];
+    if (direction === "horizontal") {
+      // Flip horizontally: reverse each row
+      flipped = extracted.map(row => [...row].reverse());
+    } else {
+      // Flip vertically: reverse the order of rows
+      flipped = [...extracted].reverse();
+    }
+
+    // Calculate target position (mirror across canvas center)
+    let targetX: number;
+    let targetY: number;
+    if (direction === "horizontal") {
+      // Mirror to opposite horizontal side
+      targetX = gridWidth - 1 - maxX;
+      targetY = minY;
+    } else {
+      // Mirror to opposite vertical side
+      targetX = minX;
+      targetY = gridHeight - 1 - maxY;
+    }
+
+    // Place the flipped content at the target position
+    const newGrid = activeLayer.grid.map(row => [...row]);
+    for (let y = 0; y < selHeight; y++) {
+      for (let x = 0; x < selWidth; x++) {
+        const destX = targetX + x;
+        const destY = targetY + y;
+        if (destX >= 0 && destX < gridWidth && destY >= 0 && destY < gridHeight) {
+          if (flipped[y][x] !== null) {
+            newGrid[destY][destX] = flipped[y][x];
           }
         }
       }
