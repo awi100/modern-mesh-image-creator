@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useEditorStore } from "@/lib/store";
-import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { DmcColor, getDmcColorByNumber, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 import {
   SHAPES,
   Shape,
@@ -23,7 +23,7 @@ interface AddShapeDialogProps {
 }
 
 export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogProps) {
-  const { currentColor } = useEditorStore();
+  const { currentColor, setCurrentColor } = useEditorStore();
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Shape settings
@@ -33,9 +33,23 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
   const [customWidth, setCustomWidth] = useState(20);
   const [customHeight, setCustomHeight] = useState(20);
   const [filled, setFilled] = useState(true);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [colorSearch, setColorSearch] = useState("");
 
-  const dmcNumber = currentColor?.dmcNumber || "310"; // Default to black
-  const fillColor = currentColor?.hex || "#000000";
+  // Use local color state that syncs with store
+  const [selectedColor, setSelectedColor] = useState<DmcColor | null>(currentColor);
+
+  const dmcNumber = selectedColor?.dmcNumber || "310"; // Default to black
+  const fillColor = selectedColor?.hex || "#000000";
+
+  // Filter colors based on search
+  const filteredColors = colorSearch
+    ? DMC_PEARL_COTTON.filter(
+        (c) =>
+          c.dmcNumber.includes(colorSearch) ||
+          c.name.toLowerCase().includes(colorSearch.toLowerCase())
+      ).slice(0, 50)
+    : DMC_PEARL_COTTON.slice(0, 50);
 
   // Calculate dimensions based on size and aspect ratio
   const aspectRatio = getShapeAspectRatio(selectedShape);
@@ -241,17 +255,62 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
           )}
         </div>
 
-        {/* Color indicator */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-sm text-slate-400">Fill color:</span>
-          <div
-            className="w-8 h-8 rounded border border-slate-600"
-            style={{ backgroundColor: fillColor }}
-            title={currentColor ? `DMC ${currentColor.dmcNumber}` : "No color selected"}
-          />
-          <span className="text-sm text-slate-300">
-            {currentColor ? `DMC ${currentColor.dmcNumber}` : "Select a color first"}
-          </span>
+        {/* Color selector */}
+        <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
+          <label className="block text-sm text-slate-400 mb-2">Fill Color</label>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowColorPicker(!showColorPicker)}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-700 rounded-lg hover:bg-slate-600 border border-slate-600"
+            >
+              <div
+                className="w-6 h-6 rounded border border-slate-500"
+                style={{ backgroundColor: fillColor }}
+              />
+              <span className="text-sm text-slate-300">
+                DMC {dmcNumber}
+              </span>
+              <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <span className="text-xs text-slate-500">
+              {selectedColor?.name || "Black"}
+            </span>
+          </div>
+
+          {/* Color picker dropdown */}
+          {showColorPicker && (
+            <div className="mt-3 p-3 bg-slate-800 rounded-lg border border-slate-600">
+              <input
+                type="text"
+                value={colorSearch}
+                onChange={(e) => setColorSearch(e.target.value)}
+                placeholder="Search by number or name..."
+                className="w-full px-3 py-2 mb-3 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+              />
+              <div className="grid grid-cols-8 gap-1 max-h-32 overflow-y-auto">
+                {filteredColors.map((color) => (
+                  <button
+                    key={color.dmcNumber}
+                    onClick={() => {
+                      setSelectedColor(color);
+                      setCurrentColor(color);
+                      setShowColorPicker(false);
+                      setColorSearch("");
+                    }}
+                    className={`w-7 h-7 rounded border-2 transition-all ${
+                      selectedColor?.dmcNumber === color.dmcNumber
+                        ? "border-white scale-110"
+                        : "border-transparent hover:border-slate-400"
+                    }`}
+                    style={{ backgroundColor: color.hex }}
+                    title={`DMC ${color.dmcNumber} - ${color.name}`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Preview */}
@@ -270,8 +329,8 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
 
         {/* Tip */}
         <p className="text-xs text-slate-500 mb-4">
-          Tip: Select a DMC color first. After adding, click on the canvas to place the shape.
-          Use the paint bucket to fill or change the color.
+          Tip: After adding, click on the canvas to place the shape, then drag to reposition.
+          Click Confirm or press Enter to commit.
         </p>
 
         {/* Actions */}

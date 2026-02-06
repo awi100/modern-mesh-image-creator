@@ -91,6 +91,14 @@ export default function PixelCanvas({
   // Move selection ref
   const moveRef = useRef<{ startX: number; startY: number } | null>(null);
 
+  // Shape drag ref for dragging placed shapes
+  const shapeDragRef = useRef<{
+    startScreenX: number;
+    startScreenY: number;
+    startPosition: { x: number; y: number };
+    isDragging: boolean;
+  } | null>(null);
+
   const {
     layers,
     activeLayerIndex,
@@ -538,6 +546,27 @@ export default function PixelCanvas({
     const coords = getMouseCoords(e);
     if (!coords) return;
 
+    // Handle shape dragging - if shape is already placed, start drag
+    if (pendingText?.isShape && pendingText.placedPosition) {
+      // Check if clicking within the shape bounds
+      const shapeMinX = pendingText.placedPosition.x;
+      const shapeMaxX = pendingText.placedPosition.x + pendingText.width;
+      const shapeMinY = pendingText.placedPosition.y;
+      const shapeMaxY = pendingText.placedPosition.y + pendingText.height;
+
+      if (coords.x >= shapeMinX && coords.x < shapeMaxX &&
+          coords.y >= shapeMinY && coords.y < shapeMaxY) {
+        // Start dragging the placed shape
+        shapeDragRef.current = {
+          startScreenX: e.clientX,
+          startScreenY: e.clientY,
+          startPosition: { ...pendingText.placedPosition },
+          isDragging: true,
+        };
+        return;
+      }
+    }
+
     // Handle text placement mode
     if (pendingText && onTextPlaced) {
       onTextPlaced(coords.x, coords.y);
@@ -609,6 +638,29 @@ export default function PixelCanvas({
     const coords = getTouchCoords(e);
     if (!coords) return;
 
+    const touch = e.touches[0];
+
+    // Handle shape dragging - if shape is already placed, start drag
+    if (pendingText?.isShape && pendingText.placedPosition) {
+      // Check if touching within the shape bounds
+      const shapeMinX = pendingText.placedPosition.x;
+      const shapeMaxX = pendingText.placedPosition.x + pendingText.width;
+      const shapeMinY = pendingText.placedPosition.y;
+      const shapeMaxY = pendingText.placedPosition.y + pendingText.height;
+
+      if (coords.x >= shapeMinX && coords.x < shapeMaxX &&
+          coords.y >= shapeMinY && coords.y < shapeMaxY) {
+        // Start dragging the placed shape
+        shapeDragRef.current = {
+          startScreenX: touch.clientX,
+          startScreenY: touch.clientY,
+          startPosition: { ...pendingText.placedPosition },
+          isDragging: true,
+        };
+        return;
+      }
+    }
+
     // Handle text placement mode - this is immediate
     if (pendingText && onTextPlaced) {
       onTextPlaced(coords.x, coords.y);
@@ -621,8 +673,6 @@ export default function PixelCanvas({
       }
       return;
     }
-
-    const touch = e.touches[0];
 
     // Pan tool: start panning immediately
     if (currentTool === "pan") {
@@ -751,11 +801,43 @@ export default function PixelCanvas({
     }
   }, [currentTool, currentColor, eraserSize, setPixel, setBrushPixels, updateSelection, updateMoveOffset]);
 
+  // Update placed shape position during drag
+  const updateShapePosition = useCallback((newX: number, newY: number) => {
+    if (pendingText?.isShape && pendingText.placedPosition && onTextPlaced) {
+      onTextPlaced(newX, newY);
+    }
+  }, [pendingText, onTextPlaced]);
+
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
 
+    // Handle shape dragging
+    if (shapeDragRef.current?.isDragging && pendingText?.isShape) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      // Calculate new position based on mouse movement
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      const dx = (e.clientX - shapeDragRef.current.startScreenX) * scaleX / cellSize;
+      const dy = (e.clientY - shapeDragRef.current.startScreenY) * scaleY / cellSize;
+
+      const newX = Math.round(shapeDragRef.current.startPosition.x + dx);
+      const newY = Math.round(shapeDragRef.current.startPosition.y + dy);
+
+      // Clamp to grid bounds
+      const clampedX = Math.max(0, Math.min(gridWidth - pendingText.width, newX));
+      const clampedY = Math.max(0, Math.min(gridHeight - pendingText.height, newY));
+
+      updateShapePosition(clampedX, clampedY);
+      return;
+    }
+
     // Handle text placement mode - update position even when not drawing
-    if (pendingText && coords) {
+    // But only if the shape hasn't been placed yet
+    if (pendingText && coords && !pendingText.placedPosition) {
       setTextPlacementPos(coords);
       return;
     }
@@ -777,7 +859,7 @@ export default function PixelCanvas({
     if (!isDrawingRef.current) return;
     if (!coords) return;
     handleDrawMove(coords);
-  }, [getMouseCoords, handleDrawMove, pendingText, setPan, updateMoveOffset]);
+  }, [getMouseCoords, handleDrawMove, pendingText, setPan, updateMoveOffset, updateShapePosition, cellSize, gridWidth, gridHeight]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -851,6 +933,31 @@ export default function PixelCanvas({
       return;
     }
 
+    // Handle shape dragging (single finger)
+    if (shapeDragRef.current?.isDragging && pendingText?.isShape && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      // Calculate new position based on touch movement
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      const dx = (touch.clientX - shapeDragRef.current.startScreenX) * scaleX / cellSize;
+      const dy = (touch.clientY - shapeDragRef.current.startScreenY) * scaleY / cellSize;
+
+      const newX = Math.round(shapeDragRef.current.startPosition.x + dx);
+      const newY = Math.round(shapeDragRef.current.startPosition.y + dy);
+
+      // Clamp to grid bounds
+      const clampedX = Math.max(0, Math.min(gridWidth - pendingText.width, newX));
+      const clampedY = Math.max(0, Math.min(gridHeight - pendingText.height, newY));
+
+      updateShapePosition(clampedX, clampedY);
+      return;
+    }
+
     // Handle pan tool drag (single finger)
     if (dragRef.current && dragRef.current.isPanning && e.touches.length === 1) {
       const touch = e.touches[0];
@@ -919,7 +1026,7 @@ export default function PixelCanvas({
     const coords = getTouchCoords(e);
     if (!coords) return;
     handleDrawMove(coords);
-  }, [getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawMove, handleDrawStart, setZoom, setPan, updateMoveOffset, panX, panY]);
+  }, [getTouchCoords, getTouchDistance, getTouchMidpoint, handleDrawMove, handleDrawStart, setZoom, setPan, updateMoveOffset, panX, panY, pendingText, updateShapePosition, cellSize, gridWidth, gridHeight]);
 
   const handleDrawEnd = useCallback(() => {
     isDrawingRef.current = false;
@@ -927,6 +1034,12 @@ export default function PixelCanvas({
   }, []);
 
   const handleMouseUp = useCallback((_e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Handle shape drag end
+    if (shapeDragRef.current) {
+      shapeDragRef.current = null;
+      return;
+    }
+
     // Handle move selection end
     if (moveRef.current) {
       commitMove();
@@ -951,6 +1064,12 @@ export default function PixelCanvas({
       if (e.touches.length < 2) {
         pinchRef.current = null;
       }
+      return;
+    }
+
+    // Handle shape drag end
+    if (shapeDragRef.current) {
+      shapeDragRef.current = null;
       return;
     }
 
@@ -991,6 +1110,7 @@ export default function PixelCanvas({
 
   const handleMouseLeave = useCallback(() => {
     dragRef.current = null;
+    shapeDragRef.current = null;
     isDrawingRef.current = false;
     lastPosRef.current = null;
   }, []);

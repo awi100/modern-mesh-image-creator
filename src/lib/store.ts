@@ -144,6 +144,7 @@ interface EditorState {
   mirrorHorizontal: () => void;
   mirrorVertical: () => void;
   rotate90: (clockwise: boolean) => void;
+  mirrorSelectionToOpposite: (direction: "horizontal" | "vertical") => void;
 
   // History operations
   saveToHistory: () => void;
@@ -726,8 +727,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     if (moveOffset.x === 0 && moveOffset.y === 0) {
-      // No actual movement, just clear move state
-      set({ moveStart: null, moveOffset: null });
+      // No actual movement, just clear move state and selection
+      set({ moveStart: null, moveOffset: null, selection: null, selectionStart: null });
       return;
     }
 
@@ -736,21 +737,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Move the pixels
     const newGrid = movePixelsByOffset(activeLayer.grid, selection, moveOffset.x, moveOffset.y);
 
-    // Move the selection bounds
-    const newSelection = moveSelectionByOffset(
-      selection,
-      moveOffset.x,
-      moveOffset.y,
-      gridWidth,
-      gridHeight
-    );
-
     const newLayers = [...layers];
     newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
 
+    // Clear selection after move completes
     set({
       layers: newLayers,
-      selection: newSelection,
+      selection: null,
+      selectionStart: null,
       moveStart: null,
       moveOffset: null,
       isDirty: true,
@@ -927,6 +921,76 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isDirty: true,
       });
     }
+  },
+
+  mirrorSelectionToOpposite: (direction) => {
+    const { layers, activeLayerIndex, selection, gridWidth, gridHeight } = get();
+    if (!selection) return;
+
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer || activeLayer.locked) return;
+
+    const bounds = getSelectionBounds(selection);
+    if (!bounds) return;
+
+    const { minX, minY, maxX, maxY } = bounds;
+
+    get().saveToHistory();
+
+    const newGrid = activeLayer.grid.map(row => [...row]);
+
+    if (direction === "horizontal") {
+      // Mirror selection to the opposite horizontal side
+      // Calculate the center line of the canvas
+      const canvasCenterX = gridWidth / 2;
+
+      // For each selected pixel, calculate its mirrored position
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          if (selection[y]?.[x] && activeLayer.grid[y]?.[x]) {
+            // Calculate mirror position: reflect across the canvas center
+            const mirrorX = gridWidth - 1 - x;
+            if (mirrorX >= 0 && mirrorX < gridWidth) {
+              // Also flip the content horizontally within the selection
+              const sourceX = maxX - (x - minX);
+              if (selection[y]?.[sourceX]) {
+                newGrid[y][mirrorX] = activeLayer.grid[y][sourceX];
+              } else {
+                newGrid[y][mirrorX] = activeLayer.grid[y][x];
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // Mirror selection to the opposite vertical side
+      // Calculate the center line of the canvas
+      const canvasCenterY = gridHeight / 2;
+
+      // For each selected pixel, calculate its mirrored position
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          if (selection[y]?.[x] && activeLayer.grid[y]?.[x]) {
+            // Calculate mirror position: reflect across the canvas center
+            const mirrorY = gridHeight - 1 - y;
+            if (mirrorY >= 0 && mirrorY < gridHeight) {
+              // Also flip the content vertically within the selection
+              const sourceY = maxY - (y - minY);
+              if (selection[sourceY]?.[x]) {
+                newGrid[mirrorY][x] = activeLayer.grid[sourceY][x];
+              } else {
+                newGrid[mirrorY][x] = activeLayer.grid[y][x];
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const newLayers = [...layers];
+    newLayers[activeLayerIndex] = { ...activeLayer, grid: newGrid };
+
+    set({ layers: newLayers, isDirty: true });
   },
 
   saveToHistory: () => {

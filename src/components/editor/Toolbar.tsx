@@ -42,6 +42,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
     mirrorHorizontal,
     mirrorVertical,
     rotate90,
+    mirrorSelectionToOpposite,
     clearSelection,
     centerSelection,
     selectAll,
@@ -334,6 +335,27 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
               >
                 <span className="hidden sm:inline">Center</span>
                 <span className="sm:hidden">⊕</span>
+              </button>
+              {/* Mirror to opposite side buttons */}
+              <button
+                onClick={() => mirrorSelectionToOpposite("horizontal")}
+                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:flex items-center gap-1"
+                title="Mirror selection to opposite horizontal side"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h8m-8 4h8m-8 4h8M12 3v18" />
+                </svg>
+                <span className="hidden lg:inline">Mirror ↔</span>
+              </button>
+              <button
+                onClick={() => mirrorSelectionToOpposite("vertical")}
+                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:flex items-center gap-1"
+                title="Mirror selection to opposite vertical side"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8v8m4-8v8m4-8v8M3 12h18" />
+                </svg>
+                <span className="hidden lg:inline">Mirror ↕</span>
               </button>
               {onShowPatternRepeat && (
                 <button
