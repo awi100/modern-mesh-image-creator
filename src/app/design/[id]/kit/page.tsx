@@ -52,11 +52,15 @@ interface KitSaleItem {
 
 interface KitSale {
   id: string;
+  quantity: number;
   note: string | null;
   createdAt: string;
   items: KitSaleItem[];
   design: { id: string; name: string };
 }
+
+const SKEIN_YARDS = 27;
+const BOBBIN_ONLY_MAX = 5;
 
 function getContrastTextColor(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -64,6 +68,30 @@ function getContrastTextColor(hex: string): string {
   const b = parseInt(hex.slice(5, 7), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
+}
+
+// Calculate actual skeins needed for a given quantity, with smart bobbin handling
+function calculateSkeinsForQuantity(kitContents: KitItem[], quantity: number): { totalSkeins: number; bobbinSavings: number } {
+  let totalSkeins = 0;
+  let naiveSkeins = 0; // What we'd deduct without smart bobbin handling
+
+  for (const item of kitContents) {
+    const isBobbin = item.bobbinYards > 0 && item.fullSkeins === 0;
+    naiveSkeins += item.skeinsNeeded * quantity;
+
+    if (isBobbin) {
+      // Accumulate bobbin yards across kits
+      const totalBobbinYards = item.bobbinYards * quantity;
+      totalSkeins += Math.ceil(totalBobbinYards / SKEIN_YARDS);
+    } else {
+      totalSkeins += item.skeinsNeeded * quantity;
+    }
+  }
+
+  return {
+    totalSkeins,
+    bobbinSavings: naiveSkeins - totalSkeins,
+  };
 }
 
 export default function KitPage() {
@@ -80,6 +108,7 @@ export default function KitPage() {
   const [selling, setSelling] = useState(false);
   const [showSellDialog, setShowSellDialog] = useState(false);
   const [sellNote, setSellNote] = useState("");
+  const [assemblyQuantity, setAssemblyQuantity] = useState(1);
 
   const fetchKit = async () => {
     try {
@@ -121,23 +150,24 @@ export default function KitPage() {
       const res = await fetch(`/api/designs/${designId}/kit/sell`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: sellNote || null }),
+        body: JSON.stringify({ note: sellNote || null, quantity: assemblyQuantity }),
       });
 
       if (res.ok) {
         setShowSellDialog(false);
         setSellNote("");
-        setKitsReady((prev) => prev + 1);
+        setKitsReady((prev) => prev + assemblyQuantity);
+        setAssemblyQuantity(1);
         // Refresh both kit contents (stock changed) and sales
         fetchKit();
         fetchSales();
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to assemble kit");
+        alert(err.error || "Failed to assemble kits");
       }
     } catch (error) {
-      console.error("Error assembling kit:", error);
-      alert("Failed to assemble kit");
+      console.error("Error assembling kits:", error);
+      alert("Failed to assemble kits");
     }
     setSelling(false);
   };
@@ -155,13 +185,16 @@ export default function KitPage() {
     }
   };
 
-  const handleDeleteSale = async (saleId: string) => {
-    if (!confirm("Reverse this assembly? Inventory will be restored.")) return;
+  const handleDeleteSale = async (saleId: string, quantity: number = 1) => {
+    const msg = quantity > 1
+      ? `Reverse this assembly of ${quantity} kits? Inventory will be restored.`
+      : "Reverse this assembly? Inventory will be restored.";
+    if (!confirm(msg)) return;
 
     try {
       const res = await fetch(`/api/kit-sales/${saleId}`, { method: "DELETE" });
       if (res.ok) {
-        setKitsReady((prev) => Math.max(0, prev - 1));
+        setKitsReady((prev) => Math.max(0, prev - quantity));
         fetchKit();
         fetchSales();
       }
@@ -481,10 +514,12 @@ export default function KitPage() {
             <div className="divide-y divide-slate-700/50">
               {sales.map((sale) => {
                 const totalSkeins = sale.items.reduce((sum, i) => sum + i.skeins, 0);
+                const qty = sale.quantity ?? 1;
                 return (
                   <div key={sale.id} className="p-4 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-white text-sm font-medium">
+                        {qty > 1 && <span className="text-emerald-400 mr-2">{qty}x</span>}
                         {new Date(sale.createdAt).toLocaleDateString("en-US", {
                           year: "numeric",
                           month: "short",
@@ -494,14 +529,14 @@ export default function KitPage() {
                         })}
                       </p>
                       <p className="text-slate-400 text-xs">
-                        {sale.items.length} colors &middot; {totalSkeins} skeins
+                        {sale.items.length} colors &middot; {totalSkeins} skeins deducted
                         {sale.note && ` \u00B7 ${sale.note}`}
                       </p>
                     </div>
                     <button
-                      onClick={() => handleDeleteSale(sale.id)}
+                      onClick={() => handleDeleteSale(sale.id, qty)}
                       className="p-2 text-slate-500 hover:text-red-400 transition-colors flex-shrink-0"
-                      title="Reverse sale (restore inventory)"
+                      title={`Reverse assembly (restore ${totalSkeins} skeins, remove ${qty} kit${qty > 1 ? "s" : ""})`}
                     >
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -519,59 +554,103 @@ export default function KitPage() {
         </div>
       </div>
 
-      {/* Sell Kit Dialog */}
-      {showSellDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-md mx-4 p-6">
-            <h3 className="text-lg font-semibold text-white mb-2">Assemble Kit</h3>
-            <p className="text-slate-400 text-sm mb-4">
-              This will deduct {totals?.skeins ?? 0} {(totals?.skeins ?? 0) === 1 ? "skein" : "skeins"}
-              {" "}({totals?.colors ?? 0} colors) from your inventory and add 1 kit to &quot;Kits Ready.&quot;
-              {(totals?.bobbins ?? 0) > 0 && (
-                <span className="text-amber-500"> {totals?.bobbins} {(totals?.bobbins ?? 0) === 1 ? "color includes" : "colors include"} a bobbin.</span>
-              )}
-            </p>
+      {/* Assemble Kit Dialog */}
+      {showSellDialog && (() => {
+        const calc = calculateSkeinsForQuantity(kitContents, assemblyQuantity);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-md mx-4 p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Assemble Kits</h3>
 
-            {totals && !totals.allInStock && (
-              <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg">
-                <p className="text-yellow-400 text-sm">
-                  Some colors are not fully in stock. Assembling will create negative inventory for those items.
-                </p>
+              {/* Quantity selector */}
+              <div className="mb-4">
+                <label className="text-sm text-slate-400 block mb-2">How many kits?</label>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setAssemblyQuantity(Math.max(1, assemblyQuantity - 1))}
+                    className="w-10 h-10 bg-slate-700 text-white rounded-lg hover:bg-slate-600 flex items-center justify-center text-lg font-bold"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={assemblyQuantity}
+                    onChange={(e) => setAssemblyQuantity(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                    className="w-20 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                  <button
+                    onClick={() => setAssemblyQuantity(Math.min(100, assemblyQuantity + 1))}
+                    className="w-10 h-10 bg-slate-700 text-white rounded-lg hover:bg-slate-600 flex items-center justify-center text-lg font-bold"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
-            )}
 
-            <label className="block mb-4">
-              <span className="text-sm text-slate-400">Note (optional)</span>
-              <input
-                type="text"
-                value={sellNote}
-                onChange={(e) => setSellNote(e.target.value)}
-                placeholder="e.g. Customer name or order #"
-                className="mt-1 w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
-            </label>
+              {/* Summary */}
+              <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
+                <p className="text-white text-sm">
+                  <span className="font-medium">{assemblyQuantity} {assemblyQuantity === 1 ? "kit" : "kits"}</span>
+                  {" "}&rarr;{" "}
+                  <span className="font-bold text-emerald-400">{calc.totalSkeins} {calc.totalSkeins === 1 ? "skein" : "skeins"}</span>
+                  {" "}to deduct ({totals?.colors ?? 0} colors)
+                </p>
+                {calc.bobbinSavings > 0 && (
+                  <p className="text-emerald-400 text-xs mt-1">
+                    Saving {calc.bobbinSavings} {calc.bobbinSavings === 1 ? "skein" : "skeins"} by combining bobbins!
+                  </p>
+                )}
+                {(totals?.bobbins ?? 0) > 0 && (
+                  <p className="text-amber-500 text-xs mt-1">
+                    {totals?.bobbins} {(totals?.bobbins ?? 0) === 1 ? "color uses" : "colors use"} bobbins (yards accumulated across kits)
+                  </p>
+                )}
+              </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowSellDialog(false);
-                  setSellNote("");
-                }}
-                className="flex-1 py-2 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAssembleKit}
-                disabled={selling}
-                className="flex-1 py-2 px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium"
-              >
-                {selling ? "Assembling..." : "Assemble Kit"}
-              </button>
+              {totals && !totals.allInStock && (
+                <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg">
+                  <p className="text-yellow-400 text-sm">
+                    Some colors are not fully in stock. Assembling will create negative inventory for those items.
+                  </p>
+                </div>
+              )}
+
+              <label className="block mb-4">
+                <span className="text-sm text-slate-400">Note (optional)</span>
+                <input
+                  type="text"
+                  value={sellNote}
+                  onChange={(e) => setSellNote(e.target.value)}
+                  placeholder="e.g. Customer name or order #"
+                  className="mt-1 w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+              </label>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowSellDialog(false);
+                    setSellNote("");
+                    setAssemblyQuantity(1);
+                  }}
+                  className="flex-1 py-2 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAssembleKit}
+                  disabled={selling}
+                  className="flex-1 py-2 px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium"
+                >
+                  {selling ? "Assembling..." : `Assemble ${assemblyQuantity} ${assemblyQuantity === 1 ? "Kit" : "Kits"}`}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

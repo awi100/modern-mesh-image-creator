@@ -5,7 +5,10 @@ import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage } from "@/lib/yarn-calculator";
 import pako from "pako";
 
-// POST - Record a kit sale and deduct inventory
+const SKEIN_YARDS = 27;
+const BOBBIN_ONLY_MAX = 5; // If ≤ this many yards, it's bobbin-only
+
+// POST - Record a kit assembly and deduct inventory
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,7 +20,10 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { note } = body;
+    const { note, quantity = 1 } = body;
+
+    // Validate quantity
+    const qty = Math.max(1, Math.min(100, Math.floor(quantity)));
 
     const design = await prisma.design.findUnique({
       where: { id },
@@ -52,18 +58,41 @@ export async function POST(
 
     const threadSize = meshCount === 14 ? 5 : 8;
 
+    // Calculate actual skeins to deduct for each color
+    // For bobbin-only colors: accumulate yards across all kits, then calculate skeins
+    // For full-skein colors: multiply skeins by quantity
+    const itemsToCreate: { dmcNumber: string; skeins: number }[] = [];
+
+    for (const usage of yarnUsage) {
+      const yardsWithBuffer = usage.withBuffer;
+      const isBobbin = yardsWithBuffer <= BOBBIN_ONLY_MAX;
+
+      let skeinsToDeduct: number;
+      if (isBobbin) {
+        // Bobbin-only: accumulate yards across kits
+        const totalBobbinYards = yardsWithBuffer * qty;
+        skeinsToDeduct = Math.ceil(totalBobbinYards / SKEIN_YARDS);
+      } else {
+        // Full skeins: multiply by quantity
+        skeinsToDeduct = usage.skeinsNeeded * qty;
+      }
+
+      itemsToCreate.push({
+        dmcNumber: usage.dmcNumber,
+        skeins: skeinsToDeduct,
+      });
+    }
+
     // Atomic transaction: create sale + deduct inventory
     const sale = await prisma.$transaction(async (tx) => {
       // Create the kit sale with items
       const kitSale = await tx.kitSale.create({
         data: {
           designId: design.id,
+          quantity: qty,
           note: note || null,
           items: {
-            create: yarnUsage.map((usage) => ({
-              dmcNumber: usage.dmcNumber,
-              skeins: usage.skeinsNeeded,
-            })),
+            create: itemsToCreate,
           },
         },
         include: {
@@ -73,29 +102,29 @@ export async function POST(
       });
 
       // Deduct inventory for each color
-      for (const usage of yarnUsage) {
+      for (const item of itemsToCreate) {
         await tx.inventoryItem.upsert({
           where: {
             dmcNumber_size: {
-              dmcNumber: usage.dmcNumber,
+              dmcNumber: item.dmcNumber,
               size: threadSize,
             },
           },
           update: {
-            skeins: { decrement: usage.skeinsNeeded },
+            skeins: { decrement: item.skeins },
           },
           create: {
-            dmcNumber: usage.dmcNumber,
+            dmcNumber: item.dmcNumber,
             size: threadSize,
-            skeins: -usage.skeinsNeeded,
+            skeins: -item.skeins,
           },
         });
       }
 
-      // Increment kitsReady on the design
+      // Increment kitsReady by quantity
       await tx.design.update({
         where: { id: design.id },
-        data: { kitsReady: { increment: 1 } },
+        data: { kitsReady: { increment: qty } },
       });
 
       return kitSale;
@@ -103,9 +132,9 @@ export async function POST(
 
     return NextResponse.json(sale, { status: 201 });
   } catch (error) {
-    console.error("Error recording kit sale:", error);
+    console.error("Error recording kit assembly:", error);
     return NextResponse.json(
-      { error: "Failed to record kit sale" },
+      { error: "Failed to record kit assembly" },
       { status: 500 }
     );
   }

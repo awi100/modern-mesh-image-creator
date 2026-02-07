@@ -164,6 +164,7 @@ model KitSale {
   id        String        @id @default(cuid())
   designId  String
   design    Design        @relation(fields: [designId], references: [id], onDelete: Cascade)
+  quantity  Int           @default(1)
   note      String?
   items     KitSaleItem[]
   createdAt DateTime      @default(now())
