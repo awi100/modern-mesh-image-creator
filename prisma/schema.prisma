@@ -120,6 +120,7 @@ model Design {
   folder    Folder?     @relation(fields: [folderId], references: [id])
   tags      DesignTag[]
   kitSales  KitSale[]
+  shopifyOrderItems ShopifyOrderItem[]
 
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -181,6 +182,34 @@ model KitSaleItem {
   skeins    Int
 
   @@map("kit_sale_items")
+}
+
+// Shopify order tracking - prevents double-processing fulfilled orders
+model ShopifyOrder {
+  id              String   @id @default(cuid())
+  shopifyOrderId  String   @unique // Shopify's order ID (e.g., "gid://shopify/Order/123")
+  orderNumber     String   // Human-readable order number (e.g., "#1001")
+  customerName    String?
+  fulfilledAt     DateTime? // When we processed the fulfillment
+  createdAt       DateTime @default(now())
+  items           ShopifyOrderItem[]
+
+  @@map("shopify_orders")
+}
+
+model ShopifyOrderItem {
+  id              String       @id @default(cuid())
+  shopifyOrderId  String
+  order           ShopifyOrder @relation(fields: [shopifyOrderId], references: [id], onDelete: Cascade)
+  designId        String?      // Linked design (null if no match found)
+  design          Design?      @relation(fields: [designId], references: [id], onDelete: SetNull)
+  productTitle    String       // Original Shopify product title
+  variantTitle    String?      // e.g., "8x8 / Yes" or "10x10 / No"
+  quantity        Int
+  needsKit        Boolean      // true if "Yes" was selected for kit option
+  processed       Boolean      @default(false) // true after inventory deducted
+
+  @@map("shopify_order_items")
 }
 
 // Custom canvas size presets
