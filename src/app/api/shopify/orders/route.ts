@@ -120,7 +120,7 @@ export async function GET() {
       orders.push({
         shopifyOrderId: shopifyOrder.id,
         orderNumber: shopifyOrder.name,
-        customerName: shopifyOrder.customer?.displayName || "Guest",
+        customerName: shopifyOrder.billingAddress?.name || "Guest",
         createdAt: shopifyOrder.createdAt,
         items,
       });

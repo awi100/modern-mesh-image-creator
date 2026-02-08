@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
             create: {
               shopifyOrderId: shopifyOrder.id,
               orderNumber: shopifyOrder.name,
-              customerName: shopifyOrder.customer?.displayName || "Guest",
+              customerName: shopifyOrder.billingAddress?.name || "Guest",
               fulfilledAt: new Date(),
             },
             update: {

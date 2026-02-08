@@ -59,8 +59,9 @@ export interface ShopifyOrderNode {
   name: string; // Order number like "#1001"
   createdAt: string;
   displayFulfillmentStatus: string;
-  customer: {
-    displayName: string;
+  // Note: customer field requires read_customers scope
+  billingAddress: {
+    name: string | null;
   } | null;
   lineItems: {
     nodes: ShopifyLineItem[];
@@ -93,8 +94,8 @@ export async function fetchUnfulfilledOrders(cursor?: string): Promise<OrdersQue
           name
           createdAt
           displayFulfillmentStatus
-          customer {
-            displayName
+          billingAddress {
+            name
           }
           lineItems(first: 50) {
             nodes {
@@ -140,8 +141,8 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
           name
           createdAt
           displayFulfillmentStatus
-          customer {
-            displayName
+          billingAddress {
+            name
           }
           lineItems(first: 50) {
             nodes {
