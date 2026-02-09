@@ -126,6 +126,18 @@ export async function PUT(
       }
     }
 
+    // Log what we're about to save
+    console.log("[PUT /api/designs] Saving:", {
+      id,
+      name,
+      gridWidth,
+      gridHeight,
+      hasPixelData: !!pixelDataBuffer,
+      pixelDataSize: pixelDataBuffer?.length,
+      totalStitches,
+      kitColorCount,
+    });
+
     // Update design
     const design = await prisma.design.update({
       where: { id },
@@ -173,6 +185,12 @@ export async function PUT(
         });
       }
     }
+
+    console.log("[PUT /api/designs] Save SUCCESS:", {
+      id: design.id,
+      name: design.name,
+      updatedAt: design.updatedAt,
+    });
 
     return NextResponse.json({
       ...design,

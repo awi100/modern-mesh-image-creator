@@ -122,6 +122,16 @@ export function useAutoSave() {
         referenceImageOpacity,
       };
 
+      // Log what we're sending
+      console.log("[Auto-save] Sending:", {
+        designId,
+        name: designName,
+        gridWidth,
+        gridHeight,
+        pixelDataSize: base64.length,
+        hasPreview: !!previewImageUrl,
+      });
+
       const response = await fetch(`/api/designs/${designId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -151,6 +161,14 @@ export function useAutoSave() {
 
         throw new Error(`Auto-save failed: ${response.status} ${response.statusText}`);
       }
+
+      // Verify the response
+      const savedDesign = await response.json();
+      console.log("[Auto-save] Server response:", {
+        id: savedDesign.id,
+        name: savedDesign.name,
+        updatedAt: savedDesign.updatedAt,
+      });
 
       // Success! Clear retry state
       retryCountRef.current = 0;
