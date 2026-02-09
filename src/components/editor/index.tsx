@@ -126,6 +126,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
   // Initialize editor with design data
   useEffect(() => {
     if (initialData) {
+      // Use skipDirty=true to prevent auto-save from triggering with stale data during initialization
       setDesignInfo({
         designId: designId || null,
         designName: initialData.name,
@@ -134,7 +135,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
         widthInches: initialData.widthInches,
         heightInches: initialData.heightInches,
         meshCount: initialData.meshCount,
-      });
+      }, true); // skipDirty = true
       initializeGrid(initialData.gridWidth, initialData.gridHeight, initialData.grid);
       setStitchType(initialData.stitchType);
       setBufferPercent(initialData.bufferPercent);

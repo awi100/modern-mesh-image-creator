@@ -98,7 +98,7 @@ interface EditorState {
     widthInches?: number;
     heightInches?: number;
     meshCount?: 14 | 18;
-  }) => void;
+  }, skipDirty?: boolean) => void;
 
   initializeGrid: (width: number, height: number, existingGrid?: PixelGrid) => void;
 
@@ -259,9 +259,9 @@ const createInitialState = () => {
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...createInitialState(),
 
-  setDesignInfo: (info) => {
+  setDesignInfo: (info, skipDirty = false) => {
     set((state) => {
-      const updates: Partial<EditorState> = { isDirty: true };
+      const updates: Partial<EditorState> = skipDirty ? {} : { isDirty: true };
 
       if (info.designId !== undefined) updates.designId = info.designId;
       if (info.designName !== undefined) updates.designName = info.designName;
