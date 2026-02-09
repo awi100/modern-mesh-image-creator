@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import pako from "pako";
 import Editor from "@/components/editor";
 
+// Force dynamic rendering - never cache this page
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface Props {
   params: Promise<{ id: string }>;
 }
