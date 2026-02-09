@@ -13,12 +13,15 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
+type FilterType = "all" | "kits" | "canvases";
+
 export default function OrdersPage() {
   const [data, setData] = useState<OrdersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<SyncResult | null>(null);
+  const [filter, setFilter] = useState<FilterType>("all");
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -187,19 +190,82 @@ export default function OrdersPage() {
               </div>
             )}
 
+            {/* Filter Buttons */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400 mr-2">Show:</span>
+              <button
+                onClick={() => setFilter("all")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filter === "all"
+                    ? "bg-slate-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
+                }`}
+              >
+                All Orders
+              </button>
+              <button
+                onClick={() => setFilter("kits")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filter === "kits"
+                    ? "bg-amber-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-amber-400"
+                }`}
+              >
+                Needs Kit ({data.summary.totalKitsNeeded})
+              </button>
+              <button
+                onClick={() => setFilter("canvases")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filter === "canvases"
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-blue-400"
+                }`}
+              >
+                Canvas Only ({data.summary.totalCanvasesNeeded - data.summary.totalKitsNeeded})
+              </button>
+            </div>
+
             {/* Orders List */}
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-white">Unfulfilled Orders</h2>
+              <h2 className="text-lg font-semibold text-white">
+                {filter === "all" && "Unfulfilled Orders"}
+                {filter === "kits" && "Orders Needing Kits"}
+                {filter === "canvases" && "Canvas-Only Orders"}
+              </h2>
 
-              {data.orders.length === 0 ? (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
-                  <p className="text-slate-400">No unfulfilled orders</p>
-                </div>
-              ) : (
-                data.orders.map((order) => (
+              {(() => {
+                // Filter orders based on selection
+                const filteredOrders = data.orders.map(order => {
+                  if (filter === "all") return order;
+
+                  // Filter items within orders
+                  const filteredItems = order.items.filter(item => {
+                    if (filter === "kits") return item.needsKit;
+                    if (filter === "canvases") return !item.needsKit;
+                    return true;
+                  });
+
+                  // Return order with filtered items, or null if no items match
+                  if (filteredItems.length === 0) return null;
+                  return { ...order, items: filteredItems };
+                }).filter((order): order is Order => order !== null);
+
+                if (filteredOrders.length === 0) {
+                  return (
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+                      <p className="text-slate-400">
+                        {filter === "all" && "No unfulfilled orders"}
+                        {filter === "kits" && "No orders needing kits"}
+                        {filter === "canvases" && "No canvas-only orders"}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return filteredOrders.map((order) => (
                   <OrderCard key={order.shopifyOrderId} order={order} />
-                ))
-              )}
+                ));
+              })()}
             </div>
           </>
         )}
