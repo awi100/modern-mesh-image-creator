@@ -225,48 +225,241 @@ export default function OrdersPage() {
               </button>
             </div>
 
-            {/* Orders List */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-white">
-                {filter === "all" && "Unfulfilled Orders"}
-                {filter === "kits" && "Orders Needing Kits"}
-                {filter === "canvases" && "Canvas-Only Orders"}
-              </h2>
+            {/* Kits Needed View - Simple aggregated list */}
+            {filter === "kits" && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-white">Kits Needed</h2>
+                {(() => {
+                  // Aggregate all kit items by design
+                  const kitsByDesign = new Map<string, {
+                    designId: string | null;
+                    designName: string | null;
+                    productTitle: string;
+                    previewImageUrl: string | null;
+                    quantity: number;
+                    kitsReady: number;
+                  }>();
 
-              {(() => {
-                // Filter orders based on selection
-                const filteredOrders = data.orders.map(order => {
-                  if (filter === "all") return order;
+                  for (const order of data.orders) {
+                    for (const item of order.items) {
+                      if (!item.needsKit) continue;
 
-                  // Filter items within orders
-                  const filteredItems = order.items.filter(item => {
-                    if (filter === "kits") return item.needsKit;
-                    if (filter === "canvases") return !item.needsKit;
-                    return true;
-                  });
+                      const key = item.designId || item.productTitle;
+                      const existing = kitsByDesign.get(key);
+                      if (existing) {
+                        existing.quantity += item.quantity;
+                      } else {
+                        kitsByDesign.set(key, {
+                          designId: item.designId,
+                          designName: item.designName,
+                          productTitle: item.productTitle,
+                          previewImageUrl: item.previewImageUrl,
+                          quantity: item.quantity,
+                          kitsReady: item.kitsReady,
+                        });
+                      }
+                    }
+                  }
 
-                  // Return order with filtered items, or null if no items match
-                  if (filteredItems.length === 0) return null;
-                  return { ...order, items: filteredItems };
-                }).filter((order): order is Order => order !== null);
+                  const kits = Array.from(kitsByDesign.values()).sort((a, b) => b.quantity - a.quantity);
 
-                if (filteredOrders.length === 0) {
+                  if (kits.length === 0) {
+                    return (
+                      <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+                        <p className="text-slate-400">No kits needed</p>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
-                      <p className="text-slate-400">
-                        {filter === "all" && "No unfulfilled orders"}
-                        {filter === "kits" && "No orders needing kits"}
-                        {filter === "canvases" && "No canvas-only orders"}
-                      </p>
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                      <div className="divide-y divide-slate-700/50">
+                        {kits.map((kit, idx) => {
+                          const hasEnough = kit.kitsReady >= kit.quantity;
+                          const shortage = kit.quantity - kit.kitsReady;
+                          return (
+                            <div key={idx} className="p-4 flex items-center gap-4">
+                              {kit.previewImageUrl ? (
+                                <img
+                                  src={kit.previewImageUrl}
+                                  alt={kit.productTitle}
+                                  className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+                                />
+                              ) : (
+                                <div className="w-14 h-14 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-slate-500 text-xs">?</span>
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-white font-medium truncate">
+                                  {kit.designName || kit.productTitle}
+                                </p>
+                                {!kit.designId && (
+                                  <p className="text-xs text-yellow-500">No matching design</p>
+                                )}
+                              </div>
+                              <div className="text-center px-4">
+                                <p className="text-2xl font-bold text-amber-400">{kit.quantity}</p>
+                                <p className="text-xs text-slate-400">needed</p>
+                              </div>
+                              <div className="text-center px-4">
+                                <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                  {kit.kitsReady}
+                                </p>
+                                <p className="text-xs text-slate-400">ready</p>
+                              </div>
+                              {!hasEnough && (
+                                <div className="text-center px-4">
+                                  <p className="text-2xl font-bold text-red-400">-{shortage}</p>
+                                  <p className="text-xs text-slate-400">short</p>
+                                </div>
+                              )}
+                              {kit.designId && (
+                                <Link
+                                  href={`/design/${kit.designId}/kit`}
+                                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                                  title="View kit details"
+                                >
+                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </Link>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
-                }
+                })()}
+              </div>
+            )}
 
-                return filteredOrders.map((order) => (
-                  <OrderCard key={order.shopifyOrderId} order={order} />
-                ));
-              })()}
-            </div>
+            {/* Canvases Needed View - Simple aggregated list */}
+            {filter === "canvases" && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-white">Canvases Needed (No Kit)</h2>
+                {(() => {
+                  // Aggregate canvas-only items by design
+                  const canvasesByDesign = new Map<string, {
+                    designId: string | null;
+                    designName: string | null;
+                    productTitle: string;
+                    previewImageUrl: string | null;
+                    quantity: number;
+                    canvasPrinted: number;
+                  }>();
+
+                  for (const order of data.orders) {
+                    for (const item of order.items) {
+                      if (item.needsKit) continue; // Only canvas-only items
+
+                      const key = item.designId || item.productTitle;
+                      const existing = canvasesByDesign.get(key);
+                      if (existing) {
+                        existing.quantity += item.quantity;
+                      } else {
+                        canvasesByDesign.set(key, {
+                          designId: item.designId,
+                          designName: item.designName,
+                          productTitle: item.productTitle,
+                          previewImageUrl: item.previewImageUrl,
+                          quantity: item.quantity,
+                          canvasPrinted: item.canvasPrinted,
+                        });
+                      }
+                    }
+                  }
+
+                  const canvases = Array.from(canvasesByDesign.values()).sort((a, b) => b.quantity - a.quantity);
+
+                  if (canvases.length === 0) {
+                    return (
+                      <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+                        <p className="text-slate-400">No canvas-only orders</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                      <div className="divide-y divide-slate-700/50">
+                        {canvases.map((canvas, idx) => {
+                          const hasEnough = canvas.canvasPrinted >= canvas.quantity;
+                          const shortage = canvas.quantity - canvas.canvasPrinted;
+                          return (
+                            <div key={idx} className="p-4 flex items-center gap-4">
+                              {canvas.previewImageUrl ? (
+                                <img
+                                  src={canvas.previewImageUrl}
+                                  alt={canvas.productTitle}
+                                  className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+                                />
+                              ) : (
+                                <div className="w-14 h-14 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-slate-500 text-xs">?</span>
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-white font-medium truncate">
+                                  {canvas.designName || canvas.productTitle}
+                                </p>
+                                {!canvas.designId && (
+                                  <p className="text-xs text-yellow-500">No matching design</p>
+                                )}
+                              </div>
+                              <div className="text-center px-4">
+                                <p className="text-2xl font-bold text-blue-400">{canvas.quantity}</p>
+                                <p className="text-xs text-slate-400">needed</p>
+                              </div>
+                              <div className="text-center px-4">
+                                <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                  {canvas.canvasPrinted}
+                                </p>
+                                <p className="text-xs text-slate-400">printed</p>
+                              </div>
+                              {!hasEnough && (
+                                <div className="text-center px-4">
+                                  <p className="text-2xl font-bold text-red-400">-{shortage}</p>
+                                  <p className="text-xs text-slate-400">short</p>
+                                </div>
+                              )}
+                              {canvas.designId && (
+                                <Link
+                                  href={`/design/${canvas.designId}`}
+                                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                                  title="View design"
+                                >
+                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </Link>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* All Orders View */}
+            {filter === "all" && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-white">Unfulfilled Orders</h2>
+                {data.orders.length === 0 ? (
+                  <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+                    <p className="text-slate-400">No unfulfilled orders</p>
+                  </div>
+                ) : (
+                  data.orders.map((order) => (
+                    <OrderCard key={order.shopifyOrderId} order={order} />
+                  ))
+                )}
+              </div>
+            )}
           </>
         )}
       </main>
