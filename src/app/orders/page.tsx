@@ -22,6 +22,7 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<SyncResult | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
+  const [updating, setUpdating] = useState<string | null>(null); // Track which design is being updated
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -62,6 +63,32 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  // Update design kitsReady or canvasPrinted count
+  const handleUpdateCount = async (designId: string, field: "kitsReady" | "canvasPrinted", delta: number) => {
+    setUpdating(designId);
+    try {
+      const body = field === "kitsReady"
+        ? { kitsReadyDelta: delta }
+        : { canvasPrintedDelta: delta };
+
+      const res = await fetch(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update");
+      }
+
+      // Refresh orders to get updated counts
+      await fetchOrders();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Update failed");
+    }
+    setUpdating(null);
+  };
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -303,10 +330,32 @@ export default function OrdersPage() {
                                 <p className="text-xs text-slate-400">needed</p>
                               </div>
                               <div className="text-center px-4">
-                                <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
-                                  {kit.kitsReady}
-                                </p>
-                                <p className="text-xs text-slate-400">ready</p>
+                                <div className="flex items-center gap-2">
+                                  {kit.designId && (
+                                    <button
+                                      onClick={() => handleUpdateCount(kit.designId!, "kitsReady", -1)}
+                                      disabled={updating === kit.designId || kit.kitsReady <= 0}
+                                      className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                    >
+                                      −
+                                    </button>
+                                  )}
+                                  <div>
+                                    <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                      {kit.kitsReady}
+                                    </p>
+                                    <p className="text-xs text-slate-400">ready</p>
+                                  </div>
+                                  {kit.designId && (
+                                    <button
+                                      onClick={() => handleUpdateCount(kit.designId!, "kitsReady", 1)}
+                                      disabled={updating === kit.designId}
+                                      className="w-7 h-7 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                    >
+                                      +
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                               {!hasEnough && (
                                 <div className="text-center px-4">
@@ -413,10 +462,32 @@ export default function OrdersPage() {
                                 <p className="text-xs text-slate-400">needed</p>
                               </div>
                               <div className="text-center px-4">
-                                <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
-                                  {canvas.canvasPrinted}
-                                </p>
-                                <p className="text-xs text-slate-400">printed</p>
+                                <div className="flex items-center gap-2">
+                                  {canvas.designId && (
+                                    <button
+                                      onClick={() => handleUpdateCount(canvas.designId!, "canvasPrinted", -1)}
+                                      disabled={updating === canvas.designId || canvas.canvasPrinted <= 0}
+                                      className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                    >
+                                      −
+                                    </button>
+                                  )}
+                                  <div>
+                                    <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                      {canvas.canvasPrinted}
+                                    </p>
+                                    <p className="text-xs text-slate-400">printed</p>
+                                  </div>
+                                  {canvas.designId && (
+                                    <button
+                                      onClick={() => handleUpdateCount(canvas.designId!, "canvasPrinted", 1)}
+                                      disabled={updating === canvas.designId}
+                                      className="w-7 h-7 rounded bg-blue-700 hover:bg-blue-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                    >
+                                      +
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                               {!hasEnough && (
                                 <div className="text-center px-4">

@@ -123,24 +123,38 @@ export async function POST(request: NextRequest) {
 
             // Deduct inventory if we have a matching design
             if (designId) {
-              // Always deduct canvasPrinted
-              await tx.design.update({
+              // Get current counts to prevent going negative
+              const currentDesign = await tx.design.findUnique({
                 where: { id: designId },
-                data: {
-                  canvasPrinted: { decrement: lineItem.quantity },
-                },
+                select: { kitsReady: true, canvasPrinted: true },
               });
-              canvasesDeducted += lineItem.quantity;
 
-              // Deduct kitsReady if kit was ordered
-              if (needsKit) {
-                await tx.design.update({
-                  where: { id: designId },
-                  data: {
-                    kitsReady: { decrement: lineItem.quantity },
-                  },
-                });
-                kitsDeducted += lineItem.quantity;
+              if (currentDesign) {
+                // Always deduct canvasPrinted (but not below 0)
+                const canvasDeduction = Math.min(lineItem.quantity, currentDesign.canvasPrinted);
+                if (canvasDeduction > 0) {
+                  await tx.design.update({
+                    where: { id: designId },
+                    data: {
+                      canvasPrinted: { decrement: canvasDeduction },
+                    },
+                  });
+                  canvasesDeducted += canvasDeduction;
+                }
+
+                // Deduct kitsReady if kit was ordered (but not below 0)
+                if (needsKit) {
+                  const kitDeduction = Math.min(lineItem.quantity, currentDesign.kitsReady);
+                  if (kitDeduction > 0) {
+                    await tx.design.update({
+                      where: { id: designId },
+                      data: {
+                        kitsReady: { decrement: kitDeduction },
+                      },
+                    });
+                    kitsDeducted += kitDeduction;
+                  }
+                }
               }
             }
           }

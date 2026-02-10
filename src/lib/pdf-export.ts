@@ -310,3 +310,52 @@ export function generateFullResImage(
   const quality = format === "jpeg" ? 0.92 : undefined;
   return canvas.toDataURL(mimeType, quality);
 }
+
+/**
+ * Generate a 1:1 pixel image where each grid cell = 1 pixel
+ * For an 8.5" × 11" design at 14 mesh, this produces a 119 × 154 pixel image
+ * @param grid - The pixel grid
+ * @param format - "png" or "jpeg"
+ * @returns Data URL of the generated image
+ */
+export function generateOneToOneImage(
+  grid: PixelGrid,
+  format: "png" | "jpeg" = "png"
+): string {
+  const gridHeight = grid.length;
+  const gridWidth = grid[0]?.length || 0;
+
+  if (gridWidth === 0 || gridHeight === 0) {
+    return "";
+  }
+
+  // Each grid cell = 1 pixel
+  const canvas = document.createElement("canvas");
+  canvas.width = gridWidth;
+  canvas.height = gridHeight;
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) return "";
+
+  // Fill background with white
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, gridWidth, gridHeight);
+
+  // Draw pixels - 1 pixel per stitch
+  for (let y = 0; y < gridHeight; y++) {
+    for (let x = 0; x < gridWidth; x++) {
+      const dmcNumber = grid[y][x];
+      if (dmcNumber === null) continue;
+
+      const color = getDmcColorByNumber(dmcNumber);
+      if (!color) continue;
+
+      ctx.fillStyle = color.hex;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  const mimeType = format === "jpeg" ? "image/jpeg" : "image/png";
+  const quality = format === "jpeg" ? 0.92 : undefined;
+  return canvas.toDataURL(mimeType, quality);
+}

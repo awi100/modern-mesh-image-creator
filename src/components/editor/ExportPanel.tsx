@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { exportArtworkPdf, exportStitchGuideImage, generatePreviewImage, generateFullResImage } from "@/lib/pdf-export";
+import { exportArtworkPdf, exportStitchGuideImage, generatePreviewImage, generateFullResImage, generateOneToOneImage } from "@/lib/pdf-export";
 
 interface ExportPanelProps {
   onClose: () => void;
@@ -93,6 +93,25 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
     }
   };
 
+  // Export 1:1 pixel image (1 pixel per stitch)
+  const handleExportOneToOne = async () => {
+    setExporting(true);
+    try {
+      const dataUrl = generateOneToOneImage(grid, "png");
+      if (dataUrl) {
+        const link = document.createElement("a");
+        link.download = `${designName.replace(/\s+/g, "_")}_1to1.png`;
+        link.href = dataUrl;
+        link.click();
+      }
+    } catch (error) {
+      console.error("Export error:", error);
+      alert("Failed to export image. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-slate-800 rounded-xl p-6 w-full max-w-md shadow-xl">
@@ -149,6 +168,23 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
                 <p className="text-white font-medium">Stitch Guide (PNG)</p>
                 <p className="text-sm text-slate-400">
                   Image with color legend
+                </p>
+              </div>
+            </div>
+          </button>
+
+          {/* 1:1 Pixel Export - 1 pixel per stitch */}
+          <button
+            onClick={handleExportOneToOne}
+            disabled={exporting}
+            className="w-full p-4 bg-rose-900/50 rounded-lg hover:bg-rose-800/50 transition-colors text-left disabled:opacity-50 border border-rose-700"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🎯</span>
+              <div>
+                <p className="text-white font-medium">Canvas Print (1:1)</p>
+                <p className="text-sm text-slate-400">
+                  {gridWidth} × {gridHeight} px (1 pixel per stitch)
                 </p>
               </div>
             </div>
