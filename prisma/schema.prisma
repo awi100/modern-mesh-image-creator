@@ -99,6 +99,10 @@ model Design {
   kitsReady             Int     @default(0)  // assembled kits awaiting sale
   canvasPrinted         Int     @default(0)  // physical canvases printed
 
+  // Sales tracking (from Shopify fulfilled orders)
+  totalSold             Int     @default(0)  // total units sold (kits + canvas-only)
+  totalKitsSold         Int     @default(0)  // units sold with kit included
+
   // Precomputed kit summary (updated on design save)
   kitColorCount         Int     @default(0)  // distinct colors in the kit
   kitSkeinCount         Int     @default(0)  // total skeins for one kit

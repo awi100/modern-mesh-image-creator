@@ -86,3 +86,61 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// PATCH - Increment/decrement an inventory item by delta
+export async function PATCH(request: NextRequest) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { dmcNumber, size, delta } = body;
+
+    if (!dmcNumber || !size || delta === undefined) {
+      return NextResponse.json(
+        { error: "dmcNumber, size, and delta are required" },
+        { status: 400 }
+      );
+    }
+
+    if (size !== 5 && size !== 8) {
+      return NextResponse.json(
+        { error: "Size must be 5 or 8" },
+        { status: 400 }
+      );
+    }
+
+    // Find existing inventory or create with 0
+    const existing = await prisma.inventoryItem.findUnique({
+      where: {
+        dmcNumber_size: { dmcNumber, size: Number(size) },
+      },
+    });
+
+    const currentSkeins = existing?.skeins ?? 0;
+    const newSkeins = Math.max(0, currentSkeins + Number(delta));
+
+    const item = await prisma.inventoryItem.upsert({
+      where: {
+        dmcNumber_size: { dmcNumber, size: Number(size) },
+      },
+      update: {
+        skeins: newSkeins,
+      },
+      create: {
+        dmcNumber,
+        size: Number(size),
+        skeins: newSkeins,
+      },
+    });
+
+    return NextResponse.json(item);
+  } catch (error) {
+    console.error("Error updating inventory item:", error);
+    return NextResponse.json(
+      { error: "Failed to update inventory item" },
+      { status: 500 }
+    );
+  }
+}

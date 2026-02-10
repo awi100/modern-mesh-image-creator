@@ -293,6 +293,7 @@ export default function OrdersPage() {
                     kitsReady: number;
                     folderId: string | null;
                     folderName: string | null;
+                    totalSold: number;
                   }>();
 
                   for (const order of data.orders) {
@@ -313,6 +314,7 @@ export default function OrdersPage() {
                           kitsReady: item.kitsReady,
                           folderId: item.folderId,
                           folderName: item.folderName,
+                          totalSold: item.totalSold,
                         });
                       }
                     }
@@ -382,8 +384,10 @@ export default function OrdersPage() {
                                       <p className="text-white font-medium truncate">
                                         {kit.designName || kit.productTitle}
                                       </p>
-                                      {!kit.designId && (
+                                      {!kit.designId ? (
                                         <p className="text-xs text-yellow-500">No matching design</p>
+                                      ) : (
+                                        <p className="text-xs text-purple-400">{kit.totalSold} sold</p>
                                       )}
                                     </div>
                                     <div className="text-center px-4">

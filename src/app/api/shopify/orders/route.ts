@@ -21,6 +21,7 @@ export interface OrderItem {
   canvasPrinted: number;
   folderId: string | null;
   folderName: string | null;
+  totalSold: number;
 }
 
 export interface Order {
@@ -56,7 +57,7 @@ export async function GET() {
       );
     }
 
-    // Fetch all designs for matching (include folder info)
+    // Fetch all designs for matching (include folder info and sales data)
     const designs = await prisma.design.findMany({
       where: { deletedAt: null },
       select: {
@@ -65,6 +66,7 @@ export async function GET() {
         previewImageUrl: true,
         kitsReady: true,
         canvasPrinted: true,
+        totalSold: true,
         folderId: true,
         folder: {
           select: {
@@ -119,6 +121,7 @@ export async function GET() {
           canvasPrinted: matchedDesign?.canvasPrinted || 0,
           folderId: matchedDesign?.folderId || null,
           folderName: matchedDesign?.folder?.name || null,
+          totalSold: matchedDesign?.totalSold || 0,
         });
 
         // Count what's needed

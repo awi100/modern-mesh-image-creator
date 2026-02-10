@@ -44,6 +44,8 @@ interface Design {
   skillLevel: string | null;
   sizeCategory: string | null;
   totalStitches: number;
+  totalSold: number;
+  totalKitsSold: number;
 }
 
 // Calculate days remaining before permanent deletion
@@ -1422,6 +1424,9 @@ export default function HomePage() {
                                 {design.kitColorCount} colors &middot; {design.kitSkeinCount} skeins
                               </span>
                             )}
+                            <span className="px-1.5 py-0.5 bg-purple-900/40 text-purple-400 rounded" title={`${design.totalKitsSold} with kit, ${design.totalSold - design.totalKitsSold} canvas only`}>
+                              {design.totalSold} sold
+                            </span>
                             <span className="px-1.5 py-0.5 bg-blue-900/40 text-blue-400 rounded flex items-center gap-1">
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleUpdateCanvasPrinted(design.id, -1); }}

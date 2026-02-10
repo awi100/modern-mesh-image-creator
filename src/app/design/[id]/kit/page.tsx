@@ -35,6 +35,8 @@ interface DesignInfo {
   heightInches: number;
   kitsReady: number;
   canvasPrinted: number;
+  totalSold: number;
+  totalKitsSold: number;
 }
 
 interface KitTotals {
@@ -109,6 +111,7 @@ export default function KitPage() {
   const [showSellDialog, setShowSellDialog] = useState(false);
   const [sellNote, setSellNote] = useState("");
   const [assemblyQuantity, setAssemblyQuantity] = useState(1);
+  const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
 
   const fetchKit = async () => {
     try {
@@ -138,6 +141,55 @@ export default function KitPage() {
       console.error("Error fetching sales:", error);
     }
   };
+
+  const handleUpdateInventory = useCallback(async (dmcNumber: string, delta: number) => {
+    if (updatingInventory === dmcNumber || !design) return;
+
+    setUpdatingInventory(dmcNumber);
+    const size = design.meshCount === 14 ? 5 : 8;
+
+    // Optimistic update
+    setKitContents(prev => prev.map(item => {
+      if (item.dmcNumber !== dmcNumber) return item;
+      const newSkeins = Math.max(0, item.inventorySkeins + delta);
+      return {
+        ...item,
+        inventorySkeins: newSkeins,
+        inStock: newSkeins >= item.skeinsNeeded,
+      };
+    }));
+
+    // Update totals optimistically
+    setTotals(prev => {
+      if (!prev) return prev;
+      const updatedContents = kitContents.map(item => {
+        if (item.dmcNumber !== dmcNumber) return item;
+        const newSkeins = Math.max(0, item.inventorySkeins + delta);
+        return { ...item, inventorySkeins: newSkeins, inStock: newSkeins >= item.skeinsNeeded };
+      });
+      return {
+        ...prev,
+        allInStock: updatedContents.every(item => item.inStock),
+      };
+    });
+
+    try {
+      const res = await fetch("/api/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dmcNumber, size, delta }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update inventory");
+      }
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      // Revert by refetching
+      fetchKit();
+    }
+    setUpdatingInventory(null);
+  }, [updatingInventory, design, kitContents]);
 
   useEffect(() => {
     fetchKit();
@@ -344,7 +396,7 @@ export default function KitPage() {
       <div className="max-w-5xl mx-auto px-3 md:px-4 py-4 md:py-6 space-y-6">
         {/* Totals bar */}
         {totals && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4">
             <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
               <p className="text-2xl font-bold text-white">{totals.colors}</p>
               <p className="text-sm text-slate-400">Colors</p>
@@ -363,6 +415,15 @@ export default function KitPage() {
                 {totals.allInStock ? "Yes" : "No"}
               </p>
               <p className="text-sm text-slate-400">All In Stock</p>
+            </div>
+            <div className="bg-purple-900/20 rounded-xl p-4 border border-purple-800">
+              <p className="text-2xl font-bold text-purple-400">{design.totalSold}</p>
+              <p className="text-sm text-slate-400">
+                Sold
+                {design.totalSold > 0 && (
+                  <span className="text-purple-500"> ({design.totalKitsSold} kits)</span>
+                )}
+              </p>
             </div>
             <div className="bg-blue-900/20 rounded-xl p-4 border border-blue-800">
               <p className="text-2xl font-bold text-blue-400">{canvasPrinted}</p>
@@ -429,21 +490,28 @@ export default function KitPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {item.inStock ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-400 text-sm">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          onClick={() => handleUpdateInventory(item.dmcNumber, -1)}
+                          disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
+                          className="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-sm font-bold"
+                        >
+                          −
+                        </button>
+                        <span className={`text-sm font-medium w-8 text-center ${item.inStock ? "text-emerald-400" : "text-red-400"}`}>
                           {item.inventorySkeins}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-red-400 text-sm">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                          {item.inventorySkeins}/{item.skeinsNeeded}
-                        </span>
-                      )}
+                        <button
+                          onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
+                          disabled={updatingInventory === item.dmcNumber}
+                          className="w-6 h-6 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-sm font-bold"
+                        >
+                          +
+                        </button>
+                        {!item.inStock && (
+                          <span className="text-red-400 text-xs ml-1">/{item.skeinsNeeded}</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -474,7 +542,7 @@ export default function KitPage() {
                     {item.stitchCount.toLocaleString()} stitches &middot; {item.yardsWithoutBuffer} yds ({item.yardsWithBuffer} w/ buffer)
                   </p>
                 </div>
-                <div className="text-right flex-shrink-0">
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <p className="text-white font-medium text-sm">
                     {item.fullSkeins > 0 && <span>{item.fullSkeins} sk</span>}
                     {item.bobbinYards > 0 && (
@@ -484,13 +552,28 @@ export default function KitPage() {
                       </span>
                     )}
                   </p>
-                  {item.bobbinYards > 0 && item.fullSkeins === 0 ? (
-                    <p className="text-amber-500 text-xs">bobbin</p>
-                  ) : item.inStock ? (
-                    <p className="text-emerald-400 text-xs">{item.inventorySkeins} in stock</p>
-                  ) : (
-                    <p className="text-red-400 text-xs">{item.inventorySkeins}/{item.skeinsNeeded}</p>
-                  )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleUpdateInventory(item.dmcNumber, -1)}
+                      disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
+                      className="w-5 h-5 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xs font-bold"
+                    >
+                      −
+                    </button>
+                    <span className={`text-xs font-medium w-5 text-center ${item.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                      {item.inventorySkeins}
+                    </span>
+                    <button
+                      onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
+                      disabled={updatingInventory === item.dmcNumber}
+                      className="w-5 h-5 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xs font-bold"
+                    >
+                      +
+                    </button>
+                    {!item.inStock && (
+                      <span className="text-red-400 text-xs">/{item.skeinsNeeded}</span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

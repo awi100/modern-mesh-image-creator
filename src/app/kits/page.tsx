@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 
 interface KitItem {
   dmcNumber: string;
@@ -59,12 +59,68 @@ export default function KitsPage() {
   const [expandedKit, setExpandedKit] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "in-stock" | "out-of-stock">("all");
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string | null>>(new Set());
+  const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
 
   // Use SWR for caching - data persists across navigations
-  const { data: kits, isLoading: loading } = useSWR<KitSummary[]>("/api/kits", {
+  const { data: kits, isLoading: loading, mutate: mutateKits } = useSWR<KitSummary[]>("/api/kits", {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
+
+  // Update inventory for a specific color
+  const handleUpdateInventory = useCallback(async (dmcNumber: string, meshCount: number, delta: number) => {
+    const key = `${dmcNumber}-${meshCount}`;
+    if (updatingInventory === key) return;
+
+    setUpdatingInventory(key);
+    const size = meshCount === 14 ? 5 : 8;
+
+    // Optimistic update
+    mutateKits((currentKits) => {
+      if (!currentKits) return currentKits;
+      return currentKits.map(kit => {
+        if (kit.meshCount !== meshCount) return kit;
+        return {
+          ...kit,
+          kitContents: kit.kitContents.map(item => {
+            if (item.dmcNumber !== dmcNumber) return item;
+            const newSkeins = Math.max(0, item.inventorySkeins + delta);
+            return {
+              ...item,
+              inventorySkeins: newSkeins,
+              inStock: newSkeins >= item.skeinsNeeded,
+            };
+          }),
+          allInStock: kit.kitContents.every(item =>
+            item.dmcNumber === dmcNumber
+              ? Math.max(0, item.inventorySkeins + delta) >= item.skeinsNeeded
+              : item.inStock
+          ),
+        };
+      });
+    }, false);
+
+    try {
+      const res = await fetch("/api/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dmcNumber, size, delta }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update inventory");
+      }
+
+      // Revalidate all inventory-related data
+      mutate("/api/inventory?size=5");
+      mutate("/api/inventory?size=8");
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      // Revert by refetching
+      mutateKits();
+    }
+    setUpdatingInventory(null);
+  }, [updatingInventory, mutateKits]);
 
   const filteredKits = (kits || []).filter((kit) => {
     if (filter === "in-stock") return kit.allInStock;
@@ -300,44 +356,70 @@ export default function KitsPage() {
                           <div className="border-t border-slate-700">
                             {/* Color list with amounts */}
                             <div className="p-4 bg-slate-700/30">
-                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                                {kit.kitContents.map((item) => (
-                                  <div
-                                    key={item.dmcNumber}
-                                    className={`flex items-center gap-2 p-2 rounded-lg bg-slate-800/50 ${
-                                      !item.inStock ? "ring-1 ring-red-500" : ""
-                                    }`}
-                                  >
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                {kit.kitContents.map((item) => {
+                                  const inventoryKey = `${item.dmcNumber}-${kit.meshCount}`;
+                                  const isUpdating = updatingInventory === inventoryKey;
+                                  return (
                                     <div
-                                      className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center"
-                                      style={{ backgroundColor: item.hex }}
+                                      key={item.dmcNumber}
+                                      className={`flex items-center gap-2 p-2 rounded-lg bg-slate-800/50 ${
+                                        !item.inStock ? "ring-1 ring-red-500" : ""
+                                      }`}
                                     >
-                                      <span
-                                        className="text-[7px] font-bold"
-                                        style={{ color: getContrastTextColor(item.hex) }}
+                                      <div
+                                        className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center"
+                                        style={{ backgroundColor: item.hex }}
                                       >
-                                        {item.dmcNumber}
-                                      </span>
+                                        <span
+                                          className="text-[7px] font-bold"
+                                          style={{ color: getContrastTextColor(item.hex) }}
+                                        >
+                                          {item.dmcNumber}
+                                        </span>
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-white text-xs font-medium truncate">
+                                          {item.dmcNumber}
+                                        </p>
+                                        <p className={`text-xs ${item.bobbinYards > 0 ? "text-amber-400" : "text-slate-400"}`}>
+                                          {item.fullSkeins > 0
+                                            ? `Need ${item.fullSkeins} skein${item.fullSkeins > 1 ? "s" : ""}`
+                                            : `${item.bobbinYards} yd bobbin`
+                                          }
+                                        </p>
+                                      </div>
+                                      {/* Inventory with +/- buttons */}
+                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleUpdateInventory(item.dmcNumber, kit.meshCount, -1);
+                                          }}
+                                          disabled={isUpdating || item.inventorySkeins <= 0}
+                                          className="w-5 h-5 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xs font-bold"
+                                        >
+                                          −
+                                        </button>
+                                        <span className={`text-xs font-medium w-6 text-center ${
+                                          item.inStock ? "text-emerald-400" : "text-red-400"
+                                        }`}>
+                                          {item.inventorySkeins}
+                                        </span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleUpdateInventory(item.dmcNumber, kit.meshCount, 1);
+                                          }}
+                                          disabled={isUpdating}
+                                          className="w-5 h-5 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xs font-bold"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
                                     </div>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-white text-xs font-medium truncate">
-                                        {item.dmcNumber}
-                                      </p>
-                                      <p className="text-slate-500 text-[10px]">
-                                        {item.stitchCount.toLocaleString()} stitches
-                                      </p>
-                                      <p className={`text-xs ${item.bobbinYards > 0 ? "text-amber-400" : "text-slate-400"}`}>
-                                        {item.fullSkeins > 0
-                                          ? `${item.fullSkeins} skein${item.fullSkeins > 1 ? "s" : ""}`
-                                          : `${item.bobbinYards} yd bobbin`
-                                        }
-                                      </p>
-                                    </div>
-                                    {!item.inStock && (
-                                      <span className="text-red-400 text-xs">!</span>
-                                    )}
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
 

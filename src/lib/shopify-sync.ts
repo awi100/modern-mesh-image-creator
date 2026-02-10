@@ -112,7 +112,7 @@ export async function syncFulfilledOrders(): Promise<SyncResult> {
             },
           });
 
-          // Deduct inventory if we have a matching design
+          // Update design if we have a match
           if (designId) {
             // Get current counts to prevent going negative
             const currentDesign = await tx.design.findUnique({
@@ -146,6 +146,15 @@ export async function syncFulfilledOrders(): Promise<SyncResult> {
                   kitsDeducted += kitDeduction;
                 }
               }
+
+              // Increment sales counts (always, regardless of inventory)
+              await tx.design.update({
+                where: { id: designId },
+                data: {
+                  totalSold: { increment: lineItem.quantity },
+                  totalKitsSold: needsKit ? { increment: lineItem.quantity } : undefined,
+                },
+              });
             }
           }
         }

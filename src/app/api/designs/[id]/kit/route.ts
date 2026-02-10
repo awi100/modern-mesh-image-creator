@@ -38,6 +38,8 @@ export async function GET(
         heightInches: true,
         kitsReady: true,
         canvasPrinted: true,
+        totalSold: true,
+        totalKitsSold: true,
       },
     });
 
@@ -147,6 +149,8 @@ export async function GET(
         heightInches: design.heightInches,
         kitsReady: design.kitsReady,
         canvasPrinted: design.canvasPrinted,
+        totalSold: design.totalSold,
+        totalKitsSold: design.totalKitsSold,
       },
       kitContents,
       totals: {
