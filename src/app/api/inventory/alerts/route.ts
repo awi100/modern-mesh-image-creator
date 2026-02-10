@@ -235,13 +235,18 @@ export async function GET() {
     alerts.sort((a, b) => a.fulfillmentCapacity - b.fulfillmentCapacity);
 
     // Build most used colors list with aggregate demand metrics
+    // Use 22 effective yards per skein (vs 27 actual) to account for waste when winding bobbins
+    const EFFECTIVE_YARDS_PER_SKEIN = 22;
+
     const mostUsedColors: MostUsedColor[] = [];
     for (const [dmcNumber, data] of colorUsageMap.entries()) {
       const dmcColor = getDmcColorByNumber(dmcNumber);
-      // Determine primary thread size (the one with more skeins needed)
+      // Determine primary thread size (the one with more yards needed)
       const primarySize: 5 | 8 = data.skeinsNeededBySize[5] >= data.skeinsNeededBySize[8] ? 5 : 8;
-      const totalSkeinsNeeded = data.skeinsNeededBySize[5] + data.skeinsNeededBySize[8];
       const totalYardsNeeded = Math.round(data.totalYards * 10) / 10;
+      // Calculate skeins from yards, not by summing individual design skeins
+      // This properly accounts for bobbin amounts being combined across designs
+      const totalSkeinsNeeded = Math.ceil(data.totalYards / EFFECTIVE_YARDS_PER_SKEIN);
       const inventorySkeins = (inventoryBySize[5].get(dmcNumber) ?? 0) + (inventoryBySize[8].get(dmcNumber) ?? 0);
       // Note: skeinsReservedInKits is tracked for display purposes only
       // The inventory already reflects deductions from kit assembly, so we don't subtract again

@@ -1435,7 +1435,7 @@ export default function InventoryPage() {
                                     DMC {color.dmcNumber} - {color.colorName}
                                   </p>
                                   <p className="text-slate-400 text-xs">
-                                    {color.designCount} designs · Need {color.totalSkeinsNeeded}/round · Have {color.effectiveInventory}
+                                    {color.designCount} designs · {color.totalYardsNeeded} yds ({color.totalSkeinsNeeded} sk)/round · Have {color.effectiveInventory}
                                   </p>
                                 </div>
                                 <div className="text-right flex-shrink-0">
@@ -1512,7 +1512,7 @@ export default function InventoryPage() {
                                     DMC {color.dmcNumber} - {color.colorName}
                                   </p>
                                   <p className="text-slate-400 text-xs">
-                                    {color.designCount} designs · Need {color.totalSkeinsNeeded}/round · Have {color.effectiveInventory}
+                                    {color.designCount} designs · {color.totalYardsNeeded} yds ({color.totalSkeinsNeeded} sk)/round · Have {color.effectiveInventory}
                                   </p>
                                 </div>
                                 <div className="text-right flex-shrink-0">
@@ -1589,7 +1589,7 @@ export default function InventoryPage() {
                                     DMC {color.dmcNumber} - {color.colorName}
                                   </p>
                                   <p className="text-slate-400 text-xs">
-                                    {color.designCount} designs · Need {color.totalSkeinsNeeded}/round · Have {color.effectiveInventory}
+                                    {color.designCount} designs · {color.totalYardsNeeded} yds ({color.totalSkeinsNeeded} sk)/round · Have {color.effectiveInventory}
                                   </p>
                                 </div>
                                 <div className="text-right flex-shrink-0">
