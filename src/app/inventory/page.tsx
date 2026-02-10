@@ -1519,6 +1519,10 @@ export default function InventoryPage() {
                                   <p className="text-yellow-400 font-bold">{Math.round(color.coverageRounds * 10) / 10}x</p>
                                   <p className="text-xs text-slate-400">coverage</p>
                                 </div>
+                                <div className="text-right flex-shrink-0 w-20">
+                                  <p className="text-amber-400 font-bold">+{Math.max(0, color.totalSkeinsNeeded * 7 - color.effectiveInventory)}</p>
+                                  <p className="text-xs text-slate-400">for 7x</p>
+                                </div>
                                 <svg
                                   className={`w-4 h-4 text-slate-400 transition-transform ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
                                   fill="none"
