@@ -64,9 +64,32 @@ export default function OrdersPage() {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Update design kitsReady or canvasPrinted count
+  // Update design kitsReady or canvasPrinted count with optimistic updates
   const handleUpdateCount = async (designId: string, field: "kitsReady" | "canvasPrinted", delta: number) => {
+    // Prevent rapid clicks - if already updating this design, ignore
+    if (updating === designId) return;
+
     setUpdating(designId);
+
+    // Optimistic update - immediately update local state
+    setData(prevData => {
+      if (!prevData) return prevData;
+      return {
+        ...prevData,
+        orders: prevData.orders.map(order => ({
+          ...order,
+          items: order.items.map(item => {
+            if (item.designId !== designId) return item;
+            if (field === "kitsReady") {
+              return { ...item, kitsReady: Math.max(0, item.kitsReady + delta) };
+            } else {
+              return { ...item, canvasPrinted: Math.max(0, item.canvasPrinted + delta) };
+            }
+          }),
+        })),
+      };
+    });
+
     try {
       const body = field === "kitsReady"
         ? { kitsReadyDelta: delta }
@@ -80,12 +103,15 @@ export default function OrdersPage() {
 
       if (!res.ok) {
         throw new Error("Failed to update");
+        // Note: On error, we should revert, but for simplicity we'll refetch
       }
 
-      // Refresh orders to get updated counts
-      await fetchOrders();
+      // Don't refetch on success - optimistic update is sufficient
+      // Only refetch if there was an error
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed");
+      // Revert by refetching
+      await fetchOrders();
     }
     setUpdating(null);
   };
