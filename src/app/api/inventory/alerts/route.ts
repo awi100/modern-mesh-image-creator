@@ -259,7 +259,7 @@ export async function GET() {
       const skeinsToNextRound = totalSkeinsNeeded > 0
         ? totalSkeinsNeeded - remainder
         : 0;
-      const isCritical = coverageRounds < 1;
+      const isCritical = coverageRounds < 3;
 
       // Sort designs by skeins needed (highest first)
       const sortedDesigns = [...data.designs].sort((a, b) => b.skeinsNeeded - a.skeinsNeeded);
@@ -300,16 +300,17 @@ export async function GET() {
     };
 
     // Global demand summary
+    // Critical: < 3 rounds, Low: 3-6 rounds, Healthy: 7+ rounds
     const globalDemand: GlobalDemandSummary = {
       totalColors: mostUsedColors.length,
-      criticalColors: mostUsedColors.filter((c) => c.coverageRounds < 1).length,
-      lowColors: mostUsedColors.filter((c) => c.coverageRounds >= 1 && c.coverageRounds <= 2).length,
-      healthyColors: mostUsedColors.filter((c) => c.coverageRounds >= 3).length,
+      criticalColors: mostUsedColors.filter((c) => c.coverageRounds < 3).length,
+      lowColors: mostUsedColors.filter((c) => c.coverageRounds >= 3 && c.coverageRounds <= 6).length,
+      healthyColors: mostUsedColors.filter((c) => c.coverageRounds >= 7).length,
     };
 
-    // Generate order suggestions for colors that need ordering (coverage < 1 or low)
+    // Generate order suggestions for colors that need ordering (critical < 3 or low 3-6)
     const orderSuggestions: OrderSuggestion[] = mostUsedColors
-      .filter((c) => c.coverageRounds < 3 && c.totalSkeinsNeeded > 0) // Only colors that need attention
+      .filter((c) => c.coverageRounds < 7 && c.totalSkeinsNeeded > 0) // Critical and low colors
       .map((c) => {
         const demandPerRound = c.totalSkeinsNeeded;
         const currentStock = c.effectiveInventory;

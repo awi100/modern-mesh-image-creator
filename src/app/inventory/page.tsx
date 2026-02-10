@@ -1392,30 +1392,30 @@ export default function InventoryPage() {
                         <p className="text-xl font-bold text-white">{globalDemand.totalColors}</p>
                       </div>
                       <div className="bg-red-900/30 rounded-lg p-3">
-                        <p className="text-xs text-red-400 uppercase tracking-wider">Critical (&lt;1 round)</p>
+                        <p className="text-xs text-red-400 uppercase tracking-wider">Critical (&lt;3 rounds)</p>
                         <p className="text-xl font-bold text-red-400">{globalDemand.criticalColors}</p>
                       </div>
                       <div className="bg-yellow-900/30 rounded-lg p-3">
-                        <p className="text-xs text-yellow-400 uppercase tracking-wider">Low (1-2 rounds)</p>
+                        <p className="text-xs text-yellow-400 uppercase tracking-wider">Low (3-6 rounds)</p>
                         <p className="text-xl font-bold text-yellow-400">{globalDemand.lowColors}</p>
                       </div>
                       <div className="bg-green-900/30 rounded-lg p-3">
-                        <p className="text-xs text-green-400 uppercase tracking-wider">Healthy (3+ rounds)</p>
+                        <p className="text-xs text-green-400 uppercase tracking-wider">Healthy (7+ rounds)</p>
                         <p className="text-xl font-bold text-green-400">{globalDemand.healthyColors}</p>
                       </div>
                     </div>
 
                     {/* Critical Colors List */}
-                    {mostUsedColors.filter(c => c.isCritical).length > 0 && (
+                    {mostUsedColors.filter(c => c.coverageRounds < 3).length > 0 && (
                       <div className="p-4 border-t border-rose-800/30">
                         <h4 className="text-red-400 font-semibold mb-3 flex items-center gap-2">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                           </svg>
-                          Critical Colors (can&apos;t make 1 kit of each design)
+                          Critical Colors (&lt;3 rounds)
                         </h4>
                         <div className="space-y-2">
-                          {mostUsedColors.filter(c => c.isCritical).map((color) => (
+                          {mostUsedColors.filter(c => c.coverageRounds < 3).map((color) => (
                             <div key={color.dmcNumber} className="bg-slate-800/50 rounded-lg overflow-hidden">
                               <button
                                 onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
@@ -1444,6 +1444,152 @@ export default function InventoryPage() {
                                 <div className="text-right flex-shrink-0 w-20">
                                   <p className="text-amber-400 font-bold">+{color.skeinsToNextRound}</p>
                                   <p className="text-xs text-slate-400">to order</p>
+                                </div>
+                                <svg
+                                  className={`w-4 h-4 text-slate-400 transition-transform ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {expandedGlobalColor === color.dmcNumber && (
+                                <div className="px-3 pb-3 pt-1 border-t border-slate-700/50">
+                                  <p className="text-xs text-slate-400 mb-2">Used in these designs:</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {color.designs.map((design) => (
+                                      <Link
+                                        key={design.id}
+                                        href={`/design/${design.id}/kit`}
+                                        className="flex items-center gap-2 bg-slate-700/50 rounded px-2 py-1 hover:bg-slate-600/50 transition-colors"
+                                      >
+                                        {design.previewImageUrl ? (
+                                          <img src={design.previewImageUrl} alt="" className="w-5 h-5 rounded object-cover" />
+                                        ) : (
+                                          <div className="w-5 h-5 rounded bg-slate-600" />
+                                        )}
+                                        <span className="text-xs text-white truncate max-w-[100px]">{design.name}</span>
+                                        <span className="text-xs text-emerald-400">{design.skeinsNeeded} sk</span>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Low Colors List */}
+                    {mostUsedColors.filter(c => c.coverageRounds >= 3 && c.coverageRounds <= 6).length > 0 && (
+                      <div className="p-4 border-t border-yellow-800/30">
+                        <h4 className="text-yellow-400 font-semibold mb-3 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Low Colors (3-6 rounds)
+                        </h4>
+                        <div className="space-y-2">
+                          {mostUsedColors.filter(c => c.coverageRounds >= 3 && c.coverageRounds <= 6).map((color) => (
+                            <div key={color.dmcNumber} className="bg-slate-800/50 rounded-lg overflow-hidden">
+                              <button
+                                onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
+                                className="w-full p-3 flex items-center gap-3 hover:bg-slate-700/30 transition-colors"
+                              >
+                                <div
+                                  className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20"
+                                  style={{ backgroundColor: color.hex }}
+                                >
+                                  <span className="text-[7px] font-bold" style={{ color: getContrastTextColor(color.hex) }}>
+                                    {color.dmcNumber}
+                                  </span>
+                                </div>
+                                <div className="flex-1 text-left min-w-0">
+                                  <p className="text-white text-sm font-medium">
+                                    DMC {color.dmcNumber} - {color.colorName}
+                                  </p>
+                                  <p className="text-slate-400 text-xs">
+                                    {color.designCount} designs · Need {color.totalSkeinsNeeded}/round · Have {color.effectiveInventory}
+                                  </p>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className="text-yellow-400 font-bold">{Math.round(color.coverageRounds * 10) / 10}x</p>
+                                  <p className="text-xs text-slate-400">coverage</p>
+                                </div>
+                                <svg
+                                  className={`w-4 h-4 text-slate-400 transition-transform ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {expandedGlobalColor === color.dmcNumber && (
+                                <div className="px-3 pb-3 pt-1 border-t border-slate-700/50">
+                                  <p className="text-xs text-slate-400 mb-2">Used in these designs:</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {color.designs.map((design) => (
+                                      <Link
+                                        key={design.id}
+                                        href={`/design/${design.id}/kit`}
+                                        className="flex items-center gap-2 bg-slate-700/50 rounded px-2 py-1 hover:bg-slate-600/50 transition-colors"
+                                      >
+                                        {design.previewImageUrl ? (
+                                          <img src={design.previewImageUrl} alt="" className="w-5 h-5 rounded object-cover" />
+                                        ) : (
+                                          <div className="w-5 h-5 rounded bg-slate-600" />
+                                        )}
+                                        <span className="text-xs text-white truncate max-w-[100px]">{design.name}</span>
+                                        <span className="text-xs text-emerald-400">{design.skeinsNeeded} sk</span>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Healthy Colors List */}
+                    {mostUsedColors.filter(c => c.coverageRounds >= 7).length > 0 && (
+                      <div className="p-4 border-t border-green-800/30">
+                        <h4 className="text-green-400 font-semibold mb-3 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Healthy Colors (7+ rounds)
+                        </h4>
+                        <div className="space-y-2">
+                          {mostUsedColors.filter(c => c.coverageRounds >= 7).map((color) => (
+                            <div key={color.dmcNumber} className="bg-slate-800/50 rounded-lg overflow-hidden">
+                              <button
+                                onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
+                                className="w-full p-3 flex items-center gap-3 hover:bg-slate-700/30 transition-colors"
+                              >
+                                <div
+                                  className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20"
+                                  style={{ backgroundColor: color.hex }}
+                                >
+                                  <span className="text-[7px] font-bold" style={{ color: getContrastTextColor(color.hex) }}>
+                                    {color.dmcNumber}
+                                  </span>
+                                </div>
+                                <div className="flex-1 text-left min-w-0">
+                                  <p className="text-white text-sm font-medium">
+                                    DMC {color.dmcNumber} - {color.colorName}
+                                  </p>
+                                  <p className="text-slate-400 text-xs">
+                                    {color.designCount} designs · Need {color.totalSkeinsNeeded}/round · Have {color.effectiveInventory}
+                                  </p>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className="text-green-400 font-bold">{color.coverageRounds === 999 ? "∞" : Math.round(color.coverageRounds * 10) / 10}x</p>
+                                  <p className="text-xs text-slate-400">coverage</p>
                                 </div>
                                 <svg
                                   className={`w-4 h-4 text-slate-400 transition-transform ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
