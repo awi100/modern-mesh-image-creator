@@ -19,6 +19,8 @@ export interface OrderItem {
   previewImageUrl: string | null;
   kitsReady: number;
   canvasPrinted: number;
+  folderId: string | null;
+  folderName: string | null;
 }
 
 export interface Order {
@@ -54,7 +56,7 @@ export async function GET() {
       );
     }
 
-    // Fetch all designs for matching
+    // Fetch all designs for matching (include folder info)
     const designs = await prisma.design.findMany({
       where: { deletedAt: null },
       select: {
@@ -63,6 +65,13 @@ export async function GET() {
         previewImageUrl: true,
         kitsReady: true,
         canvasPrinted: true,
+        folderId: true,
+        folder: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -108,6 +117,8 @@ export async function GET() {
           previewImageUrl: matchedDesign?.previewImageUrl || null,
           kitsReady: matchedDesign?.kitsReady || 0,
           canvasPrinted: matchedDesign?.canvasPrinted || 0,
+          folderId: matchedDesign?.folderId || null,
+          folderName: matchedDesign?.folder?.name || null,
         });
 
         // Count what's needed

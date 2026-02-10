@@ -252,7 +252,7 @@ export default function OrdersPage() {
               </button>
             </div>
 
-            {/* Kits Needed View - Simple aggregated list */}
+            {/* Kits Needed View - Grouped by collection */}
             {filter === "kits" && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-white">Kits Needed</h2>
@@ -265,6 +265,8 @@ export default function OrdersPage() {
                     previewImageUrl: string | null;
                     quantity: number;
                     kitsReady: number;
+                    folderId: string | null;
+                    folderName: string | null;
                   }>();
 
                   for (const order of data.orders) {
@@ -283,12 +285,14 @@ export default function OrdersPage() {
                           previewImageUrl: item.previewImageUrl,
                           quantity: item.quantity,
                           kitsReady: item.kitsReady,
+                          folderId: item.folderId,
+                          folderName: item.folderName,
                         });
                       }
                     }
                   }
 
-                  const kits = Array.from(kitsByDesign.values()).sort((a, b) => b.quantity - a.quantity);
+                  const kits = Array.from(kitsByDesign.values());
 
                   if (kits.length === 0) {
                     return (
@@ -298,86 +302,120 @@ export default function OrdersPage() {
                     );
                   }
 
+                  // Group by folder
+                  const kitsByFolder = new Map<string, typeof kits>();
+                  for (const kit of kits) {
+                    const folderKey = kit.folderId || "__uncategorized__";
+                    const existing = kitsByFolder.get(folderKey) || [];
+                    existing.push(kit);
+                    kitsByFolder.set(folderKey, existing);
+                  }
+
+                  // Sort folders alphabetically, with uncategorized at the end
+                  const sortedFolders = Array.from(kitsByFolder.entries()).sort((a, b) => {
+                    if (a[0] === "__uncategorized__") return 1;
+                    if (b[0] === "__uncategorized__") return -1;
+                    const nameA = a[1][0]?.folderName || "";
+                    const nameB = b[1][0]?.folderName || "";
+                    return nameA.localeCompare(nameB);
+                  });
+
                   return (
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                      <div className="divide-y divide-slate-700/50">
-                        {kits.map((kit, idx) => {
-                          const hasEnough = kit.kitsReady >= kit.quantity;
-                          const shortage = kit.quantity - kit.kitsReady;
-                          return (
-                            <div key={idx} className="p-4 flex items-center gap-4">
-                              {kit.previewImageUrl ? (
-                                <img
-                                  src={kit.previewImageUrl}
-                                  alt={kit.productTitle}
-                                  className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
-                                />
-                              ) : (
-                                <div className="w-14 h-14 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                  <span className="text-slate-500 text-xs">?</span>
-                                </div>
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-white font-medium truncate">
-                                  {kit.designName || kit.productTitle}
-                                </p>
-                                {!kit.designId && (
-                                  <p className="text-xs text-yellow-500">No matching design</p>
-                                )}
-                              </div>
-                              <div className="text-center px-4">
-                                <p className="text-2xl font-bold text-amber-400">{kit.quantity}</p>
-                                <p className="text-xs text-slate-400">needed</p>
-                              </div>
-                              <div className="text-center px-4">
-                                <div className="flex items-center gap-2">
-                                  {kit.designId && (
-                                    <button
-                                      onClick={() => handleUpdateCount(kit.designId!, "kitsReady", -1)}
-                                      disabled={updating === kit.designId || kit.kitsReady <= 0}
-                                      className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
-                                    >
-                                      −
-                                    </button>
-                                  )}
-                                  <div>
-                                    <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
-                                      {kit.kitsReady}
-                                    </p>
-                                    <p className="text-xs text-slate-400">ready</p>
-                                  </div>
-                                  {kit.designId && (
-                                    <button
-                                      onClick={() => handleUpdateCount(kit.designId!, "kitsReady", 1)}
-                                      disabled={updating === kit.designId}
-                                      className="w-7 h-7 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
-                                    >
-                                      +
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              {!hasEnough && (
-                                <div className="text-center px-4">
-                                  <p className="text-2xl font-bold text-red-400">-{shortage}</p>
-                                  <p className="text-xs text-slate-400">short</p>
-                                </div>
-                              )}
-                              {kit.designId && (
-                                <Link
-                                  href={`/design/${kit.designId}/kit`}
-                                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
-                                  title="View kit details"
-                                >
-                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
-                                </Link>
-                              )}
+                    <div className="space-y-4">
+                      {sortedFolders.map(([folderId, folderKits]) => {
+                        const folderName = folderKits[0]?.folderName || "Uncategorized";
+                        // Sort kits within folder by quantity needed (descending)
+                        const sortedKits = [...folderKits].sort((a, b) => b.quantity - a.quantity);
+
+                        return (
+                          <div key={folderId} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                            {/* Folder header */}
+                            <div className="px-4 py-3 bg-slate-700/50 border-b border-slate-700">
+                              <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+                                {folderName}
+                              </h3>
                             </div>
-                          );
-                        })}
-                      </div>
+                            <div className="divide-y divide-slate-700/50">
+                              {sortedKits.map((kit, idx) => {
+                                const hasEnough = kit.kitsReady >= kit.quantity;
+                                const shortage = kit.quantity - kit.kitsReady;
+                                return (
+                                  <div key={idx} className="p-4 flex items-center gap-4">
+                                    {kit.previewImageUrl ? (
+                                      <img
+                                        src={kit.previewImageUrl}
+                                        alt={kit.productTitle}
+                                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="w-14 h-14 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-slate-500 text-xs">?</span>
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-white font-medium truncate">
+                                        {kit.designName || kit.productTitle}
+                                      </p>
+                                      {!kit.designId && (
+                                        <p className="text-xs text-yellow-500">No matching design</p>
+                                      )}
+                                    </div>
+                                    <div className="text-center px-4">
+                                      <p className="text-2xl font-bold text-amber-400">{kit.quantity}</p>
+                                      <p className="text-xs text-slate-400">needed</p>
+                                    </div>
+                                    <div className="text-center px-4">
+                                      <div className="flex items-center gap-2">
+                                        {kit.designId && (
+                                          <button
+                                            onClick={() => handleUpdateCount(kit.designId!, "kitsReady", -1)}
+                                            disabled={updating === kit.designId || kit.kitsReady <= 0}
+                                            className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                          >
+                                            −
+                                          </button>
+                                        )}
+                                        <div>
+                                          <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                            {kit.kitsReady}
+                                          </p>
+                                          <p className="text-xs text-slate-400">ready</p>
+                                        </div>
+                                        {kit.designId && (
+                                          <button
+                                            onClick={() => handleUpdateCount(kit.designId!, "kitsReady", 1)}
+                                            disabled={updating === kit.designId}
+                                            className="w-7 h-7 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                          >
+                                            +
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {!hasEnough && (
+                                      <div className="text-center px-4">
+                                        <p className="text-2xl font-bold text-red-400">-{shortage}</p>
+                                        <p className="text-xs text-slate-400">short</p>
+                                      </div>
+                                    )}
+                                    {kit.designId && (
+                                      <Link
+                                        href={`/design/${kit.designId}/kit`}
+                                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                                        title="View kit details"
+                                      >
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                      </Link>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })()}
