@@ -68,9 +68,10 @@ interface OrderSuggestion {
   threadSize: 5 | 8;
   currentStock: number;
   demandPerRound: number;
-  skeinsToOrder: number; // To complete 1 round
-  skeinsFor2Rounds: number; // To have 2 complete rounds
-  skeinsFor3Rounds: number; // To have 3 complete rounds
+  currentCoverage: number;
+  skeinsFor7Rounds: number; // To reach healthy (7 rounds)
+  skeinsFor10Rounds: number; // To have 10 rounds
+  skeinsFor14Rounds: number; // To have 14 rounds (2 weeks worth)
 }
 
 // GET - Calculate stock alerts for all non-draft designs
@@ -308,16 +309,17 @@ export async function GET() {
       healthyColors: mostUsedColors.filter((c) => c.coverageRounds >= 7).length,
     };
 
-    // Generate order suggestions for colors that need ordering (critical < 3 or low 3-6)
+    // Generate order suggestions for colors that need ordering (< 7 rounds = not healthy)
     const orderSuggestions: OrderSuggestion[] = mostUsedColors
       .filter((c) => c.coverageRounds < 7 && c.totalSkeinsNeeded > 0) // Critical and low colors
       .map((c) => {
         const demandPerRound = c.totalSkeinsNeeded;
         const currentStock = c.effectiveInventory;
-        // Calculate how many skeins needed for 1, 2, 3 complete rounds
-        const skeinsFor1Round = Math.max(0, demandPerRound - currentStock);
-        const skeinsFor2Rounds = Math.max(0, demandPerRound * 2 - currentStock);
-        const skeinsFor3Rounds = Math.max(0, demandPerRound * 3 - currentStock);
+        const currentCoverage = c.coverageRounds;
+        // Calculate how many skeins needed to reach healthy levels (7, 10, 14 rounds)
+        const skeinsFor7Rounds = Math.max(0, demandPerRound * 7 - currentStock);
+        const skeinsFor10Rounds = Math.max(0, demandPerRound * 10 - currentStock);
+        const skeinsFor14Rounds = Math.max(0, demandPerRound * 14 - currentStock);
 
         return {
           dmcNumber: c.dmcNumber,
@@ -326,13 +328,14 @@ export async function GET() {
           threadSize: c.threadSize,
           currentStock,
           demandPerRound,
-          skeinsToOrder: skeinsFor1Round,
-          skeinsFor2Rounds,
-          skeinsFor3Rounds,
+          currentCoverage,
+          skeinsFor7Rounds,
+          skeinsFor10Rounds,
+          skeinsFor14Rounds,
         };
       })
-      .filter((s) => s.skeinsToOrder > 0) // Only include if actually needs ordering
-      .sort((a, b) => b.skeinsToOrder - a.skeinsToOrder); // Sort by most needed first
+      .filter((s) => s.skeinsFor7Rounds > 0) // Only include if needs ordering to reach healthy
+      .sort((a, b) => b.skeinsFor7Rounds - a.skeinsFor7Rounds); // Sort by most needed first
 
     return NextResponse.json({
       alerts,

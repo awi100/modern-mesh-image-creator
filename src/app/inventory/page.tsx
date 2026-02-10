@@ -103,9 +103,10 @@ interface OrderSuggestion {
   threadSize: 5 | 8;
   currentStock: number;
   demandPerRound: number;
-  skeinsToOrder: number;
-  skeinsFor2Rounds: number;
-  skeinsFor3Rounds: number;
+  currentCoverage: number;
+  skeinsFor7Rounds: number;
+  skeinsFor10Rounds: number;
+  skeinsFor14Rounds: number;
 }
 
 interface ColorUsageDesign {
@@ -175,7 +176,7 @@ export default function InventoryPage() {
   const [orderSuggestions, setOrderSuggestions] = useState<OrderSuggestion[]>([]);
   const [showGlobalDemand, setShowGlobalDemand] = useState(true);
   const [expandedGlobalColor, setExpandedGlobalColor] = useState<string | null>(null);
-  const [orderRounds, setOrderRounds] = useState<1 | 2 | 3>(1);
+  const [orderRounds, setOrderRounds] = useState<7 | 10 | 14>(7);
   const [colorUsage, setColorUsage] = useState<Map<string, ColorUsageDesign[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [alertsLoading, setAlertsLoading] = useState(false);
@@ -1442,8 +1443,8 @@ export default function InventoryPage() {
                                   <p className="text-xs text-slate-400">coverage</p>
                                 </div>
                                 <div className="text-right flex-shrink-0 w-20">
-                                  <p className="text-amber-400 font-bold">+{color.skeinsToNextRound}</p>
-                                  <p className="text-xs text-slate-400">to order</p>
+                                  <p className="text-amber-400 font-bold">+{Math.max(0, color.totalSkeinsNeeded * 7 - color.effectiveInventory)}</p>
+                                  <p className="text-xs text-slate-400">for 7x</p>
                                 </div>
                                 <svg
                                   className={`w-4 h-4 text-slate-400 transition-transform ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
@@ -1636,21 +1637,21 @@ export default function InventoryPage() {
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
-                            Order Suggestion
+                            Order to Reach Healthy Levels
                           </h4>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-400">Target:</span>
-                            {[1, 2, 3].map((n) => (
+                            {[7, 10, 14].map((n) => (
                               <button
                                 key={n}
-                                onClick={() => setOrderRounds(n as 1 | 2 | 3)}
+                                onClick={() => setOrderRounds(n as 7 | 10 | 14)}
                                 className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                                   orderRounds === n
                                     ? "bg-amber-600 text-white"
                                     : "bg-slate-700 text-slate-300 hover:bg-slate-600"
                                 }`}
                               >
-                                {n} round{n > 1 ? "s" : ""}
+                                {n} rounds
                               </button>
                             ))}
                           </div>
@@ -1658,19 +1659,21 @@ export default function InventoryPage() {
                         <div className="bg-slate-800/50 rounded-lg p-3">
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                             {orderSuggestions
-                              .filter(s => (orderRounds === 1 ? s.skeinsToOrder : orderRounds === 2 ? s.skeinsFor2Rounds : s.skeinsFor3Rounds) > 0)
+                              .filter(s => (orderRounds === 7 ? s.skeinsFor7Rounds : orderRounds === 10 ? s.skeinsFor10Rounds : s.skeinsFor14Rounds) > 0)
                               .map((suggestion) => {
-                                const qty = orderRounds === 1 ? suggestion.skeinsToOrder : orderRounds === 2 ? suggestion.skeinsFor2Rounds : suggestion.skeinsFor3Rounds;
+                                const qty = orderRounds === 7 ? suggestion.skeinsFor7Rounds : orderRounds === 10 ? suggestion.skeinsFor10Rounds : suggestion.skeinsFor14Rounds;
                                 return (
                                   <div
                                     key={suggestion.dmcNumber}
                                     className="flex items-center gap-2 bg-slate-700/50 rounded px-2 py-1.5"
+                                    title={`Currently ${suggestion.currentCoverage}x coverage, need ${suggestion.demandPerRound}/round`}
                                   >
                                     <div
                                       className="w-6 h-6 rounded flex-shrink-0 border border-white/20"
                                       style={{ backgroundColor: suggestion.hex }}
                                     />
                                     <span className="text-xs text-white font-medium">{suggestion.dmcNumber}</span>
+                                    <span className="text-xs text-slate-400">({suggestion.currentCoverage}x)</span>
                                     <span className="text-xs text-amber-400 font-bold ml-auto">+{qty}</span>
                                   </div>
                                 );
@@ -1680,20 +1683,20 @@ export default function InventoryPage() {
                             <p className="text-sm text-slate-300">
                               <strong className="text-white">
                                 {orderSuggestions.reduce((sum, s) =>
-                                  sum + (orderRounds === 1 ? s.skeinsToOrder : orderRounds === 2 ? s.skeinsFor2Rounds : s.skeinsFor3Rounds), 0
+                                  sum + (orderRounds === 7 ? s.skeinsFor7Rounds : orderRounds === 10 ? s.skeinsFor10Rounds : s.skeinsFor14Rounds), 0
                                 )}
-                              </strong> skeins total for {orderRounds} complete round{orderRounds > 1 ? "s" : ""}
+                              </strong> skeins total to bring all colors to {orderRounds} rounds
                             </p>
                             <button
                               onClick={() => {
                                 const items = orderSuggestions
-                                  .filter(s => (orderRounds === 1 ? s.skeinsToOrder : orderRounds === 2 ? s.skeinsFor2Rounds : s.skeinsFor3Rounds) > 0)
+                                  .filter(s => (orderRounds === 7 ? s.skeinsFor7Rounds : orderRounds === 10 ? s.skeinsFor10Rounds : s.skeinsFor14Rounds) > 0)
                                   .map(s => {
-                                    const qty = orderRounds === 1 ? s.skeinsToOrder : orderRounds === 2 ? s.skeinsFor2Rounds : s.skeinsFor3Rounds;
-                                    return `DMC ${s.dmcNumber} - ${s.colorName}: ${qty} skeins (Size ${s.threadSize})`;
+                                    const qty = orderRounds === 7 ? s.skeinsFor7Rounds : orderRounds === 10 ? s.skeinsFor10Rounds : s.skeinsFor14Rounds;
+                                    return `DMC ${s.dmcNumber} - ${s.colorName}: ${qty} skeins (Size ${s.threadSize}) [currently ${s.currentCoverage}x]`;
                                   });
-                                const text = `Order List for ${orderRounds} Complete Round${orderRounds > 1 ? "s" : ""}\n${"=".repeat(40)}\n\n${items.join("\n")}\n\nTotal: ${orderSuggestions.reduce((sum, s) =>
-                                  sum + (orderRounds === 1 ? s.skeinsToOrder : orderRounds === 2 ? s.skeinsFor2Rounds : s.skeinsFor3Rounds), 0
+                                const text = `Order List to Reach ${orderRounds} Rounds\n${"=".repeat(40)}\n\n${items.join("\n")}\n\nTotal: ${orderSuggestions.reduce((sum, s) =>
+                                  sum + (orderRounds === 7 ? s.skeinsFor7Rounds : orderRounds === 10 ? s.skeinsFor10Rounds : s.skeinsFor14Rounds), 0
                                 )} skeins`;
                                 navigator.clipboard.writeText(text);
                                 alert("Order list copied to clipboard!");
