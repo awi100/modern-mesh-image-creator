@@ -4,6 +4,8 @@ import React, { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import useSWR, { mutate } from "swr";
 
+const SKEIN_YARDS = 27;
+
 interface KitItem {
   dmcNumber: string;
   colorName: string;
@@ -55,11 +57,38 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
+// Calculate actual skeins needed for a given quantity, with smart bobbin handling
+function calculateSkeinsForQuantity(kitContents: KitItem[], quantity: number): { totalSkeins: number; bobbinSavings: number } {
+  let totalSkeins = 0;
+  let naiveSkeins = 0;
+
+  for (const item of kitContents) {
+    const isBobbin = item.bobbinYards > 0 && item.fullSkeins === 0;
+    naiveSkeins += item.skeinsNeeded * quantity;
+
+    if (isBobbin) {
+      const totalBobbinYards = item.bobbinYards * quantity;
+      totalSkeins += Math.ceil(totalBobbinYards / SKEIN_YARDS);
+    } else {
+      totalSkeins += item.skeinsNeeded * quantity;
+    }
+  }
+
+  return {
+    totalSkeins,
+    bobbinSavings: naiveSkeins - totalSkeins,
+  };
+}
+
 export default function KitsPage() {
   const [expandedKit, setExpandedKit] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "in-stock" | "out-of-stock">("all");
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string | null>>(new Set());
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
+  const [assemblingKit, setAssemblingKit] = useState<KitSummary | null>(null);
+  const [assemblyQuantity, setAssemblyQuantity] = useState(1);
+  const [assemblyNote, setAssemblyNote] = useState("");
+  const [isAssembling, setIsAssembling] = useState(false);
 
   // Use SWR for caching - data persists across navigations
   const { data: kits, isLoading: loading, mutate: mutateKits } = useSWR<KitSummary[]>("/api/kits", {
@@ -121,6 +150,72 @@ export default function KitsPage() {
     }
     setUpdatingInventory(null);
   }, [updatingInventory, mutateKits]);
+
+  // Handle kit assembly
+  const handleAssembleKit = useCallback(async () => {
+    if (!assemblingKit || isAssembling) return;
+
+    setIsAssembling(true);
+    try {
+      const res = await fetch(`/api/designs/${assemblingKit.designId}/kit/sell`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: assemblyNote || null, quantity: assemblyQuantity }),
+      });
+
+      if (res.ok) {
+        // Optimistic update: increment kitsReady and deduct inventory
+        mutateKits((currentKits) => {
+          if (!currentKits) return currentKits;
+          return currentKits.map(kit => {
+            if (kit.designId !== assemblingKit.designId) return kit;
+
+            // Calculate skeins to deduct per color
+            const updatedContents = kit.kitContents.map(item => {
+              const isBobbin = item.bobbinYards > 0 && item.fullSkeins === 0;
+              let skeinsDeducted: number;
+              if (isBobbin) {
+                const totalBobbinYards = item.bobbinYards * assemblyQuantity;
+                skeinsDeducted = Math.ceil(totalBobbinYards / SKEIN_YARDS);
+              } else {
+                skeinsDeducted = item.skeinsNeeded * assemblyQuantity;
+              }
+              const newSkeins = Math.max(0, item.inventorySkeins - skeinsDeducted);
+              return {
+                ...item,
+                inventorySkeins: newSkeins,
+                inStock: newSkeins >= item.skeinsNeeded,
+              };
+            });
+
+            return {
+              ...kit,
+              kitsReady: kit.kitsReady + assemblyQuantity,
+              kitContents: updatedContents,
+              allInStock: updatedContents.every(item => item.inStock),
+            };
+          });
+        }, false);
+
+        // Close dialog and reset
+        setAssemblingKit(null);
+        setAssemblyQuantity(1);
+        setAssemblyNote("");
+
+        // Revalidate to ensure data is fresh
+        mutateKits();
+        mutate("/api/inventory?size=5");
+        mutate("/api/inventory?size=8");
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to assemble kits");
+      }
+    } catch (error) {
+      console.error("Error assembling kit:", error);
+      alert("Failed to assemble kit");
+    }
+    setIsAssembling(false);
+  }, [assemblingKit, assemblyQuantity, assemblyNote, isAssembling, mutateKits]);
 
   const filteredKits = (kits || []).filter((kit) => {
     if (filter === "in-stock") return kit.allInStock;
@@ -441,10 +536,22 @@ export default function KitsPage() {
                                 </Link>
                                 <Link
                                   href={`/design/${kit.designId}/kit`}
-                                  className="px-4 py-2 bg-rose-900 text-white rounded-lg hover:bg-rose-800 text-sm font-medium"
+                                  className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
                                 >
                                   Full Kit View
                                 </Link>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAssemblingKit(kit);
+                                  }}
+                                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-lg hover:from-emerald-700 hover:to-emerald-800 text-sm font-medium flex items-center gap-2"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                  </svg>
+                                  Assemble Kit
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -458,6 +565,154 @@ export default function KitsPage() {
           })
         )}
       </div>
+
+      {/* Assembly Dialog */}
+      {assemblingKit && (() => {
+        const calc = calculateSkeinsForQuantity(assemblingKit.kitContents, assemblyQuantity);
+        const bobbinCount = assemblingKit.kitContents.filter(i => i.bobbinYards > 0 && i.fullSkeins === 0).length;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+              {/* Header */}
+              <div className="p-4 border-b border-slate-700 flex-shrink-0">
+                <h3 className="text-lg font-semibold text-white">Assemble Kit</h3>
+                <p className="text-sm text-slate-400">{assemblingKit.designName}</p>
+              </div>
+
+              {/* Content - scrollable */}
+              <div className="p-4 overflow-y-auto flex-1 space-y-4">
+                {/* Quantity selector */}
+                <div>
+                  <label className="text-sm text-slate-400 block mb-2">How many kits?</label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setAssemblyQuantity(Math.max(1, assemblyQuantity - 1))}
+                      className="w-10 h-10 bg-slate-700 text-white rounded-lg hover:bg-slate-600 flex items-center justify-center text-lg font-bold"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={assemblyQuantity}
+                      onChange={(e) => setAssemblyQuantity(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                      className="w-20 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                    <button
+                      onClick={() => setAssemblyQuantity(Math.min(100, assemblyQuantity + 1))}
+                      className="w-10 h-10 bg-slate-700 text-white rounded-lg hover:bg-slate-600 flex items-center justify-center text-lg font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <div className="p-3 bg-slate-700/50 rounded-lg">
+                  <p className="text-white text-sm">
+                    <span className="font-medium">{assemblyQuantity} {assemblyQuantity === 1 ? "kit" : "kits"}</span>
+                    {" "}&rarr;{" "}
+                    <span className="font-bold text-emerald-400">{calc.totalSkeins} {calc.totalSkeins === 1 ? "skein" : "skeins"}</span>
+                    {" "}to deduct ({assemblingKit.totalColors} colors)
+                  </p>
+                  {calc.bobbinSavings > 0 && (
+                    <p className="text-emerald-400 text-xs mt-1">
+                      Saving {calc.bobbinSavings} {calc.bobbinSavings === 1 ? "skein" : "skeins"} by combining bobbins!
+                    </p>
+                  )}
+                  {bobbinCount > 0 && (
+                    <p className="text-amber-500 text-xs mt-1">
+                      {bobbinCount} {bobbinCount === 1 ? "color uses" : "colors use"} bobbins
+                    </p>
+                  )}
+                </div>
+
+                {!assemblingKit.allInStock && (
+                  <div className="p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg">
+                    <p className="text-yellow-400 text-sm">
+                      Some colors are not fully in stock. Assembling will create negative inventory.
+                    </p>
+                  </div>
+                )}
+
+                {/* Thread list */}
+                <div>
+                  <p className="text-sm text-slate-400 mb-2">Threads needed per kit:</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                    {assemblingKit.kitContents.map((item) => (
+                      <div
+                        key={item.dmcNumber}
+                        className={`flex items-center gap-2 p-2 rounded-lg bg-slate-700/50 ${
+                          !item.inStock ? "ring-1 ring-red-500/50" : ""
+                        }`}
+                      >
+                        <div
+                          className="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center"
+                          style={{ backgroundColor: item.hex }}
+                        >
+                          <span
+                            className="text-[6px] font-bold"
+                            style={{ color: getContrastTextColor(item.hex) }}
+                          >
+                            {item.dmcNumber}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-white text-xs font-medium truncate">{item.dmcNumber}</p>
+                          <p className={`text-[10px] ${item.bobbinYards > 0 && item.fullSkeins === 0 ? "text-amber-400" : "text-slate-400"}`}>
+                            {item.fullSkeins > 0
+                              ? `${item.fullSkeins} sk`
+                              : `${item.bobbinYards} yd`
+                            }
+                            <span className={`ml-1 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                              ({item.inventorySkeins})
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Note input */}
+                <div>
+                  <label className="text-sm text-slate-400 block mb-1">Note (optional)</label>
+                  <input
+                    type="text"
+                    value={assemblyNote}
+                    onChange={(e) => setAssemblyNote(e.target.value)}
+                    placeholder="e.g. Customer name or order #"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-700 flex gap-3 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    setAssemblingKit(null);
+                    setAssemblyQuantity(1);
+                    setAssemblyNote("");
+                  }}
+                  className="flex-1 py-2 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAssembleKit}
+                  disabled={isAssembling}
+                  className="flex-1 py-2 px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium"
+                >
+                  {isAssembling ? "Assembling..." : `Assemble ${assemblyQuantity} ${assemblyQuantity === 1 ? "Kit" : "Kits"}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
