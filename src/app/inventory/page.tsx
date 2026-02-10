@@ -84,6 +84,28 @@ interface MostUsedColor {
   effectiveInventory: number;
   threadSize: 5 | 8;
   designs: ColorDesignUsage[];
+  coverageRounds: number;
+  skeinsToNextRound: number;
+  isCritical: boolean;
+}
+
+interface GlobalDemandSummary {
+  totalColors: number;
+  criticalColors: number;
+  lowColors: number;
+  healthyColors: number;
+}
+
+interface OrderSuggestion {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  threadSize: 5 | 8;
+  currentStock: number;
+  demandPerRound: number;
+  skeinsToOrder: number;
+  skeinsFor2Rounds: number;
+  skeinsFor3Rounds: number;
 }
 
 interface ColorUsageDesign {
@@ -149,6 +171,11 @@ export default function InventoryPage() {
   const [alerts, setAlerts] = useState<StockAlert[]>([]);
   const [alertSummary, setAlertSummary] = useState<AlertSummary | null>(null);
   const [mostUsedColors, setMostUsedColors] = useState<MostUsedColor[]>([]);
+  const [globalDemand, setGlobalDemand] = useState<GlobalDemandSummary | null>(null);
+  const [orderSuggestions, setOrderSuggestions] = useState<OrderSuggestion[]>([]);
+  const [showGlobalDemand, setShowGlobalDemand] = useState(true);
+  const [expandedGlobalColor, setExpandedGlobalColor] = useState<string | null>(null);
+  const [orderRounds, setOrderRounds] = useState<1 | 2 | 3>(1);
   const [colorUsage, setColorUsage] = useState<Map<string, ColorUsageDesign[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [alertsLoading, setAlertsLoading] = useState(false);
@@ -237,6 +264,8 @@ export default function InventoryPage() {
         setAlerts(data.alerts);
         setAlertSummary(data.summary);
         setMostUsedColors(data.mostUsedColors || []);
+        setGlobalDemand(data.globalDemand || null);
+        setOrderSuggestions(data.orderSuggestions || []);
       }
     } catch (error) {
       console.error("Error fetching stock alerts:", error);
@@ -1314,6 +1343,228 @@ export default function InventoryPage() {
                   <p className="text-xs text-green-400 uppercase tracking-wider">Healthy (7+)</p>
                   <p className="text-xl font-bold text-green-400">{alertSummary.healthyCount}</p>
                 </div>
+              </div>
+            )}
+
+            {/* Global Color Demand Section */}
+            {globalDemand && (
+              <div className="bg-gradient-to-r from-rose-900/30 to-purple-900/30 rounded-xl border border-rose-800/50 mb-6 overflow-hidden">
+                <button
+                  onClick={() => setShowGlobalDemand(!showGlobalDemand)}
+                  className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-rose-900/50 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-white font-semibold">Global Color Demand</h3>
+                      <p className="text-slate-400 text-sm">
+                        How many complete rounds can you make? (1 round = 1 kit of each design)
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {globalDemand.criticalColors > 0 && (
+                      <span className="px-3 py-1 bg-red-900/50 text-red-400 rounded-full text-sm font-medium">
+                        {globalDemand.criticalColors} critical
+                      </span>
+                    )}
+                    <svg
+                      className={`w-5 h-5 text-slate-400 transition-transform ${showGlobalDemand ? "rotate-180" : ""}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </button>
+
+                {showGlobalDemand && (
+                  <div className="border-t border-rose-800/30">
+                    {/* Global Demand Stats */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-black/20">
+                      <div className="bg-slate-800/50 rounded-lg p-3">
+                        <p className="text-xs text-slate-400 uppercase tracking-wider">Total Colors</p>
+                        <p className="text-xl font-bold text-white">{globalDemand.totalColors}</p>
+                      </div>
+                      <div className="bg-red-900/30 rounded-lg p-3">
+                        <p className="text-xs text-red-400 uppercase tracking-wider">Critical (&lt;1 round)</p>
+                        <p className="text-xl font-bold text-red-400">{globalDemand.criticalColors}</p>
+                      </div>
+                      <div className="bg-yellow-900/30 rounded-lg p-3">
+                        <p className="text-xs text-yellow-400 uppercase tracking-wider">Low (1-2 rounds)</p>
+                        <p className="text-xl font-bold text-yellow-400">{globalDemand.lowColors}</p>
+                      </div>
+                      <div className="bg-green-900/30 rounded-lg p-3">
+                        <p className="text-xs text-green-400 uppercase tracking-wider">Healthy (3+ rounds)</p>
+                        <p className="text-xl font-bold text-green-400">{globalDemand.healthyColors}</p>
+                      </div>
+                    </div>
+
+                    {/* Critical Colors List */}
+                    {mostUsedColors.filter(c => c.isCritical).length > 0 && (
+                      <div className="p-4 border-t border-rose-800/30">
+                        <h4 className="text-red-400 font-semibold mb-3 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          Critical Colors (can&apos;t make 1 kit of each design)
+                        </h4>
+                        <div className="space-y-2">
+                          {mostUsedColors.filter(c => c.isCritical).map((color) => (
+                            <div key={color.dmcNumber} className="bg-slate-800/50 rounded-lg overflow-hidden">
+                              <button
+                                onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
+                                className="w-full p-3 flex items-center gap-3 hover:bg-slate-700/30 transition-colors"
+                              >
+                                <div
+                                  className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20"
+                                  style={{ backgroundColor: color.hex }}
+                                >
+                                  <span className="text-[7px] font-bold" style={{ color: getContrastTextColor(color.hex) }}>
+                                    {color.dmcNumber}
+                                  </span>
+                                </div>
+                                <div className="flex-1 text-left min-w-0">
+                                  <p className="text-white text-sm font-medium">
+                                    DMC {color.dmcNumber} - {color.colorName}
+                                  </p>
+                                  <p className="text-slate-400 text-xs">
+                                    {color.designCount} designs · Need {color.totalSkeinsNeeded}/round · Have {color.effectiveInventory}
+                                  </p>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className="text-red-400 font-bold">{Math.round(color.coverageRounds * 10) / 10}x</p>
+                                  <p className="text-xs text-slate-400">coverage</p>
+                                </div>
+                                <div className="text-right flex-shrink-0 w-20">
+                                  <p className="text-amber-400 font-bold">+{color.skeinsToNextRound}</p>
+                                  <p className="text-xs text-slate-400">to order</p>
+                                </div>
+                                <svg
+                                  className={`w-4 h-4 text-slate-400 transition-transform ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {expandedGlobalColor === color.dmcNumber && (
+                                <div className="px-3 pb-3 pt-1 border-t border-slate-700/50">
+                                  <p className="text-xs text-slate-400 mb-2">Used in these designs:</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {color.designs.map((design) => (
+                                      <Link
+                                        key={design.id}
+                                        href={`/design/${design.id}/kit`}
+                                        className="flex items-center gap-2 bg-slate-700/50 rounded px-2 py-1 hover:bg-slate-600/50 transition-colors"
+                                      >
+                                        {design.previewImageUrl ? (
+                                          <img src={design.previewImageUrl} alt="" className="w-5 h-5 rounded object-cover" />
+                                        ) : (
+                                          <div className="w-5 h-5 rounded bg-slate-600" />
+                                        )}
+                                        <span className="text-xs text-white truncate max-w-[100px]">{design.name}</span>
+                                        <span className="text-xs text-emerald-400">{design.skeinsNeeded} sk</span>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Order Suggestions */}
+                    {orderSuggestions.length > 0 && (
+                      <div className="p-4 border-t border-rose-800/30 bg-black/20">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-amber-400 font-semibold flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            Order Suggestion
+                          </h4>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400">Target:</span>
+                            {[1, 2, 3].map((n) => (
+                              <button
+                                key={n}
+                                onClick={() => setOrderRounds(n as 1 | 2 | 3)}
+                                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                  orderRounds === n
+                                    ? "bg-amber-600 text-white"
+                                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                }`}
+                              >
+                                {n} round{n > 1 ? "s" : ""}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                            {orderSuggestions
+                              .filter(s => (orderRounds === 1 ? s.skeinsToOrder : orderRounds === 2 ? s.skeinsFor2Rounds : s.skeinsFor3Rounds) > 0)
+                              .map((suggestion) => {
+                                const qty = orderRounds === 1 ? suggestion.skeinsToOrder : orderRounds === 2 ? suggestion.skeinsFor2Rounds : suggestion.skeinsFor3Rounds;
+                                return (
+                                  <div
+                                    key={suggestion.dmcNumber}
+                                    className="flex items-center gap-2 bg-slate-700/50 rounded px-2 py-1.5"
+                                  >
+                                    <div
+                                      className="w-6 h-6 rounded flex-shrink-0 border border-white/20"
+                                      style={{ backgroundColor: suggestion.hex }}
+                                    />
+                                    <span className="text-xs text-white font-medium">{suggestion.dmcNumber}</span>
+                                    <span className="text-xs text-amber-400 font-bold ml-auto">+{qty}</span>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                          <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-center justify-between">
+                            <p className="text-sm text-slate-300">
+                              <strong className="text-white">
+                                {orderSuggestions.reduce((sum, s) =>
+                                  sum + (orderRounds === 1 ? s.skeinsToOrder : orderRounds === 2 ? s.skeinsFor2Rounds : s.skeinsFor3Rounds), 0
+                                )}
+                              </strong> skeins total for {orderRounds} complete round{orderRounds > 1 ? "s" : ""}
+                            </p>
+                            <button
+                              onClick={() => {
+                                const items = orderSuggestions
+                                  .filter(s => (orderRounds === 1 ? s.skeinsToOrder : orderRounds === 2 ? s.skeinsFor2Rounds : s.skeinsFor3Rounds) > 0)
+                                  .map(s => {
+                                    const qty = orderRounds === 1 ? s.skeinsToOrder : orderRounds === 2 ? s.skeinsFor2Rounds : s.skeinsFor3Rounds;
+                                    return `DMC ${s.dmcNumber} - ${s.colorName}: ${qty} skeins (Size ${s.threadSize})`;
+                                  });
+                                const text = `Order List for ${orderRounds} Complete Round${orderRounds > 1 ? "s" : ""}\n${"=".repeat(40)}\n\n${items.join("\n")}\n\nTotal: ${orderSuggestions.reduce((sum, s) =>
+                                  sum + (orderRounds === 1 ? s.skeinsToOrder : orderRounds === 2 ? s.skeinsFor2Rounds : s.skeinsFor3Rounds), 0
+                                )} skeins`;
+                                navigator.clipboard.writeText(text);
+                                alert("Order list copied to clipboard!");
+                              }}
+                              className="px-3 py-1.5 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700 transition-colors flex items-center gap-1"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                              </svg>
+                              Copy List
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

@@ -41,13 +41,36 @@ interface MostUsedColor {
   hex: string;
   totalStitches: number;
   designCount: number;
-  totalSkeinsNeeded: number; // Combined skeins needed for all designs
+  totalSkeinsNeeded: number; // Combined skeins needed for all designs (1 kit each)
   totalYardsNeeded: number; // Combined yards needed for all designs
   inventorySkeins: number;
   skeinsReservedInKits: number; // Skeins already used in assembled kits
   effectiveInventory: number; // inventorySkeins - skeinsReservedInKits
   threadSize: 5 | 8;
   designs: ColorDesignUsage[]; // Which designs use this color with usage details
+  // Aggregate demand metrics
+  coverageRounds: number; // How many complete rounds (1 kit of each design) can be made
+  skeinsToNextRound: number; // Skeins needed to complete one more round
+  isCritical: boolean; // Coverage < 1 round
+}
+
+interface GlobalDemandSummary {
+  totalColors: number;
+  criticalColors: number; // Colors with < 1 round coverage
+  lowColors: number; // Colors with 1-2 rounds coverage
+  healthyColors: number; // Colors with 3+ rounds coverage
+}
+
+interface OrderSuggestion {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  threadSize: 5 | 8;
+  currentStock: number;
+  demandPerRound: number;
+  skeinsToOrder: number; // To complete 1 round
+  skeinsFor2Rounds: number; // To have 2 complete rounds
+  skeinsFor3Rounds: number; // To have 3 complete rounds
 }
 
 // GET - Calculate stock alerts for all non-draft designs
@@ -211,7 +234,7 @@ export async function GET() {
     // Sort by fulfillment capacity (lowest first = most urgent)
     alerts.sort((a, b) => a.fulfillmentCapacity - b.fulfillmentCapacity);
 
-    // Build most used colors list
+    // Build most used colors list with aggregate demand metrics
     const mostUsedColors: MostUsedColor[] = [];
     for (const [dmcNumber, data] of colorUsageMap.entries()) {
       const dmcColor = getDmcColorByNumber(dmcNumber);
@@ -223,8 +246,21 @@ export async function GET() {
       const skeinsReservedInKits = data.skeinsReservedInKits[5] + data.skeinsReservedInKits[8];
       const effectiveInventory = Math.max(0, inventorySkeins - skeinsReservedInKits);
 
-      // Sort designs by yards needed (highest first)
-      const sortedDesigns = [...data.designs].sort((a, b) => b.yardsNeeded - a.yardsNeeded);
+      // Calculate aggregate demand metrics
+      // totalSkeinsNeeded = skeins needed to make 1 kit of EACH design using this color
+      const coverageRounds = totalSkeinsNeeded > 0
+        ? Math.floor(effectiveInventory / totalSkeinsNeeded)
+        : Infinity;
+      const remainder = totalSkeinsNeeded > 0
+        ? effectiveInventory % totalSkeinsNeeded
+        : 0;
+      const skeinsToNextRound = totalSkeinsNeeded > 0
+        ? totalSkeinsNeeded - remainder
+        : 0;
+      const isCritical = coverageRounds < 1;
+
+      // Sort designs by skeins needed (highest first)
+      const sortedDesigns = [...data.designs].sort((a, b) => b.skeinsNeeded - a.skeinsNeeded);
 
       mostUsedColors.push({
         dmcNumber,
@@ -239,18 +275,21 @@ export async function GET() {
         effectiveInventory,
         threadSize: primarySize,
         designs: sortedDesigns,
+        coverageRounds: coverageRounds === Infinity ? 999 : coverageRounds,
+        skeinsToNextRound,
+        isCritical,
       });
     }
 
-    // Sort by total stitches (most used first), then by design count
+    // Sort by coverage rounds (lowest/most critical first), then by design count
     mostUsedColors.sort((a, b) => {
-      if (b.totalStitches !== a.totalStitches) {
-        return b.totalStitches - a.totalStitches;
+      if (a.coverageRounds !== b.coverageRounds) {
+        return a.coverageRounds - b.coverageRounds;
       }
       return b.designCount - a.designCount;
     });
 
-    // Summary stats
+    // Summary stats for per-design alerts
     const summary = {
       totalDesigns: alerts.length,
       criticalCount: alerts.filter((a) => a.fulfillmentCapacity <= 3).length,
@@ -258,7 +297,47 @@ export async function GET() {
       healthyCount: alerts.filter((a) => a.fulfillmentCapacity >= 7).length,
     };
 
-    return NextResponse.json({ alerts, summary, mostUsedColors: mostUsedColors.slice(0, 25) });
+    // Global demand summary
+    const globalDemand: GlobalDemandSummary = {
+      totalColors: mostUsedColors.length,
+      criticalColors: mostUsedColors.filter((c) => c.coverageRounds < 1).length,
+      lowColors: mostUsedColors.filter((c) => c.coverageRounds >= 1 && c.coverageRounds <= 2).length,
+      healthyColors: mostUsedColors.filter((c) => c.coverageRounds >= 3).length,
+    };
+
+    // Generate order suggestions for colors that need ordering (coverage < 1 or low)
+    const orderSuggestions: OrderSuggestion[] = mostUsedColors
+      .filter((c) => c.coverageRounds < 3 && c.totalSkeinsNeeded > 0) // Only colors that need attention
+      .map((c) => {
+        const demandPerRound = c.totalSkeinsNeeded;
+        const currentStock = c.effectiveInventory;
+        // Calculate how many skeins needed for 1, 2, 3 complete rounds
+        const skeinsFor1Round = Math.max(0, demandPerRound - currentStock);
+        const skeinsFor2Rounds = Math.max(0, demandPerRound * 2 - currentStock);
+        const skeinsFor3Rounds = Math.max(0, demandPerRound * 3 - currentStock);
+
+        return {
+          dmcNumber: c.dmcNumber,
+          colorName: c.colorName,
+          hex: c.hex,
+          threadSize: c.threadSize,
+          currentStock,
+          demandPerRound,
+          skeinsToOrder: skeinsFor1Round,
+          skeinsFor2Rounds,
+          skeinsFor3Rounds,
+        };
+      })
+      .filter((s) => s.skeinsToOrder > 0) // Only include if actually needs ordering
+      .sort((a, b) => b.skeinsToOrder - a.skeinsToOrder); // Sort by most needed first
+
+    return NextResponse.json({
+      alerts,
+      summary,
+      mostUsedColors: mostUsedColors.slice(0, 50), // Increased from 25
+      globalDemand,
+      orderSuggestions,
+    });
   } catch (error) {
     console.error("Error calculating stock alerts:", error);
     return NextResponse.json(
