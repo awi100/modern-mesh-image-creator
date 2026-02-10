@@ -187,14 +187,13 @@ export async function GET() {
         const inventoryMap = inventoryBySize[threadSize];
 
         // Calculate fulfillment capacity for each color
-        // Account for kitsReady - threads already used in assembled kits
+        // Inventory already reflects deductions from assembled kits, so use it directly
         const colorRequirements: ColorRequirement[] = yarnUsage.map((usage) => {
           const dmcColor = getDmcColorByNumber(usage.dmcNumber);
           const inventorySkeins = inventoryMap.get(usage.dmcNumber) ?? 0;
-          // Effective inventory = current inventory minus skeins already used in kits ready
-          const effectiveInventory = Math.max(0, inventorySkeins - (usage.skeinsNeeded * kitsReady));
+          // Inventory is already reduced when kits are assembled, no need to subtract again
           const fulfillmentCapacity = usage.skeinsNeeded > 0
-            ? Math.floor(effectiveInventory / usage.skeinsNeeded)
+            ? Math.floor(inventorySkeins / usage.skeinsNeeded)
             : Infinity;
 
           return {
@@ -243,8 +242,11 @@ export async function GET() {
       const totalSkeinsNeeded = data.skeinsNeededBySize[5] + data.skeinsNeededBySize[8];
       const totalYardsNeeded = Math.round(data.totalYards * 10) / 10;
       const inventorySkeins = (inventoryBySize[5].get(dmcNumber) ?? 0) + (inventoryBySize[8].get(dmcNumber) ?? 0);
+      // Note: skeinsReservedInKits is tracked for display purposes only
+      // The inventory already reflects deductions from kit assembly, so we don't subtract again
       const skeinsReservedInKits = data.skeinsReservedInKits[5] + data.skeinsReservedInKits[8];
-      const effectiveInventory = Math.max(0, inventorySkeins - skeinsReservedInKits);
+      // effectiveInventory = current inventory (already accounts for assembled kits)
+      const effectiveInventory = inventorySkeins;
 
       // Calculate aggregate demand metrics
       // totalSkeinsNeeded = skeins needed to make 1 kit of EACH design using this color
