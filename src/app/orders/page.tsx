@@ -15,6 +15,26 @@ function getContrastTextColor(hex: string): string {
 
 type FilterType = "all" | "kits" | "canvases";
 
+// Calculate aggregated demand per design across all orders
+function calculateDemandByDesign(orders: Order[]) {
+  const demand = new Map<string, { totalKitsNeeded: number; totalCanvasesNeeded: number }>();
+
+  for (const order of orders) {
+    for (const item of order.items) {
+      if (!item.designId) continue;
+
+      const existing = demand.get(item.designId) || { totalKitsNeeded: 0, totalCanvasesNeeded: 0 };
+      if (item.needsKit) {
+        existing.totalKitsNeeded += item.quantity;
+      }
+      existing.totalCanvasesNeeded += item.quantity; // All orders need canvases
+      demand.set(item.designId, existing);
+    }
+  }
+
+  return demand;
+}
+
 export default function OrdersPage() {
   const [data, setData] = useState<OrdersResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,13 +144,19 @@ export default function OrdersPage() {
           <div className="flex items-center gap-3">
             <Link href="/" className="text-slate-400 hover:text-white">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
             </Link>
             <h1 className="text-xl font-bold text-white">Shopify Orders</h1>
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              href="/shopify"
+              className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
+            >
+              Products
+            </Link>
             <button
               onClick={fetchOrders}
               disabled={loading}
@@ -274,7 +300,7 @@ export default function OrdersPage() {
                     : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-blue-400"
                 }`}
               >
-                Canvas Only ({data.summary.totalCanvasesNeeded - data.summary.totalKitsNeeded})
+                All Canvases ({data.summary.totalCanvasesNeeded})
               </button>
             </div>
 
@@ -452,12 +478,12 @@ export default function OrdersPage() {
               </div>
             )}
 
-            {/* Canvases Needed View - Simple aggregated list */}
+            {/* All Canvases Needed View - Shows ALL orders since all need canvases */}
             {filter === "canvases" && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-white">Canvases Needed (No Kit)</h2>
+                <h2 className="text-lg font-semibold text-white">All Canvases Needed</h2>
                 {(() => {
-                  // Aggregate canvas-only items by design
+                  // Aggregate ALL items by design (every order needs a canvas printed)
                   const canvasesByDesign = new Map<string, {
                     designId: string | null;
                     designName: string | null;
@@ -465,16 +491,18 @@ export default function OrdersPage() {
                     previewImageUrl: string | null;
                     quantity: number;
                     canvasPrinted: number;
+                    kitsNeeded: number; // How many of these also need kits
                   }>();
 
                   for (const order of data.orders) {
                     for (const item of order.items) {
-                      if (item.needsKit) continue; // Only canvas-only items
-
                       const key = item.designId || item.productTitle;
                       const existing = canvasesByDesign.get(key);
                       if (existing) {
                         existing.quantity += item.quantity;
+                        if (item.needsKit) {
+                          existing.kitsNeeded += item.quantity;
+                        }
                       } else {
                         canvasesByDesign.set(key, {
                           designId: item.designId,
@@ -483,6 +511,7 @@ export default function OrdersPage() {
                           previewImageUrl: item.previewImageUrl,
                           quantity: item.quantity,
                           canvasPrinted: item.canvasPrinted,
+                          kitsNeeded: item.needsKit ? item.quantity : 0,
                         });
                       }
                     }
@@ -493,7 +522,7 @@ export default function OrdersPage() {
                   if (canvases.length === 0) {
                     return (
                       <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
-                        <p className="text-slate-400">No canvas-only orders</p>
+                        <p className="text-slate-400">No orders</p>
                       </div>
                     );
                   }
@@ -524,10 +553,15 @@ export default function OrdersPage() {
                                 {!canvas.designId && (
                                   <p className="text-xs text-yellow-500">No matching design</p>
                                 )}
+                                {canvas.kitsNeeded > 0 && (
+                                  <p className="text-xs text-amber-400">
+                                    {canvas.kitsNeeded} need kit{canvas.kitsNeeded > 1 ? "s" : ""}
+                                  </p>
+                                )}
                               </div>
                               <div className="text-center px-4">
                                 <p className="text-2xl font-bold text-blue-400">{canvas.quantity}</p>
-                                <p className="text-xs text-slate-400">needed</p>
+                                <p className="text-xs text-slate-400">canvases</p>
                               </div>
                               <div className="text-center px-4">
                                 <div className="flex items-center gap-2">
@@ -593,9 +627,12 @@ export default function OrdersPage() {
                     <p className="text-slate-400">No unfulfilled orders</p>
                   </div>
                 ) : (
-                  data.orders.map((order) => (
-                    <OrderCard key={order.shopifyOrderId} order={order} />
-                  ))
+                  (() => {
+                    const demandByDesign = calculateDemandByDesign(data.orders);
+                    return data.orders.map((order) => (
+                      <OrderCard key={order.shopifyOrderId} order={order} demandByDesign={demandByDesign} />
+                    ));
+                  })()
                 )}
               </div>
             )}
@@ -606,11 +643,28 @@ export default function OrdersPage() {
   );
 }
 
-function OrderCard({ order }: { order: Order }) {
+interface DemandMap {
+  totalKitsNeeded: number;
+  totalCanvasesNeeded: number;
+}
+
+function OrderCard({ order, demandByDesign }: { order: Order; demandByDesign: Map<string, DemandMap> }) {
   const [expanded, setExpanded] = useState(false);
 
   const kitsInOrder = order.items.reduce((sum, item) => sum + (item.needsKit ? item.quantity : 0), 0);
   const canvasesInOrder = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Check if we have enough kits/canvases for THIS order based on total demand
+  const hasEnoughKitsForOrder = order.items.every((item) => {
+    if (!item.needsKit || !item.designId) return true;
+    const demand = demandByDesign.get(item.designId);
+    return item.kitsReady >= (demand?.totalKitsNeeded || item.quantity);
+  });
+  const hasEnoughCanvasesForOrder = order.items.every((item) => {
+    if (!item.designId) return true;
+    const demand = demandByDesign.get(item.designId);
+    return item.canvasPrinted >= (demand?.totalCanvasesNeeded || item.quantity);
+  });
 
   return (
     <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
@@ -638,11 +692,19 @@ function OrderCard({ order }: { order: Order }) {
 
           <div className="flex items-center gap-2">
             {kitsInOrder > 0 && (
-              <span className="px-2 py-1 bg-amber-900/50 text-amber-400 rounded text-xs font-medium">
+              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                hasEnoughKitsForOrder
+                  ? "bg-emerald-900/50 text-emerald-400"
+                  : "bg-red-900/50 text-red-400"
+              }`}>
                 {kitsInOrder} kit{kitsInOrder > 1 ? "s" : ""}
               </span>
             )}
-            <span className="px-2 py-1 bg-blue-900/50 text-blue-400 rounded text-xs font-medium">
+            <span className={`px-2 py-1 rounded text-xs font-medium ${
+              hasEnoughCanvasesForOrder
+                ? "bg-emerald-900/50 text-emerald-400"
+                : "bg-red-900/50 text-red-400"
+            }`}>
               {canvasesInOrder} canvas{canvasesInOrder > 1 ? "es" : ""}
             </span>
           </div>
@@ -662,7 +724,7 @@ function OrderCard({ order }: { order: Order }) {
       {expanded && (
         <div className="border-t border-slate-700 divide-y divide-slate-700/50">
           {order.items.map((item, idx) => (
-            <OrderItemRow key={idx} item={item} />
+            <OrderItemRow key={idx} item={item} demandByDesign={demandByDesign} />
           ))}
         </div>
       )}
@@ -670,9 +732,19 @@ function OrderCard({ order }: { order: Order }) {
   );
 }
 
-function OrderItemRow({ item }: { item: OrderItem }) {
-  const hasEnoughKits = item.kitsReady >= item.quantity;
-  const hasEnoughCanvases = item.canvasPrinted >= item.quantity;
+function OrderItemRow({ item, demandByDesign }: { item: OrderItem; demandByDesign: Map<string, DemandMap> }) {
+  // Get total demand for this design across ALL orders
+  const demand = item.designId ? demandByDesign.get(item.designId) : null;
+  const totalKitsNeeded = demand?.totalKitsNeeded || item.quantity;
+  const totalCanvasesNeeded = demand?.totalCanvasesNeeded || item.quantity;
+
+  // Check if there's enough for ALL orders, not just this one
+  const hasEnoughKits = item.kitsReady >= totalKitsNeeded;
+  const hasEnoughCanvases = item.canvasPrinted >= totalCanvasesNeeded;
+
+  // Shortage across all orders
+  const kitShortage = Math.max(0, totalKitsNeeded - item.kitsReady);
+  const canvasShortage = Math.max(0, totalCanvasesNeeded - item.canvasPrinted);
 
   return (
     <div className="p-4 flex items-center gap-4">
@@ -710,8 +782,11 @@ function OrderItemRow({ item }: { item: OrderItem }) {
       <div className="text-center px-3">
         {item.needsKit ? (
           <div className={hasEnoughKits ? "text-emerald-400" : "text-red-400"}>
-            <p className="font-bold">{item.kitsReady}</p>
+            <p className="font-bold">{item.kitsReady}/{totalKitsNeeded}</p>
             <p className="text-xs">kits ready</p>
+            {kitShortage > 0 && (
+              <p className="text-xs text-red-400">need {kitShortage}</p>
+            )}
           </div>
         ) : (
           <div className="text-slate-500">
@@ -723,8 +798,11 @@ function OrderItemRow({ item }: { item: OrderItem }) {
       {/* Canvas Status */}
       <div className="text-center px-3">
         <div className={hasEnoughCanvases ? "text-emerald-400" : "text-red-400"}>
-          <p className="font-bold">{item.canvasPrinted}</p>
+          <p className="font-bold">{item.canvasPrinted}/{totalCanvasesNeeded}</p>
           <p className="text-xs">printed</p>
+          {canvasShortage > 0 && (
+            <p className="text-xs text-red-400">need {canvasShortage}</p>
+          )}
         </div>
       </div>
 
