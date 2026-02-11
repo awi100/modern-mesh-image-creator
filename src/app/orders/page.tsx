@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/route";
 import type { SyncResult } from "@/app/api/shopify/sync/route";
@@ -44,6 +44,10 @@ export default function OrdersPage() {
   const [filter, setFilter] = useState<FilterType>("all");
   const [updating, setUpdating] = useState<string | null>(null); // Track which design is being updated
 
+  // Use refs for debounced updates to handle rapid clicks
+  const pendingUpdates = useRef<Map<string, { field: "kitsReady" | "canvasPrinted"; delta: number; timeout: NodeJS.Timeout }>>(new Map());
+  const inFlightRequests = useRef<Set<string>>(new Set());
+
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -84,14 +88,41 @@ export default function OrdersPage() {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Update design kitsReady or canvasPrinted count with optimistic updates
-  const handleUpdateCount = async (designId: string, field: "kitsReady" | "canvasPrinted", delta: number) => {
-    // Prevent rapid clicks - if already updating this design, ignore
-    if (updating === designId) return;
-
+  // Send the actual API request for a design update
+  const sendUpdate = useCallback(async (designId: string, field: "kitsReady" | "canvasPrinted", totalDelta: number) => {
+    // Mark as in-flight
+    inFlightRequests.current.add(`${designId}-${field}`);
     setUpdating(designId);
 
-    // Optimistic update - immediately update local state
+    try {
+      const body = field === "kitsReady"
+        ? { kitsReadyDelta: totalDelta }
+        : { canvasPrintedDelta: totalDelta };
+
+      const res = await fetch(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Update failed");
+      // Revert by refetching
+      await fetchOrders();
+    } finally {
+      inFlightRequests.current.delete(`${designId}-${field}`);
+      setUpdating(null);
+    }
+  }, [fetchOrders]);
+
+  // Update design kitsReady or canvasPrinted count with optimistic updates and debouncing
+  const handleUpdateCount = useCallback((designId: string, field: "kitsReady" | "canvasPrinted", delta: number) => {
+    const key = `${designId}-${field}`;
+
+    // Immediately apply optimistic update to UI
     setData(prevData => {
       if (!prevData) return prevData;
       return {
@@ -110,31 +141,32 @@ export default function OrdersPage() {
       };
     });
 
-    try {
-      const body = field === "kitsReady"
-        ? { kitsReadyDelta: delta }
-        : { canvasPrintedDelta: delta };
+    // Check if there's already a pending update for this design+field
+    const existing = pendingUpdates.current.get(key);
+    if (existing) {
+      // Accumulate the delta and reset the timer
+      clearTimeout(existing.timeout);
+      existing.delta += delta;
+      existing.timeout = setTimeout(() => {
+        const update = pendingUpdates.current.get(key);
+        if (update && update.delta !== 0) {
+          pendingUpdates.current.delete(key);
+          sendUpdate(designId, field, update.delta);
+        }
+      }, 300); // 300ms debounce
+    } else {
+      // Create new pending update
+      const timeout = setTimeout(() => {
+        const update = pendingUpdates.current.get(key);
+        if (update && update.delta !== 0) {
+          pendingUpdates.current.delete(key);
+          sendUpdate(designId, field, update.delta);
+        }
+      }, 300); // 300ms debounce
 
-      const res = await fetch(`/api/designs/${designId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to update");
-        // Note: On error, we should revert, but for simplicity we'll refetch
-      }
-
-      // Don't refetch on success - optimistic update is sufficient
-      // Only refetch if there was an error
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Update failed");
-      // Revert by refetching
-      await fetchOrders();
+      pendingUpdates.current.set(key, { field, delta, timeout });
     }
-    setUpdating(null);
-  };
+  }, [sendUpdate]);
 
   return (
     <div className="min-h-screen bg-slate-900">

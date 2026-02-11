@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import useSWR, { mutate } from "swr";
 
@@ -90,21 +90,49 @@ export default function KitsPage() {
   const [assemblyNote, setAssemblyNote] = useState("");
   const [isAssembling, setIsAssembling] = useState(false);
 
+  // Use refs for debounced inventory updates to handle rapid clicks
+  const pendingInventoryUpdates = useRef<Map<string, { delta: number; timeout: NodeJS.Timeout }>>(new Map());
+
   // Use SWR for caching - data persists across navigations
   const { data: kits, isLoading: loading, mutate: mutateKits } = useSWR<KitSummary[]>("/api/kits", {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
 
-  // Update inventory for a specific color
-  const handleUpdateInventory = useCallback(async (dmcNumber: string, meshCount: number, delta: number) => {
+  // Send the actual API request for inventory update
+  const sendInventoryUpdate = useCallback(async (dmcNumber: string, meshCount: number, totalDelta: number) => {
     const key = `${dmcNumber}-${meshCount}`;
-    if (updatingInventory === key) return;
-
-    setUpdatingInventory(key);
     const size = meshCount === 14 ? 5 : 8;
+    setUpdatingInventory(key);
 
-    // Optimistic update
+    try {
+      const res = await fetch("/api/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dmcNumber, size, delta: totalDelta }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update inventory");
+      }
+
+      // Revalidate all inventory-related data
+      mutate("/api/inventory?size=5");
+      mutate("/api/inventory?size=8");
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      // Revert by refetching
+      mutateKits();
+    } finally {
+      setUpdatingInventory(null);
+    }
+  }, [mutateKits]);
+
+  // Update inventory for a specific color with debouncing
+  const handleUpdateInventory = useCallback((dmcNumber: string, meshCount: number, delta: number) => {
+    const key = `${dmcNumber}-${meshCount}`;
+
+    // Immediately apply optimistic update to UI
     mutateKits((currentKits) => {
       if (!currentKits) return currentKits;
       return currentKits.map(kit => {
@@ -129,27 +157,32 @@ export default function KitsPage() {
       });
     }, false);
 
-    try {
-      const res = await fetch("/api/inventory", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dmcNumber, size, delta }),
-      });
+    // Check if there's already a pending update for this color
+    const existing = pendingInventoryUpdates.current.get(key);
+    if (existing) {
+      // Accumulate the delta and reset the timer
+      clearTimeout(existing.timeout);
+      existing.delta += delta;
+      existing.timeout = setTimeout(() => {
+        const update = pendingInventoryUpdates.current.get(key);
+        if (update && update.delta !== 0) {
+          pendingInventoryUpdates.current.delete(key);
+          sendInventoryUpdate(dmcNumber, meshCount, update.delta);
+        }
+      }, 300); // 300ms debounce
+    } else {
+      // Create new pending update
+      const timeout = setTimeout(() => {
+        const update = pendingInventoryUpdates.current.get(key);
+        if (update && update.delta !== 0) {
+          pendingInventoryUpdates.current.delete(key);
+          sendInventoryUpdate(dmcNumber, meshCount, update.delta);
+        }
+      }, 300); // 300ms debounce
 
-      if (!res.ok) {
-        throw new Error("Failed to update inventory");
-      }
-
-      // Revalidate all inventory-related data
-      mutate("/api/inventory?size=5");
-      mutate("/api/inventory?size=8");
-    } catch (error) {
-      console.error("Error updating inventory:", error);
-      // Revert by refetching
-      mutateKits();
+      pendingInventoryUpdates.current.set(key, { delta, timeout });
     }
-    setUpdatingInventory(null);
-  }, [updatingInventory, mutateKits]);
+  }, [mutateKits, sendInventoryUpdate]);
 
   // Handle kit assembly
   const handleAssembleKit = useCallback(async () => {
