@@ -1,5 +1,6 @@
 // Service Worker for Modern Mesh PWA
-const CACHE_NAME = 'modern-mesh-v1';
+const CACHE_NAME = 'modern-mesh-v2';
+const API_CACHE_NAME = 'modern-mesh-api-v1';
 
 // Assets to cache on install (minimal - just the shell)
 const PRECACHE_ASSETS = [
@@ -24,7 +25,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME)
+          .filter((name) => name !== CACHE_NAME && name !== API_CACHE_NAME)
           .map((name) => caches.delete(name))
       );
     })
@@ -33,7 +34,38 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event - network first for everything (ensures fresh content)
+// Helper: Check if request is a GET request for designs list or single design
+function isDesignApiRequest(request) {
+  if (request.method !== 'GET') return false;
+  const url = new URL(request.url);
+  // Match /api/designs or /api/designs/[id]
+  return url.pathname.match(/^\/api\/designs(\/[a-zA-Z0-9-]+)?$/);
+}
+
+// Helper: Stale-while-revalidate strategy
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cachedResponse = await cache.match(request);
+
+  // Fetch fresh data in background
+  const fetchPromise = fetch(request)
+    .then((networkResponse) => {
+      if (networkResponse.ok) {
+        // Clone before caching
+        cache.put(request, networkResponse.clone());
+      }
+      return networkResponse;
+    })
+    .catch((error) => {
+      console.log('[SW] Network request failed:', error);
+      return cachedResponse;
+    });
+
+  // Return cached response immediately if available, otherwise wait for network
+  return cachedResponse || fetchPromise;
+}
+
+// Fetch event
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') return;
@@ -41,12 +73,19 @@ self.addEventListener('fetch', (event) => {
   // Skip cross-origin requests
   if (!event.request.url.startsWith(self.location.origin)) return;
 
-  // Skip API requests - always go to network
-  if (event.request.url.includes('/api/')) return;
-
   // Skip chrome-extension and other non-http(s) requests
   if (!event.request.url.startsWith('http')) return;
 
+  // Handle design API requests with stale-while-revalidate
+  if (isDesignApiRequest(event.request)) {
+    event.respondWith(staleWhileRevalidate(event.request, API_CACHE_NAME));
+    return;
+  }
+
+  // Skip other API requests - always go to network
+  if (event.request.url.includes('/api/')) return;
+
+  // For all other requests: network first, fallback to cache
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -73,9 +112,51 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// Background sync event - triggered when sync is registered and device comes online
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-designs') {
+    event.waitUntil(notifyClientsToSync());
+  }
+});
+
+// Notify all clients to start syncing
+async function notifyClientsToSync() {
+  const clients = await self.clients.matchAll({ type: 'window' });
+  for (const client of clients) {
+    client.postMessage({ type: 'SYNC_DESIGNS' });
+  }
+}
+
 // Listen for messages from the client
 self.addEventListener('message', (event) => {
   if (event.data === 'skipWaiting') {
     self.skipWaiting();
+  }
+
+  // Client requesting to trigger sync
+  if (event.data === 'triggerSync') {
+    notifyClientsToSync();
+  }
+
+  // Clear API cache (for forced refresh)
+  if (event.data === 'clearApiCache') {
+    caches.delete(API_CACHE_NAME);
+  }
+});
+
+// Push notification event (for future use)
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  const data = event.data.json();
+
+  if (data.type === 'sync-available') {
+    event.waitUntil(
+      self.registration.showNotification('Modern Mesh', {
+        body: 'Your offline changes have been synced.',
+        icon: '/icon.png',
+        badge: '/icon.png',
+      })
+    );
   }
 });

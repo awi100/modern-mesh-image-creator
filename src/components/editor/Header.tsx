@@ -8,6 +8,7 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 import { triggerSessionExpired } from "@/components/SessionExpiredModal";
+import { OfflineStatusIndicator } from "@/components/OfflineStatusIndicator";
 
 // Generate a small preview image as base64 data URL
 function generatePreviewImage(
@@ -335,6 +336,11 @@ export default function Header({
             <span className="md:hidden">👁️</span>
             <span className="hidden md:inline">Preview</span>
           </button>
+
+          {/* Offline status indicator */}
+          <div className="hidden sm:block">
+            <OfflineStatusIndicator showText={false} className="px-2" />
+          </div>
 
           {/* Auto-save status indicator */}
           {designId && (

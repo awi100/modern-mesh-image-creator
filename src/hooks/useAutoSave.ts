@@ -5,6 +5,16 @@ import { useEditorStore } from "@/lib/store";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { triggerSessionExpired } from "@/components/SessionExpiredModal";
 import pako from "pako";
+import {
+  isIndexedDBAvailable,
+  getOfflineDesign,
+  updateOfflineDesign,
+  createOfflineDesign,
+  importDesignFromServer,
+  addToSyncQueue,
+  isOnline,
+  processQueue,
+} from "@/lib/offline";
 
 const AUTO_SAVE_DELAY = 3000; // 3 seconds after last change
 const MAX_RETRIES = 5;
@@ -51,6 +61,18 @@ function generatePreviewImage(
   return canvas.toDataURL("image/png", 0.8);
 }
 
+// Compress grid data to Uint8Array for IndexedDB storage
+function compressGridToBytes(grid: (string | null)[][]): Uint8Array {
+  const pixelDataJson = JSON.stringify(grid);
+  return pako.deflate(pixelDataJson);
+}
+
+// Compress grid data to base64 string for server API
+function compressGridToBase64(grid: (string | null)[][]): string {
+  const compressed = compressGridToBytes(grid);
+  return btoa(String.fromCharCode(...compressed));
+}
+
 export function useAutoSave() {
   const {
     designId,
@@ -80,9 +102,128 @@ export function useAutoSave() {
   const isSavingRef = useRef(false);
   const retryCountRef = useRef(0);
   const pendingSaveDataRef = useRef<string | null>(null);
+  const offlineIdRef = useRef<string | null>(null);
+
+  // Save to IndexedDB (always succeeds locally)
+  const saveToIndexedDB = useCallback(async (
+    grid: (string | null)[][],
+    previewImageUrl: string
+  ): Promise<string | null> => {
+    if (!isIndexedDBAvailable()) {
+      console.log("[Auto-save] IndexedDB not available, skipping offline storage");
+      return null;
+    }
+
+    try {
+      const pixelData = compressGridToBytes(grid);
+
+      // Check if we have an existing offline record for this design
+      const offlineDesign = offlineIdRef.current
+        ? await getOfflineDesign(offlineIdRef.current)
+        : designId
+          ? await getOfflineDesign(designId)
+          : null;
+
+      if (offlineDesign) {
+        // Update existing offline design
+        await updateOfflineDesign(offlineDesign.id, {
+          name: designName,
+          pixelData,
+          widthInches,
+          heightInches,
+          meshCount,
+          previewImageUrl,
+          isDraft,
+          folderId,
+        });
+        offlineIdRef.current = offlineDesign.id;
+        console.log("[Auto-save] Updated IndexedDB:", offlineDesign.id);
+        return offlineDesign.id;
+      } else {
+        // Create new offline design
+        const newDesign = await createOfflineDesign({
+          serverId: designId || null,
+          name: designName,
+          pixelData,
+          widthInches,
+          heightInches,
+          meshCount,
+          totalSold: 0,
+          kitsReady: 0,
+          canvasPrinted: 0,
+          previewImageUrl,
+          isDraft,
+          folderId,
+          tags: [],
+        });
+        offlineIdRef.current = newDesign.id;
+        console.log("[Auto-save] Created in IndexedDB:", newDesign.id);
+        return newDesign.id;
+      }
+    } catch (error) {
+      console.error("[Auto-save] IndexedDB error:", error);
+      return null;
+    }
+  }, [designId, designName, folderId, isDraft, widthInches, heightInches, meshCount]);
+
+  // Queue for server sync
+  const queueForSync = useCallback(async (
+    offlineId: string,
+    base64Data: string,
+    previewImageUrl: string
+  ) => {
+    if (!isIndexedDBAvailable()) return;
+
+    try {
+      const offlineDesign = await getOfflineDesign(offlineId);
+      if (!offlineDesign) return;
+
+      const operation = offlineDesign.serverId ? "update" : "create";
+      const payload = {
+        name: designName,
+        folderId,
+        isDraft,
+        widthInches,
+        heightInches,
+        meshCount,
+        gridWidth,
+        gridHeight,
+        pixelData: base64Data,
+        previewImageUrl,
+        stitchType,
+        bufferPercent,
+        referenceImageUrl,
+        referenceImageOpacity,
+      };
+
+      await addToSyncQueue(operation, offlineId, payload);
+      console.log("[Auto-save] Queued for sync:", { operation, offlineId });
+
+      // If online, trigger sync immediately
+      if (isOnline()) {
+        // Don't await - let it sync in background
+        processQueue().catch(console.error);
+      }
+    } catch (error) {
+      console.error("[Auto-save] Failed to queue for sync:", error);
+    }
+  }, [
+    designName,
+    folderId,
+    isDraft,
+    widthInches,
+    heightInches,
+    meshCount,
+    gridWidth,
+    gridHeight,
+    stitchType,
+    bufferPercent,
+    referenceImageUrl,
+    referenceImageOpacity,
+  ]);
 
   const performSave = useCallback(async (isRetry = false) => {
-    // Only auto-save if we have a design ID (existing design)
+    // Only auto-save if we have a design ID (existing design) or we're creating offline
     if (!designId || isSavingRef.current) {
       return;
     }
@@ -95,9 +236,7 @@ export function useAutoSave() {
       const grid = flattenLayers();
 
       // Compress pixel data
-      const pixelDataJson = JSON.stringify(grid);
-      const compressed = pako.deflate(pixelDataJson);
-      const base64 = btoa(String.fromCharCode(...compressed));
+      const base64 = compressGridToBase64(grid);
 
       // Store pending save data for potential retries
       pendingSaveDataRef.current = base64;
@@ -105,6 +244,31 @@ export function useAutoSave() {
       // Generate preview image
       const previewImageUrl = generatePreviewImage(grid, gridWidth, gridHeight);
 
+      // STEP 1: Always save to IndexedDB first (fast, reliable)
+      const offlineId = await saveToIndexedDB(grid, previewImageUrl);
+
+      // STEP 2: Check if online
+      if (!isOnline()) {
+        // Offline - queue for later sync
+        if (offlineId) {
+          await queueForSync(offlineId, base64, previewImageUrl);
+        }
+
+        // Mark as saved locally
+        markClean();
+        setLastSavedAt(new Date());
+        setAutoSaveStatus('saved');
+
+        console.log("[Auto-save] Saved offline, will sync when online");
+
+        setTimeout(() => {
+          setAutoSaveStatus('idle');
+        }, 2000);
+
+        return;
+      }
+
+      // STEP 3: Online - try to save to server
       const body = {
         name: designName,
         folderId,
@@ -122,7 +286,6 @@ export function useAutoSave() {
         referenceImageOpacity,
       };
 
-      // Log what we're sending
       console.log("[Auto-save] Sending:", {
         designId,
         name: designName,
@@ -151,7 +314,7 @@ export function useAutoSave() {
           retryCount: retryCountRef.current,
         });
 
-        // If unauthorized (401), trigger session expired modal - don't retry auth errors
+        // If unauthorized (401), trigger session expired modal
         if (response.status === 401) {
           triggerSessionExpired();
           retryCountRef.current = 0;
@@ -170,6 +333,29 @@ export function useAutoSave() {
         updatedAt: savedDesign.updatedAt,
       });
 
+      // Update IndexedDB with server confirmation
+      if (offlineId && isIndexedDBAvailable()) {
+        try {
+          await importDesignFromServer({
+            id: savedDesign.id,
+            name: savedDesign.name,
+            pixelData: compressGridToBytes(grid),
+            widthInches: savedDesign.widthInches,
+            heightInches: savedDesign.heightInches,
+            meshCount: savedDesign.meshCount,
+            totalSold: savedDesign.totalSold || 0,
+            kitsReady: savedDesign.kitsReady || 0,
+            canvasPrinted: savedDesign.canvasPrinted || 0,
+            previewImageUrl: savedDesign.previewImageUrl,
+            isDraft: savedDesign.isDraft,
+            folderId: savedDesign.folderId,
+            version: savedDesign.version || 1,
+          });
+        } catch (dbError) {
+          console.warn("[Auto-save] Failed to update IndexedDB after server save:", dbError);
+        }
+      }
+
       // Success! Clear retry state
       retryCountRef.current = 0;
       pendingSaveDataRef.current = null;
@@ -187,6 +373,9 @@ export function useAutoSave() {
     } catch (error) {
       console.error("[Auto-save] Error:", error);
 
+      // Check if we saved to IndexedDB at least
+      const savedOffline = offlineIdRef.current !== null;
+
       // Retry with exponential backoff (except for auth errors)
       const isAuthError = error instanceof Error && error.message.includes("Session expired");
 
@@ -203,22 +392,38 @@ export function useAutoSave() {
         }
 
         retryTimeoutRef.current = setTimeout(() => {
-          isSavingRef.current = false; // Allow the retry to proceed
+          isSavingRef.current = false;
           performSave(true);
         }, retryDelay);
       } else {
         // Max retries reached or auth error
         if (!isAuthError) {
-          console.error(`[Auto-save] Failed after ${MAX_RETRIES} retries. Data may be lost!`);
-          alert("Unable to save your changes after multiple attempts. Please check your internet connection and try saving manually.");
+          if (savedOffline) {
+            // Data is safe in IndexedDB, will sync later
+            console.log("[Auto-save] Server sync failed, but data is saved offline");
+            markClean();
+            setLastSavedAt(new Date());
+            setAutoSaveStatus('saved');
+
+            setTimeout(() => {
+              setAutoSaveStatus('idle');
+            }, 2000);
+          } else {
+            console.error(`[Auto-save] Failed after ${MAX_RETRIES} retries. Data may be lost!`);
+            alert("Unable to save your changes after multiple attempts. Please check your internet connection and try saving manually.");
+            setAutoSaveStatus('error');
+
+            setTimeout(() => {
+              setAutoSaveStatus('idle');
+            }, 5000);
+          }
+        } else {
+          setAutoSaveStatus('error');
+          setTimeout(() => {
+            setAutoSaveStatus('idle');
+          }, 5000);
         }
         retryCountRef.current = 0;
-        setAutoSaveStatus('error');
-
-        // Reset status after showing error
-        setTimeout(() => {
-          setAutoSaveStatus('idle');
-        }, 5000);
       }
     } finally {
       if (retryCountRef.current === 0) {
@@ -243,7 +448,21 @@ export function useAutoSave() {
     markClean,
     setAutoSaveStatus,
     setLastSavedAt,
+    saveToIndexedDB,
+    queueForSync,
   ]);
+
+  // Set offline ID when design loads
+  useEffect(() => {
+    if (designId) {
+      // Check if we have an offline copy
+      getOfflineDesign(designId).then((design) => {
+        if (design) {
+          offlineIdRef.current = design.id;
+        }
+      }).catch(console.error);
+    }
+  }, [designId]);
 
   // Debounced auto-save effect
   useEffect(() => {
@@ -267,7 +486,6 @@ export function useAutoSave() {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
-      // Note: Don't clear retryTimeoutRef here - let retries complete
     };
   }, [isDirty, designId, performSave]);
 

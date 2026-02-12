@@ -119,6 +119,9 @@ model Design {
   // Soft delete (trash)
   deletedAt             DateTime?
 
+  // Offline sync version (incremented on each save)
+  version               Int       @default(1)
+
   // Organization
   folderId  String?
   folder    Folder?     @relation(fields: [folderId], references: [id])

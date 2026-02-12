@@ -15,8 +15,10 @@
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "cloudinary": "^2.9.0",
+    "idb": "^8.0.3",
     "iron-session": "^8.0.4",
     "jspdf": "^4.0.0",
+    "lucide-react": "^0.563.0",
     "next": "^15.5.10",
     "pako": "^2.1.0",
     "prisma": "^5.22.0",

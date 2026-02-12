@@ -138,7 +138,7 @@ export async function PUT(
       kitColorCount,
     });
 
-    // Update design
+    // Update design (increment version for offline sync conflict detection)
     const design = await prisma.design.update({
       where: { id },
       data: {
@@ -160,6 +160,7 @@ export async function PUT(
         kitSkeinCount,
         colorsUsed,
         totalStitches,
+        version: { increment: 1 },
       },
       include: {
         folder: true,

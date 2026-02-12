@@ -1,10 +1,38 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { processQueue, isIndexedDBAvailable } from "@/lib/offline";
+import { ConflictResolutionDialog } from "@/components/ConflictResolutionDialog";
+import { getDesignsBySyncStatus } from "@/lib/offline/designStore";
 
 export default function PWAProvider({ children }: { children: React.ReactNode }) {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+
+  // Check for conflicts periodically
+  useEffect(() => {
+    if (!isIndexedDBAvailable()) return;
+
+    const checkConflicts = async () => {
+      try {
+        const conflicts = await getDesignsBySyncStatus("conflict");
+        if (conflicts.length > 0 && !showConflictDialog) {
+          setShowConflictDialog(true);
+        }
+      } catch (error) {
+        console.error("Failed to check conflicts:", error);
+      }
+    };
+
+    // Check on mount
+    checkConflicts();
+
+    // Check every 30 seconds
+    const interval = setInterval(checkConflicts, 30 * 1000);
+
+    return () => clearInterval(interval);
+  }, [showConflictDialog]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
@@ -42,6 +70,19 @@ export default function PWAProvider({ children }: { children: React.ReactNode })
           window.location.reload();
         });
 
+        // Listen for messages from service worker
+        navigator.serviceWorker.addEventListener("message", async (event) => {
+          if (event.data?.type === "SYNC_DESIGNS") {
+            console.log("[PWAProvider] Received sync trigger from SW");
+            // Trigger sync
+            try {
+              await processQueue();
+            } catch (error) {
+              console.error("[PWAProvider] Sync failed:", error);
+            }
+          }
+        });
+
         return () => clearInterval(interval);
       } catch (error) {
         console.error("Service worker registration failed:", error);
@@ -58,9 +99,28 @@ export default function PWAProvider({ children }: { children: React.ReactNode })
     }
   }, [registration]);
 
+  const handleConflictResolved = useCallback(async () => {
+    // Recheck for remaining conflicts
+    try {
+      const conflicts = await getDesignsBySyncStatus("conflict");
+      if (conflicts.length === 0) {
+        setShowConflictDialog(false);
+      }
+    } catch (error) {
+      console.error("Failed to check remaining conflicts:", error);
+    }
+  }, []);
+
   return (
     <>
       {children}
+
+      {/* Conflict resolution dialog */}
+      <ConflictResolutionDialog
+        isOpen={showConflictDialog}
+        onClose={() => setShowConflictDialog(false)}
+        onResolved={handleConflictResolved}
+      />
 
       {/* Update notification banner */}
       {updateAvailable && (
