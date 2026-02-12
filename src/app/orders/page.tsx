@@ -5,6 +5,26 @@ import Link from "next/link";
 import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/route";
 import type { SyncResult } from "@/app/api/shopify/sync/route";
 
+// Kit content types
+interface KitItem {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  skeinsNeeded: number;
+  fullSkeins: number;
+  bobbinYards: number;
+  inventorySkeins: number;
+  inStock: boolean;
+}
+
+interface KitData {
+  designId: string;
+  totalColors: number;
+  totalSkeins: number;
+  allInStock: boolean;
+  kitContents: KitItem[];
+}
+
 function getContrastTextColor(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -44,6 +64,11 @@ export default function OrdersPage() {
   const [filter, setFilter] = useState<FilterType>("all");
   const [updating, setUpdating] = useState<string | null>(null); // Track which design is being updated
 
+  // Kit data for showing what's needed to make each kit
+  const [kitData, setKitData] = useState<Map<string, KitData>>(new Map());
+  const [loadingKits, setLoadingKits] = useState(false);
+  const [expandedKits, setExpandedKits] = useState<Set<string>>(new Set());
+
   // Use refs for debounced updates to handle rapid clicks
   const pendingUpdates = useRef<Map<string, { field: "kitsReady" | "canvasPrinted"; delta: number; timeout: NodeJS.Timeout }>>(new Map());
   const inFlightRequests = useRef<Set<string>>(new Set());
@@ -64,6 +89,49 @@ export default function OrdersPage() {
     }
     setLoading(false);
   }, []);
+
+  // Fetch kit data for showing kit contents
+  const fetchKits = useCallback(async () => {
+    if (kitData.size > 0) return; // Already loaded
+    setLoadingKits(true);
+    try {
+      const res = await fetch("/api/kits");
+      if (res.ok) {
+        const kits = await res.json();
+        const kitMap = new Map<string, KitData>();
+        for (const kit of kits) {
+          kitMap.set(kit.designId, {
+            designId: kit.designId,
+            totalColors: kit.totalColors,
+            totalSkeins: kit.totalSkeins,
+            allInStock: kit.allInStock,
+            kitContents: kit.kitContents,
+          });
+        }
+        setKitData(kitMap);
+      }
+    } catch (err) {
+      console.error("Failed to fetch kit data:", err);
+    }
+    setLoadingKits(false);
+  }, [kitData.size]);
+
+  // Toggle expanded kit view
+  const toggleKitExpanded = useCallback((designId: string) => {
+    setExpandedKits(prev => {
+      const next = new Set(prev);
+      if (next.has(designId)) {
+        next.delete(designId);
+      } else {
+        next.add(designId);
+        // Fetch kit data if not already loaded
+        if (kitData.size === 0) {
+          fetchKits();
+        }
+      }
+      return next;
+    });
+  }, [kitData.size, fetchKits]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -425,77 +493,150 @@ export default function OrdersPage() {
                               {sortedKits.map((kit, idx) => {
                                 const hasEnough = kit.kitsReady >= kit.quantity;
                                 const shortage = kit.quantity - kit.kitsReady;
+                                const isExpanded = kit.designId ? expandedKits.has(kit.designId) : false;
+                                const kitInfo = kit.designId ? kitData.get(kit.designId) : null;
+
                                 return (
-                                  <div key={idx} className="p-4 flex items-center gap-4">
-                                    {kit.previewImageUrl ? (
-                                      <img
-                                        src={kit.previewImageUrl}
-                                        alt={kit.productTitle}
-                                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
-                                      />
-                                    ) : (
-                                      <div className="w-14 h-14 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-slate-500 text-xs">?</span>
-                                      </div>
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-white font-medium truncate">
-                                        {kit.designName || kit.productTitle}
-                                      </p>
-                                      {!kit.designId ? (
-                                        <p className="text-xs text-yellow-500">No matching design</p>
+                                  <div key={idx}>
+                                    <div className="p-4 flex items-center gap-4">
+                                      {kit.previewImageUrl ? (
+                                        <img
+                                          src={kit.previewImageUrl}
+                                          alt={kit.productTitle}
+                                          className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+                                        />
                                       ) : (
-                                        <p className="text-xs text-purple-400">{kit.totalSold} sold</p>
+                                        <div className="w-14 h-14 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                          <span className="text-slate-500 text-xs">?</span>
+                                        </div>
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-white font-medium truncate">
+                                          {kit.designName || kit.productTitle}
+                                        </p>
+                                        {!kit.designId ? (
+                                          <p className="text-xs text-yellow-500">No matching design</p>
+                                        ) : (
+                                          <p className="text-xs text-purple-400">{kit.totalSold} sold</p>
+                                        )}
+                                        {/* Kit contents summary */}
+                                        {kit.designId && (
+                                          <button
+                                            onClick={() => toggleKitExpanded(kit.designId!)}
+                                            className="text-xs text-slate-400 hover:text-amber-400 flex items-center gap-1 mt-1"
+                                          >
+                                            <svg
+                                              className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                            </svg>
+                                            {kitInfo ? `${kitInfo.totalColors} colors, ${kitInfo.totalSkeins} skeins` : "View kit contents"}
+                                          </button>
+                                        )}
+                                      </div>
+                                      <div className="text-center px-4">
+                                        <p className="text-2xl font-bold text-amber-400">{kit.quantity}</p>
+                                        <p className="text-xs text-slate-400">needed</p>
+                                      </div>
+                                      <div className="text-center px-4">
+                                        <div className="flex items-center gap-2">
+                                          {kit.designId && (
+                                            <button
+                                              onClick={() => handleUpdateCount(kit.designId!, "kitsReady", -1)}
+                                              disabled={updating === kit.designId || kit.kitsReady <= 0}
+                                              className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                            >
+                                              −
+                                            </button>
+                                          )}
+                                          <div>
+                                            <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                              {kit.kitsReady}
+                                            </p>
+                                            <p className="text-xs text-slate-400">ready</p>
+                                          </div>
+                                          {kit.designId && (
+                                            <button
+                                              onClick={() => handleUpdateCount(kit.designId!, "kitsReady", 1)}
+                                              disabled={updating === kit.designId}
+                                              className="w-7 h-7 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                            >
+                                              +
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {!hasEnough && (
+                                        <div className="text-center px-4">
+                                          <p className="text-2xl font-bold text-red-400">-{shortage}</p>
+                                          <p className="text-xs text-slate-400">short</p>
+                                        </div>
+                                      )}
+                                      {kit.designId && (
+                                        <Link
+                                          href={`/design/${kit.designId}/kit`}
+                                          className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                                          title="View kit details"
+                                        >
+                                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                          </svg>
+                                        </Link>
                                       )}
                                     </div>
-                                    <div className="text-center px-4">
-                                      <p className="text-2xl font-bold text-amber-400">{kit.quantity}</p>
-                                      <p className="text-xs text-slate-400">needed</p>
-                                    </div>
-                                    <div className="text-center px-4">
-                                      <div className="flex items-center gap-2">
-                                        {kit.designId && (
-                                          <button
-                                            onClick={() => handleUpdateCount(kit.designId!, "kitsReady", -1)}
-                                            disabled={updating === kit.designId || kit.kitsReady <= 0}
-                                            className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
-                                          >
-                                            −
-                                          </button>
-                                        )}
-                                        <div>
-                                          <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
-                                            {kit.kitsReady}
-                                          </p>
-                                          <p className="text-xs text-slate-400">ready</p>
+
+                                    {/* Expanded kit contents */}
+                                    {isExpanded && kit.designId && (
+                                      <div className="px-4 pb-4 pt-0">
+                                        <div className="bg-slate-900/50 rounded-lg p-3 ml-16">
+                                          {loadingKits ? (
+                                            <p className="text-sm text-slate-400">Loading kit contents...</p>
+                                          ) : kitInfo ? (
+                                            <div className="space-y-2">
+                                              <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                                                <span>Thread colors needed:</span>
+                                                <span className={kitInfo.allInStock ? "text-emerald-400" : "text-amber-400"}>
+                                                  {kitInfo.allInStock ? "All in stock" : "Some out of stock"}
+                                                </span>
+                                              </div>
+                                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                                {kitInfo.kitContents.map((item) => (
+                                                  <div
+                                                    key={item.dmcNumber}
+                                                    className={`flex items-center gap-2 p-2 rounded text-xs ${
+                                                      item.inStock ? "bg-slate-800" : "bg-red-900/30"
+                                                    }`}
+                                                  >
+                                                    <div
+                                                      className="w-4 h-4 rounded flex-shrink-0 border border-slate-600"
+                                                      style={{ backgroundColor: item.hex }}
+                                                    />
+                                                    <div className="min-w-0 flex-1">
+                                                      <p className="text-white font-medium truncate">{item.dmcNumber}</p>
+                                                      <p className="text-slate-500 truncate">{item.colorName}</p>
+                                                    </div>
+                                                    <div className="text-right flex-shrink-0">
+                                                      {item.fullSkeins > 0 ? (
+                                                        <p className="text-slate-300">{item.fullSkeins} sk</p>
+                                                      ) : (
+                                                        <p className="text-slate-400">{item.bobbinYards}y</p>
+                                                      )}
+                                                      <p className={`text-xs ${item.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                                                        {item.inventorySkeins} in stock
+                                                      </p>
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <p className="text-sm text-slate-400">Kit data not available</p>
+                                          )}
                                         </div>
-                                        {kit.designId && (
-                                          <button
-                                            onClick={() => handleUpdateCount(kit.designId!, "kitsReady", 1)}
-                                            disabled={updating === kit.designId}
-                                            className="w-7 h-7 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
-                                          >
-                                            +
-                                          </button>
-                                        )}
                                       </div>
-                                    </div>
-                                    {!hasEnough && (
-                                      <div className="text-center px-4">
-                                        <p className="text-2xl font-bold text-red-400">-{shortage}</p>
-                                        <p className="text-xs text-slate-400">short</p>
-                                      </div>
-                                    )}
-                                    {kit.designId && (
-                                      <Link
-                                        href={`/design/${kit.designId}/kit`}
-                                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
-                                        title="View kit details"
-                                      >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                        </svg>
-                                      </Link>
                                     )}
                                   </div>
                                 );
