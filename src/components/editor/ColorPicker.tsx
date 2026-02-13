@@ -1,16 +1,9 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useEditorStore } from "@/lib/store";
 import { DMC_PEARL_COTTON, DmcColor, searchDmcColors, findSimilarInStockColor, getSimilarityDescription } from "@/lib/dmc-pearl-cotton";
-
-function getContrastTextColor(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? "#000000" : "#FFFFFF";
-}
+import { ColorSwatch } from "./ColorSwatch";
 
 export default function ColorPicker() {
   const { currentColor, setCurrentColor, getUsedColors, replaceAllColor, meshCount } = useEditorStore();
@@ -55,7 +48,7 @@ export default function ColorPicker() {
     return showAll ? DMC_PEARL_COTTON : usedColors;
   }, [searchQuery, showAll, usedColors]);
 
-  const handleColorClick = (color: DmcColor) => {
+  const handleColorClick = useCallback((color: DmcColor) => {
     if (selectingFor === 'from') {
       setReplaceFrom(color);
       setSelectingFor(null);
@@ -84,7 +77,7 @@ export default function ColorPicker() {
 
       setCurrentColor(color);
     }
-  };
+  }, [selectingFor, selectingRemove, inStockSet, setCurrentColor]);
 
   const handleReplace = () => {
     if (replaceFrom && replaceTo) {
@@ -462,48 +455,22 @@ export default function ColorPicker() {
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         <div className="grid grid-cols-5 gap-1">
-          {filteredColors.map((color) => {
-            const isCurrentColor = currentColor?.dmcNumber === color.dmcNumber;
-            const isReplaceFrom = replaceFrom?.dmcNumber === color.dmcNumber;
-            const isReplaceTo = replaceTo?.dmcNumber === color.dmcNumber;
-            const isRemoveTarget = removeColor?.dmcNumber === color.dmcNumber;
-            const isSelecting = selectingFor !== null || selectingRemove;
-            const isInStock = inStockSet.has(color.dmcNumber);
-
-            return (
-              <button
-                key={color.dmcNumber}
-                onClick={() => handleColorClick(color)}
-                className={`aspect-square rounded-md border-2 transition-all flex items-center justify-center relative ${
-                  isRemoveTarget
-                    ? "border-red-500 scale-110 z-10 ring-2 ring-red-500/50"
-                    : isReplaceFrom
-                    ? "border-orange-500 scale-110 z-10 ring-2 ring-orange-500/50"
-                    : isReplaceTo
-                    ? "border-green-500 scale-110 z-10 ring-2 ring-green-500/50"
-                    : isCurrentColor && !isSelecting
-                    ? "border-white scale-110 z-10"
-                    : selectingRemove
-                    ? "border-transparent hover:border-red-400 hover:scale-105"
-                    : selectingFor
-                    ? "border-transparent hover:border-orange-400 hover:scale-105"
-                    : "border-transparent hover:border-white/50"
-                }${!isInStock && inStockSet.size > 0 ? " opacity-40" : ""}`}
-                style={{ backgroundColor: color.hex }}
-                title={`DMC ${color.dmcNumber} - ${color.name}${isInStock ? " (In Stock)" : inStockSet.size > 0 ? " (Not In Stock)" : ""}`}
-              >
-                <span
-                  className="text-[8px] font-bold leading-none select-none"
-                  style={{ color: getContrastTextColor(color.hex) }}
-                >
-                  {color.dmcNumber}
-                </span>
-                {isInStock && (
-                  <span className="absolute top-0 right-0 w-2 h-2 bg-green-400 rounded-full border border-green-600" />
-                )}
-              </button>
-            );
-          })}
+          {filteredColors.map((color) => (
+            <ColorSwatch
+              key={color.dmcNumber}
+              color={color}
+              isCurrentColor={currentColor?.dmcNumber === color.dmcNumber}
+              isReplaceFrom={replaceFrom?.dmcNumber === color.dmcNumber}
+              isReplaceTo={replaceTo?.dmcNumber === color.dmcNumber}
+              isRemoveTarget={removeColor?.dmcNumber === color.dmcNumber}
+              isSelecting={selectingFor !== null || selectingRemove}
+              selectingRemove={selectingRemove}
+              selectingFor={selectingFor}
+              isInStock={inStockSet.has(color.dmcNumber)}
+              hasInventoryData={inStockSet.size > 0}
+              onClick={() => handleColorClick(color)}
+            />
+          ))}
         </div>
 
         {filteredColors.length === 0 && (
