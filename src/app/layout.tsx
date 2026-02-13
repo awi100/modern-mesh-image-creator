@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SWRProvider } from "@/lib/swr-config";
 import PWAProvider from "@/components/PWAProvider";
+import { ToastProvider } from "@/components/Toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -78,9 +79,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SWRProvider>
-          <PWAProvider>{children}</PWAProvider>
-        </SWRProvider>
+        <ToastProvider>
+          <SWRProvider>
+            <PWAProvider>{children}</PWAProvider>
+          </SWRProvider>
+        </ToastProvider>
       </body>
     </html>
   );

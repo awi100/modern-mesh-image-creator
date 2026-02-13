@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/route";
 import type { SyncResult } from "@/app/api/shopify/sync/route";
+import { Breadcrumb } from "@/components/Breadcrumb";
 
 // Kit content types
 interface KitItem {
@@ -299,6 +300,8 @@ export default function OrdersPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        <Breadcrumb items={[{ label: "Orders" }]} className="mb-2" />
+
         {/* Error */}
         {error && (
           <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg">

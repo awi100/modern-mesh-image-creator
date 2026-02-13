@@ -9,6 +9,7 @@ import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 import { triggerSessionExpired } from "@/components/SessionExpiredModal";
 import { OfflineStatusIndicator } from "@/components/OfflineStatusIndicator";
+import { useToast } from "@/components/Toast";
 
 // Generate a small preview image as base64 data URL
 function generatePreviewImage(
@@ -97,6 +98,8 @@ export default function Header({
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState(designName);
 
+  const { showToast } = useToast();
+
   // Auto-save hook
   const { autoSaveStatus, lastSavedAt } = useAutoSave();
 
@@ -173,9 +176,9 @@ export default function Header({
       setLastSavedAt(new Date());
     } catch (error) {
       console.error("[Manual save] Error:", error);
-      // Don't show alert for session expired - the modal handles it
+      // Don't show toast for session expired - the modal handles it
       if (error instanceof Error && !error.message.includes("Session expired")) {
-        alert("Failed to save. Please try again.");
+        showToast("Failed to save. Please try again.", "error");
       }
     } finally {
       setSaving(false);

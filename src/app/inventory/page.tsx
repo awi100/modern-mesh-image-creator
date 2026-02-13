@@ -11,6 +11,7 @@ import {
   downloadFile,
   openPrintableWindow,
 } from "@/lib/shopping-list-export";
+import { Breadcrumb } from "@/components/Breadcrumb";
 
 interface InventoryItem {
   id: string;
@@ -607,6 +608,8 @@ export default function InventoryPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6">
+        <Breadcrumb items={[{ label: "Inventory" }]} className="mb-4" />
+
         {/* Tabs */}
         <div className="flex gap-1 mb-6 bg-slate-800 p-1 rounded-lg border border-slate-700 w-fit">
           <button

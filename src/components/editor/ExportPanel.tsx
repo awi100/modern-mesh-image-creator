@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useEditorStore } from "@/lib/store";
 import { exportArtworkPdf, exportStitchGuideImage, generatePreviewImage, generateFullResImage, generateOneToOneImage } from "@/lib/pdf-export";
+import { useToast } from "@/components/Toast";
 
 interface ExportPanelProps {
   onClose: () => void;
@@ -24,6 +25,7 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
   const grid = flattenLayers();
 
   const [exporting, setExporting] = useState(false);
+  const { showToast } = useToast();
 
   const usedColors = getUsedColors();
 
@@ -42,7 +44,7 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
       doc.save(`${designName.replace(/\s+/g, "_")}_artwork.pdf`);
     } catch (error) {
       console.error("Export error:", error);
-      alert("Failed to export PDF. Please try again.");
+      showToast("Failed to export PDF. Please try again.", "error");
     } finally {
       setExporting(false);
     }
@@ -68,7 +70,7 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
       }
     } catch (error) {
       console.error("Export error:", error);
-      alert("Failed to export stitch guide. Please try again.");
+      showToast("Failed to export stitch guide. Please try again.", "error");
     } finally {
       setExporting(false);
     }
@@ -87,7 +89,7 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
       }
     } catch (error) {
       console.error("Export error:", error);
-      alert("Failed to export image. Please try again.");
+      showToast("Failed to export image. Please try again.", "error");
     } finally {
       setExporting(false);
     }
@@ -106,7 +108,7 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
       }
     } catch (error) {
       console.error("Export error:", error);
-      alert("Failed to export image. Please try again.");
+      showToast("Failed to export image. Please try again.", "error");
     } finally {
       setExporting(false);
     }

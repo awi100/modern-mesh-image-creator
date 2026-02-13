@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useEditorStore } from "@/lib/store";
 import { processImageToGrid, PixelGrid, getUsedColors } from "@/lib/color-utils";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON, DmcColor } from "@/lib/dmc-pearl-cotton";
+import { useToast } from "@/components/Toast";
 
 interface ImageImportProps {
   onClose: () => void;
@@ -16,6 +17,7 @@ interface DetectedColor {
 
 export default function ImageImport({ onClose }: ImageImportProps) {
   const { gridWidth, gridHeight, initializeGrid, saveToHistory, layers, activeLayerIndex } = useEditorStore();
+  const { showToast } = useToast();
 
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageData, setImageData] = useState<ImageData | null>(null);
@@ -258,11 +260,11 @@ export default function ImageImport({ onClose }: ImageImportProps) {
       onClose();
     } catch (error) {
       console.error("Error importing image:", error);
-      alert("Failed to import image. Please try again.");
+      showToast("Failed to import image. Please try again.", "error");
     } finally {
       setProcessing(false);
     }
-  }, [imageData, previewGrid, colorMappings, gridWidth, gridHeight, saveToHistory, initializeGrid, onClose]);
+  }, [imageData, previewGrid, colorMappings, gridWidth, gridHeight, saveToHistory, initializeGrid, onClose, showToast]);
 
   const mappedCount = colorMappings.size;
 

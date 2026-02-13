@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import type { ProductsResponse, ProductWithMatch } from "@/app/api/shopify/products/route";
+import { Breadcrumb } from "@/components/Breadcrumb";
 
 type FilterType = "all" | "matched" | "unmatched" | "partial";
 
@@ -92,6 +93,8 @@ export default function ShopifyProductsPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        <Breadcrumb items={[{ label: "Shopify Products" }]} className="mb-2" />
+
         {/* Error */}
         {error && (
           <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg">

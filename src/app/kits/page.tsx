@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import useSWR, { mutate } from "swr";
+import { Breadcrumb } from "@/components/Breadcrumb";
 
 const SKEIN_YARDS = 27;
 
@@ -376,6 +377,8 @@ export default function KitsPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <Breadcrumb items={[{ label: "Kits" }]} className="mb-2" />
+
         {filteredKits.length === 0 ? (
           <div className="text-center py-12 text-slate-500">
             No kits found.
