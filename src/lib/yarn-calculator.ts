@@ -52,8 +52,11 @@ function calculateSmartBuffer(yarnYards: number, bufferPercent: number): number 
     effectiveBufferPercent = bufferPercent * 0.4;
   }
 
-  // Add buffer, but minimum 1 yard for any amount
-  const bufferYards = Math.max(1, yarnYards * (effectiveBufferPercent / 100));
+  // Add buffer with minimum based on required yardage:
+  // - Less than 1 yard needed: minimum 0.5 yard buffer
+  // - 1+ yards needed: minimum 1 yard buffer
+  const minBuffer = yarnYards < 1 ? 0.5 : 1;
+  const bufferYards = Math.max(minBuffer, yarnYards * (effectiveBufferPercent / 100));
   return yarnYards + bufferYards;
 }
 
