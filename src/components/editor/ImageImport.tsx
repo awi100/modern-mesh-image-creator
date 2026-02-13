@@ -50,10 +50,28 @@ export default function ImageImport({ onClose }: ImageImportProps) {
       .filter((c): c is DmcColor => c !== null);
   }, [layers]);
 
+  // File validation constants
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+
   // Load image and extract ImageData
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Validate file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showToast("Please select a valid image file (JPEG, PNG, GIF, or WebP)", "error");
+      e.target.value = "";
+      return;
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      showToast(`File is too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`, "error");
+      e.target.value = "";
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -311,7 +329,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
                   <p className="text-xs text-slate-400 mb-1 text-center">Original</p>
                   <img
                     src={imageUrl}
-                    alt="Original"
+                    alt="Original image to import"
                     className="w-full h-36 object-contain bg-slate-900 rounded-lg"
                   />
                 </div>

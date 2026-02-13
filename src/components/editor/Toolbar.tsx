@@ -135,6 +135,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
             onClick={() => setShowHelp(true)}
             className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation"
             title="Tool Guide"
+            aria-label="Tool Guide"
           >
             <span className="text-lg md:text-base">❓</span>
           </button>
@@ -150,6 +151,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
                 onClick={() => setBrushSize(brushSize - 1)}
                 disabled={brushSize <= 1}
                 className="p-2 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 touch-manipulation"
+                aria-label="Decrease brush size"
               >
                 -
               </button>
@@ -158,6 +160,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
                 onClick={() => setBrushSize(brushSize + 1)}
                 disabled={brushSize >= 10}
                 className="p-2 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 touch-manipulation"
+                aria-label="Increase brush size"
               >
                 +
               </button>

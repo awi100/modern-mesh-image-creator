@@ -6,6 +6,11 @@ import Link from "next/link";
 import pako from "pako";
 import { processImageToGrid, PixelGrid, ProcessingOptions } from "@/lib/color-utils";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
+import { useToast } from "@/components/Toast";
+
+// File validation constants
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 // Canvas size presets
 const CANVAS_PRESETS = [
@@ -33,6 +38,7 @@ type Step = "upload" | "prepare" | "settings" | "preview" | "create";
 
 export default function CustomDesignPage() {
   const router = useRouter();
+  const { showToast } = useToast();
 
   // Step state
   const [currentStep, setCurrentStep] = useState<Step>("upload");
@@ -120,6 +126,20 @@ export default function CustomDesignPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showToast("Please select a valid image file (JPEG, PNG, GIF, or WebP)", "error");
+      e.target.value = "";
+      return;
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      showToast(`File is too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`, "error");
+      e.target.value = "";
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const url = event.target?.result as string;
@@ -135,13 +155,25 @@ export default function CustomDesignPage() {
       img.src = url;
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [showToast]);
 
   // Handle drop
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
-    if (!file || !file.type.startsWith("image/")) return;
+    if (!file) return;
+
+    // Validate file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showToast("Please select a valid image file (JPEG, PNG, GIF, or WebP)", "error");
+      return;
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      showToast(`File is too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`, "error");
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -158,7 +190,7 @@ export default function CustomDesignPage() {
       img.src = url;
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [showToast]);
 
   // Crop interaction handlers
   const handleCropMouseDown = useCallback((e: React.MouseEvent, type: "move" | "resize", handle?: string) => {
@@ -650,7 +682,7 @@ export default function CustomDesignPage() {
                 >
                   <img
                     src={imageUrl!}
-                    alt="Original"
+                    alt="Photo to convert to needlepoint design"
                     className="w-full h-auto"
                     style={{ maxHeight: "500px", objectFit: "contain" }}
                     draggable={false}
