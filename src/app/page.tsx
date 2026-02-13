@@ -668,9 +668,9 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40">
+      <header className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-3 md:px-4 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <div className="w-9 h-9 md:w-10 md:h-10 bg-gradient-to-br from-rose-900 to-rose-800 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -679,15 +679,15 @@ export default function HomePage() {
               </svg>
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg md:text-xl font-bold text-white truncate">Modern Mesh</h1>
-              <p className="text-xs md:text-sm text-slate-400 hidden sm:block">Image Creator</p>
+              <h1 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white truncate">Modern Mesh</h1>
+              <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 hidden sm:block">Image Creator</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
             <Link
               href="/kits"
-              className="px-3 md:px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-all flex items-center gap-2 text-sm md:text-base"
+              className="px-3 md:px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all flex items-center gap-2 text-sm md:text-base"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -696,7 +696,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/orders"
-              className="px-3 md:px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-all flex items-center gap-2 text-sm md:text-base"
+              className="px-3 md:px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all flex items-center gap-2 text-sm md:text-base"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -705,7 +705,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/inventory"
-              className="px-3 md:px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-all flex items-center gap-2 text-sm md:text-base"
+              className="px-3 md:px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all flex items-center gap-2 text-sm md:text-base"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -715,7 +715,7 @@ export default function HomePage() {
             {/* Refresh button */}
             <button
               onClick={() => mutate(designsUrl)}
-              className="p-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-all"
+              className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
               title="Refresh"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -729,7 +729,7 @@ export default function HomePage() {
                 className={`px-3 md:px-4 py-2 rounded-lg transition-all flex items-center gap-2 text-sm md:text-base ${
                   isSelectionMode
                     ? "bg-rose-900 text-white"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-600"
                 }`}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -740,7 +740,7 @@ export default function HomePage() {
             )}
             <Link
               href="/custom-design"
-              className="px-3 md:px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-all flex items-center gap-2 text-sm md:text-base"
+              className="px-3 md:px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all flex items-center gap-2 text-sm md:text-base"
               title="Create design from customer photo"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -760,7 +760,7 @@ export default function HomePage() {
             <ThemeToggle />
             <button
               onClick={handleLogout}
-              className="p-2 text-slate-400 hover:text-white"
+              className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               title="Logout"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -780,7 +780,7 @@ export default function HomePage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search designs..."
-              className="flex-1 px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
+              className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
             />
             <button
               onClick={() => setShowFilters(!showFilters)}
@@ -802,12 +802,12 @@ export default function HomePage() {
               {/* Folders */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                  <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Folders
                   </h3>
                   <button
                     onClick={() => setShowNewFolderInput(!showNewFolderInput)}
-                    className="text-slate-400 hover:text-white p-1"
+                    className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1"
                     title="New Folder"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -824,7 +824,7 @@ export default function HomePage() {
                       onChange={(e) => setNewFolderName(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
                       placeholder="Folder name..."
-                      className="flex-1 px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                      className="flex-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                       autoFocus
                     />
                     <button
@@ -841,7 +841,7 @@ export default function HomePage() {
                     className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                       selectedFolder === null
                         ? "bg-rose-900 text-white"
-                        : "bg-slate-700 text-slate-300"
+                        : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                     }`}
                   >
                     All
@@ -851,7 +851,7 @@ export default function HomePage() {
                     className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                       selectedFolder === ""
                         ? "bg-rose-900 text-white"
-                        : "bg-slate-700 text-slate-300"
+                        : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                     }`}
                   >
                     Unfiled
@@ -863,7 +863,7 @@ export default function HomePage() {
                         className={`px-3 py-1.5 rounded-lg text-sm transition-colors pr-7 ${
                           selectedFolder === folder.id
                             ? "bg-rose-900 text-white"
-                            : "bg-slate-700 text-slate-300"
+                            : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                         }`}
                       >
                         {folder.name}
@@ -918,7 +918,7 @@ export default function HomePage() {
                       className={`px-3 py-1.5 rounded-lg text-sm transition-colors capitalize ${
                         selectedSkillLevel === level
                           ? "bg-rose-900 text-white"
-                          : "bg-slate-700 text-slate-300"
+                          : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                       }`}
                     >
                       {level}
@@ -940,7 +940,7 @@ export default function HomePage() {
                       className={`px-3 py-1.5 rounded-lg text-sm transition-colors capitalize ${
                         selectedSizeCategory === size
                           ? "bg-rose-900 text-white"
-                          : "bg-slate-700 text-slate-300"
+                          : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                       }`}
                     >
                       {size === "extra-small" ? "XS" : size}
@@ -962,19 +962,19 @@ export default function HomePage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search designs..."
-                className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
+                className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
             </div>
 
             {/* Folders */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Folders
                 </h3>
                 <button
                   onClick={() => setShowNewFolderInput(!showNewFolderInput)}
-                  className="text-slate-400 hover:text-white p-1"
+                  className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1"
                   title="New Folder"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -992,7 +992,7 @@ export default function HomePage() {
                     onChange={(e) => setNewFolderName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
                     placeholder="Folder name..."
-                    className="flex-1 px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                    className="flex-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                     autoFocus
                   />
                   <button
@@ -1010,7 +1010,7 @@ export default function HomePage() {
                   className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
                     selectedFolder === null && !showTrash
                       ? "bg-rose-900/20 text-rose-400"
-                      : "text-slate-300 hover:bg-slate-800"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   }`}
                 >
                   All Designs
@@ -1020,7 +1020,7 @@ export default function HomePage() {
                   className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
                     selectedFolder === "" && !showTrash
                       ? "bg-rose-900/20 text-rose-400"
-                      : "text-slate-300 hover:bg-slate-800"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   }`}
                 >
                   Unfiled
@@ -1038,7 +1038,7 @@ export default function HomePage() {
                             if (e.key === "Escape") { setEditingFolderId(null); setEditingFolderName(""); }
                           }}
                           onBlur={() => handleRenameFolder(folder.id)}
-                          className="flex-1 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                          className="flex-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                           autoFocus
                         />
                       </div>
@@ -1049,7 +1049,7 @@ export default function HomePage() {
                           className={`flex-1 text-left px-3 py-2 rounded-lg transition-colors ${
                             selectedFolder === folder.id && !showTrash
                               ? "bg-rose-900/20 text-rose-400"
-                              : "text-slate-300 hover:bg-slate-800"
+                              : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                           }`}
                         >
                           📁 {folder.name}
@@ -1078,13 +1078,13 @@ export default function HomePage() {
                 ))}
 
                 {/* Trash */}
-                <div className="pt-2 mt-2 border-t border-slate-700">
+                <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700">
                   <button
                     onClick={() => { setShowTrash(true); setSelectedFolder(null); setSelectedTag(null); }}
                     className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between ${
                       showTrash
                         ? "bg-rose-900/20 text-rose-400"
-                        : "text-slate-300 hover:bg-slate-800"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                     }`}
                   >
                     <span>🗑️ Trash</span>
@@ -1137,7 +1137,7 @@ export default function HomePage() {
                     className={`px-3 py-1 rounded-lg text-sm transition-colors capitalize ${
                       selectedSkillLevel === level
                         ? "bg-rose-900 text-white"
-                        : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                        : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-600"
                     }`}
                   >
                     {level}
@@ -1159,7 +1159,7 @@ export default function HomePage() {
                     className={`px-3 py-1 rounded-lg text-sm transition-colors capitalize ${
                       selectedSizeCategory === size
                         ? "bg-rose-900 text-white"
-                        : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                        : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-600"
                     }`}
                   >
                     {size === "extra-small" ? "XS" : size}
@@ -1197,7 +1197,7 @@ export default function HomePage() {
               <DesignGridSkeleton />
             ) : designs.length === 0 ? (
               <div className="text-center py-12 md:py-16">
-                <div className="w-14 h-14 md:w-16 md:h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-14 h-14 md:w-16 md:h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-7 h-7 md:w-8 md:h-8 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     {showTrash ? (
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1206,10 +1206,10 @@ export default function HomePage() {
                     )}
                   </svg>
                 </div>
-                <h2 className="text-lg md:text-xl font-semibold text-white mb-2">
+                <h2 className="text-lg md:text-xl font-semibold text-slate-900 dark:text-white mb-2">
                   {showTrash ? "Trash is empty" : "No designs yet"}
                 </h2>
-                <p className="text-slate-400 mb-6 text-sm md:text-base px-4">
+                <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm md:text-base px-4">
                   {showTrash
                     ? "Deleted designs will appear here for 14 days before being permanently removed."
                     : "Create your first needlepoint design to get started."}
@@ -1231,7 +1231,7 @@ export default function HomePage() {
                 {/* Selection mode header */}
                 {isSelectionMode && (
                   <div className="flex items-center justify-between mb-4 p-3 bg-slate-800 rounded-lg border border-slate-700">
-                    <span className="text-slate-300 text-sm">
+                    <span className="text-slate-600 dark:text-slate-300 text-sm">
                       {selectedDesigns.size} of {designs.length} selected
                     </span>
                     <button
@@ -1250,10 +1250,10 @@ export default function HomePage() {
                     return (
                       <div
                         key={design.id}
-                        className={`bg-slate-800 rounded-xl overflow-hidden border transition-colors group ${
+                        className={`bg-white dark:bg-slate-800 rounded-xl overflow-hidden border transition-colors group ${
                           isSelected
                             ? "border-rose-500 ring-2 ring-rose-500/50"
-                            : "border-slate-700 hover:border-rose-800/50"
+                            : "border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-800/50"
                         }`}
                         onClick={(e) => {
                           if (isSelectionMode) {
@@ -1354,12 +1354,12 @@ export default function HomePage() {
                             </h3>
                           ) : (
                             <Link href={`/design/${design.id}`}>
-                              <h3 className="font-semibold text-white mb-1 group-hover:text-rose-400 transition-colors text-sm md:text-base truncate">
+                              <h3 className="font-semibold text-slate-900 dark:text-white mb-1 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors text-sm md:text-base truncate">
                                 {design.name}
                               </h3>
                             </Link>
                           )}
-                          <p className="text-xs md:text-sm text-slate-400 mb-2 md:mb-3">
+                          <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mb-2 md:mb-3">
                             {design.widthInches}&quot; x {design.heightInches}&quot; @ {design.meshCount} mesh
                           </p>
 
@@ -1414,7 +1414,7 @@ export default function HomePage() {
 
                           {/* Folder indicator */}
                           {design.folder && (
-                            <p className="text-xs text-slate-500 mb-2">
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">
                               📁 {design.folder.name}
                             </p>
                           )}
@@ -1483,7 +1483,7 @@ export default function HomePage() {
                               </>
                             ) : (
                               <>
-                                <span className="text-xs text-slate-500">
+                                <span className="text-xs text-slate-400 dark:text-slate-500">
                                   {new Date(design.updatedAt).toLocaleDateString()}
                                 </span>
                                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>

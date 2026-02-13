@@ -211,13 +211,13 @@ export default function Header({
   };
 
   return (
-    <header className="bg-slate-800 border-b border-slate-700 px-2 md:px-4 py-2 md:py-3">
+    <header className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-2 md:px-4 py-2 md:py-3">
       <div className="flex items-center justify-between gap-2">
         {/* Left side - Logo and name */}
         <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
           <button
             onClick={() => router.push("/")}
-            className="flex-shrink-0 flex items-center gap-2 text-slate-400 hover:text-white"
+            className="flex-shrink-0 flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             title="Home"
           >
             <div className="w-8 h-8 bg-gradient-to-br from-rose-900 to-rose-800 rounded-lg flex items-center justify-center">
@@ -236,7 +236,7 @@ export default function Header({
                 onChange={(e) => setTempName(e.target.value)}
                 onBlur={handleNameSubmit}
                 onKeyDown={(e) => e.key === "Enter" && handleNameSubmit()}
-                className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                className="w-full px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                 autoFocus
               />
             ) : (
@@ -245,7 +245,7 @@ export default function Header({
                   setTempName(designName);
                   setEditingName(true);
                 }}
-                className="text-white text-sm md:text-base font-medium hover:text-rose-400 transition-colors flex items-center gap-1 truncate max-w-full"
+                className="text-slate-900 dark:text-white text-sm md:text-base font-medium hover:text-rose-600 dark:hover:text-rose-400 transition-colors flex items-center gap-1 truncate max-w-full"
               >
                 <span className="truncate">{designName}</span>
                 {isDirty && <span className="text-rose-400 flex-shrink-0">•</span>}
@@ -277,7 +277,7 @@ export default function Header({
           {designId && (
             <Link
               href={`/design/${designId}/kit`}
-              className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation flex items-center"
+              className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation flex items-center"
               title="Kit"
             >
               <span className="md:hidden">
@@ -290,7 +290,7 @@ export default function Header({
           )}
           <button
             onClick={onShowTextDialog}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
             title="Add Text"
           >
             <span className="md:hidden">Aa</span>
@@ -298,7 +298,7 @@ export default function Header({
           </button>
           <button
             onClick={onShowShapeDialog}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
             title="Add Shape"
           >
             <span className="md:hidden">
@@ -310,7 +310,7 @@ export default function Header({
           </button>
           <button
             onClick={onShowImageImport}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
             title="Import Image"
           >
             <span className="md:hidden">📷</span>
@@ -318,7 +318,7 @@ export default function Header({
           </button>
           <button
             onClick={onShowCanvasResize}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
             title="Resize Canvas"
           >
             <span className="md:hidden">📐</span>
@@ -326,7 +326,7 @@ export default function Header({
           </button>
           <button
             onClick={onShowExport}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
             title="Export"
           >
             <span className="md:hidden">📤</span>
@@ -334,7 +334,7 @@ export default function Header({
           </button>
           <button
             onClick={onShowDesignPreview}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm touch-manipulation"
+            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
             title="Preview Design"
           >
             <span className="md:hidden">👁️</span>
@@ -348,7 +348,7 @@ export default function Header({
 
           {/* Auto-save status indicator */}
           {designId && (
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               {autoSaveStatus === 'saving' && (
                 <>
                   <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
