@@ -4,6 +4,7 @@ import "./globals.css";
 import { SWRProvider } from "@/lib/swr-config";
 import PWAProvider from "@/components/PWAProvider";
 import { ToastProvider } from "@/components/Toast";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,15 +76,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ToastProvider>
-          <SWRProvider>
-            <PWAProvider>{children}</PWAProvider>
-          </SWRProvider>
-        </ToastProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <SWRProvider>
+              <PWAProvider>{children}</PWAProvider>
+            </SWRProvider>
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

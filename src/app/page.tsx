@@ -11,6 +11,7 @@ import { exportStitchGuideImage } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { useToast } from "@/components/Toast";
 import { DesignGridSkeleton } from "@/components/DesignCardSkeleton";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Tag {
   id: string;
@@ -756,6 +757,7 @@ export default function HomePage() {
               </svg>
               <span className="hidden sm:inline">New Design</span>
             </button>
+            <ThemeToggle />
             <button
               onClick={handleLogout}
               className="p-2 text-slate-400 hover:text-white"
