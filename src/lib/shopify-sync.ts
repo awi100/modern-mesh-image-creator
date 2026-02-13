@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   fetchRecentlyFulfilledOrders,
+  fetchAllFulfilledOrders,
   parseNeedsKit,
   normalizeTitle,
 } from "@/lib/shopify";
@@ -12,9 +13,14 @@ export interface SyncResult {
   kitsDeducted: number;
   canvasesDeducted: number;
   errors: string[];
+  totalOrdersFetched?: number;
 }
 
-export async function syncFulfilledOrders(): Promise<SyncResult> {
+export interface SyncOptions {
+  fullHistory?: boolean; // If true, fetch ALL orders instead of just recent ones
+}
+
+export async function syncFulfilledOrders(options: SyncOptions = {}): Promise<SyncResult> {
   // Check if Shopify is configured
   if (!process.env.SHOPIFY_STORE_DOMAIN || !process.env.SHOPIFY_ADMIN_TOKEN) {
     throw new Error("Shopify not configured");
@@ -41,12 +47,20 @@ export async function syncFulfilledOrders(): Promise<SyncResult> {
   });
   const processedIds = new Set(processedOrders.map(o => o.shopifyOrderId));
 
-  // Fetch recently fulfilled orders from Shopify
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-  const shopifyData = await fetchRecentlyFulfilledOrders(thirtyDaysAgo);
+  // Fetch fulfilled orders from Shopify
+  let shopifyData;
+  if (options.fullHistory) {
+    // Fetch ALL fulfilled orders from entire history
+    console.log("Fetching full order history from Shopify...");
+    shopifyData = await fetchAllFulfilledOrders();
+  } else {
+    // Only fetch recent orders (last 30 days) for incremental sync
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    shopifyData = await fetchRecentlyFulfilledOrders(thirtyDaysAgo);
+  }
   const fulfilledOrders = shopifyData.orders.nodes;
+  console.log(`Fetched ${fulfilledOrders.length} fulfilled orders from Shopify`);
 
   let kitsDeducted = 0;
   let canvasesDeducted = 0;
@@ -171,5 +185,6 @@ export async function syncFulfilledOrders(): Promise<SyncResult> {
     kitsDeducted,
     canvasesDeducted,
     errors,
+    totalOrdersFetched: fulfilledOrders.length,
   };
 }

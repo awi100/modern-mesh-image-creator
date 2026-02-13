@@ -133,11 +133,12 @@ export default function OrdersPage() {
     });
   }, [kitData.size, fetchKits]);
 
-  const handleSync = async () => {
+  const handleSync = async (fullHistory = false) => {
     setSyncing(true);
     setLastSync(null);
     try {
-      const res = await fetch("/api/shopify/sync", { method: "POST" });
+      const url = fullHistory ? "/api/shopify/sync?fullHistory=true" : "/api/shopify/sync";
+      const res = await fetch(url, { method: "POST" });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Failed to sync");
@@ -268,9 +269,10 @@ export default function OrdersPage() {
               Refresh
             </button>
             <button
-              onClick={handleSync}
+              onClick={() => handleSync(false)}
               disabled={syncing}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
+              className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
+              title="Sync orders from last 30 days"
             >
               {syncing ? (
                 <>
@@ -281,13 +283,16 @@ export default function OrdersPage() {
                   Syncing...
                 </>
               ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Sync Fulfilled Orders
-                </>
+                "Sync Recent"
               )}
+            </button>
+            <button
+              onClick={() => handleSync(true)}
+              disabled={syncing}
+              className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 disabled:opacity-50 text-sm flex items-center gap-2"
+              title="Sync ALL orders from entire Shopify history"
+            >
+              Full Sync
             </button>
           </div>
         </div>
@@ -306,7 +311,8 @@ export default function OrdersPage() {
           <div className="p-4 bg-emerald-900/30 border border-emerald-700 rounded-lg">
             <p className="text-emerald-400 font-medium">Sync Complete</p>
             <p className="text-sm text-slate-300 mt-1">
-              Processed {lastSync.processedOrders} orders &middot;
+              Fetched {lastSync.totalOrdersFetched || 0} orders from Shopify &middot;
+              Processed {lastSync.processedOrders} new orders &middot;
               Deducted {lastSync.kitsDeducted} kits, {lastSync.canvasesDeducted} canvases
             </p>
             {lastSync.errors.length > 0 && (

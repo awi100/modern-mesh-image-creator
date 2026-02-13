@@ -122,6 +122,7 @@ export async function fetchUnfulfilledOrders(cursor?: string): Promise<OrdersQue
 }
 
 // Fetch recently fulfilled orders (to sync fulfillment status)
+// Now supports pagination to fetch ALL matching orders
 export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<OrdersQueryResult> {
   const dateFilter = sinceDate
     ? `updated_at:>='${sinceDate.toISOString().split('T')[0]}'`
@@ -130,7 +131,7 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
   const query = `
     query GetFulfilledOrders($cursor: String) {
       orders(
-        first: 50
+        first: 100
         after: $cursor
         query: "fulfillment_status:fulfilled ${dateFilter}"
         sortKey: UPDATED_AT
@@ -165,7 +166,35 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
     }
   `;
 
-  return shopifyGraphQL<OrdersQueryResult>(query, { cursor: undefined });
+  // Fetch all pages
+  const allOrders: ShopifyOrderNode[] = [];
+  let cursor: string | undefined;
+  let hasMore = true;
+
+  while (hasMore) {
+    const result = await shopifyGraphQL<OrdersQueryResult>(query, { cursor });
+    allOrders.push(...result.orders.nodes);
+    hasMore = result.orders.pageInfo.hasNextPage;
+    cursor = result.orders.pageInfo.endCursor || undefined;
+
+    // Safety limit to prevent infinite loops
+    if (allOrders.length > 10000) {
+      console.warn("Reached safety limit of 10000 orders");
+      break;
+    }
+  }
+
+  return {
+    orders: {
+      nodes: allOrders,
+      pageInfo: { hasNextPage: false, endCursor: null },
+    },
+  };
+}
+
+// Fetch ALL fulfilled orders from entire Shopify history (no date filter)
+export async function fetchAllFulfilledOrders(): Promise<OrdersQueryResult> {
+  return fetchRecentlyFulfilledOrders(); // No date = all orders
 }
 
 // Parse variant title to determine if kit is needed
