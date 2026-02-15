@@ -370,13 +370,13 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
-          <h2 className="text-xl font-semibold text-white">Resize Canvas</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Resize Canvas</h2>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-white"
+            className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -387,17 +387,17 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Current size */}
-          <div className="p-3 bg-slate-700 rounded-lg">
-            <p className="text-sm text-slate-400">
-              Current: <span className="text-white">{widthInches}&quot; × {heightInches}&quot;</span> at{" "}
-              <span className="text-white">{meshCount}</span> mesh ={" "}
-              <span className="text-white font-medium">{gridWidth} × {gridHeight}</span> stitches
+          <div className="p-3 bg-slate-100 dark:bg-slate-700 rounded-lg">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Current: <span className="text-slate-900 dark:text-white">{widthInches}&quot; × {heightInches}&quot;</span> at{" "}
+              <span className="text-slate-900 dark:text-white">{meshCount}</span> mesh ={" "}
+              <span className="text-slate-900 dark:text-white font-medium">{gridWidth} × {gridHeight}</span> stitches
             </p>
           </div>
 
           {/* Preset sizes */}
           <div>
-            <label className="block text-sm text-slate-400 mb-2">Preset Sizes</label>
+            <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Preset Sizes</label>
             <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
               {BUILTIN_PRESETS.map((preset) => (
                 <button
@@ -409,7 +409,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
                   className={`px-3 py-2 text-sm rounded-lg border transition-colors text-left ${
                     newWidthInches === preset.width && newHeightInches === preset.height
                       ? "bg-rose-900/30 border-rose-800 text-rose-300"
-                      : "bg-slate-700 border-slate-600 text-slate-300 hover:border-slate-500"
+                      : "bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500"
                   }`}
                 >
                   {preset.name}
@@ -426,7 +426,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
                   className={`px-3 py-2 text-sm rounded-lg border transition-colors text-left ${
                     newWidthInches === preset.widthInches && newHeightInches === preset.heightInches
                       ? "bg-rose-900/30 border-rose-800 text-rose-300"
-                      : "bg-slate-700 border-slate-600 text-slate-300 hover:border-slate-500"
+                      : "bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500"
                   }`}
                 >
                   {preset.name}
@@ -439,7 +439,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
           {/* Custom dimensions */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Width (in)</label>
+              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Width (in)</label>
               <input
                 type="number"
                 min="1"
@@ -447,11 +447,11 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
                 step="0.5"
                 value={newWidthInches}
                 onChange={(e) => setNewWidthInches(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Height (in)</label>
+              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Height (in)</label>
               <input
                 type="number"
                 min="1"
@@ -459,15 +459,15 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
                 step="0.5"
                 value={newHeightInches}
                 onChange={(e) => setNewHeightInches(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Mesh</label>
+              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Mesh</label>
               <select
                 value={newMeshCount}
                 onChange={(e) => setNewMeshCount(Number(e.target.value) as 14 | 18)}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
               >
                 <option value={14}>14</option>
                 <option value={18}>18</option>
@@ -477,13 +477,13 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
 
           {/* Resize mode */}
           <div>
-            <label className="block text-sm text-slate-400 mb-3">How should the design be resized?</label>
+            <label className="block text-sm text-slate-500 dark:text-slate-400 mb-3">How should the design be resized?</label>
             <div className="space-y-2">
               <label
                 className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                   resizeMode === "scale"
                     ? "bg-rose-900/20 border-rose-800"
-                    : "bg-slate-700/50 border-slate-600 hover:border-slate-500"
+                    : "bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
                 }`}
               >
                 <input
@@ -492,11 +492,11 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
                   value="scale"
                   checked={resizeMode === "scale"}
                   onChange={() => setResizeMode("scale")}
-                  className="mt-0.5 w-4 h-4 text-rose-900 bg-slate-700 border-slate-500"
+                  className="mt-0.5 w-4 h-4 text-rose-900 bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-500"
                 />
                 <div>
-                  <span className="text-white font-medium">Scale Design</span>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <span className="text-slate-900 dark:text-white font-medium">Scale Design</span>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Stretch or shrink the entire design to fit the new canvas size
                   </p>
                 </div>
@@ -506,7 +506,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
                 className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                   resizeMode === "crop"
                     ? "bg-rose-900/20 border-rose-800"
-                    : "bg-slate-700/50 border-slate-600 hover:border-slate-500"
+                    : "bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
                 }`}
               >
                 <input
@@ -515,11 +515,11 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
                   value="crop"
                   checked={resizeMode === "crop"}
                   onChange={() => setResizeMode("crop")}
-                  className="mt-0.5 w-4 h-4 text-rose-900 bg-slate-700 border-slate-500"
+                  className="mt-0.5 w-4 h-4 text-rose-900 bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-500"
                 />
                 <div>
-                  <span className="text-white font-medium">Crop / Extend</span>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <span className="text-slate-900 dark:text-white font-medium">Crop / Extend</span>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Keep design at current scale, crop edges or add empty space
                   </p>
                 </div>
@@ -530,13 +530,13 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
           {/* Interactive Crop Preview (only for crop mode) */}
           {resizeMode === "crop" && (
             <div>
-              <label className="block text-sm text-slate-400 mb-2">Drag edges to crop</label>
+              <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Drag edges to crop</label>
               <p className="text-xs text-slate-500 mb-3">
                 Drag the red handles to adjust what gets cropped from each side
               </p>
-              <div ref={previewRef} className="relative flex justify-center items-center bg-slate-900 rounded-lg p-4">
+              <div ref={previewRef} className="relative flex justify-center items-center bg-slate-200 dark:bg-slate-900 rounded-lg p-4">
                 <div className="relative">
-                  <canvas ref={canvasRef} className="border border-slate-600 rounded" />
+                  <canvas ref={canvasRef} className="border border-slate-300 dark:border-slate-600 rounded" />
 
                   {/* Drag handles */}
                   {/* Top handle */}
@@ -640,21 +640,21 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
           <div className={`p-3 rounded-lg border ${
             isSizeChanged
               ? "bg-rose-900/20 border-rose-800/50"
-              : "bg-slate-700/50 border-slate-600"
+              : "bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600"
           }`}>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-sm text-slate-400">New size:</span>
-              <span className="text-white font-medium">{finalWidth} × {finalHeight} stitches</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">New size:</span>
+              <span className="text-slate-900 dark:text-white font-medium">{finalWidth} × {finalHeight} stitches</span>
             </div>
-            <p className="text-xs text-slate-400">{previewDescription}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{previewDescription}</p>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 px-6 py-4 border-t border-slate-700">
+        <div className="flex gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
           <button
             onClick={onClose}
-            className="flex-1 py-2 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600"
+            className="flex-1 py-2 px-4 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
           >
             Cancel
           </button>

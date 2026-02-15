@@ -194,12 +194,12 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-auto">
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-white">Add Text</h2>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Add Text</h2>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-white"
+            className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             ✕
           </button>
@@ -207,13 +207,13 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
 
         {/* Text input */}
         <div className="mb-4">
-          <label className="block text-sm text-slate-400 mb-2">Text</label>
+          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Text</label>
           <input
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Enter your text..."
-            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white text-lg focus:outline-none focus:ring-2 focus:ring-rose-800"
+            className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-lg focus:outline-none focus:ring-2 focus:ring-rose-800"
             autoFocus
           />
         </div>
@@ -221,11 +221,11 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
         {/* Font and style */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm text-slate-400 mb-2">Font</label>
+            <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Font</label>
             <select
               value={selectedFont}
               onChange={(e) => setSelectedFont(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
+              className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
             >
               {TEXT_FONTS.map((font) => (
                 <option key={font.id} value={font.id}>
@@ -235,14 +235,14 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
             </select>
           </div>
           <div>
-            <label className="block text-sm text-slate-400 mb-2">Height (stitches)</label>
+            <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Height (stitches)</label>
             <input
               type="number"
               min="6"
               max="100"
               value={heightInStitches}
               onChange={(e) => setHeightInStitches(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
+              className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
             />
           </div>
         </div>
@@ -254,7 +254,7 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
             className={`px-4 py-2 rounded-lg font-bold transition-colors ${
               bold
                 ? "bg-rose-900 text-white"
-                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
             }`}
           >
             B
@@ -264,14 +264,14 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
             className={`px-4 py-2 rounded-lg italic transition-colors ${
               italic
                 ? "bg-rose-900 text-white"
-                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
             }`}
           >
             I
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-400">Color:</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">Color:</span>
             <button
               onClick={() => setShowColorPicker(true)}
               className="w-8 h-8 rounded border-2 border-slate-500 hover:border-rose-500 transition-colors cursor-pointer"
@@ -279,14 +279,14 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
               title={currentColor ? `DMC ${currentColor.dmcNumber} - Click to change` : "Click to select color"}
             />
             {currentColor && (
-              <span className="text-xs text-slate-400">{currentColor.dmcNumber}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{currentColor.dmcNumber}</span>
             )}
           </div>
         </div>
 
         {/* Letter spacing */}
-        <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
-          <label className="block text-sm text-slate-400 mb-2">Letter Spacing</label>
+        <div className="mb-4 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
+          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Letter Spacing</label>
           <div className="flex items-center gap-3">
             <input
               type="range"
@@ -296,7 +296,7 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
               onChange={(e) => setLetterSpacing(Number(e.target.value))}
               className="flex-1"
             />
-            <span className="text-sm text-slate-300 w-12 text-right">
+            <span className="text-sm text-slate-600 dark:text-slate-300 w-12 text-right">
               {letterSpacing > 0 ? `+${letterSpacing}` : letterSpacing}
             </span>
           </div>
@@ -308,39 +308,39 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
         </div>
 
         {/* Border options */}
-        <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
+        <div className="mb-4 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
           <label className="flex items-center gap-2 cursor-pointer mb-3">
             <input
               type="checkbox"
               checked={borderEnabled}
               onChange={(e) => setBorderEnabled(e.target.checked)}
-              className="w-4 h-4 text-rose-900 bg-slate-700 border-slate-600 rounded focus:ring-rose-800"
+              className="w-4 h-4 text-rose-900 bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 rounded focus:ring-rose-800"
             />
-            <span className="text-slate-300">Add border</span>
+            <span className="text-slate-600 dark:text-slate-300">Add border</span>
           </label>
 
           {borderEnabled && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Border width</label>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Border width</label>
                 <input
                   type="number"
                   min="1"
                   max="5"
                   value={borderWidth}
                   onChange={(e) => setBorderWidth(Number(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                  className="w-full px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Padding</label>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Padding</label>
                 <input
                   type="number"
                   min="0"
                   max="10"
                   value={borderPadding}
                   onChange={(e) => setBorderPadding(Number(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                  className="w-full px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                 />
               </div>
             </div>
@@ -349,12 +349,12 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
 
         {/* Preview */}
         <div className="mb-4">
-          <label className="block text-sm text-slate-400 mb-2">Preview</label>
+          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Preview</label>
           <canvas
             ref={previewCanvasRef}
             width={400}
             height={150}
-            className="w-full rounded-lg border border-slate-600"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-600"
           />
           {rendered && rendered.width > 0 && (
             <p className="text-xs text-slate-500 mt-2 text-center">
@@ -372,7 +372,7 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600"
+            className="flex-1 py-2.5 px-4 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
           >
             Cancel
           </button>
@@ -389,12 +389,12 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
       {/* Color picker modal */}
       {showColorPicker && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]">
-          <div className="bg-slate-800 rounded-xl p-4 w-full max-w-md max-h-[80vh] overflow-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 w-full max-w-md max-h-[80vh] overflow-auto">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-white">Select Color</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Select Color</h3>
               <button
                 onClick={() => setShowColorPicker(false)}
-                className="p-1 text-slate-400 hover:text-white"
+                className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 ✕
               </button>

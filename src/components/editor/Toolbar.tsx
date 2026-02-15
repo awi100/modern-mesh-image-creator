@@ -63,32 +63,32 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
     {/* Help Modal */}
     {showHelp && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-slate-800 rounded-xl p-4 w-full max-w-md shadow-xl max-h-[80vh] overflow-auto">
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 w-full max-w-md shadow-xl max-h-[80vh] overflow-auto">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">Tool Guide</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Tool Guide</h2>
             <button
               onClick={() => setShowHelp(false)}
-              className="p-1 text-slate-400 hover:text-white"
+              className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             >
               ✕
             </button>
           </div>
           <div className="space-y-3">
             {tools.map((tool) => (
-              <div key={tool.id} className="flex items-start gap-3 p-2 bg-slate-700/50 rounded-lg">
+              <div key={tool.id} className="flex items-start gap-3 p-2 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
                 <span className="text-xl">{tool.icon}</span>
                 <div>
-                  <p className="text-white font-medium">{tool.label}</p>
-                  <p className="text-sm text-slate-400">{tool.description}</p>
+                  <p className="text-slate-900 dark:text-white font-medium">{tool.label}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{tool.description}</p>
                 </div>
               </div>
             ))}
-            <div className="border-t border-slate-600 pt-3 mt-3">
-              <p className="text-sm text-slate-400">
-                <strong className="text-white">Tip:</strong> On iPad, use two fingers to zoom and pan the canvas.
+            <div className="border-t border-slate-200 dark:border-slate-600 pt-3 mt-3">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                <strong className="text-slate-900 dark:text-white">Tip:</strong> On iPad, use two fingers to zoom and pan the canvas.
               </p>
             </div>
-            <div className="border-t border-slate-600 pt-3 mt-3">
+            <div className="border-t border-slate-200 dark:border-slate-600 pt-3 mt-3">
               <Link
                 href="/help"
                 target="_blank"
@@ -101,7 +101,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
         </div>
       </div>
     )}
-    <div className="bg-slate-800 border-b border-slate-700 p-2 overflow-x-auto">
+    <div className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-2 overflow-x-auto">
       <div className="flex items-center gap-2 md:gap-4 min-w-max">
         {/* Current tool indicator - visible on mobile/tablet */}
         <div
@@ -122,7 +122,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
               className={`p-2 md:px-2 md:py-1.5 rounded-lg transition-colors flex items-center gap-1 touch-manipulation ${
                 currentTool === tool.id
                   ? "bg-rose-900 text-white"
-                  : "bg-slate-700 text-slate-300 hover:bg-slate-600 active:bg-slate-500"
+                  : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 active:bg-slate-500"
               }`}
               title={`${tool.label}: ${tool.description}`}
             >
@@ -133,7 +133,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
           {/* Help button */}
           <button
             onClick={() => setShowHelp(true)}
-            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation"
+            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 touch-manipulation"
             title="Tool Guide"
             aria-label="Tool Guide"
           >
@@ -144,13 +144,13 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
         {/* Brush size (shown when brush tool is active) */}
         {currentTool === "brush" && (
           <>
-            <div className="w-px h-8 bg-slate-600 hidden md:block" />
+            <div className="w-px h-8 bg-slate-300 dark:bg-slate-600 hidden md:block" />
             <div className="flex items-center gap-2">
-              <span className="text-slate-400 text-sm hidden sm:inline">Size:</span>
+              <span className="text-slate-500 dark:text-slate-400 text-sm hidden sm:inline">Size:</span>
               <button
                 onClick={() => setBrushSize(brushSize - 1)}
                 disabled={brushSize <= 1}
-                className="p-2 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 touch-manipulation"
+                className="p-2 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 touch-manipulation"
                 aria-label="Decrease brush size"
               >
                 -
@@ -159,7 +159,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
               <button
                 onClick={() => setBrushSize(brushSize + 1)}
                 disabled={brushSize >= 10}
-                className="p-2 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 touch-manipulation"
+                className="p-2 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 touch-manipulation"
                 aria-label="Increase brush size"
               >
                 +
@@ -171,9 +171,9 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
         {/* Eraser size (shown when eraser tool is active) */}
         {currentTool === "eraser" && (
           <>
-            <div className="w-px h-8 bg-slate-600 hidden md:block" />
+            <div className="w-px h-8 bg-slate-300 dark:bg-slate-600 hidden md:block" />
             <div className="flex items-center gap-1">
-              <span className="text-slate-400 text-sm hidden sm:inline">Size:</span>
+              <span className="text-slate-500 dark:text-slate-400 text-sm hidden sm:inline">Size:</span>
               {([
                 { label: "S", size: 1 },
                 { label: "M", size: 3 },
@@ -185,7 +185,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
                   className={`px-3 py-1.5 rounded text-sm font-medium transition-colors touch-manipulation ${
                     eraserSize === opt.size
                       ? "bg-rose-900 text-white"
-                      : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                      : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                   }`}
                 >
                   {opt.label}
@@ -195,14 +195,14 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
           </>
         )}
 
-        <div className="w-px h-8 bg-slate-600 hidden md:block" />
+        <div className="w-px h-8 bg-slate-300 dark:bg-slate-600 hidden md:block" />
 
         {/* Undo/Redo - hidden on mobile (shown in bottom bar) */}
         <div className="hidden md:flex items-center gap-1">
           <button
             onClick={undo}
             disabled={!canUndo()}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Undo (Ctrl+Z)"
           >
             ↩️
@@ -210,30 +210,30 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
           <button
             onClick={redo}
             disabled={!canRedo()}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Redo (Ctrl+Y)"
           >
             ↪️
           </button>
         </div>
 
-        <div className="w-px h-8 bg-slate-600 hidden md:block" />
+        <div className="w-px h-8 bg-slate-300 dark:bg-slate-600 hidden md:block" />
 
         {/* Zoom indicator & reset */}
         <div className="flex items-center gap-1 md:gap-2">
-          <span className="text-slate-300 text-xs md:text-sm w-12 md:w-16 text-center">
+          <span className="text-slate-600 dark:text-slate-300 text-xs md:text-sm w-12 md:w-16 text-center">
             {Math.round(zoom * 100)}%
           </span>
           <button
             onClick={resetView}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 touch-manipulation"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 touch-manipulation"
             title="Reset View"
           >
             🔄
           </button>
         </div>
 
-        <div className="w-px h-8 bg-slate-600" />
+        <div className="w-px h-8 bg-slate-300 dark:bg-slate-600" />
 
         {/* Grid toggle */}
         <button
@@ -241,7 +241,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
           className={`p-2 rounded-lg transition-colors touch-manipulation ${
             showGrid
               ? "bg-rose-900 text-white"
-              : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
           }`}
           title="Toggle Grid"
         >
@@ -254,20 +254,20 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
           className={`p-2 rounded-lg transition-colors touch-manipulation ${
             showSymbols
               ? "bg-rose-900 text-white"
-              : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
           }`}
           title="Toggle Symbols"
         >
           <span className="text-base">Aa</span>
         </button>
 
-        <div className="w-px h-8 bg-slate-600 hidden sm:block" />
+        <div className="w-px h-8 bg-slate-300 dark:bg-slate-600 hidden sm:block" />
 
         {/* Transform - hidden on very small screens */}
         <div className="hidden sm:flex items-center gap-1">
           <button
             onClick={mirrorHorizontal}
-            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
+            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
             title="Mirror Horizontal"
           >
             <span>↔️</span>
@@ -275,7 +275,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
           </button>
           <button
             onClick={mirrorVertical}
-            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
+            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
             title="Mirror Vertical"
           >
             <span>↕️</span>
@@ -283,7 +283,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
           </button>
           <button
             onClick={() => rotate90(true)}
-            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
+            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
             title="Rotate 90° Clockwise"
           >
             <span>↻</span>
@@ -292,12 +292,12 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
         </div>
 
         {/* Clipboard actions - always visible */}
-        <div className="w-px h-8 bg-slate-600 hidden sm:block" />
+        <div className="w-px h-8 bg-slate-300 dark:bg-slate-600 hidden sm:block" />
         <div className="hidden sm:flex items-center gap-1">
           <button
             onClick={copySelectionToClipboard}
             disabled={!selection}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
             title="Copy (Ctrl+C)"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -307,7 +307,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
           <button
             onClick={cutSelectionToClipboard}
             disabled={!selection}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
             title="Cut (Ctrl+X)"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -317,7 +317,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
           <button
             onClick={onEnterPasteMode}
             disabled={!clipboard}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
             title="Paste (Ctrl+V) - Click to place"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -329,11 +329,11 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
         {/* Selection actions - contextual when selection exists */}
         {selection && (
           <>
-            <div className="w-px h-8 bg-slate-600" />
+            <div className="w-px h-8 bg-slate-300 dark:bg-slate-600" />
             <div className="flex items-center gap-1">
               <button
                 onClick={centerSelection}
-                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation"
+                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs md:text-sm touch-manipulation"
                 title="Center selection on canvas"
               >
                 <span className="hidden sm:inline">Center</span>
@@ -342,7 +342,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
               {/* Mirror to opposite side buttons */}
               <button
                 onClick={() => mirrorSelectionToOpposite("horizontal")}
-                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:flex items-center gap-1"
+                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:flex items-center gap-1"
                 title="Mirror selection to opposite horizontal side"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -352,7 +352,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
               </button>
               <button
                 onClick={() => mirrorSelectionToOpposite("vertical")}
-                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:flex items-center gap-1"
+                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:flex items-center gap-1"
                 title="Mirror selection to opposite vertical side"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -363,7 +363,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
               {onShowPatternRepeat && (
                 <button
                   onClick={onShowPatternRepeat}
-                  className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:flex items-center gap-1"
+                  className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:flex items-center gap-1"
                   title="Pattern Repeat - Tile selection across canvas"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -374,14 +374,14 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
               )}
               <button
                 onClick={deleteSelection}
-                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation"
+                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs md:text-sm touch-manipulation"
                 title="Delete"
               >
                 Delete
               </button>
               <button
                 onClick={clearSelection}
-                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:block"
+                className="px-2 md:px-3 py-1.5 md:py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs md:text-sm touch-manipulation hidden sm:block"
                 title="Clear Selection"
               >
                 Deselect

@@ -288,13 +288,13 @@ export default function ImageImport({ onClose }: ImageImportProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 flex-shrink-0">
-          <h2 className="text-xl font-semibold text-white">Import Image</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Import Image</h2>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-white"
+            className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -315,7 +315,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full py-3 px-4 bg-slate-700 border-2 border-dashed border-slate-500 rounded-lg text-slate-300 hover:border-rose-800 hover:text-white transition-colors"
+              className="w-full py-3 px-4 bg-slate-100 dark:bg-slate-700 border-2 border-dashed border-slate-300 dark:border-slate-500 rounded-lg text-slate-600 dark:text-slate-300 hover:border-rose-800 hover:text-slate-900 dark:hover:text-white transition-colors"
             >
               {imageUrl ? "Change Image" : "Select Image"}
             </button>
@@ -326,18 +326,18 @@ export default function ImageImport({ onClose }: ImageImportProps) {
             <div className="mb-4">
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <p className="text-xs text-slate-400 mb-1 text-center">Original</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 text-center">Original</p>
                   <img
                     src={imageUrl}
                     alt="Original image to import"
-                    className="w-full h-36 object-contain bg-slate-900 rounded-lg"
+                    className="w-full h-36 object-contain bg-slate-200 dark:bg-slate-900 rounded-lg"
                   />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-slate-400 mb-1 text-center">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 text-center">
                     Preview {isGeneratingPreview ? "(updating...)" : `(${previewColors.length} colors)`}
                   </p>
-                  <div className="w-full h-36 bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden">
+                  <div className="w-full h-36 bg-slate-200 dark:bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden">
                     <canvas
                       ref={previewCanvasRef}
                       className="max-w-full max-h-full object-contain"
@@ -353,7 +353,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
           <div className="space-y-4 mb-4">
             {/* Max colors slider */}
             <div>
-              <label className="block text-sm text-slate-400 mb-2">
+              <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">
                 Maximum Colors: {maxColors}
               </label>
               <input
@@ -379,9 +379,9 @@ export default function ImageImport({ onClose }: ImageImportProps) {
                   type="checkbox"
                   checked={treatWhiteAsEmpty}
                   onChange={(e) => setTreatWhiteAsEmpty(e.target.checked)}
-                  className="w-4 h-4 text-rose-900 bg-slate-700 border-slate-600 rounded focus:ring-rose-800"
+                  className="w-4 h-4 text-rose-900 bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 rounded focus:ring-rose-800"
                 />
-                <span className="text-slate-300 text-sm">Treat white/light backgrounds as empty</span>
+                <span className="text-slate-600 dark:text-slate-300 text-sm">Treat white/light backgrounds as empty</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer">
@@ -393,18 +393,18 @@ export default function ImageImport({ onClose }: ImageImportProps) {
                     setColorMappings(new Map());
                   }}
                   disabled={existingPalette.length === 0}
-                  className="w-4 h-4 text-rose-900 bg-slate-700 border-slate-600 rounded focus:ring-rose-800 disabled:opacity-50"
+                  className="w-4 h-4 text-rose-900 bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 rounded focus:ring-rose-800 disabled:opacity-50"
                 />
-                <span className={`text-sm ${existingPalette.length === 0 ? "text-slate-500" : "text-slate-300"}`}>
+                <span className={`text-sm ${existingPalette.length === 0 ? "text-slate-500" : "text-slate-600 dark:text-slate-300"}`}>
                   Use only colors from existing design ({existingPalette.length} colors)
                 </span>
               </label>
             </div>
 
             {/* Output size info */}
-            <div className="p-3 bg-slate-700 rounded-lg">
-              <p className="text-sm text-slate-300">
-                Output size: <span className="text-white font-medium">{gridWidth} × {gridHeight}</span> stitches
+            <div className="p-3 bg-slate-100 dark:bg-slate-700 rounded-lg">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Output size: <span className="text-slate-900 dark:text-white font-medium">{gridWidth} × {gridHeight}</span> stitches
               </p>
             </div>
           </div>
@@ -413,19 +413,19 @@ export default function ImageImport({ onClose }: ImageImportProps) {
           {previewColors.length > 0 && (
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm text-slate-400">
+                <label className="text-sm text-slate-500 dark:text-slate-400">
                   Detected Colors {mappedCount > 0 && `(${mappedCount} remapped)`}
                 </label>
                 {mappedCount > 0 && (
                   <button
                     onClick={() => setColorMappings(new Map())}
-                    className="text-xs text-slate-500 hover:text-slate-300"
+                    className="text-xs text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                   >
                     Reset all
                   </button>
                 )}
               </div>
-              <div className="bg-slate-700/50 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+              <div className="bg-slate-100 dark:bg-slate-700/50 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
                 {previewColors.map((detected) => {
                   const originalColor = getDmcColorByNumber(detected.dmcNumber);
                   const mappedTo = colorMappings.get(detected.dmcNumber);
@@ -470,10 +470,10 @@ export default function ImageImport({ onClose }: ImageImportProps) {
 
                         {/* Color name and pixel count */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-white truncate">
+                          <p className="text-xs text-slate-900 dark:text-white truncate">
                             {mappedTo ? finalColor?.name : originalColor.name}
                           </p>
-                          <p className="text-[10px] text-slate-400">
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
                             {detected.pixelCount} stitches
                           </p>
                         </div>
@@ -483,7 +483,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
                           {mappedTo && (
                             <button
                               onClick={() => handleClearMapping(detected.dmcNumber)}
-                              className="p-1 text-slate-400 hover:text-red-400"
+                              className="p-1 text-slate-500 dark:text-slate-400 hover:text-red-400"
                               title="Clear mapping"
                             >
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -499,7 +499,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
                             className={`px-2 py-1 text-xs rounded transition-colors ${
                               isEditing
                                 ? "bg-rose-900 text-white"
-                                : "bg-slate-600 text-slate-300 hover:bg-slate-500"
+                                : "bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500"
                             }`}
                           >
                             {isEditing ? "Cancel" : "Swap"}
@@ -509,13 +509,13 @@ export default function ImageImport({ onClose }: ImageImportProps) {
 
                       {/* Color picker dropdown */}
                       {isEditing && (
-                        <div className="mt-2 p-2 bg-slate-800 rounded-lg border border-slate-600">
+                        <div className="mt-2 p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-600">
                           <input
                             type="text"
                             value={colorSearchQuery}
                             onChange={(e) => setColorSearchQuery(e.target.value)}
                             placeholder="Search by name or DMC #..."
-                            className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-rose-800 mb-2"
+                            className="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-rose-800 mb-2"
                             autoFocus
                           />
                           <div className="grid grid-cols-10 gap-1 max-h-32 overflow-y-auto">
@@ -526,7 +526,7 @@ export default function ImageImport({ onClose }: ImageImportProps) {
                                 className={`w-6 h-6 rounded text-[8px] font-bold border transition-transform hover:scale-110 ${
                                   c.dmcNumber === detected.dmcNumber
                                     ? "border-slate-400 opacity-50"
-                                    : "border-slate-600 hover:border-white"
+                                    : "border-slate-300 dark:border-slate-600 hover:border-slate-900 dark:hover:border-white"
                                 }`}
                                 style={{
                                   backgroundColor: c.hex,
@@ -555,10 +555,10 @@ export default function ImageImport({ onClose }: ImageImportProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 px-6 py-4 border-t border-slate-700 flex-shrink-0">
+        <div className="flex gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
           <button
             onClick={onClose}
-            className="flex-1 py-2 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600"
+            className="flex-1 py-2 px-4 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
           >
             Cancel
           </button>

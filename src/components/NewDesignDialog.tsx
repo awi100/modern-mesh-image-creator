@@ -175,12 +175,12 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-auto">
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-white">New Design</h2>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">New Design</h2>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-white"
+            className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             ✕
           </button>
@@ -188,19 +188,19 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
 
         {/* Design name */}
         <div className="mb-6">
-          <label className="block text-sm text-slate-400 mb-2">Design Name</label>
+          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Design Name</label>
           <input
             type="text"
             value={designName}
             onChange={(e) => setDesignName(e.target.value)}
-            className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
+            className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
             placeholder="Enter design name..."
           />
         </div>
 
         {/* Preset sizes */}
         <div className="mb-6">
-          <label className="block text-sm text-slate-400 mb-3">Choose a Size</label>
+          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-3">Choose a Size</label>
           <div className="grid grid-cols-2 gap-2">
             {BUILTIN_PRESETS.map((preset) => (
               <button
@@ -209,17 +209,17 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
                 className={`p-3 text-left rounded-lg border transition-colors ${
                   widthInches === preset.width && heightInches === preset.height && !showCustom
                     ? "bg-rose-900/30 border-rose-800"
-                    : "bg-slate-700 border-slate-600 hover:border-slate-500"
+                    : "bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
                 }`}
               >
                 <p className={`font-medium ${
                   widthInches === preset.width && heightInches === preset.height && !showCustom
                     ? "text-rose-300"
-                    : "text-white"
+                    : "text-slate-900 dark:text-white"
                 }`}>
                   {preset.name}
                 </p>
-                <p className="text-xs text-slate-400">{preset.width}" × {preset.height}"</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{preset.width}" × {preset.height}"</p>
               </button>
             ))}
             <button
@@ -227,13 +227,13 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
               className={`p-3 text-left rounded-lg border transition-colors ${
                 showCustom
                   ? "bg-rose-900/30 border-rose-800"
-                  : "bg-slate-700 border-slate-600 hover:border-slate-500"
+                  : "bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
               }`}
             >
-              <p className={`font-medium ${showCustom ? "text-rose-300" : "text-white"}`}>
+              <p className={`font-medium ${showCustom ? "text-rose-300" : "text-slate-900 dark:text-white"}`}>
                 Custom Size
               </p>
-              <p className="text-xs text-slate-400">Enter dimensions</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Enter dimensions</p>
             </button>
           </div>
         </div>
@@ -241,13 +241,13 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
         {/* Custom saved presets */}
         {customPresets.length > 0 && (
           <div className="mb-6">
-            <label className="block text-sm text-slate-400 mb-3">Your Saved Sizes</label>
+            <label className="block text-sm text-slate-500 dark:text-slate-400 mb-3">Your Saved Sizes</label>
             <div className="grid grid-cols-2 gap-2">
               {customPresets.map((preset) =>
                 editingPresetId === preset.id ? (
                   <div
                     key={preset.id}
-                    className="p-3 rounded-lg border bg-slate-700 border-rose-800 col-span-2"
+                    className="p-3 rounded-lg border bg-slate-100 dark:bg-slate-700 border-rose-800 col-span-2"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="space-y-2">
@@ -256,12 +256,12 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         placeholder="Preset name"
-                        className="w-full px-2 py-1.5 bg-slate-600 border border-slate-500 rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-rose-800"
+                        className="w-full px-2 py-1.5 bg-white dark:bg-slate-600 border border-slate-300 dark:border-slate-500 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-rose-800"
                         autoFocus
                       />
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <label className="block text-xs text-slate-400 mb-1">Width</label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Width</label>
                           <input
                             type="number"
                             min="1"
@@ -269,11 +269,11 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
                             step="0.5"
                             value={editWidth}
                             onChange={(e) => setEditWidth(e.target.value)}
-                            className="w-full px-2 py-1.5 bg-slate-600 border border-slate-500 rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-rose-800"
+                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-600 border border-slate-300 dark:border-slate-500 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-rose-800"
                           />
                         </div>
                         <div className="flex-1">
-                          <label className="block text-xs text-slate-400 mb-1">Height</label>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Height</label>
                           <input
                             type="number"
                             min="1"
@@ -281,7 +281,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
                             step="0.5"
                             value={editHeight}
                             onChange={(e) => setEditHeight(e.target.value)}
-                            className="w-full px-2 py-1.5 bg-slate-600 border border-slate-500 rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-rose-800"
+                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-600 border border-slate-300 dark:border-slate-500 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-rose-800"
                           />
                         </div>
                       </div>
@@ -294,7 +294,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
                         </button>
                         <button
                           onClick={handleCancelEdit}
-                          className="flex-1 px-2 py-1.5 bg-slate-600 text-slate-300 rounded text-sm hover:bg-slate-500"
+                          className="flex-1 px-2 py-1.5 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded text-sm hover:bg-slate-300 dark:hover:bg-slate-500"
                         >
                           Cancel
                         </button>
@@ -308,17 +308,17 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
                     className={`p-3 text-left rounded-lg border transition-colors relative group ${
                       widthInches === preset.widthInches && heightInches === preset.heightInches && !showCustom
                         ? "bg-rose-900/30 border-rose-800"
-                        : "bg-slate-700 border-slate-600 hover:border-slate-500"
+                        : "bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
                     }`}
                   >
                     <p className={`font-medium pr-12 ${
                       widthInches === preset.widthInches && heightInches === preset.heightInches && !showCustom
                         ? "text-rose-300"
-                        : "text-white"
+                        : "text-slate-900 dark:text-white"
                     }`}>
                       {preset.name}
                     </p>
-                    <p className="text-xs text-slate-400">{preset.widthInches}" × {preset.heightInches}"</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{preset.widthInches}" × {preset.heightInches}"</p>
                     <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => handleStartEdit(preset, e)}
@@ -348,10 +348,10 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
 
         {/* Custom size inputs */}
         {showCustom && (
-          <div className="mb-6 p-4 bg-slate-700/50 rounded-lg space-y-3">
+          <div className="mb-6 p-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Width (inches)</label>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Width (inches)</label>
                 <input
                   type="number"
                   min="1"
@@ -359,11 +359,11 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
                   step="0.5"
                   value={widthInches}
                   onChange={(e) => setWidthInches(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Height (inches)</label>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Height (inches)</label>
                 <input
                   type="number"
                   min="1"
@@ -371,7 +371,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
                   step="0.5"
                   value={heightInches}
                   onChange={(e) => setHeightInches(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                 />
               </div>
             </div>
@@ -394,7 +394,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
                   placeholder="Preset name (e.g., Medium Size)"
                   value={newPresetName}
                   onChange={(e) => setNewPresetName(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                  className="flex-1 px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                   autoFocus
                 />
                 <button
@@ -409,7 +409,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
                     setShowAddPreset(false);
                     setNewPresetName("");
                   }}
-                  className="px-3 py-2 bg-slate-600 text-slate-300 rounded-lg hover:bg-slate-500 text-sm"
+                  className="px-3 py-2 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 text-sm"
                 >
                   Cancel
                 </button>
@@ -420,29 +420,29 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
 
         {/* Mesh count */}
         <div className="mb-6">
-          <label className="block text-sm text-slate-400 mb-2">Mesh Count</label>
+          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Mesh Count</label>
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setMeshCount(14)}
               className={`p-3 rounded-lg border transition-colors ${
                 meshCount === 14
                   ? "bg-rose-900/30 border-rose-800 text-rose-300"
-                  : "bg-slate-700 border-slate-600 text-white hover:border-slate-500"
+                  : "bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white hover:border-slate-400 dark:hover:border-slate-500"
               }`}
             >
               <p className="font-medium">14 Mesh</p>
-              <p className="text-xs text-slate-400">Larger stitches</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Larger stitches</p>
             </button>
             <button
               onClick={() => setMeshCount(18)}
               className={`p-3 rounded-lg border transition-colors ${
                 meshCount === 18
                   ? "bg-rose-900/30 border-rose-800 text-rose-300"
-                  : "bg-slate-700 border-slate-600 text-white hover:border-slate-500"
+                  : "bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white hover:border-slate-400 dark:hover:border-slate-500"
               }`}
             >
               <p className="font-medium">18 Mesh</p>
-              <p className="text-xs text-slate-400">More detail</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">More detail</p>
             </button>
           </div>
         </div>
@@ -450,10 +450,10 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
         {/* Preview info */}
         <div className="mb-6 p-3 bg-rose-900/20 border border-rose-800/30 rounded-lg">
           <p className="text-sm text-rose-300">
-            Canvas: <span className="text-white font-medium">{widthInches}" × {heightInches}"</span> at {meshCount} mesh
+            Canvas: <span className="text-slate-900 dark:text-white font-medium">{widthInches}" × {heightInches}"</span> at {meshCount} mesh
           </p>
           <p className="text-sm text-rose-300">
-            Grid: <span className="text-white font-medium">{gridWidth} × {gridHeight}</span> stitches
+            Grid: <span className="text-slate-900 dark:text-white font-medium">{gridWidth} × {gridHeight}</span> stitches
           </p>
         </div>
 
@@ -461,7 +461,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600"
+            className="flex-1 py-2.5 px-4 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
           >
             Cancel
           </button>

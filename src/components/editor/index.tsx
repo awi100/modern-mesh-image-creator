@@ -397,7 +397,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
   }, [enterPastePlacementMode]);
 
   return (
-    <div className="h-screen flex flex-col bg-slate-900">
+    <div className="h-screen flex flex-col bg-slate-100 dark:bg-slate-900">
       <Header
         onShowImageImport={() => setShowImageImport(true)}
         onShowCanvasResize={() => setShowCanvasResize(true)}
@@ -415,10 +415,10 @@ export default function Editor({ designId, initialData }: EditorProps) {
         {/* Color picker - hidden on mobile, shown via bottom drawer */}
         <div className="hidden md:flex md:h-full">
           {colorPanelCollapsed ? (
-            <div className="bg-slate-800 border-r border-slate-700 flex flex-col items-center py-2">
+            <div className="bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col items-center py-2">
               <button
                 onClick={() => setColorPanelCollapsed(false)}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
                 title="Show colors panel"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -433,7 +433,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
             <div className="relative">
               <button
                 onClick={() => setColorPanelCollapsed(true)}
-                className="absolute top-2 right-2 z-10 p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                className="absolute top-2 right-2 z-10 p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
                 title="Collapse colors panel"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -459,10 +459,10 @@ export default function Editor({ designId, initialData }: EditorProps) {
         <div className="hidden lg:flex lg:flex-row">
           {/* Layers panel */}
           {layersPanelCollapsed ? (
-            <div className="bg-slate-800 border-l border-slate-700 flex flex-col items-center py-2">
+            <div className="bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col items-center py-2">
               <button
                 onClick={() => setLayersPanelCollapsed(false)}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
                 title="Show layers panel"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -477,7 +477,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
             <div className="relative">
               <button
                 onClick={() => setLayersPanelCollapsed(true)}
-                className="absolute top-2 right-2 z-10 p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                className="absolute top-2 right-2 z-10 p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
                 title="Collapse layers panel"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -507,12 +507,12 @@ export default function Editor({ designId, initialData }: EditorProps) {
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowColorPicker(false)}
           />
-          <div className="absolute bottom-0 left-0 right-0 bg-slate-800 rounded-t-2xl max-h-[70vh] overflow-hidden animate-slide-up">
-            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-              <h2 className="text-white font-semibold">Colors</h2>
+          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-800 rounded-t-2xl max-h-[70vh] overflow-hidden animate-slide-up">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h2 className="text-slate-900 dark:text-white font-semibold">Colors</h2>
               <button
                 onClick={() => setShowColorPicker(false)}
-                className="p-2 text-slate-400 hover:text-white"
+                className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 ✕
               </button>
@@ -531,12 +531,12 @@ export default function Editor({ designId, initialData }: EditorProps) {
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowMetrics(false)}
           />
-          <div className="absolute bottom-0 left-0 right-0 bg-slate-800 rounded-t-2xl max-h-[70vh] overflow-hidden animate-slide-up">
-            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-              <h2 className="text-white font-semibold">Design Info</h2>
+          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-800 rounded-t-2xl max-h-[70vh] overflow-hidden animate-slide-up">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h2 className="text-slate-900 dark:text-white font-semibold">Design Info</h2>
               <button
                 onClick={() => setShowMetrics(false)}
-                className="p-2 text-slate-400 hover:text-white"
+                className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 ✕
               </button>
@@ -555,12 +555,12 @@ export default function Editor({ designId, initialData }: EditorProps) {
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowLayers(false)}
           />
-          <div className="absolute bottom-0 left-0 right-0 bg-slate-800 rounded-t-2xl max-h-[70vh] overflow-hidden animate-slide-up">
-            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-              <h2 className="text-white font-semibold">Layers</h2>
+          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-800 rounded-t-2xl max-h-[70vh] overflow-hidden animate-slide-up">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h2 className="text-slate-900 dark:text-white font-semibold">Layers</h2>
               <button
                 onClick={() => setShowLayers(false)}
-                className="p-2 text-slate-400 hover:text-white"
+                className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 ✕
               </button>

@@ -116,12 +116,12 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-slate-800 rounded-xl p-6 w-full max-w-md shadow-xl">
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md shadow-xl">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-white">Export Design</h2>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Export Design</h2>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-white"
+            className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             disabled={exporting}
           >
             ✕
@@ -129,12 +129,12 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
         </div>
 
         {/* Design info */}
-        <div className="mb-6 p-3 bg-slate-700 rounded-lg">
-          <p className="text-white font-medium">{designName}</p>
-          <p className="text-sm text-slate-400">
+        <div className="mb-6 p-3 bg-slate-100 dark:bg-slate-700 rounded-lg">
+          <p className="text-slate-900 dark:text-white font-medium">{designName}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {widthInches}&quot; × {heightInches}&quot; at {meshCount} mesh
           </p>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {usedColors.length} colors used
           </p>
         </div>
@@ -145,13 +145,13 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
           <button
             onClick={handleExportArtwork}
             disabled={exporting}
-            className="w-full p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
+            className="w-full p-4 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
           >
             <div className="flex items-center gap-3">
               <span className="text-2xl">🖼️</span>
               <div>
-                <p className="text-white font-medium">Print Artwork (PDF)</p>
-                <p className="text-sm text-slate-400">
+                <p className="text-slate-900 dark:text-white font-medium">Print Artwork (PDF)</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   Exact size, no grid - for printing/framing
                 </p>
               </div>
@@ -162,13 +162,13 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
           <button
             onClick={handleExportGuide}
             disabled={exporting}
-            className="w-full p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
+            className="w-full p-4 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
           >
             <div className="flex items-center gap-3">
               <span className="text-2xl">📋</span>
               <div>
-                <p className="text-white font-medium">Stitch Guide (PNG)</p>
-                <p className="text-sm text-slate-400">
+                <p className="text-slate-900 dark:text-white font-medium">Stitch Guide (PNG)</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   Image with color legend
                 </p>
               </div>
@@ -184,8 +184,8 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
             <div className="flex items-center gap-3">
               <span className="text-2xl">🎯</span>
               <div>
-                <p className="text-white font-medium">Canvas Print (1:1)</p>
-                <p className="text-sm text-slate-400">
+                <p className="text-slate-900 dark:text-white font-medium">Canvas Print (1:1)</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   {gridWidth} × {gridHeight} px (1 pixel per stitch)
                 </p>
               </div>
@@ -197,13 +197,13 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
             <button
               onClick={() => handleExportImage("png")}
               disabled={exporting}
-              className="flex-1 p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
+              className="flex-1 p-4 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
             >
               <div className="flex items-center gap-3">
                 <span className="text-2xl">📷</span>
                 <div>
-                  <p className="text-white font-medium">PNG</p>
-                  <p className="text-sm text-slate-400">
+                  <p className="text-slate-900 dark:text-white font-medium">PNG</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     Lossless, transparent
                   </p>
                 </div>
@@ -212,13 +212,13 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
             <button
               onClick={() => handleExportImage("jpeg")}
               disabled={exporting}
-              className="flex-1 p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
+              className="flex-1 p-4 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
             >
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🖼️</span>
                 <div>
-                  <p className="text-white font-medium">JPEG</p>
-                  <p className="text-sm text-slate-400">
+                  <p className="text-slate-900 dark:text-white font-medium">JPEG</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     Smaller file size
                   </p>
                 </div>
@@ -234,7 +234,7 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
         <button
           onClick={onClose}
           disabled={exporting}
-          className="w-full mt-4 py-2 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600"
+          className="w-full mt-4 py-2 px-4 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
         >
           {exporting ? "Exporting..." : "Close"}
         </button>

@@ -113,15 +113,15 @@ export default function LayersPanel() {
   const reversedLayers = [...layers].reverse();
 
   return (
-    <div className="w-64 bg-slate-800 border-l border-slate-700 flex flex-col h-full">
+    <div className="w-64 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col h-full">
       {/* Header */}
-      <div className="p-3 border-b border-slate-700 flex items-center justify-between">
-        <h3 className="text-white font-medium text-sm">Layers</h3>
+      <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <h3 className="text-slate-900 dark:text-white font-medium text-sm">Layers</h3>
         <div className="flex items-center gap-1">
           <button
             onClick={addLayer}
             disabled={layers.length >= 10}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
             title="Add layer"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -131,7 +131,7 @@ export default function LayersPanel() {
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded"
+              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
               title="More options"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -144,11 +144,11 @@ export default function LayersPanel() {
                   className="fixed inset-0 z-10"
                   onClick={() => setShowMenu(false)}
                 />
-                <div className="absolute right-0 top-full mt-1 bg-slate-700 rounded-lg shadow-lg py-1 z-20 min-w-[140px]">
+                <div className="absolute right-0 top-full mt-1 bg-slate-100 dark:bg-slate-700 rounded-lg shadow-lg py-1 z-20 min-w-[140px]">
                   <button
                     onClick={handleFlattenAll}
                     disabled={layers.length <= 1}
-                    className="w-full px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Flatten All
                   </button>
@@ -185,7 +185,7 @@ export default function LayersPanel() {
                   ? "border-rose-500 border-2 bg-rose-900/20"
                   : isActive
                   ? "bg-rose-900/30 border-rose-800"
-                  : "bg-slate-700/50 border-slate-600 hover:border-slate-500"
+                  : "bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
               } ${!isEditing ? "cursor-grab active:cursor-grabbing" : ""}`}
             >
               {/* Layer header */}
@@ -194,7 +194,7 @@ export default function LayersPanel() {
                 onClick={() => !isDragging && setActiveLayer(actualIndex)}
               >
                 {/* Drag handle */}
-                <div className="text-slate-500 hover:text-slate-400 cursor-grab active:cursor-grabbing">
+                <div className="text-slate-400 dark:text-slate-500 hover:text-slate-500 dark:hover:text-slate-400 cursor-grab active:cursor-grabbing">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                   </svg>
@@ -208,8 +208,8 @@ export default function LayersPanel() {
                   }}
                   className={`p-1 rounded ${
                     layer.visible
-                      ? "text-slate-300 hover:text-white"
-                      : "text-slate-500 hover:text-slate-400"
+                      ? "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                      : "text-slate-400 dark:text-slate-500 hover:text-slate-500 dark:hover:text-slate-400"
                   }`}
                   title={layer.visible ? "Hide layer" : "Show layer"}
                 >
@@ -240,13 +240,13 @@ export default function LayersPanel() {
                           setTempName("");
                         }
                       }}
-                      className="w-full px-1 py-0.5 bg-slate-600 border border-slate-500 rounded text-sm text-white focus:outline-none focus:ring-1 focus:ring-rose-800"
+                      className="w-full px-1 py-0.5 bg-white dark:bg-slate-600 border border-slate-300 dark:border-slate-500 rounded text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-rose-800"
                       autoFocus
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
                     <span
-                      className="text-sm text-slate-200 truncate block"
+                      className="text-sm text-slate-700 dark:text-slate-200 truncate block"
                       onDoubleClick={(e) => {
                         e.stopPropagation();
                         handleStartRename(actualIndex, layer.name);
@@ -266,7 +266,7 @@ export default function LayersPanel() {
                   className={`p-1 rounded ${
                     layer.locked
                       ? "text-yellow-400 hover:text-yellow-300"
-                      : "text-slate-500 hover:text-slate-400"
+                      : "text-slate-400 dark:text-slate-500 hover:text-slate-500 dark:hover:text-slate-400"
                   }`}
                   title={layer.locked ? "Unlock layer" : "Lock layer"}
                 >
@@ -286,16 +286,16 @@ export default function LayersPanel() {
               {isActive && (
                 <div className="px-2 pb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 w-14">Opacity</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 w-14">Opacity</span>
                     <input
                       type="range"
                       min="0"
                       max="100"
                       value={Math.round(layer.opacity * 100)}
                       onChange={(e) => setLayerOpacity(actualIndex, parseInt(e.target.value) / 100)}
-                      className="flex-1 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-rose-800"
+                      className="flex-1 h-1 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-rose-800"
                     />
-                    <span className="text-xs text-slate-400 w-8 text-right">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 w-8 text-right">
                       {Math.round(layer.opacity * 100)}%
                     </span>
                   </div>
@@ -305,7 +305,7 @@ export default function LayersPanel() {
                     <button
                       onClick={() => moveLayerUp(actualIndex)}
                       disabled={actualIndex === 0}
-                      className="p-1 text-slate-400 hover:text-white hover:bg-slate-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                       title="Move down (in stack)"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -315,7 +315,7 @@ export default function LayersPanel() {
                     <button
                       onClick={() => moveLayerDown(actualIndex)}
                       disabled={actualIndex === layers.length - 1}
-                      className="p-1 text-slate-400 hover:text-white hover:bg-slate-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                       title="Move up (in stack)"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -326,7 +326,7 @@ export default function LayersPanel() {
                     <button
                       onClick={() => duplicateLayer(actualIndex)}
                       disabled={layers.length >= 10}
-                      className="p-1 text-slate-400 hover:text-white hover:bg-slate-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                       title="Duplicate layer"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -336,7 +336,7 @@ export default function LayersPanel() {
                     <button
                       onClick={() => mergeLayerDown(actualIndex)}
                       disabled={actualIndex === 0}
-                      className="p-1 text-slate-400 hover:text-white hover:bg-slate-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                       title="Merge down"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -346,7 +346,7 @@ export default function LayersPanel() {
                     <button
                       onClick={() => deleteLayer(actualIndex)}
                       disabled={layers.length <= 1}
-                      className="p-1 text-slate-400 hover:text-red-400 hover:bg-slate-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="p-1 text-slate-500 dark:text-slate-400 hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                       title="Delete layer"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -362,7 +362,7 @@ export default function LayersPanel() {
       </div>
 
       {/* Footer with layer count */}
-      <div className="p-2 border-t border-slate-700 text-xs text-slate-500 text-center">
+      <div className="p-2 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-500 text-center">
         {layers.length} / 10 layers
       </div>
     </div>

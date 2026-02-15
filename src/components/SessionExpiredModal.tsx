@@ -49,9 +49,9 @@ export default function SessionExpiredModal({
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[200] p-4">
-      <div className="bg-slate-800 rounded-xl w-full max-w-md shadow-2xl border border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-700">
         {/* Header */}
-        <div className="p-6 border-b border-slate-700">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
               <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -59,11 +59,11 @@ export default function SessionExpiredModal({
               </svg>
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-white">Session Expired</h2>
-              <p className="text-sm text-slate-400">Your session has timed out</p>
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Session Expired</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Your session has timed out</p>
             </div>
           </div>
-          <p className="text-slate-300 text-sm mt-3">
+          <p className="text-slate-600 dark:text-slate-300 text-sm mt-3">
             Your work is safe! Enter the password to continue saving your design.
           </p>
         </div>
@@ -77,14 +77,14 @@ export default function SessionExpiredModal({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
               Password
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
+              className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
               placeholder="Enter password"
               required
               autoFocus

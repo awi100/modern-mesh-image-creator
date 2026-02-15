@@ -124,19 +124,19 @@ export default function ColorPicker() {
   };
 
   return (
-    <div className="bg-slate-800 md:border-l border-slate-700 w-full md:w-64 flex flex-col h-full">
+    <div className="bg-white dark:bg-slate-800 md:border-l border-slate-200 dark:border-slate-700 w-full md:w-64 flex flex-col h-full">
       {/* Current color */}
-      <div className="p-4 border-b border-slate-700">
-        <h3 className="text-sm font-medium text-slate-400 mb-2">Current Color</h3>
+      <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+        <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Current Color</h3>
         {currentColor ? (
           <div className="flex items-center gap-3">
             <div
-              className="w-12 h-12 rounded-lg border-2 border-white/20"
+              className="w-12 h-12 rounded-lg border-2 border-slate-300 dark:border-white/20"
               style={{ backgroundColor: currentColor.hex }}
             />
             <div>
-              <p className="text-white font-medium">DMC {currentColor.dmcNumber}</p>
-              <p className="text-slate-400 text-sm">{currentColor.name}</p>
+              <p className="text-slate-900 dark:text-white font-medium">DMC {currentColor.dmcNumber}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">{currentColor.name}</p>
             </div>
           </div>
         ) : (
@@ -145,22 +145,22 @@ export default function ColorPicker() {
       </div>
 
       {/* Search */}
-      <div className="p-4 border-b border-slate-700">
+      <div className="p-4 border-b border-slate-200 dark:border-slate-700">
         <input
           type="text"
           placeholder="Search colors..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+          className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
         />
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-700">
+      <div className="flex border-b border-slate-200 dark:border-slate-700">
         <button
           onClick={() => setShowAll(false)}
           className={`flex-1 py-2 text-sm ${
-            !showAll ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white"
+            !showAll ? "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           }`}
         >
           Used ({usedColors.length})
@@ -168,7 +168,7 @@ export default function ColorPicker() {
         <button
           onClick={() => setShowAll(true)}
           className={`flex-1 py-2 text-sm ${
-            showAll ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white"
+            showAll ? "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           }`}
         >
           All Colors
@@ -176,13 +176,13 @@ export default function ColorPicker() {
       </div>
 
       {/* Replace color toggle */}
-      <div className="p-2 border-b border-slate-700">
+      <div className="p-2 border-b border-slate-200 dark:border-slate-700">
         <button
           onClick={() => setShowReplacePanel(!showReplacePanel)}
           className={`w-full py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2 ${
             showReplacePanel
               ? "bg-orange-600 text-white"
-              : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
           }`}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -194,12 +194,12 @@ export default function ColorPicker() {
 
       {/* Replace color panel */}
       {showReplacePanel && (
-        <div className="p-3 border-b border-slate-700 bg-slate-750 space-y-3">
+        <div className="p-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-750 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 uppercase tracking-wider">Replace Color</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Replace Color</span>
             <button
               onClick={handleCloseReplace}
-              className="text-slate-400 hover:text-white p-1"
+              className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -214,17 +214,17 @@ export default function ColorPicker() {
               className={`flex-1 p-2 rounded-lg border-2 transition-all ${
                 selectingFor === 'from'
                   ? 'border-orange-500 bg-slate-700'
-                  : 'border-slate-600 bg-slate-700 hover:border-slate-500'
+                  : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500'
               }`}
             >
-              <div className="text-xs text-slate-400 mb-1">From</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">From</div>
               {replaceFrom ? (
                 <div className="flex items-center gap-2">
                   <div
                     className="w-8 h-8 rounded border border-white/20"
                     style={{ backgroundColor: replaceFrom.hex }}
                   />
-                  <span className="text-white text-xs truncate">{replaceFrom.dmcNumber}</span>
+                  <span className="text-slate-900 dark:text-white text-xs truncate">{replaceFrom.dmcNumber}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -249,17 +249,17 @@ export default function ColorPicker() {
               className={`flex-1 p-2 rounded-lg border-2 transition-all ${
                 selectingFor === 'to'
                   ? 'border-orange-500 bg-slate-700'
-                  : 'border-slate-600 bg-slate-700 hover:border-slate-500'
+                  : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500'
               }`}
             >
-              <div className="text-xs text-slate-400 mb-1">To</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">To</div>
               {replaceTo ? (
                 <div className="flex items-center gap-2">
                   <div
                     className="w-8 h-8 rounded border border-white/20"
                     style={{ backgroundColor: replaceTo.hex }}
                   />
-                  <span className="text-white text-xs truncate">{replaceTo.dmcNumber}</span>
+                  <span className="text-slate-900 dark:text-white text-xs truncate">{replaceTo.dmcNumber}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -291,7 +291,7 @@ export default function ColorPicker() {
       )}
 
       {/* Remove color toggle */}
-      <div className="p-2 border-b border-slate-700">
+      <div className="p-2 border-b border-slate-200 dark:border-slate-700">
         <button
           onClick={() => {
             setShowRemovePanel(!showRemovePanel);
@@ -300,7 +300,7 @@ export default function ColorPicker() {
           className={`w-full py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2 ${
             showRemovePanel
               ? "bg-red-600 text-white"
-              : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
           }`}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -312,12 +312,12 @@ export default function ColorPicker() {
 
       {/* Remove color panel */}
       {showRemovePanel && (
-        <div className="p-3 border-b border-slate-700 bg-slate-750 space-y-3">
+        <div className="p-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-750 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 uppercase tracking-wider">Remove Color</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Remove Color</span>
             <button
               onClick={handleCloseRemove}
-              className="text-slate-400 hover:text-white p-1"
+              className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -336,10 +336,10 @@ export default function ColorPicker() {
             className={`w-full p-2 rounded-lg border-2 transition-all ${
               selectingRemove
                 ? 'border-red-500 bg-slate-700'
-                : 'border-slate-600 bg-slate-700 hover:border-slate-500'
+                : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500'
             }`}
           >
-            <div className="text-xs text-slate-400 mb-1">Color to remove</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Color to remove</div>
             {removeColor ? (
               <div className="flex items-center gap-2">
                 <div
@@ -383,7 +383,7 @@ export default function ColorPicker() {
             <span className="text-xs text-amber-400 uppercase tracking-wider font-medium">Out of Stock</span>
             <button
               onClick={() => setRecommendation(null)}
-              className="text-slate-400 hover:text-white p-1"
+              className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

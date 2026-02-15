@@ -154,12 +154,12 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-auto">
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-white">Add Shape</h2>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Add Shape</h2>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-white"
+            className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             ✕
           </button>
@@ -168,7 +168,7 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
         {/* Shape selection */}
         {categories.map(category => (
           <div key={category} className="mb-4">
-            <label className="block text-sm text-slate-400 mb-2">{category}</label>
+            <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">{category}</label>
             <div className="grid grid-cols-5 gap-2">
               {SHAPES.filter(s => s.category === category).map((shape) => (
                 <button
@@ -177,7 +177,7 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
                   className={`p-2 rounded-lg border transition-colors flex flex-col items-center ${
                     selectedShape.id === shape.id
                       ? "bg-rose-900/30 border-rose-800"
-                      : "bg-slate-700 border-slate-600 hover:border-slate-500"
+                      : "bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
                   }`}
                   title={shape.name}
                 >
@@ -185,7 +185,7 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
                   <div className="w-8 h-8 flex items-center justify-center">
                     <ShapeMiniPreview shape={shape} />
                   </div>
-                  <span className="text-[10px] text-slate-400 mt-1 truncate w-full text-center">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 truncate w-full text-center">
                     {shape.name}
                   </span>
                 </button>
@@ -195,22 +195,22 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
         ))}
 
         {/* Size controls */}
-        <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
+        <div className="mb-4 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
           <div className="flex items-center gap-2 mb-3">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={keepAspectRatio}
                 onChange={(e) => setKeepAspectRatio(e.target.checked)}
-                className="w-4 h-4 text-rose-900 bg-slate-700 border-slate-600 rounded focus:ring-rose-800"
+                className="w-4 h-4 text-rose-900 bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 rounded focus:ring-rose-800"
               />
-              <span className="text-slate-300 text-sm">Keep aspect ratio</span>
+              <span className="text-slate-600 dark:text-slate-300 text-sm">Keep aspect ratio</span>
             </label>
           </div>
 
           {keepAspectRatio ? (
             <div>
-              <label className="block text-xs text-slate-400 mb-1">
+              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
                 Size (stitches)
               </label>
               <input
@@ -230,25 +230,25 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
           ) : (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Width</label>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Width</label>
                 <input
                   type="number"
                   min="3"
                   max="200"
                   value={customWidth}
                   onChange={(e) => setCustomWidth(Number(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                  className="w-full px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Height</label>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Height</label>
                 <input
                   type="number"
                   min="3"
                   max="200"
                   value={customHeight}
                   onChange={(e) => setCustomHeight(Number(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                  className="w-full px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
                 />
               </div>
             </div>
@@ -256,21 +256,21 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
         </div>
 
         {/* Color selector */}
-        <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
-          <label className="block text-sm text-slate-400 mb-2">Fill Color</label>
+        <div className="mb-4 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
+          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Fill Color</label>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowColorPicker(!showColorPicker)}
-              className="flex items-center gap-2 px-3 py-2 bg-slate-700 rounded-lg hover:bg-slate-600 border border-slate-600"
+              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600"
             >
               <div
-                className="w-6 h-6 rounded border border-slate-500"
+                className="w-6 h-6 rounded border border-slate-300 dark:border-slate-500"
                 style={{ backgroundColor: fillColor }}
               />
-              <span className="text-sm text-slate-300">
+              <span className="text-sm text-slate-600 dark:text-slate-300">
                 DMC {dmcNumber}
               </span>
-              <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
@@ -281,13 +281,13 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
 
           {/* Color picker dropdown */}
           {showColorPicker && (
-            <div className="mt-3 p-3 bg-slate-800 rounded-lg border border-slate-600">
+            <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-600">
               <input
                 type="text"
                 value={colorSearch}
                 onChange={(e) => setColorSearch(e.target.value)}
                 placeholder="Search by number or name..."
-                className="w-full px-3 py-2 mb-3 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                className="w-full px-3 py-2 mb-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
               <div className="grid grid-cols-8 gap-1 max-h-32 overflow-y-auto">
                 {filteredColors.map((color) => (
@@ -315,12 +315,12 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
 
         {/* Preview */}
         <div className="mb-4">
-          <label className="block text-sm text-slate-400 mb-2">Preview</label>
+          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Preview</label>
           <canvas
             ref={previewCanvasRef}
             width={300}
             height={200}
-            className="w-full rounded-lg border border-slate-600"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-600"
           />
           <p className="text-xs text-slate-500 mt-2 text-center">
             Size: {displayWidth} × {displayHeight} stitches
@@ -337,7 +337,7 @@ export default function AddShapeDialog({ onClose, onAddShape }: AddShapeDialogPr
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600"
+            className="flex-1 py-2.5 px-4 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
           >
             Cancel
           </button>
