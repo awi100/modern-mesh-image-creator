@@ -283,9 +283,9 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const handleTextPlaced = useCallback((x: number, y: number) => {
     if (!pendingText) return;
 
-    // For shapes: first click places, second click (or confirm button) commits
-    if (pendingText.isShape && !pendingText.placedPosition) {
-      // First click - place the shape but don't commit yet
+    // For shapes and text: first click places, second click (or confirm button) commits
+    if ((pendingText.isShape || pendingText.isText) && !pendingText.placedPosition) {
+      // First click - place the shape/text but don't commit yet
       setPendingText({
         ...pendingText,
         placedPosition: { x, y },
@@ -293,8 +293,8 @@ export default function Editor({ designId, initialData }: EditorProps) {
       return;
     }
 
-    // Second click on a placed shape: update position
-    if (pendingText.isShape && pendingText.placedPosition) {
+    // Second click on a placed shape/text: update position
+    if ((pendingText.isShape || pendingText.isText) && pendingText.placedPosition) {
       setPendingText({
         ...pendingText,
         placedPosition: { x, y },
@@ -302,14 +302,14 @@ export default function Editor({ designId, initialData }: EditorProps) {
       return;
     }
 
-    // For text and paste: commit immediately
+    // For paste: commit immediately
     useEditorStore.getState().applyPixelOverlay(pendingText.pixels, x, y);
     setPendingText(null);
   }, [pendingText]);
 
-  // Confirm shape placement
-  const handleConfirmShape = useCallback(() => {
-    if (pendingText?.isShape && pendingText.placedPosition) {
+  // Confirm shape/text placement
+  const handleConfirmPlacement = useCallback(() => {
+    if ((pendingText?.isShape || pendingText?.isText) && pendingText.placedPosition) {
       useEditorStore.getState().applyPixelOverlay(
         pendingText.pixels,
         pendingText.placedPosition.x,
@@ -452,7 +452,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
           onResizePendingShape={handleResizePendingShape}
           onFlipPendingHorizontal={flipPendingHorizontal}
           onFlipPendingVertical={flipPendingVertical}
-          onConfirmShape={handleConfirmShape}
+          onConfirmPlacement={handleConfirmPlacement}
         />
 
         {/* Right side panels */}

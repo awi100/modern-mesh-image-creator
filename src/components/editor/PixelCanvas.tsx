@@ -35,7 +35,7 @@ interface PixelCanvasProps {
   onResizePendingShape?: (delta: number) => void;
   onFlipPendingHorizontal?: () => void;
   onFlipPendingVertical?: () => void;
-  onConfirmShape?: () => void;
+  onConfirmPlacement?: () => void;
 }
 
 export default function PixelCanvas({
@@ -45,7 +45,7 @@ export default function PixelCanvas({
   onResizePendingShape,
   onFlipPendingHorizontal,
   onFlipPendingVertical,
-  onConfirmShape,
+  onConfirmPlacement,
 }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -438,16 +438,16 @@ export default function PixelCanvas({
           setTextPlacementPos(null);
         }
       } else if (e.key === "Enter") {
-        // Confirm shape placement
-        if (pendingText?.isShape && pendingText?.placedPosition && onConfirmShape) {
-          onConfirmShape();
+        // Confirm shape or text placement
+        if ((pendingText?.isShape || pendingText?.isText) && pendingText?.placedPosition && onConfirmPlacement) {
+          onConfirmPlacement();
         }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pendingText, onCancelTextPlacement, cancelMove, onConfirmShape]);
+  }, [pendingText, onCancelTextPlacement, cancelMove, onConfirmPlacement]);
 
   // Get grid coordinates from mouse or touch event
   const getGridCoords = useCallback((clientX: number, clientY: number) => {
@@ -547,8 +547,8 @@ export default function PixelCanvas({
     if (!coords) return;
 
     // Handle shape dragging - if shape is already placed, start drag
-    if (pendingText?.isShape && pendingText.placedPosition) {
-      // Check if clicking within the shape bounds
+    if ((pendingText?.isShape || pendingText?.isText) && pendingText.placedPosition) {
+      // Check if clicking within the shape/text bounds
       const shapeMinX = pendingText.placedPosition.x;
       const shapeMaxX = pendingText.placedPosition.x + pendingText.width;
       const shapeMinY = pendingText.placedPosition.y;
@@ -556,7 +556,7 @@ export default function PixelCanvas({
 
       if (coords.x >= shapeMinX && coords.x < shapeMaxX &&
           coords.y >= shapeMinY && coords.y < shapeMaxY) {
-        // Start dragging the placed shape
+        // Start dragging the placed shape/text
         shapeDragRef.current = {
           startScreenX: e.clientX,
           startScreenY: e.clientY,
@@ -567,12 +567,12 @@ export default function PixelCanvas({
       }
     }
 
-    // Handle text placement mode
+    // Handle text/shape placement mode
     if (pendingText && onTextPlaced) {
       onTextPlaced(coords.x, coords.y);
-      // For shapes, keep the preview at the placed position (don't clear it)
-      // For text/paste, clear the preview since it commits immediately
-      if (pendingText.isShape) {
+      // For shapes and text, keep the preview at the placed position (don't clear it)
+      // For paste, clear the preview since it commits immediately
+      if (pendingText.isShape || pendingText.isText) {
         setTextPlacementPos({ x: coords.x, y: coords.y });
       } else {
         setTextPlacementPos(null);
@@ -640,9 +640,9 @@ export default function PixelCanvas({
 
     const touch = e.touches[0];
 
-    // Handle shape dragging - if shape is already placed, start drag
-    if (pendingText?.isShape && pendingText.placedPosition) {
-      // Check if touching within the shape bounds
+    // Handle shape/text dragging - if already placed, start drag
+    if ((pendingText?.isShape || pendingText?.isText) && pendingText.placedPosition) {
+      // Check if touching within the shape/text bounds
       const shapeMinX = pendingText.placedPosition.x;
       const shapeMaxX = pendingText.placedPosition.x + pendingText.width;
       const shapeMinY = pendingText.placedPosition.y;
@@ -650,7 +650,7 @@ export default function PixelCanvas({
 
       if (coords.x >= shapeMinX && coords.x < shapeMaxX &&
           coords.y >= shapeMinY && coords.y < shapeMaxY) {
-        // Start dragging the placed shape
+        // Start dragging the placed shape/text
         shapeDragRef.current = {
           startScreenX: touch.clientX,
           startScreenY: touch.clientY,
@@ -661,12 +661,12 @@ export default function PixelCanvas({
       }
     }
 
-    // Handle text placement mode - this is immediate
+    // Handle text/shape placement mode
     if (pendingText && onTextPlaced) {
       onTextPlaced(coords.x, coords.y);
-      // For shapes, keep the preview at the placed position (don't clear it)
-      // For text/paste, clear the preview since it commits immediately
-      if (pendingText.isShape) {
+      // For shapes and text, keep the preview at the placed position (don't clear it)
+      // For paste, clear the preview since it commits immediately
+      if (pendingText.isShape || pendingText.isText) {
         setTextPlacementPos({ x: coords.x, y: coords.y });
       } else {
         setTextPlacementPos(null);
@@ -811,8 +811,8 @@ export default function PixelCanvas({
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getMouseCoords(e);
 
-    // Handle shape dragging
-    if (shapeDragRef.current?.isDragging && pendingText?.isShape) {
+    // Handle shape/text dragging
+    if (shapeDragRef.current?.isDragging && (pendingText?.isShape || pendingText?.isText)) {
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -933,8 +933,8 @@ export default function PixelCanvas({
       return;
     }
 
-    // Handle shape dragging (single finger)
-    if (shapeDragRef.current?.isDragging && pendingText?.isShape && e.touches.length === 1) {
+    // Handle shape/text dragging (single finger)
+    if (shapeDragRef.current?.isDragging && (pendingText?.isShape || pendingText?.isText) && e.touches.length === 1) {
       const touch = e.touches[0];
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -1207,13 +1207,13 @@ export default function PixelCanvas({
               </span>
             </div>
           )}
-          {pendingText.isShape && pendingText.placedPosition ? (
+          {(pendingText.isShape || pendingText.isText) && pendingText.placedPosition ? (
             <>
               <span className="text-sm font-medium">
                 Drag to move, +/- to resize
               </span>
               <button
-                onClick={onConfirmShape}
+                onClick={onConfirmPlacement}
                 className="px-3 py-1 bg-green-500 hover:bg-green-400 rounded text-sm font-medium"
               >
                 Confirm (Enter)
