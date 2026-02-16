@@ -801,9 +801,9 @@ export default function PixelCanvas({
     }
   }, [currentTool, currentColor, eraserSize, setPixel, setBrushPixels, updateSelection, updateMoveOffset]);
 
-  // Update placed shape position during drag
+  // Update placed shape/text position during drag
   const updateShapePosition = useCallback((newX: number, newY: number) => {
-    if (pendingText?.isShape && pendingText.placedPosition && onTextPlaced) {
+    if ((pendingText?.isShape || pendingText?.isText) && pendingText.placedPosition && onTextPlaced) {
       onTextPlaced(newX, newY);
     }
   }, [pendingText, onTextPlaced]);

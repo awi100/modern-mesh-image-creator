@@ -114,14 +114,16 @@ function renderSingleChar(
   }
 
   const scale = heightInStitches / textHeight;
-  const finalWidth = Math.ceil(charWidth * scale) + 2; // Add small buffer
-  const finalHeight = heightInStitches;
+  const finalWidth = Math.ceil(charWidth * scale) + 4; // Add buffer for width
+  // Add extra height buffer to ensure text isn't cut off (will be trimmed later)
+  const heightBuffer = Math.max(4, Math.ceil(heightInStitches * 0.3));
+  const canvasHeight = heightInStitches + heightBuffer;
 
   canvas.width = finalWidth;
-  canvas.height = finalHeight;
+  canvas.height = canvasHeight;
 
   ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, finalWidth, finalHeight);
+  ctx.fillRect(0, 0, finalWidth, canvasHeight);
 
   const scaledFontSize = baseSize * scale;
   ctx.font = `${fontStyle}${scaledFontSize}px ${fontFamily}`;
@@ -129,14 +131,16 @@ function renderSingleChar(
   ctx.textBaseline = "top";
 
   const scaledMetrics = ctx.measureText(char);
-  const yOffset = (finalHeight - (scaledMetrics.actualBoundingBoxAscent + scaledMetrics.actualBoundingBoxDescent)) / 2;
+  // Center the text vertically within the canvas, accounting for buffer
+  const actualTextHeight = scaledMetrics.actualBoundingBoxAscent + scaledMetrics.actualBoundingBoxDescent;
+  const yOffset = Math.max(0, (canvasHeight - actualTextHeight) / 2);
 
-  ctx.fillText(char, 1, yOffset); // Small offset from left edge
+  ctx.fillText(char, 2, yOffset); // Small offset from left edge
 
-  const imageData = ctx.getImageData(0, 0, finalWidth, finalHeight);
+  const imageData = ctx.getImageData(0, 0, finalWidth, canvasHeight);
   const pixels: (string | null)[][] = [];
 
-  for (let y = 0; y < finalHeight; y++) {
+  for (let y = 0; y < canvasHeight; y++) {
     pixels[y] = [];
     for (let x = 0; x < finalWidth; x++) {
       const i = (y * finalWidth + x) * 4;
