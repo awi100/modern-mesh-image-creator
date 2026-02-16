@@ -211,7 +211,7 @@ export default function Header({
   };
 
   return (
-    <header className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-2 md:px-4 py-2 md:py-3">
+    <header className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-2 md:px-4 py-2 md:py-3 safe-area-top">
       <div className="flex items-center justify-between gap-2">
         {/* Left side - Logo and name */}
         <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
