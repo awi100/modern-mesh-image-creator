@@ -224,7 +224,7 @@ const createInitialState = () => {
     isDraft: false,
     widthInches: 8,
     heightInches: 8,
-    meshCount: 14,
+    meshCount: 14 as const,
     gridWidth: 112,
     gridHeight: 112,
     layers: [initialLayer] as Layer[],

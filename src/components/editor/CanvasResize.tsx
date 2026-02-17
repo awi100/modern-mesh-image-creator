@@ -301,7 +301,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
       setDesignInfo({
         widthInches: cropWidth / meshCount,
         heightInches: cropHeight / meshCount,
-        meshCount: meshCount as 14 | 18,
+        meshCount: meshCount as 14,
       });
 
       initializeGrid(cropWidth, cropHeight, newGrid);

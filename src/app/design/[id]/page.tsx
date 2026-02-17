@@ -57,7 +57,7 @@ export default async function DesignPage({ params }: Props) {
     isDraft: design.isDraft,
     widthInches: design.widthInches,
     heightInches: design.heightInches,
-    meshCount: design.meshCount as 14 | 18,
+    meshCount: design.meshCount as 14,
     gridWidth: design.gridWidth,
     gridHeight: design.gridHeight,
     grid,

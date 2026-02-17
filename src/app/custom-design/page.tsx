@@ -67,7 +67,7 @@ export default function CustomDesignPage() {
   const [customWidth, setCustomWidth] = useState(84);
   const [customHeight, setCustomHeight] = useState(84);
   const [useCustomSize, setUseCustomSize] = useState(false);
-  const [meshCount, setMeshCount] = useState<14 | 18>(14);
+  const meshCount = 14 as const;
   const [lockAspectRatio, setLockAspectRatio] = useState(true);
 
   // Preview state
@@ -863,32 +863,12 @@ export default function CustomDesignPage() {
             </div>
 
             <div className="bg-slate-800 rounded-xl p-6 mb-6">
-              {/* Mesh count */}
+              {/* Mesh count (fixed to 14 for internal app) */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-slate-300 mb-3">Mesh Count</label>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setMeshCount(14)}
-                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-colors ${
-                      meshCount === 14
-                        ? "border-rose-800 bg-rose-900/30 text-white"
-                        : "border-slate-600 text-slate-400 hover:border-slate-500"
-                    }`}
-                  >
-                    <span className="block text-lg font-bold">14 Mesh</span>
-                    <span className="text-xs opacity-75">Larger stitches, easier to see</span>
-                  </button>
-                  <button
-                    onClick={() => setMeshCount(18)}
-                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-colors ${
-                      meshCount === 18
-                        ? "border-rose-800 bg-rose-900/30 text-white"
-                        : "border-slate-600 text-slate-400 hover:border-slate-500"
-                    }`}
-                  >
-                    <span className="block text-lg font-bold">18 Mesh</span>
-                    <span className="text-xs opacity-75">Finer detail, more stitches</span>
-                  </button>
+                <div className="px-4 py-3 rounded-lg border-2 border-rose-800 bg-rose-900/30 text-white">
+                  <span className="block text-lg font-bold">14 Mesh</span>
+                  <span className="text-xs opacity-75">Size 5 Pearl Cotton</span>
                 </div>
               </div>
 

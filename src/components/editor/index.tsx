@@ -26,7 +26,7 @@ interface EditorProps {
     isDraft?: boolean;
     widthInches: number;
     heightInches: number;
-    meshCount: 14 | 18;
+    meshCount: 14;
     gridWidth: number;
     gridHeight: number;
     grid: (string | null)[][];
