@@ -27,7 +27,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Sale not found" }, { status: 404 });
     }
 
-    const threadSize = sale.design.meshCount === 14 ? 5 : 8;
+    const threadSize = 5; // Size 5 only (14 mesh) in internal app
 
     // Atomic transaction: restore inventory + delete sale
     await prisma.$transaction(async (tx) => {

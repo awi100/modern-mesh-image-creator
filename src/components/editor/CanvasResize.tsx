@@ -49,7 +49,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
 
   const [newWidthInches, setNewWidthInches] = useState(widthInches);
   const [newHeightInches, setNewHeightInches] = useState(heightInches);
-  const [newMeshCount, setNewMeshCount] = useState(meshCount);
+  const newMeshCount = 14; // Fixed at 14 mesh
   const [resizeMode, setResizeMode] = useState<ResizeMode>("scale");
   const [anchorPosition, setAnchorPosition] = useState<AnchorPosition>("mc"); // middle-center default
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
@@ -328,7 +328,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
     setDesignInfo({
       widthInches: newWidthInches,
       heightInches: newHeightInches,
-      meshCount: newMeshCount as 14 | 18,
+      meshCount: 14,
     });
 
     initializeGrid(newGridWidth, newGridHeight, newGrid);
@@ -464,14 +464,9 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
             </div>
             <div>
               <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Mesh</label>
-              <select
-                value={newMeshCount}
-                onChange={(e) => setNewMeshCount(Number(e.target.value) as 14 | 18)}
-                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
-              >
-                <option value={14}>14</option>
-                <option value={18}>18</option>
-              </select>
+              <div className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white">
+                14
+              </div>
             </div>
           </div>
 

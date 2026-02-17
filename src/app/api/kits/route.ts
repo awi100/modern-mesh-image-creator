@@ -67,19 +67,17 @@ export async function GET() {
         const stitchCounts = countStitchesByColor(grid);
         if (stitchCounts.size === 0) continue;
 
-        // Calculate yarn usage
-        const meshCount = design.meshCount as 14 | 18;
+        // Calculate yarn usage (14 mesh / Size 5 only in internal app)
         const stitchType = design.stitchType as "continental" | "basketweave";
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          meshCount,
+          14,
           stitchType,
           design.bufferPercent
         );
 
-        // Get inventory for correct thread size
-        const threadSize = meshCount === 14 ? 5 : 8;
-        const inventoryMap = inventoryBySize[threadSize];
+        // Get inventory for Size 5 thread (14 mesh only)
+        const inventoryMap = inventoryBySize[5];
 
         // Build kit contents
         const kitContents = yarnUsage.map((usage) => {

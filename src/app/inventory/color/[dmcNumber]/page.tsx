@@ -52,13 +52,9 @@ export default function ColorDetailPage() {
     { revalidateOnFocus: false }
   );
 
-  // Fetch inventory data for both sizes
+  // Fetch inventory data (Size 5 only - internal app uses 14 mesh)
   const { data: inventory5, mutate: mutateInventory5 } = useSWR<InventoryItem[]>(
     "/api/inventory?size=5",
-    { revalidateOnFocus: false }
-  );
-  const { data: inventory8, mutate: mutateInventory8 } = useSWR<InventoryItem[]>(
-    "/api/inventory?size=8",
     { revalidateOnFocus: false }
   );
 
@@ -70,29 +66,23 @@ export default function ColorDetailPage() {
     return colorUsageData.find(c => c.dmcNumber === dmcNumber);
   }, [colorUsageData, dmcNumber]);
 
-  // Find inventory for this color
+  // Find inventory for this color (Size 5 only)
   const inventorySize5 = inventory5?.find(i => i.dmcNumber === dmcNumber);
-  const inventorySize8 = inventory8?.find(i => i.dmcNumber === dmcNumber);
 
-  // Handle inventory update
-  const handleUpdateInventory = async (size: number, delta: number) => {
-    setUpdatingInventory(size);
+  // Handle inventory update (Size 5 only)
+  const handleUpdateInventory = async (delta: number) => {
+    setUpdatingInventory(5);
 
     try {
       const res = await fetch("/api/inventory", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dmcNumber, size, delta }),
+        body: JSON.stringify({ dmcNumber, size: 5, delta }),
       });
 
       if (!res.ok) throw new Error("Failed to update");
 
-      // Refresh inventory data
-      if (size === 5) {
-        mutateInventory5();
-      } else {
-        mutateInventory8();
-      }
+      mutateInventory5();
     } catch (error) {
       console.error("Error updating inventory:", error);
     } finally {
@@ -189,76 +179,45 @@ export default function ColorDetailPage() {
 
         {/* Inventory Section */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Inventory</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Size 5 (14 mesh) */}
-            <div className="bg-slate-700/50 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-slate-300">Size 5 (14 mesh)</span>
-                <span className={`text-lg font-bold ${
-                  (inventorySize5?.skeins || 0) > 0 ? "text-emerald-400" : "text-slate-500"
-                }`}>
-                  {inventorySize5?.skeins || 0} skeins
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleUpdateInventory(5, -1)}
-                  disabled={updatingInventory === 5 || (inventorySize5?.skeins || 0) <= 0}
-                  className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
-                >
-                  −
-                </button>
-                <button
-                  onClick={() => handleUpdateInventory(5, 1)}
-                  disabled={updatingInventory === 5}
-                  className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
-                >
-                  +
-                </button>
-                <button
-                  onClick={() => handleUpdateInventory(5, 5)}
-                  disabled={updatingInventory === 5}
-                  className="px-3 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm"
-                >
-                  +5
-                </button>
-              </div>
+          <h2 className="text-lg font-semibold text-white mb-4">Inventory (Size 5 Pearl Cotton)</h2>
+          <div className="bg-slate-700/50 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-slate-300">Current Stock</span>
+              <span className={`text-2xl font-bold ${
+                (inventorySize5?.skeins || 0) > 0 ? "text-emerald-400" : "text-slate-500"
+              }`}>
+                {inventorySize5?.skeins || 0} skeins
+              </span>
             </div>
-
-            {/* Size 8 (18 mesh) */}
-            <div className="bg-slate-700/50 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-slate-300">Size 8 (18 mesh)</span>
-                <span className={`text-lg font-bold ${
-                  (inventorySize8?.skeins || 0) > 0 ? "text-emerald-400" : "text-slate-500"
-                }`}>
-                  {inventorySize8?.skeins || 0} skeins
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleUpdateInventory(8, -1)}
-                  disabled={updatingInventory === 8 || (inventorySize8?.skeins || 0) <= 0}
-                  className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
-                >
-                  −
-                </button>
-                <button
-                  onClick={() => handleUpdateInventory(8, 1)}
-                  disabled={updatingInventory === 8}
-                  className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
-                >
-                  +
-                </button>
-                <button
-                  onClick={() => handleUpdateInventory(8, 5)}
-                  disabled={updatingInventory === 8}
-                  className="px-3 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm"
-                >
-                  +5
-                </button>
-              </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleUpdateInventory(-1)}
+                disabled={updatingInventory === 5 || (inventorySize5?.skeins || 0) <= 0}
+                className="w-12 h-12 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
+              >
+                −
+              </button>
+              <button
+                onClick={() => handleUpdateInventory(1)}
+                disabled={updatingInventory === 5}
+                className="w-12 h-12 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
+              >
+                +
+              </button>
+              <button
+                onClick={() => handleUpdateInventory(5)}
+                disabled={updatingInventory === 5}
+                className="px-4 h-12 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium"
+              >
+                +5
+              </button>
+              <button
+                onClick={() => handleUpdateInventory(10)}
+                disabled={updatingInventory === 5}
+                className="px-4 h-12 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium"
+              >
+                +10
+              </button>
             </div>
           </div>
         </div>

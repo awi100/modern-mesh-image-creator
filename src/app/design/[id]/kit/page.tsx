@@ -147,7 +147,7 @@ export default function KitPage() {
     if (updatingInventory === dmcNumber || !design) return;
 
     setUpdatingInventory(dmcNumber);
-    const size = design.meshCount === 14 ? 5 : 8;
+    const size = 5; // Size 5 only in internal app (14 mesh)
 
     // Optimistic update
     setKitContents(prev => prev.map(item => {

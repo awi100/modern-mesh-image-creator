@@ -111,9 +111,10 @@ export async function PUT(
         for (const count of stitchCounts.values()) {
           totalStitches += count;
         }
+        // 14 mesh only in internal app
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          (meshCount || 14) as 14 | 18,
+          14,
           (stitchType || "continental") as "continental" | "basketweave",
           bufferPercent ?? 20
         );

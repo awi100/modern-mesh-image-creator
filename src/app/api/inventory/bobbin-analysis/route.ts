@@ -94,18 +94,17 @@ export async function GET() {
         const grid: (string | null)[][] = JSON.parse(decompressed);
         const stitchCounts = countStitchesByColor(grid);
 
-        // Calculate yarn usage
-        const meshCount = design.meshCount as 14 | 18;
+        // Calculate yarn usage (14 mesh / Size 5 only in internal app)
         const stitchType = (design.stitchType || "continental") as "continental" | "basketweave";
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          meshCount,
+          14,
           stitchType,
           design.bufferPercent || 20
         );
 
-        // Thread size based on mesh
-        const threadSize: 5 | 8 = meshCount === 14 ? 5 : 8;
+        // Size 5 thread only in internal app
+        const threadSize: 5 | 8 = 5;
 
         // Find colors that need bobbins (under threshold)
         for (const usage of yarnUsage) {

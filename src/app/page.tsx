@@ -125,12 +125,8 @@ export default function HomePage() {
     revalidateOnReconnect: false,
   });
 
+  // Size 5 inventory only (14 mesh in internal app)
   const { data: inventory5 = [] } = useSWR<InventoryItem[]>("/api/inventory?size=5", {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-  });
-
-  const { data: inventory8 = [] } = useSWR<InventoryItem[]>("/api/inventory?size=8", {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
@@ -141,11 +137,11 @@ export default function HomePage() {
   });
   const trashCount = trashData.length;
 
-  // Memoize inventory sets to avoid recreating on every render
-  const inventoryBySize = useMemo(() => ({
-    size5: new Set(inventory5.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
-    size8: new Set(inventory8.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
-  }), [inventory5, inventory8]);
+  // Memoize inventory set (Size 5 only in internal app)
+  const inStockColors = useMemo(() =>
+    new Set(inventory5.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
+    [inventory5]
+  );
 
   // SWR for designs (refetches when filters change via key)
   const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory);
@@ -158,18 +154,17 @@ export default function HomePage() {
     }
   );
 
-  // Check if a design has colors not in inventory
+  // Check if a design has colors not in inventory (Size 5 only)
   const getMissingColors = useCallback((design: Design): string[] => {
     if (!design.colorsUsed) return [];
 
     try {
       const colors: string[] = JSON.parse(design.colorsUsed);
-      const inStock = design.meshCount === 14 ? inventoryBySize.size5 : inventoryBySize.size8;
-      return colors.filter(c => !inStock.has(c));
+      return colors.filter(c => !inStockColors.has(c));
     } catch {
       return [];
     }
-  }, [inventoryBySize]);
+  }, [inStockColors]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Move this design to trash? It will be permanently deleted after 14 days.")) return;

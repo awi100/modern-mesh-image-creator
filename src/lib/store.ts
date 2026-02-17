@@ -35,7 +35,7 @@ interface EditorState {
   isDraft: boolean;
   widthInches: number;
   heightInches: number;
-  meshCount: 14 | 18;
+  meshCount: 14;
   gridWidth: number;
   gridHeight: number;
 
@@ -97,7 +97,7 @@ interface EditorState {
     isDraft?: boolean;
     widthInches?: number;
     heightInches?: number;
-    meshCount?: 14 | 18;
+    meshCount?: 14;
   }, skipDirty?: boolean) => void;
 
   initializeGrid: (width: number, height: number, existingGrid?: PixelGrid) => void;
@@ -224,7 +224,7 @@ const createInitialState = () => {
     isDraft: false,
     widthInches: 8,
     heightInches: 8,
-    meshCount: 14 as 14 | 18,
+    meshCount: 14,
     gridWidth: 112,
     gridHeight: 112,
     layers: [initialLayer] as Layer[],

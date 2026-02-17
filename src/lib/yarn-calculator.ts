@@ -7,16 +7,11 @@ export interface YarnCalculationSettings {
   // Size 5 thread on 14 mesh (~76 inches / sq in for continental)
   mesh14ContinentalYardsPerSqIn: number;
   mesh14BasketwaveYardsPerSqIn: number;
-  // Size 8 thread on 18 mesh (~96 inches / sq in for continental)
-  mesh18ContinentalYardsPerSqIn: number;
-  mesh18BasketwaveYardsPerSqIn: number;
 }
 
 export const DEFAULT_SETTINGS: YarnCalculationSettings = {
   mesh14ContinentalYardsPerSqIn: 2.1,  // ~76 inches per sq in
   mesh14BasketwaveYardsPerSqIn: 2.4,   // ~15% more than continental
-  mesh18ContinentalYardsPerSqIn: 2.7,  // ~96 inches per sq in
-  mesh18BasketwaveYardsPerSqIn: 3.1,   // ~15% more than continental
 };
 
 export type StitchType = "continental" | "basketweave";
@@ -62,25 +57,17 @@ function calculateSmartBuffer(yarnYards: number, bufferPercent: number): number 
 
 export function calculateYarnUsage(
   stitchCounts: Map<string, number>,
-  meshCount: 14 | 18,
+  meshCount: 14,
   stitchType: StitchType,
   bufferPercent: number,
   settings: YarnCalculationSettings = DEFAULT_SETTINGS
 ): YarnUsage[] {
-  // Get yards per square inch based on mesh and stitch type
-  let yardsPerSqIn: number;
+  // Get yards per square inch based on stitch type (14 mesh only)
+  const yardsPerSqIn = stitchType === "continental"
+    ? settings.mesh14ContinentalYardsPerSqIn
+    : settings.mesh14BasketwaveYardsPerSqIn;
 
-  if (meshCount === 14) {
-    yardsPerSqIn = stitchType === "continental"
-      ? settings.mesh14ContinentalYardsPerSqIn
-      : settings.mesh14BasketwaveYardsPerSqIn;
-  } else {
-    yardsPerSqIn = stitchType === "continental"
-      ? settings.mesh18ContinentalYardsPerSqIn
-      : settings.mesh18BasketwaveYardsPerSqIn;
-  }
-
-  // Stitches per square inch = meshCount²
+  // Stitches per square inch = meshCount² (14² = 196)
   const stitchesPerSqIn = meshCount * meshCount;
 
   const results: YarnUsage[] = [];

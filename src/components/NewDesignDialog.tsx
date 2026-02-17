@@ -37,7 +37,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
 
   const [widthInches, setWidthInches] = useState(8);
   const [heightInches, setHeightInches] = useState(8);
-  const [meshCount, setMeshCount] = useState<14 | 18>(14);
+  const meshCount = 14; // Fixed at 14 mesh for internal app
   const [designName, setDesignName] = useState("Untitled Design");
   const [showCustom, setShowCustom] = useState(false);
 
@@ -418,39 +418,10 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
           </div>
         )}
 
-        {/* Mesh count */}
-        <div className="mb-6">
-          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Mesh Count</label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setMeshCount(14)}
-              className={`p-3 rounded-lg border transition-colors ${
-                meshCount === 14
-                  ? "bg-rose-900/30 border-rose-800 text-rose-300"
-                  : "bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white hover:border-slate-400 dark:hover:border-slate-500"
-              }`}
-            >
-              <p className="font-medium">14 Mesh</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Larger stitches</p>
-            </button>
-            <button
-              onClick={() => setMeshCount(18)}
-              className={`p-3 rounded-lg border transition-colors ${
-                meshCount === 18
-                  ? "bg-rose-900/30 border-rose-800 text-rose-300"
-                  : "bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white hover:border-slate-400 dark:hover:border-slate-500"
-              }`}
-            >
-              <p className="font-medium">18 Mesh</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">More detail</p>
-            </button>
-          </div>
-        </div>
-
         {/* Preview info */}
         <div className="mb-6 p-3 bg-rose-900/20 border border-rose-800/30 rounded-lg">
           <p className="text-sm text-rose-300">
-            Canvas: <span className="text-slate-900 dark:text-white font-medium">{widthInches}" × {heightInches}"</span> at {meshCount} mesh
+            Canvas: <span className="text-slate-900 dark:text-white font-medium">{widthInches}" × {heightInches}"</span> at 14 mesh
           </p>
           <p className="text-sm text-rose-300">
             Grid: <span className="text-slate-900 dark:text-white font-medium">{gridWidth} × {gridHeight}</span> stitches

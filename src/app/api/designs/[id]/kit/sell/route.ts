@@ -47,16 +47,16 @@ export async function POST(
     const grid: (string | null)[][] = JSON.parse(decompressed);
 
     const stitchCounts = countStitchesByColor(grid);
-    const meshCount = design.meshCount as 14 | 18;
     const stitchType = design.stitchType as "continental" | "basketweave";
+    // 14 mesh / Size 5 only in internal app
     const yarnUsage = calculateYarnUsage(
       stitchCounts,
-      meshCount,
+      14,
       stitchType,
       design.bufferPercent
     );
 
-    const threadSize = meshCount === 14 ? 5 : 8;
+    const threadSize = 5; // Size 5 only (14 mesh)
 
     // Calculate actual skeins to deduct for each color
     // For bobbin-only colors: accumulate yards across all kits, then calculate skeins

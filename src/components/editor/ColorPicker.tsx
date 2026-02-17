@@ -6,7 +6,7 @@ import { DMC_PEARL_COTTON, DmcColor, searchDmcColors, findSimilarInStockColor, g
 import { ColorSwatch } from "./ColorSwatch";
 
 export default function ColorPicker() {
-  const { currentColor, setCurrentColor, getUsedColors, replaceAllColor, meshCount } = useEditorStore();
+  const { currentColor, setCurrentColor, getUsedColors, replaceAllColor } = useEditorStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [showReplacePanel, setShowReplacePanel] = useState(false);
@@ -26,18 +26,17 @@ export default function ColorPicker() {
     deltaE: number;
   } | null>(null);
 
-  // Inventory: fetch stock for the relevant thread size (14 mesh → size 5, 18 mesh → size 8)
+  // Inventory: fetch stock for Size 5 thread (14 mesh only in internal app)
   const [inStockSet, setInStockSet] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const threadSize = meshCount === 14 ? 5 : 8;
-    fetch(`/api/inventory?size=${threadSize}`)
+    fetch("/api/inventory?size=5")
       .then((res) => (res.ok ? res.json() : []))
       .then((items: { dmcNumber: string; skeins: number }[]) => {
         setInStockSet(new Set(items.filter((i) => i.skeins > 0).map((i) => i.dmcNumber)));
       })
       .catch(() => {});
-  }, [meshCount]);
+  }, []);
 
   const usedColors = getUsedColors();
 

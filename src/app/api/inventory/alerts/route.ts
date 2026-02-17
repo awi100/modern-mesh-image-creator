@@ -132,18 +132,16 @@ export async function GET() {
         const stitchCounts = countStitchesByColor(grid);
         if (stitchCounts.size === 0) continue;
 
-        // Calculate yarn usage
-        const meshCount = design.meshCount as 14 | 18;
+        // Calculate yarn usage (14 mesh / Size 5 only in internal app)
         const stitchType = design.stitchType as "continental" | "basketweave";
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          meshCount,
+          14,
           stitchType,
           design.bufferPercent
         );
 
-        // Track aggregate color usage
-        const threadSize = meshCount === 14 ? 5 : 8;
+        // Track aggregate color usage (Size 5 only)
         const kitsReady = design.kitsReady || 0;
         for (const [dmcNumber, stitchCount] of stitchCounts.entries()) {
           const existing = colorUsageMap.get(dmcNumber);
@@ -165,27 +163,27 @@ export async function GET() {
             existing.totalStitches += stitchCount;
             existing.totalYards += yardsNeeded;
             existing.designs.push(designUsage);
-            existing.skeinsNeededBySize[threadSize] += skeinsNeeded;
-            existing.skeinsReservedInKits[threadSize] += skeinsReserved;
+            existing.skeinsNeededBySize[5] += skeinsNeeded;
+            existing.skeinsReservedInKits[5] += skeinsReserved;
           } else {
             colorUsageMap.set(dmcNumber, {
               totalStitches: stitchCount,
               totalYards: yardsNeeded,
               designs: [designUsage],
               skeinsNeededBySize: {
-                5: threadSize === 5 ? skeinsNeeded : 0,
-                8: threadSize === 8 ? skeinsNeeded : 0,
+                5: skeinsNeeded,
+                8: 0,
               },
               skeinsReservedInKits: {
-                5: threadSize === 5 ? skeinsReserved : 0,
-                8: threadSize === 8 ? skeinsReserved : 0,
+                5: skeinsReserved,
+                8: 0,
               },
             });
           }
         }
 
-        // Get inventory for correct thread size
-        const inventoryMap = inventoryBySize[threadSize];
+        // Get inventory for Size 5 thread
+        const inventoryMap = inventoryBySize[5];
 
         // Calculate fulfillment capacity for each color
         // Inventory already reflects deductions from assembled kits, so use it directly

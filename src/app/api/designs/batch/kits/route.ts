@@ -104,12 +104,11 @@ export async function POST(request: NextRequest) {
       // Count stitches per color
       const stitchCounts = countStitchesByColor(grid);
 
-      // Calculate yarn usage
-      const meshCount = design.meshCount as 14 | 18;
+      // Calculate yarn usage (14 mesh / Size 5 only in internal app)
       const stitchType = design.stitchType as "continental" | "basketweave";
       const yarnUsage = calculateYarnUsage(
         stitchCounts,
-        meshCount,
+        14,
         stitchType,
         design.bufferPercent
       );
@@ -122,13 +121,13 @@ export async function POST(request: NextRequest) {
           existing.stitchCount += usage.stitchCount;
           existing.yardsWithBuffer += usage.withBuffer;
           existing.usedInDesigns.push(design.name);
-          existing.meshCounts.add(meshCount);
+          existing.meshCounts.add(14);
         } else {
           aggregatedColors.set(usage.dmcNumber, {
             stitchCount: usage.stitchCount,
             yardsWithBuffer: usage.withBuffer,
             usedInDesigns: [design.name],
-            meshCounts: new Set([meshCount]),
+            meshCounts: new Set([14]),
           });
         }
         designTotalSkeins += usage.skeinsNeeded;
@@ -150,15 +149,8 @@ export async function POST(request: NextRequest) {
       const dmcColor = getDmcColorByNumber(dmcNumber);
       const yardsWithBuffer = Math.round(data.yardsWithBuffer * 10) / 10;
 
-      // Determine inventory based on mesh count(s) used
-      // If mixed mesh counts, show both inventories combined
-      let inventorySkeins = 0;
-      if (data.meshCounts.has(14)) {
-        inventorySkeins += inventoryMap5.get(dmcNumber) ?? 0;
-      }
-      if (data.meshCounts.has(18)) {
-        inventorySkeins += inventoryMap8.get(dmcNumber) ?? 0;
-      }
+      // Get inventory for Size 5 (14 mesh only in internal app)
+      const inventorySkeins = inventoryMap5.get(dmcNumber) ?? 0;
 
       let fullSkeins = 0;
       let bobbinYards = 0;

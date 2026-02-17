@@ -184,9 +184,10 @@ export default function InventoryPage() {
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [bobbinData, setBobbinData] = useState<BobbinAnalysisData | null>(null);
   const [bobbinsLoading, setBobbinsLoading] = useState(false);
-  const [bobbinSizeFilter, setBobbinSizeFilter] = useState<number | null>(null);
+  // Filter defaults - Size 5 only in internal app, so no need to change these
+  const bobbinSizeFilter = null;
+  const sizeFilter = null;
   const [alertStatusFilter, setAlertStatusFilter] = useState<"all" | "critical" | "low" | "healthy">("all");
-  const [sizeFilter, setSizeFilter] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedColor, setExpandedColor] = useState<string | null>(null);
 
@@ -194,7 +195,7 @@ export default function InventoryPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [addSearch, setAddSearch] = useState("");
   const [selectedColor, setSelectedColor] = useState<DmcColor | null>(null);
-  const [addSize, setAddSize] = useState<5 | 8>(5);
+  const addSize = 5; // Size 5 only in internal app
   const [addSkeins, setAddSkeins] = useState("1");
   const [adding, setAdding] = useState(false);
 
@@ -537,7 +538,6 @@ export default function InventoryPage() {
   const totalSkeins = filteredItems.reduce((sum, item) => sum + item.skeins, 0);
   const totalYards = totalSkeins * 27;
   const size5Count = items.filter((i) => i.size === 5).length;
-  const size8Count = items.filter((i) => i.size === 8).length;
   const totalKitsReady = designs.reduce((sum, d) => sum + d.kitsReady, 0);
   const totalCanvasesPrinted = designs.reduce((sum, d) => sum + d.canvasPrinted, 0);
 
@@ -701,9 +701,9 @@ export default function InventoryPage() {
                 <p className="text-xl font-bold text-white">{totalYards.toLocaleString()}</p>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">By Size</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Thread Size</p>
                 <p className="text-sm font-medium text-white">
-                  Size 5: {size5Count} &middot; Size 8: {size8Count}
+                  Size 5 (14 mesh): {size5Count}
                 </p>
               </div>
             </div>
@@ -717,37 +717,9 @@ export default function InventoryPage() {
                 placeholder="Search by DMC number or name..."
                 className="flex-1 px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSizeFilter(null)}
-                  className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    sizeFilter === null
-                      ? "bg-rose-900 text-white"
-                      : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setSizeFilter(5)}
-                  className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    sizeFilter === 5
-                      ? "bg-rose-900 text-white"
-                      : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
-                  }`}
-                >
-                  Size 5 (14 mesh)
-                </button>
-                <button
-                  onClick={() => setSizeFilter(8)}
-                  className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    sizeFilter === 8
-                      ? "bg-rose-900 text-white"
-                      : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
-                  }`}
-                >
-                  Size 8 (18 mesh)
-                </button>
+              {/* Size 5 only in internal app (14 mesh) */}
+              <div className="px-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-sm">
+                Size 5 (14 mesh)
               </div>
             </div>
 
@@ -2197,36 +2169,10 @@ export default function InventoryPage() {
 
             {/* Size filter */}
             <div className="flex gap-2 mb-6">
-              <button
-                onClick={() => setBobbinSizeFilter(null)}
-                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  bobbinSizeFilter === null
-                    ? "bg-rose-900 text-white"
-                    : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
-                }`}
-              >
-                All Sizes
-              </button>
-              <button
-                onClick={() => setBobbinSizeFilter(5)}
-                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  bobbinSizeFilter === 5
-                    ? "bg-rose-900 text-white"
-                    : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
-                }`}
-              >
+              {/* Size 5 only in internal app (14 mesh) */}
+              <div className="px-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-sm">
                 Size 5 (14 mesh)
-              </button>
-              <button
-                onClick={() => setBobbinSizeFilter(8)}
-                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  bobbinSizeFilter === 8
-                    ? "bg-rose-900 text-white"
-                    : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
-                }`}
-              >
-                Size 8 (18 mesh)
-              </button>
+              </div>
             </div>
 
             {bobbinsLoading ? (
@@ -2440,32 +2386,12 @@ export default function InventoryPage() {
                 </>
               )}
 
-              {/* Size selector */}
+              {/* Thread size - Size 5 only in internal app */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Thread Size</label>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setAddSize(5)}
-                    className={`flex-1 py-3 rounded-lg border-2 transition-all text-center ${
-                      addSize === 5
-                        ? "border-rose-800 bg-rose-900/20 text-white"
-                        : "border-slate-600 text-slate-300 hover:border-slate-500"
-                    }`}
-                  >
-                    <span className="text-lg font-bold block">Size 5</span>
-                    <span className="text-xs text-slate-400">For 14 mesh</span>
-                  </button>
-                  <button
-                    onClick={() => setAddSize(8)}
-                    className={`flex-1 py-3 rounded-lg border-2 transition-all text-center ${
-                      addSize === 8
-                        ? "border-rose-800 bg-rose-900/20 text-white"
-                        : "border-slate-600 text-slate-300 hover:border-slate-500"
-                    }`}
-                  >
-                    <span className="text-lg font-bold block">Size 8</span>
-                    <span className="text-xs text-slate-400">For 18 mesh</span>
-                  </button>
+                <div className="py-3 px-4 rounded-lg border-2 border-rose-800 bg-rose-900/20 text-white text-center">
+                  <span className="text-lg font-bold block">Size 5</span>
+                  <span className="text-xs text-slate-400">For 14 mesh canvas</span>
                 </div>
               </div>
 

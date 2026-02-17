@@ -82,12 +82,11 @@ export async function GET() {
         const grid: (string | null)[][] = JSON.parse(decompressed);
         const stitchCounts = countStitchesByColor(grid);
 
-        // Calculate yarn usage for all colors in this design
-        const meshCount = design.meshCount as 14 | 18;
+        // Calculate yarn usage for all colors (14 mesh / Size 5 only in internal app)
         const stitchType = (design.stitchType || "continental") as "continental" | "basketweave";
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          meshCount,
+          14,
           stitchType,
           design.bufferPercent || 20
         );

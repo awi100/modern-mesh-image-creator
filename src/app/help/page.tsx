@@ -80,7 +80,7 @@ export default function HelpPage() {
                 <li>Click the <strong className="text-white">"New Design"</strong> button on the home page</li>
                 <li>Enter a name for your design</li>
                 <li>Choose a canvas size preset or enter custom dimensions</li>
-                <li>Select mesh count (14 or 18 mesh)</li>
+                <li>Canvas uses 14 mesh count</li>
                 <li>Optionally select or create a folder</li>
                 <li>Click <strong className="text-white">Create</strong></li>
               </ol>
@@ -137,7 +137,7 @@ export default function HelpPage() {
               <h3 className="text-lg font-semibold text-white mt-6">Step 3: Canvas Settings</h3>
               <ul className="list-disc list-inside space-y-2 ml-4">
                 <li>Choose from preset canvas sizes or enter custom dimensions</li>
-                <li>Select mesh count (14 or 18 mesh)</li>
+                <li>Canvas uses 14 mesh count</li>
                 <li>Adjust maximum colors (2-64)</li>
                 <li>Preview updates to show final stitch count</li>
               </ul>
@@ -478,7 +478,7 @@ export default function HelpPage() {
               <ol className="list-decimal list-inside space-y-2 ml-4">
                 <li>Click the <strong className="text-white">Resize</strong> button in the header</li>
                 <li>Choose a preset size or enter custom dimensions (inches)</li>
-                <li>Select mesh count (14 or 18)</li>
+                <li>Mesh count is 14</li>
                 <li>Choose how to handle your existing design (see below)</li>
                 <li>Click <strong className="text-white">Apply</strong></li>
               </ol>
