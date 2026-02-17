@@ -542,7 +542,7 @@ export default function InventoryPage() {
   const totalCanvasesPrinted = designs.reduce((sum, d) => sum + d.canvasPrinted, 0);
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-slate-900 overflow-x-hidden">
       {/* Header */}
       <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-3 md:px-4 py-3 md:py-4 flex items-center justify-between gap-3">
@@ -611,76 +611,78 @@ export default function InventoryPage() {
         <Breadcrumb items={[{ label: "Inventory" }]} className="mb-4" />
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-slate-800 p-1 rounded-lg border border-slate-700 w-fit">
-          <button
-            onClick={() => setActiveTab("threads")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === "threads"
-                ? "bg-rose-900 text-white"
-                : "text-slate-400 hover:text-white hover:bg-slate-700"
-            }`}
-          >
-            Threads
-            <span className="ml-2 text-xs opacity-75">({items.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("kits")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === "kits"
-                ? "bg-rose-900 text-white"
-                : "text-slate-400 hover:text-white hover:bg-slate-700"
-            }`}
-          >
-            Kits Ready
-            <span className="ml-2 text-xs opacity-75">({totalKitsReady})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("canvases")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === "canvases"
-                ? "bg-rose-900 text-white"
-                : "text-slate-400 hover:text-white hover:bg-slate-700"
-            }`}
-          >
-            Canvases
-            <span className="ml-2 text-xs opacity-75">({totalCanvasesPrinted})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("alerts")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
-              activeTab === "alerts"
-                ? "bg-rose-900 text-white"
-                : "text-slate-400 hover:text-white hover:bg-slate-700"
-            }`}
-          >
-            {alertSummary && alertSummary.criticalCount > 0 && (
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-            )}
-            Stock Alerts
-            {alertSummary && alertSummary.criticalCount > 0 && (
-              <span className="ml-1 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">
-                {alertSummary.criticalCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("bobbins")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
-              activeTab === "bobbins"
-                ? "bg-rose-900 text-white"
-                : "text-slate-400 hover:text-white hover:bg-slate-700"
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-            Pre-make Bobbins
-            {bobbinData && (
-              <span className="ml-1 text-xs opacity-75">
-                ({bobbinData.summary.totalBobbins})
-              </span>
-            )}
-          </button>
+        <div className="overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0 mb-6">
+          <div className="flex gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 w-fit min-w-fit">
+            <button
+              onClick={() => setActiveTab("threads")}
+              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === "threads"
+                  ? "bg-rose-900 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-700"
+              }`}
+            >
+              Threads
+              <span className="ml-1 md:ml-2 text-xs opacity-75">({items.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("kits")}
+              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === "kits"
+                  ? "bg-rose-900 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-700"
+              }`}
+            >
+              Kits
+              <span className="ml-1 md:ml-2 text-xs opacity-75">({totalKitsReady})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("canvases")}
+              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === "canvases"
+                  ? "bg-rose-900 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-700"
+              }`}
+            >
+              Canvases
+              <span className="ml-1 md:ml-2 text-xs opacity-75">({totalCanvasesPrinted})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("alerts")}
+              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+                activeTab === "alerts"
+                  ? "bg-rose-900 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-700"
+              }`}
+            >
+              {alertSummary && alertSummary.criticalCount > 0 && (
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse flex-shrink-0" />
+              )}
+              Alerts
+              {alertSummary && alertSummary.criticalCount > 0 && (
+                <span className="ml-1 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full flex-shrink-0">
+                  {alertSummary.criticalCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("bobbins")}
+              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+                activeTab === "bobbins"
+                  ? "bg-rose-900 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-700"
+              }`}
+            >
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              Bobbins
+              {bobbinData && (
+                <span className="ml-1 text-xs opacity-75">
+                  ({bobbinData.summary.totalBobbins})
+                </span>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Threads Tab */}
@@ -1347,29 +1349,29 @@ export default function InventoryPage() {
               <div className="bg-gradient-to-r from-rose-900/30 to-purple-900/30 rounded-xl border border-rose-800/50 mb-6 overflow-hidden">
                 <button
                   onClick={() => setShowGlobalDemand(!showGlobalDemand)}
-                  className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+                  className="w-full p-3 md:p-4 flex items-center justify-between gap-2 hover:bg-white/5 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-rose-900/50 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-rose-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 md:w-5 md:h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                       </svg>
                     </div>
-                    <div className="text-left">
-                      <h3 className="text-white font-semibold">Global Color Demand</h3>
-                      <p className="text-slate-400 text-sm">
+                    <div className="text-left min-w-0">
+                      <h3 className="text-white font-semibold text-sm md:text-base">Color Demand</h3>
+                      <p className="text-slate-400 text-xs md:text-sm hidden sm:block">
                         How many complete rounds can you make? (1 round = 1 kit of each design)
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
                     {globalDemand.criticalColors > 0 && (
-                      <span className="px-3 py-1 bg-red-900/50 text-red-400 rounded-full text-sm font-medium">
+                      <span className="px-2 md:px-3 py-1 bg-red-900/50 text-red-400 rounded-full text-xs md:text-sm font-medium whitespace-nowrap">
                         {globalDemand.criticalColors} critical
                       </span>
                     )}
                     <svg
-                      className={`w-5 h-5 text-slate-400 transition-transform ${showGlobalDemand ? "rotate-180" : ""}`}
+                      className={`w-5 h-5 text-slate-400 transition-transform flex-shrink-0 ${showGlobalDemand ? "rotate-180" : ""}`}
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -1403,9 +1405,9 @@ export default function InventoryPage() {
 
                     {/* Critical Colors List */}
                     {mostUsedColors.filter(c => c.coverageRounds < 3).length > 0 && (
-                      <div className="p-4 border-t border-rose-800/30">
-                        <h4 className="text-red-400 font-semibold mb-3 flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="p-3 md:p-4 border-t border-rose-800/30">
+                        <h4 className="text-red-400 font-semibold mb-3 flex items-center gap-2 text-sm md:text-base">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                           </svg>
                           Critical Colors (&lt;3 rounds)
@@ -1415,7 +1417,7 @@ export default function InventoryPage() {
                             <div key={color.dmcNumber} className="bg-slate-800/50 rounded-lg overflow-hidden">
                               <button
                                 onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
-                                className="w-full p-3 flex items-center gap-3 hover:bg-slate-700/30 transition-colors"
+                                className="w-full p-2 md:p-3 flex items-center gap-2 md:gap-3 hover:bg-slate-700/30 transition-colors"
                               >
                                 <div
                                   className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20"
@@ -1426,23 +1428,23 @@ export default function InventoryPage() {
                                   </span>
                                 </div>
                                 <div className="flex-1 text-left min-w-0">
-                                  <p className="text-white text-sm font-medium">
-                                    DMC {color.dmcNumber} - {color.colorName}
+                                  <p className="text-white text-xs md:text-sm font-medium truncate">
+                                    {color.dmcNumber} - {color.colorName}
                                   </p>
-                                  <p className="text-slate-400 text-xs">
-                                    {color.designCount} designs · {color.totalYardsNeeded} yds ({color.totalSkeinsNeeded} sk)/round · Have {color.effectiveInventory}
+                                  <p className="text-slate-400 text-xs truncate">
+                                    {color.designCount} designs · {color.totalSkeinsNeeded} sk/round
                                   </p>
                                 </div>
                                 <div className="text-right flex-shrink-0">
-                                  <p className="text-red-400 font-bold">{Math.round(color.coverageRounds * 10) / 10}x</p>
-                                  <p className="text-xs text-slate-400">coverage</p>
+                                  <p className="text-red-400 font-bold text-sm md:text-base">{Math.round(color.coverageRounds * 10) / 10}x</p>
+                                  <p className="text-xs text-slate-400 hidden sm:block">coverage</p>
                                 </div>
-                                <div className="text-right flex-shrink-0 w-20">
+                                <div className="text-right flex-shrink-0 hidden sm:block">
                                   <p className="text-amber-400 font-bold">+{Math.max(0, color.totalSkeinsNeeded * 7 - color.effectiveInventory)}</p>
                                   <p className="text-xs text-slate-400">for 7x</p>
                                 </div>
                                 <svg
-                                  className={`w-4 h-4 text-slate-400 transition-transform ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
+                                  className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
                                   fill="none"
                                   viewBox="0 0 24 24"
                                   stroke="currentColor"
@@ -1480,9 +1482,9 @@ export default function InventoryPage() {
 
                     {/* Low Colors List */}
                     {mostUsedColors.filter(c => c.coverageRounds >= 3 && c.coverageRounds <= 6).length > 0 && (
-                      <div className="p-4 border-t border-yellow-800/30">
-                        <h4 className="text-yellow-400 font-semibold mb-3 flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="p-3 md:p-4 border-t border-yellow-800/30">
+                        <h4 className="text-yellow-400 font-semibold mb-3 flex items-center gap-2 text-sm md:text-base">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           Low Colors (3-6 rounds)
@@ -1492,7 +1494,7 @@ export default function InventoryPage() {
                             <div key={color.dmcNumber} className="bg-slate-800/50 rounded-lg overflow-hidden">
                               <button
                                 onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
-                                className="w-full p-3 flex items-center gap-3 hover:bg-slate-700/30 transition-colors"
+                                className="w-full p-2 md:p-3 flex items-center gap-2 md:gap-3 hover:bg-slate-700/30 transition-colors"
                               >
                                 <div
                                   className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20"
@@ -1503,23 +1505,23 @@ export default function InventoryPage() {
                                   </span>
                                 </div>
                                 <div className="flex-1 text-left min-w-0">
-                                  <p className="text-white text-sm font-medium">
-                                    DMC {color.dmcNumber} - {color.colorName}
+                                  <p className="text-white text-xs md:text-sm font-medium truncate">
+                                    {color.dmcNumber} - {color.colorName}
                                   </p>
-                                  <p className="text-slate-400 text-xs">
-                                    {color.designCount} designs · {color.totalYardsNeeded} yds ({color.totalSkeinsNeeded} sk)/round · Have {color.effectiveInventory}
+                                  <p className="text-slate-400 text-xs truncate">
+                                    {color.designCount} designs · {color.totalSkeinsNeeded} sk/round
                                   </p>
                                 </div>
                                 <div className="text-right flex-shrink-0">
-                                  <p className="text-yellow-400 font-bold">{Math.round(color.coverageRounds * 10) / 10}x</p>
-                                  <p className="text-xs text-slate-400">coverage</p>
+                                  <p className="text-yellow-400 font-bold text-sm md:text-base">{Math.round(color.coverageRounds * 10) / 10}x</p>
+                                  <p className="text-xs text-slate-400 hidden sm:block">coverage</p>
                                 </div>
-                                <div className="text-right flex-shrink-0 w-20">
+                                <div className="text-right flex-shrink-0 hidden sm:block">
                                   <p className="text-amber-400 font-bold">+{Math.max(0, color.totalSkeinsNeeded * 7 - color.effectiveInventory)}</p>
                                   <p className="text-xs text-slate-400">for 7x</p>
                                 </div>
                                 <svg
-                                  className={`w-4 h-4 text-slate-400 transition-transform ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
+                                  className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
                                   fill="none"
                                   viewBox="0 0 24 24"
                                   stroke="currentColor"
@@ -1557,9 +1559,9 @@ export default function InventoryPage() {
 
                     {/* Healthy Colors List */}
                     {mostUsedColors.filter(c => c.coverageRounds >= 7).length > 0 && (
-                      <div className="p-4 border-t border-green-800/30">
-                        <h4 className="text-green-400 font-semibold mb-3 flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="p-3 md:p-4 border-t border-green-800/30">
+                        <h4 className="text-green-400 font-semibold mb-3 flex items-center gap-2 text-sm md:text-base">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           Healthy Colors (7+ rounds)
@@ -1569,7 +1571,7 @@ export default function InventoryPage() {
                             <div key={color.dmcNumber} className="bg-slate-800/50 rounded-lg overflow-hidden">
                               <button
                                 onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
-                                className="w-full p-3 flex items-center gap-3 hover:bg-slate-700/30 transition-colors"
+                                className="w-full p-2 md:p-3 flex items-center gap-2 md:gap-3 hover:bg-slate-700/30 transition-colors"
                               >
                                 <div
                                   className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20"
@@ -1580,19 +1582,19 @@ export default function InventoryPage() {
                                   </span>
                                 </div>
                                 <div className="flex-1 text-left min-w-0">
-                                  <p className="text-white text-sm font-medium">
-                                    DMC {color.dmcNumber} - {color.colorName}
+                                  <p className="text-white text-xs md:text-sm font-medium truncate">
+                                    {color.dmcNumber} - {color.colorName}
                                   </p>
-                                  <p className="text-slate-400 text-xs">
-                                    {color.designCount} designs · {color.totalYardsNeeded} yds ({color.totalSkeinsNeeded} sk)/round · Have {color.effectiveInventory}
+                                  <p className="text-slate-400 text-xs truncate">
+                                    {color.designCount} designs · {color.totalSkeinsNeeded} sk/round
                                   </p>
                                 </div>
                                 <div className="text-right flex-shrink-0">
-                                  <p className="text-green-400 font-bold">{color.coverageRounds === 999 ? "∞" : Math.round(color.coverageRounds * 10) / 10}x</p>
-                                  <p className="text-xs text-slate-400">coverage</p>
+                                  <p className="text-green-400 font-bold text-sm md:text-base">{color.coverageRounds === 999 ? "∞" : Math.round(color.coverageRounds * 10) / 10}x</p>
+                                  <p className="text-xs text-slate-400 hidden sm:block">coverage</p>
                                 </div>
                                 <svg
-                                  className={`w-4 h-4 text-slate-400 transition-transform ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
+                                  className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
                                   fill="none"
                                   viewBox="0 0 24 24"
                                   stroke="currentColor"
