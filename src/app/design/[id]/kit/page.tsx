@@ -472,9 +472,11 @@ export default function KitPage() {
                 {kitContents.map((item) => (
                   <tr key={item.dmcNumber} className="border-b border-slate-700/50 hover:bg-slate-700/30">
                     <td className="px-4 py-3">
-                      <div
-                        className="w-8 h-8 rounded border border-white/20 flex items-center justify-center"
+                      <Link
+                        href={`/inventory/color/${item.dmcNumber}`}
+                        className="w-8 h-8 rounded border border-white/20 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                         style={{ backgroundColor: item.hex }}
+                        title={`View DMC ${item.dmcNumber} details`}
                       >
                         <span
                           className="text-[7px] font-bold"
@@ -482,9 +484,11 @@ export default function KitPage() {
                         >
                           {item.dmcNumber}
                         </span>
-                      </div>
+                      </Link>
                     </td>
-                    <td className="px-4 py-3 text-white font-mono text-sm">{item.dmcNumber}</td>
+                    <td className="px-4 py-3">
+                      <Link href={`/inventory/color/${item.dmcNumber}`} className="text-white font-mono text-sm hover:text-rose-400 transition-colors">{item.dmcNumber}</Link>
+                    </td>
                     <td className="px-4 py-3 text-slate-300 text-sm">{item.colorName}</td>
                     <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.stitchCount.toLocaleString()}</td>
                     <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.yardsWithoutBuffer}</td>
@@ -534,9 +538,11 @@ export default function KitPage() {
           <div className="md:hidden divide-y divide-slate-700/50">
             {kitContents.map((item) => (
               <div key={item.dmcNumber} className="p-3 flex items-center gap-3">
-                <div
-                  className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center flex-shrink-0"
+                <Link
+                  href={`/inventory/color/${item.dmcNumber}`}
+                  className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-rose-500 transition-all"
                   style={{ backgroundColor: item.hex }}
+                  title={`View DMC ${item.dmcNumber} details`}
                 >
                   <span
                     className="text-[8px] font-bold"
@@ -544,11 +550,11 @@ export default function KitPage() {
                   >
                     {item.dmcNumber}
                   </span>
-                </div>
+                </Link>
                 <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">
+                  <Link href={`/inventory/color/${item.dmcNumber}`} className="text-white text-sm font-medium truncate hover:text-rose-400 transition-colors block">
                     DMC {item.dmcNumber} - {item.colorName}
-                  </p>
+                  </Link>
                   <p className="text-slate-400 text-xs">
                     {item.stitchCount.toLocaleString()} stitches &middot; {item.yardsWithoutBuffer} yds ({item.yardsWithBuffer} w/ buffer)
                   </p>

@@ -776,9 +776,11 @@ export default function InventoryPage() {
                             className="p-3 border-b border-slate-700 last:border-b-0 hover:bg-slate-750"
                           >
                             <div className="flex items-center gap-3">
-                              <div
-                                className="w-10 h-10 rounded-lg border border-white/20 flex-shrink-0 flex items-center justify-center"
+                              <Link
+                                href={`/inventory/color/${color.dmcNumber}`}
+                                className="w-10 h-10 rounded-lg border border-white/20 flex-shrink-0 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                                 style={{ backgroundColor: color.hex }}
+                                title={`View DMC ${color.dmcNumber} details`}
                               >
                                 <span
                                   className="text-[7px] font-bold"
@@ -786,9 +788,9 @@ export default function InventoryPage() {
                                 >
                                   {color.dmcNumber}
                                 </span>
-                              </div>
+                              </Link>
                               <div className="flex-1 text-left min-w-0">
-                                <p className="text-white text-sm font-medium">DMC {color.dmcNumber}</p>
+                                <Link href={`/inventory/color/${color.dmcNumber}`} className="text-white text-sm font-medium hover:text-rose-400 transition-colors">DMC {color.dmcNumber}</Link>
                                 <p className="text-slate-400 text-xs">{color.name}</p>
                               </div>
                               {usedInDesigns.length > 0 && (
@@ -888,9 +890,11 @@ export default function InventoryPage() {
                         <React.Fragment key={item.id}>
                           <tr className="hover:bg-slate-750 transition-colors">
                             <td className="px-4 py-3">
-                              <div
-                                className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center"
+                              <Link
+                                href={`/inventory/color/${item.dmcNumber}`}
+                                className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                                 style={{ backgroundColor: color?.hex || "#666" }}
+                                title={`View DMC ${item.dmcNumber} details`}
                               >
                                 <span
                                   className="text-[7px] font-bold select-none"
@@ -898,10 +902,10 @@ export default function InventoryPage() {
                                 >
                                   {item.dmcNumber}
                                 </span>
-                              </div>
+                              </Link>
                             </td>
                             <td className="px-4 py-3">
-                              <span className="text-white font-medium">{item.dmcNumber}</span>
+                              <Link href={`/inventory/color/${item.dmcNumber}`} className="text-white font-medium hover:text-rose-400 transition-colors">{item.dmcNumber}</Link>
                             </td>
                             <td className="px-4 py-3 hidden sm:table-cell">
                               <span className="text-slate-300">{color?.name || "Unknown"}</span>
@@ -1415,43 +1419,47 @@ export default function InventoryPage() {
                         <div className="space-y-2">
                           {mostUsedColors.filter(c => c.coverageRounds < 3).map((color) => (
                             <div key={color.dmcNumber} className="bg-slate-800/50 rounded-lg overflow-hidden">
-                              <button
-                                onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
-                                className="w-full p-2 md:p-3 flex items-center gap-2 md:gap-3 hover:bg-slate-700/30 transition-colors"
-                              >
-                                <div
-                                  className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20"
+                              <div className="w-full p-2 md:p-3 flex items-center gap-2 md:gap-3 hover:bg-slate-700/30 transition-colors">
+                                <Link
+                                  href={`/inventory/color/${color.dmcNumber}`}
+                                  className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20 hover:ring-2 hover:ring-rose-500 transition-all"
                                   style={{ backgroundColor: color.hex }}
+                                  title={`Update DMC ${color.dmcNumber} inventory`}
                                 >
                                   <span className="text-[7px] font-bold" style={{ color: getContrastTextColor(color.hex) }}>
                                     {color.dmcNumber}
                                   </span>
-                                </div>
-                                <div className="flex-1 text-left min-w-0">
-                                  <p className="text-white text-xs md:text-sm font-medium truncate">
-                                    {color.dmcNumber} - {color.colorName}
-                                  </p>
-                                  <p className="text-slate-400 text-xs truncate">
-                                    {color.designCount} designs · {color.totalSkeinsNeeded} sk/round
-                                  </p>
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  <p className="text-red-400 font-bold text-sm md:text-base">{Math.round(color.coverageRounds * 10) / 10}x</p>
-                                  <p className="text-xs text-slate-400 hidden sm:block">coverage</p>
-                                </div>
-                                <div className="text-right flex-shrink-0 hidden sm:block">
-                                  <p className="text-amber-400 font-bold">+{Math.max(0, color.totalSkeinsNeeded * 7 - color.effectiveInventory)}</p>
-                                  <p className="text-xs text-slate-400">for 7x</p>
-                                </div>
-                                <svg
-                                  className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
+                                </Link>
+                                <button
+                                  onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
+                                  className="flex-1 flex items-center gap-2 md:gap-3 min-w-0"
                                 >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
+                                  <div className="flex-1 text-left min-w-0">
+                                    <p className="text-white text-xs md:text-sm font-medium truncate">
+                                      {color.dmcNumber} - {color.colorName}
+                                    </p>
+                                    <p className="text-slate-400 text-xs truncate">
+                                      {color.designCount} designs · {color.totalSkeinsNeeded} sk/round
+                                    </p>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    <p className="text-red-400 font-bold text-sm md:text-base">{Math.round(color.coverageRounds * 10) / 10}x</p>
+                                    <p className="text-xs text-slate-400 hidden sm:block">coverage</p>
+                                  </div>
+                                  <div className="text-right flex-shrink-0 hidden sm:block">
+                                    <p className="text-amber-400 font-bold">+{Math.max(0, color.totalSkeinsNeeded * 7 - color.effectiveInventory)}</p>
+                                    <p className="text-xs text-slate-400">for 7x</p>
+                                  </div>
+                                  <svg
+                                    className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              </div>
                               {expandedGlobalColor === color.dmcNumber && (
                                 <div className="px-3 pb-3 pt-1 border-t border-slate-700/50">
                                   <p className="text-xs text-slate-400 mb-2">Used in these designs:</p>
@@ -1492,43 +1500,47 @@ export default function InventoryPage() {
                         <div className="space-y-2">
                           {mostUsedColors.filter(c => c.coverageRounds >= 3 && c.coverageRounds <= 6).map((color) => (
                             <div key={color.dmcNumber} className="bg-slate-800/50 rounded-lg overflow-hidden">
-                              <button
-                                onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
-                                className="w-full p-2 md:p-3 flex items-center gap-2 md:gap-3 hover:bg-slate-700/30 transition-colors"
-                              >
-                                <div
-                                  className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20"
+                              <div className="w-full p-2 md:p-3 flex items-center gap-2 md:gap-3 hover:bg-slate-700/30 transition-colors">
+                                <Link
+                                  href={`/inventory/color/${color.dmcNumber}`}
+                                  className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20 hover:ring-2 hover:ring-rose-500 transition-all"
                                   style={{ backgroundColor: color.hex }}
+                                  title={`Update DMC ${color.dmcNumber} inventory`}
                                 >
                                   <span className="text-[7px] font-bold" style={{ color: getContrastTextColor(color.hex) }}>
                                     {color.dmcNumber}
                                   </span>
-                                </div>
-                                <div className="flex-1 text-left min-w-0">
-                                  <p className="text-white text-xs md:text-sm font-medium truncate">
-                                    {color.dmcNumber} - {color.colorName}
-                                  </p>
-                                  <p className="text-slate-400 text-xs truncate">
-                                    {color.designCount} designs · {color.totalSkeinsNeeded} sk/round
-                                  </p>
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  <p className="text-yellow-400 font-bold text-sm md:text-base">{Math.round(color.coverageRounds * 10) / 10}x</p>
-                                  <p className="text-xs text-slate-400 hidden sm:block">coverage</p>
-                                </div>
-                                <div className="text-right flex-shrink-0 hidden sm:block">
-                                  <p className="text-amber-400 font-bold">+{Math.max(0, color.totalSkeinsNeeded * 7 - color.effectiveInventory)}</p>
-                                  <p className="text-xs text-slate-400">for 7x</p>
-                                </div>
-                                <svg
-                                  className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
+                                </Link>
+                                <button
+                                  onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
+                                  className="flex-1 flex items-center gap-2 md:gap-3 min-w-0"
                                 >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
+                                  <div className="flex-1 text-left min-w-0">
+                                    <p className="text-white text-xs md:text-sm font-medium truncate">
+                                      {color.dmcNumber} - {color.colorName}
+                                    </p>
+                                    <p className="text-slate-400 text-xs truncate">
+                                      {color.designCount} designs · {color.totalSkeinsNeeded} sk/round
+                                    </p>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    <p className="text-yellow-400 font-bold text-sm md:text-base">{Math.round(color.coverageRounds * 10) / 10}x</p>
+                                    <p className="text-xs text-slate-400 hidden sm:block">coverage</p>
+                                  </div>
+                                  <div className="text-right flex-shrink-0 hidden sm:block">
+                                    <p className="text-amber-400 font-bold">+{Math.max(0, color.totalSkeinsNeeded * 7 - color.effectiveInventory)}</p>
+                                    <p className="text-xs text-slate-400">for 7x</p>
+                                  </div>
+                                  <svg
+                                    className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              </div>
                               {expandedGlobalColor === color.dmcNumber && (
                                 <div className="px-3 pb-3 pt-1 border-t border-slate-700/50">
                                   <p className="text-xs text-slate-400 mb-2">Used in these designs:</p>
@@ -1569,39 +1581,43 @@ export default function InventoryPage() {
                         <div className="space-y-2">
                           {mostUsedColors.filter(c => c.coverageRounds >= 7).map((color) => (
                             <div key={color.dmcNumber} className="bg-slate-800/50 rounded-lg overflow-hidden">
-                              <button
-                                onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
-                                className="w-full p-2 md:p-3 flex items-center gap-2 md:gap-3 hover:bg-slate-700/30 transition-colors"
-                              >
-                                <div
-                                  className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20"
+                              <div className="w-full p-2 md:p-3 flex items-center gap-2 md:gap-3 hover:bg-slate-700/30 transition-colors">
+                                <Link
+                                  href={`/inventory/color/${color.dmcNumber}`}
+                                  className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center border border-white/20 hover:ring-2 hover:ring-rose-500 transition-all"
                                   style={{ backgroundColor: color.hex }}
+                                  title={`Update DMC ${color.dmcNumber} inventory`}
                                 >
                                   <span className="text-[7px] font-bold" style={{ color: getContrastTextColor(color.hex) }}>
                                     {color.dmcNumber}
                                   </span>
-                                </div>
-                                <div className="flex-1 text-left min-w-0">
-                                  <p className="text-white text-xs md:text-sm font-medium truncate">
-                                    {color.dmcNumber} - {color.colorName}
-                                  </p>
-                                  <p className="text-slate-400 text-xs truncate">
-                                    {color.designCount} designs · {color.totalSkeinsNeeded} sk/round
-                                  </p>
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  <p className="text-green-400 font-bold text-sm md:text-base">{color.coverageRounds === 999 ? "∞" : Math.round(color.coverageRounds * 10) / 10}x</p>
-                                  <p className="text-xs text-slate-400 hidden sm:block">coverage</p>
-                                </div>
-                                <svg
-                                  className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
+                                </Link>
+                                <button
+                                  onClick={() => setExpandedGlobalColor(expandedGlobalColor === color.dmcNumber ? null : color.dmcNumber)}
+                                  className="flex-1 flex items-center gap-2 md:gap-3 min-w-0"
                                 >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
+                                  <div className="flex-1 text-left min-w-0">
+                                    <p className="text-white text-xs md:text-sm font-medium truncate">
+                                      {color.dmcNumber} - {color.colorName}
+                                    </p>
+                                    <p className="text-slate-400 text-xs truncate">
+                                      {color.designCount} designs · {color.totalSkeinsNeeded} sk/round
+                                    </p>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    <p className="text-green-400 font-bold text-sm md:text-base">{color.coverageRounds === 999 ? "∞" : Math.round(color.coverageRounds * 10) / 10}x</p>
+                                    <p className="text-xs text-slate-400 hidden sm:block">coverage</p>
+                                  </div>
+                                  <svg
+                                    className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${expandedGlobalColor === color.dmcNumber ? "rotate-180" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              </div>
                               {expandedGlobalColor === color.dmcNumber && (
                                 <div className="px-3 pb-3 pt-1 border-t border-slate-700/50">
                                   <p className="text-xs text-slate-400 mb-2">Used in these designs:</p>
@@ -1664,10 +1680,11 @@ export default function InventoryPage() {
                               .map((suggestion) => {
                                 const qty = orderRounds === 7 ? suggestion.skeinsFor7Rounds : orderRounds === 10 ? suggestion.skeinsFor10Rounds : suggestion.skeinsFor14Rounds;
                                 return (
-                                  <div
+                                  <Link
                                     key={suggestion.dmcNumber}
-                                    className="flex items-center gap-2 bg-slate-700/50 rounded px-2 py-1.5"
-                                    title={`Currently ${suggestion.currentCoverage}x coverage, need ${suggestion.demandPerRound}/round`}
+                                    href={`/inventory/color/${suggestion.dmcNumber}`}
+                                    className="flex items-center gap-2 bg-slate-700/50 rounded px-2 py-1.5 hover:bg-slate-600/50 transition-colors"
+                                    title={`Update DMC ${suggestion.dmcNumber} - Currently ${suggestion.currentCoverage}x coverage`}
                                   >
                                     <div
                                       className="w-6 h-6 rounded flex-shrink-0 border border-white/20"
@@ -1676,7 +1693,7 @@ export default function InventoryPage() {
                                     <span className="text-xs text-white font-medium">{suggestion.dmcNumber}</span>
                                     <span className="text-xs text-slate-400">({suggestion.currentCoverage}x)</span>
                                     <span className="text-xs text-amber-400 font-bold ml-auto">+{qty}</span>
-                                  </div>
+                                  </Link>
                                 );
                               })}
                           </div>
@@ -1864,9 +1881,12 @@ export default function InventoryPage() {
                                   >
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                   </svg>
-                                  <div
-                                    className="w-8 h-8 rounded border border-white/20 flex items-center justify-center"
+                                  <Link
+                                    href={`/inventory/color/${color.dmcNumber}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-8 h-8 rounded border border-white/20 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                                     style={{ backgroundColor: color.hex }}
+                                    title={`Update DMC ${color.dmcNumber} inventory`}
                                   >
                                     <span
                                       className="text-[6px] font-bold select-none"
@@ -1874,11 +1894,11 @@ export default function InventoryPage() {
                                     >
                                       {color.dmcNumber}
                                     </span>
-                                  </div>
+                                  </Link>
                                 </div>
                               </td>
                               <td className="px-4 py-3">
-                                <span className="text-white font-medium">{color.dmcNumber}</span>
+                                <Link href={`/inventory/color/${color.dmcNumber}`} onClick={(e) => e.stopPropagation()} className="text-white font-medium hover:text-rose-400 transition-colors">{color.dmcNumber}</Link>
                               </td>
                               <td className="px-4 py-3 hidden sm:table-cell">
                                 <span className="text-slate-300 truncate block max-w-[150px]">{color.colorName}</span>
@@ -2088,9 +2108,11 @@ export default function InventoryPage() {
                               <p className="text-xs text-slate-500 mb-1">Bottleneck colors:</p>
                               <div className="flex flex-wrap gap-2">
                                 {alert.bottleneckColors.map((color) => (
-                                  <div
+                                  <Link
                                     key={color.dmcNumber}
-                                    className="flex items-center gap-1.5 bg-slate-700/50 rounded px-2 py-1"
+                                    href={`/inventory/color/${color.dmcNumber}`}
+                                    className="flex items-center gap-1.5 bg-slate-700/50 rounded px-2 py-1 hover:bg-slate-600/50 transition-colors"
+                                    title={`Update DMC ${color.dmcNumber} inventory`}
                                   >
                                     <div
                                       className="w-4 h-4 rounded border border-white/20"
@@ -2100,7 +2122,7 @@ export default function InventoryPage() {
                                     <span className="text-xs text-slate-500">
                                       ({color.inventorySkeins}/{color.skeinsNeeded})
                                     </span>
-                                  </div>
+                                  </Link>
                                 ))}
                               </div>
                             </div>
@@ -2221,9 +2243,11 @@ export default function InventoryPage() {
                       .map((suggestion, idx) => (
                         <tr key={`${suggestion.dmcNumber}-${suggestion.threadSize}-${suggestion.length}-${idx}`} className="hover:bg-slate-750 transition-colors">
                           <td className="px-4 py-3">
-                            <div
-                              className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center"
+                            <Link
+                              href={`/inventory/color/${suggestion.dmcNumber}`}
+                              className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                               style={{ backgroundColor: suggestion.hex }}
+                              title={`Update DMC ${suggestion.dmcNumber} inventory`}
                             >
                               <span
                                 className="text-[7px] font-bold select-none"
@@ -2231,10 +2255,10 @@ export default function InventoryPage() {
                               >
                                 {suggestion.dmcNumber}
                               </span>
-                            </div>
+                            </Link>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-white font-medium">{suggestion.dmcNumber}</span>
+                            <Link href={`/inventory/color/${suggestion.dmcNumber}`} className="text-white font-medium hover:text-rose-400 transition-colors">{suggestion.dmcNumber}</Link>
                           </td>
                           <td className="px-4 py-3 hidden sm:table-cell">
                             <span className="text-slate-300">{suggestion.colorName}</span>
