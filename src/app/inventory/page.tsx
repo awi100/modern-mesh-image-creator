@@ -22,6 +22,12 @@ interface InventoryItem {
   updatedAt: string;
 }
 
+interface Folder {
+  id: string;
+  name: string;
+  parentId: string | null;
+}
+
 interface Design {
   id: string;
   name: string;
@@ -34,6 +40,8 @@ interface Design {
   widthInches: number;
   heightInches: number;
   meshCount: number;
+  folderId: string | null;
+  folder: Folder | null;
 }
 
 interface ColorRequirement {
@@ -540,6 +548,41 @@ export default function InventoryPage() {
   const size5Count = items.filter((i) => i.size === 5).length;
   const totalKitsReady = designs.reduce((sum, d) => sum + d.kitsReady, 0);
   const totalCanvasesPrinted = designs.reduce((sum, d) => sum + d.canvasPrinted, 0);
+
+  // Group designs by collection (folder)
+  const designsByCollection = useMemo(() => {
+    const groups: { folderId: string | null; folderName: string; designs: Design[] }[] = [];
+    const folderMap = new Map<string | null, Design[]>();
+
+    filteredDesigns.forEach(design => {
+      const key = design.folderId;
+      if (!folderMap.has(key)) {
+        folderMap.set(key, []);
+      }
+      folderMap.get(key)!.push(design);
+    });
+
+    // Sort folders: named folders first (alphabetically), then "Uncategorized" last
+    const sortedKeys = Array.from(folderMap.keys()).sort((a, b) => {
+      if (a === null) return 1;
+      if (b === null) return -1;
+      const aName = filteredDesigns.find(d => d.folderId === a)?.folder?.name || "";
+      const bName = filteredDesigns.find(d => d.folderId === b)?.folder?.name || "";
+      return aName.localeCompare(bName);
+    });
+
+    sortedKeys.forEach(key => {
+      const designsInFolder = folderMap.get(key)!;
+      const folderName = key === null ? "Uncategorized" : designsInFolder[0]?.folder?.name || "Unknown";
+      groups.push({
+        folderId: key,
+        folderName,
+        designs: designsInFolder,
+      });
+    });
+
+    return groups;
+  }, [filteredDesigns]);
 
   return (
     <div className="min-h-screen bg-slate-900 overflow-x-hidden">
@@ -1115,87 +1158,104 @@ export default function InventoryPage() {
               />
             </div>
 
-            {/* Designs list */}
+            {/* Designs list grouped by collection */}
             {filteredDesigns.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-slate-400">No designs found</p>
               </div>
             ) : (
-              <div className="grid gap-4">
-                {filteredDesigns.map((design) => (
-                  <div
-                    key={design.id}
-                    className="bg-slate-800 rounded-xl border border-slate-700 p-4 flex items-center gap-4"
-                  >
-                    {/* Preview */}
-                    <Link href={`/design/${design.id}`} className="flex-shrink-0">
-                      {design.previewImageUrl ? (
-                        <img
-                          src={design.previewImageUrl}
-                          alt={design.name}
-                          className="w-16 h-16 object-cover rounded-lg border border-slate-600"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 bg-slate-700 rounded-lg border border-slate-600 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                      )}
-                    </Link>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <Link href={`/design/${design.id}`} className="text-white font-medium hover:text-rose-400 truncate block">
-                        {design.name}
-                      </Link>
-                      <p className="text-slate-400 text-sm">
-                        {design.kitColorCount} colors &middot; {design.kitSkeinCount} skeins/kit
-                      </p>
+              <div className="space-y-6">
+                {designsByCollection.map((group) => (
+                  <div key={group.folderId || "uncategorized"}>
+                    {/* Collection header */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      <h3 className="text-white font-semibold">{group.folderName}</h3>
+                      <span className="text-slate-500 text-sm">
+                        ({group.designs.length} design{group.designs.length !== 1 ? "s" : ""} · {group.designs.reduce((sum, d) => sum + d.kitsReady, 0)} kits)
+                      </span>
                     </div>
 
-                    {/* Kits Ready control */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 text-sm hidden sm:block">Kits Ready:</span>
-                      <button
-                        onClick={() => handleUpdateDesign(design.id, "kitsReady", -1)}
-                        className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                        disabled={design.kitsReady <= 0}
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                        </svg>
-                      </button>
-                      <input
-                        type="number"
-                        min="0"
-                        value={pendingKits[design.id] ?? design.kitsReady}
-                        onChange={(e) => setPendingKits((prev) => ({ ...prev, [design.id]: e.target.value }))}
-                        onBlur={() => {
-                          const val = pendingKits[design.id];
-                          if (val !== undefined) {
-                            handleSetDesignValue(design.id, "kitsReady", Number(val));
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            const val = pendingKits[design.id];
-                            if (val !== undefined) {
-                              handleSetDesignValue(design.id, "kitsReady", Number(val));
-                            }
-                            (e.target as HTMLInputElement).blur();
-                          }
-                        }}
-                        className="w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
-                      />
-                      <button
-                        onClick={() => handleUpdateDesign(design.id, "kitsReady", 1)}
-                        className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </button>
+                    {/* Designs in collection */}
+                    <div className="grid gap-3 pl-2 md:pl-4 border-l-2 border-slate-700">
+                      {group.designs.map((design) => (
+                        <div
+                          key={design.id}
+                          className="bg-slate-800 rounded-xl border border-slate-700 p-3 md:p-4 flex items-center gap-3 md:gap-4"
+                        >
+                          {/* Preview */}
+                          <Link href={`/design/${design.id}`} className="flex-shrink-0">
+                            {design.previewImageUrl ? (
+                              <img
+                                src={design.previewImageUrl}
+                                alt={design.name}
+                                className="w-12 h-12 md:w-16 md:h-16 object-cover rounded-lg border border-slate-600"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-700 rounded-lg border border-slate-600 flex items-center justify-center">
+                                <svg className="w-5 h-5 md:w-6 md:h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
+                          </Link>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <Link href={`/design/${design.id}`} className="text-white font-medium hover:text-rose-400 truncate block text-sm md:text-base">
+                              {design.name}
+                            </Link>
+                            <p className="text-slate-400 text-xs md:text-sm">
+                              {design.kitColorCount} colors · {design.kitSkeinCount} skeins/kit
+                            </p>
+                          </div>
+
+                          {/* Kits Ready control */}
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <button
+                              onClick={() => handleUpdateDesign(design.id, "kitsReady", -1)}
+                              className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                              disabled={design.kitsReady <= 0}
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={pendingKits[design.id] ?? design.kitsReady}
+                              onChange={(e) => setPendingKits((prev) => ({ ...prev, [design.id]: e.target.value }))}
+                              onBlur={() => {
+                                const val = pendingKits[design.id];
+                                if (val !== undefined) {
+                                  handleSetDesignValue(design.id, "kitsReady", Number(val));
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  const val = pendingKits[design.id];
+                                  if (val !== undefined) {
+                                    handleSetDesignValue(design.id, "kitsReady", Number(val));
+                                  }
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="w-14 md:w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
+                            />
+                            <button
+                              onClick={() => handleUpdateDesign(design.id, "kitsReady", 1)}
+                              className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
@@ -1234,87 +1294,104 @@ export default function InventoryPage() {
               />
             </div>
 
-            {/* Designs list */}
+            {/* Designs list grouped by collection */}
             {filteredDesigns.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-slate-400">No designs found</p>
               </div>
             ) : (
-              <div className="grid gap-4">
-                {filteredDesigns.map((design) => (
-                  <div
-                    key={design.id}
-                    className="bg-slate-800 rounded-xl border border-slate-700 p-4 flex items-center gap-4"
-                  >
-                    {/* Preview */}
-                    <Link href={`/design/${design.id}`} className="flex-shrink-0">
-                      {design.previewImageUrl ? (
-                        <img
-                          src={design.previewImageUrl}
-                          alt={design.name}
-                          className="w-16 h-16 object-cover rounded-lg border border-slate-600"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 bg-slate-700 rounded-lg border border-slate-600 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                      )}
-                    </Link>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <Link href={`/design/${design.id}`} className="text-white font-medium hover:text-rose-400 truncate block">
-                        {design.name}
-                      </Link>
-                      <p className="text-slate-400 text-sm">
-                        {design.widthInches}&quot; × {design.heightInches}&quot; @ {design.meshCount} mesh
-                      </p>
+              <div className="space-y-6">
+                {designsByCollection.map((group) => (
+                  <div key={group.folderId || "uncategorized"}>
+                    {/* Collection header */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      <h3 className="text-white font-semibold">{group.folderName}</h3>
+                      <span className="text-slate-500 text-sm">
+                        ({group.designs.length} design{group.designs.length !== 1 ? "s" : ""} · {group.designs.reduce((sum, d) => sum + d.canvasPrinted, 0)} canvases)
+                      </span>
                     </div>
 
-                    {/* Canvases Printed control */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 text-sm hidden sm:block">Canvases:</span>
-                      <button
-                        onClick={() => handleUpdateDesign(design.id, "canvasPrinted", -1)}
-                        className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                        disabled={design.canvasPrinted <= 0}
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                        </svg>
-                      </button>
-                      <input
-                        type="number"
-                        min="0"
-                        value={pendingCanvases[design.id] ?? design.canvasPrinted}
-                        onChange={(e) => setPendingCanvases((prev) => ({ ...prev, [design.id]: e.target.value }))}
-                        onBlur={() => {
-                          const val = pendingCanvases[design.id];
-                          if (val !== undefined) {
-                            handleSetDesignValue(design.id, "canvasPrinted", Number(val));
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            const val = pendingCanvases[design.id];
-                            if (val !== undefined) {
-                              handleSetDesignValue(design.id, "canvasPrinted", Number(val));
-                            }
-                            (e.target as HTMLInputElement).blur();
-                          }
-                        }}
-                        className="w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
-                      />
-                      <button
-                        onClick={() => handleUpdateDesign(design.id, "canvasPrinted", 1)}
-                        className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </button>
+                    {/* Designs in collection */}
+                    <div className="grid gap-3 pl-2 md:pl-4 border-l-2 border-slate-700">
+                      {group.designs.map((design) => (
+                        <div
+                          key={design.id}
+                          className="bg-slate-800 rounded-xl border border-slate-700 p-3 md:p-4 flex items-center gap-3 md:gap-4"
+                        >
+                          {/* Preview */}
+                          <Link href={`/design/${design.id}`} className="flex-shrink-0">
+                            {design.previewImageUrl ? (
+                              <img
+                                src={design.previewImageUrl}
+                                alt={design.name}
+                                className="w-12 h-12 md:w-16 md:h-16 object-cover rounded-lg border border-slate-600"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-700 rounded-lg border border-slate-600 flex items-center justify-center">
+                                <svg className="w-5 h-5 md:w-6 md:h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
+                          </Link>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <Link href={`/design/${design.id}`} className="text-white font-medium hover:text-rose-400 truncate block text-sm md:text-base">
+                              {design.name}
+                            </Link>
+                            <p className="text-slate-400 text-xs md:text-sm">
+                              {design.widthInches}&quot; × {design.heightInches}&quot; @ {design.meshCount} mesh
+                            </p>
+                          </div>
+
+                          {/* Canvases Printed control */}
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <button
+                              onClick={() => handleUpdateDesign(design.id, "canvasPrinted", -1)}
+                              className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                              disabled={design.canvasPrinted <= 0}
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={pendingCanvases[design.id] ?? design.canvasPrinted}
+                              onChange={(e) => setPendingCanvases((prev) => ({ ...prev, [design.id]: e.target.value }))}
+                              onBlur={() => {
+                                const val = pendingCanvases[design.id];
+                                if (val !== undefined) {
+                                  handleSetDesignValue(design.id, "canvasPrinted", Number(val));
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  const val = pendingCanvases[design.id];
+                                  if (val !== undefined) {
+                                    handleSetDesignValue(design.id, "canvasPrinted", Number(val));
+                                  }
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="w-14 md:w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
+                            />
+                            <button
+                              onClick={() => handleUpdateDesign(design.id, "canvasPrinted", 1)}
+                              className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
