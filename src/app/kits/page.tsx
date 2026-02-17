@@ -432,24 +432,36 @@ export default function KitsPage() {
                           className="p-4 flex items-center gap-4 cursor-pointer hover:bg-slate-700/50 transition-colors"
                           onClick={() => setExpandedKit(expandedKit === kit.designId ? null : kit.designId)}
                         >
-                          {/* Preview image */}
-                          {kit.previewImageUrl ? (
-                            <img
-                              src={kit.previewImageUrl}
-                              alt={kit.designName}
-                              className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
-                            />
-                          ) : (
-                            <div className="w-16 h-16 bg-slate-700 rounded-lg flex-shrink-0 flex items-center justify-center">
-                              <svg className="w-8 h-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                          )}
+                          {/* Preview image - clickable link to design */}
+                          <Link
+                            href={`/design/${kit.designId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-shrink-0"
+                          >
+                            {kit.previewImageUrl ? (
+                              <img
+                                src={kit.previewImageUrl}
+                                alt={kit.designName}
+                                className="w-16 h-16 object-cover rounded-lg hover:ring-2 hover:ring-rose-500 transition-all"
+                              />
+                            ) : (
+                              <div className="w-16 h-16 bg-slate-700 rounded-lg flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all">
+                                <svg className="w-8 h-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
+                          </Link>
 
                           {/* Design info */}
                           <div className="flex-1 min-w-0">
-                            <h2 className="text-white font-semibold truncate">{kit.designName}</h2>
+                            <Link
+                              href={`/design/${kit.designId}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-white font-semibold truncate hover:text-rose-400 transition-colors block"
+                            >
+                              {kit.designName}
+                            </Link>
                             <p className="text-slate-400 text-sm">
                               {kit.widthInches}" x {kit.heightInches}" @ {kit.meshCount} mesh
                               &middot; {kit.stitchType} + {kit.bufferPercent}% buffer
@@ -508,9 +520,11 @@ export default function KitsPage() {
                                         !item.inStock ? "ring-1 ring-red-500" : ""
                                       }`}
                                     >
-                                      <div
-                                        className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center"
+                                      <Link
+                                        href={`/inventory/color/${item.dmcNumber}`}
+                                        className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                                         style={{ backgroundColor: item.hex }}
+                                        title={`View DMC ${item.dmcNumber} inventory`}
                                       >
                                         <span
                                           className="text-[7px] font-bold"
@@ -518,11 +532,14 @@ export default function KitsPage() {
                                         >
                                           {item.dmcNumber}
                                         </span>
-                                      </div>
+                                      </Link>
                                       <div className="min-w-0 flex-1">
-                                        <p className="text-white text-xs font-medium truncate">
+                                        <Link
+                                          href={`/inventory/color/${item.dmcNumber}`}
+                                          className="text-white text-xs font-medium truncate hover:text-rose-400 transition-colors block"
+                                        >
                                           {item.dmcNumber}
-                                        </p>
+                                        </Link>
                                         <p className={`text-xs ${item.bobbinYards > 0 ? "text-amber-400" : "text-slate-400"}`}>
                                           {item.fullSkeins > 0
                                             ? `Need ${item.fullSkeins} skein${item.fullSkeins > 1 ? "s" : ""}`

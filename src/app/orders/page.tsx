@@ -508,7 +508,24 @@ export default function OrdersPage() {
                                 return (
                                   <div key={idx}>
                                     <div className="p-4 flex items-center gap-4">
-                                      {kit.previewImageUrl ? (
+                                      {kit.designId ? (
+                                        <Link
+                                          href={`/design/${kit.designId}`}
+                                          className="flex-shrink-0"
+                                        >
+                                          {kit.previewImageUrl ? (
+                                            <img
+                                              src={kit.previewImageUrl}
+                                              alt={kit.productTitle}
+                                              className="w-14 h-14 rounded-lg object-cover hover:ring-2 hover:ring-rose-500 transition-all"
+                                            />
+                                          ) : (
+                                            <div className="w-14 h-14 rounded-lg bg-slate-700 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all">
+                                              <span className="text-slate-500 text-xs">?</span>
+                                            </div>
+                                          )}
+                                        </Link>
+                                      ) : kit.previewImageUrl ? (
                                         <img
                                           src={kit.previewImageUrl}
                                           alt={kit.productTitle}
@@ -520,9 +537,18 @@ export default function OrdersPage() {
                                         </div>
                                       )}
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-white font-medium truncate">
-                                          {kit.designName || kit.productTitle}
-                                        </p>
+                                        {kit.designId ? (
+                                          <Link
+                                            href={`/design/${kit.designId}`}
+                                            className="text-white font-medium truncate hover:text-rose-400 transition-colors block"
+                                          >
+                                            {kit.designName || kit.productTitle}
+                                          </Link>
+                                        ) : (
+                                          <p className="text-white font-medium truncate">
+                                            {kit.designName || kit.productTitle}
+                                          </p>
+                                        )}
                                         {!kit.designId ? (
                                           <p className="text-xs text-yellow-500">No matching design</p>
                                         ) : (
@@ -613,9 +639,10 @@ export default function OrdersPage() {
                                               </div>
                                               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                                                 {kitInfo.kitContents.map((item) => (
-                                                  <div
+                                                  <Link
                                                     key={item.dmcNumber}
-                                                    className={`flex items-center gap-2 p-2 rounded text-xs ${
+                                                    href={`/inventory/color/${item.dmcNumber}`}
+                                                    className={`flex items-center gap-2 p-2 rounded text-xs hover:ring-1 hover:ring-rose-500 transition-all ${
                                                       item.inStock ? "bg-slate-800" : "bg-red-900/30"
                                                     }`}
                                                   >
@@ -637,7 +664,7 @@ export default function OrdersPage() {
                                                         {item.inventorySkeins} in stock
                                                       </p>
                                                     </div>
-                                                  </div>
+                                                  </Link>
                                                 ))}
                                               </div>
                                             </div>
@@ -717,7 +744,21 @@ export default function OrdersPage() {
                           const shortage = canvas.quantity - canvas.canvasPrinted;
                           return (
                             <div key={idx} className="p-4 flex items-center gap-4">
-                              {canvas.previewImageUrl ? (
+                              {canvas.designId ? (
+                                <Link href={`/design/${canvas.designId}`} className="flex-shrink-0">
+                                  {canvas.previewImageUrl ? (
+                                    <img
+                                      src={canvas.previewImageUrl}
+                                      alt={canvas.productTitle}
+                                      className="w-14 h-14 rounded-lg object-cover hover:ring-2 hover:ring-rose-500 transition-all"
+                                    />
+                                  ) : (
+                                    <div className="w-14 h-14 rounded-lg bg-slate-700 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all">
+                                      <span className="text-slate-500 text-xs">?</span>
+                                    </div>
+                                  )}
+                                </Link>
+                              ) : canvas.previewImageUrl ? (
                                 <img
                                   src={canvas.previewImageUrl}
                                   alt={canvas.productTitle}
@@ -729,9 +770,18 @@ export default function OrdersPage() {
                                 </div>
                               )}
                               <div className="flex-1 min-w-0">
-                                <p className="text-white font-medium truncate">
-                                  {canvas.designName || canvas.productTitle}
-                                </p>
+                                {canvas.designId ? (
+                                  <Link
+                                    href={`/design/${canvas.designId}`}
+                                    className="text-white font-medium truncate hover:text-rose-400 transition-colors block"
+                                  >
+                                    {canvas.designName || canvas.productTitle}
+                                  </Link>
+                                ) : (
+                                  <p className="text-white font-medium truncate">
+                                    {canvas.designName || canvas.productTitle}
+                                  </p>
+                                )}
                                 {!canvas.designId && (
                                   <p className="text-xs text-yellow-500">No matching design</p>
                                 )}
@@ -931,7 +981,21 @@ function OrderItemRow({ item, demandByDesign }: { item: OrderItem; demandByDesig
   return (
     <div className="p-4 flex items-center gap-4">
       {/* Preview */}
-      {item.previewImageUrl ? (
+      {item.designId ? (
+        <Link href={`/design/${item.designId}`} className="flex-shrink-0">
+          {item.previewImageUrl ? (
+            <img
+              src={item.previewImageUrl}
+              alt={item.productTitle}
+              className="w-12 h-12 rounded-lg object-cover hover:ring-2 hover:ring-rose-500 transition-all"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-lg bg-slate-700 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all">
+              <span className="text-slate-500 text-xs">?</span>
+            </div>
+          )}
+        </Link>
+      ) : item.previewImageUrl ? (
         <img
           src={item.previewImageUrl}
           alt={item.productTitle}
@@ -945,7 +1009,16 @@ function OrderItemRow({ item, demandByDesign }: { item: OrderItem; demandByDesig
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-white font-medium truncate">{item.productTitle}</p>
+        {item.designId ? (
+          <Link
+            href={`/design/${item.designId}`}
+            className="text-white font-medium truncate hover:text-rose-400 transition-colors block"
+          >
+            {item.productTitle}
+          </Link>
+        ) : (
+          <p className="text-white font-medium truncate">{item.productTitle}</p>
+        )}
         {item.variantTitle && (
           <p className="text-sm text-slate-400 truncate">{item.variantTitle}</p>
         )}
