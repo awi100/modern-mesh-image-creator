@@ -59,6 +59,7 @@ export default function ColorDetailPage() {
   );
 
   const [updatingInventory, setUpdatingInventory] = useState<number | null>(null);
+  const [pendingValue, setPendingValue] = useState<string>("");
 
   // Find this color's usage
   const colorUsage = useMemo(() => {
@@ -88,6 +89,15 @@ export default function ColorDetailPage() {
     } finally {
       setUpdatingInventory(null);
     }
+  };
+
+  // Handle setting inventory to a specific value
+  const handleSetInventory = async (newValue: number) => {
+    const currentValue = inventorySize5?.skeins || 0;
+    const delta = newValue - currentValue;
+    if (delta === 0) return;
+    await handleUpdateInventory(delta);
+    setPendingValue("");
   };
 
   if (!colorInfo) {
@@ -181,40 +191,72 @@ export default function ColorDetailPage() {
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Inventory (Size 5 Pearl Cotton)</h2>
           <div className="bg-slate-700/50 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <span className="text-slate-300">Current Stock</span>
-              <span className={`text-2xl font-bold ${
-                (inventorySize5?.skeins || 0) > 0 ? "text-emerald-400" : "text-slate-500"
-              }`}>
-                {inventorySize5?.skeins || 0} skeins
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleUpdateInventory(-1)}
+                  disabled={updatingInventory === 5 || (inventorySize5?.skeins || 0) <= 0}
+                  className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  value={pendingValue !== "" ? pendingValue : (inventorySize5?.skeins || 0)}
+                  onChange={(e) => setPendingValue(e.target.value)}
+                  onBlur={() => {
+                    if (pendingValue !== "") {
+                      const val = parseInt(pendingValue, 10);
+                      if (!isNaN(val) && val >= 0) {
+                        handleSetInventory(val);
+                      } else {
+                        setPendingValue("");
+                      }
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const val = parseInt(pendingValue, 10);
+                      if (!isNaN(val) && val >= 0) {
+                        handleSetInventory(val);
+                      } else {
+                        setPendingValue("");
+                      }
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  onFocus={(e) => {
+                    setPendingValue(String(inventorySize5?.skeins || 0));
+                    e.target.select();
+                  }}
+                  className={`w-20 h-10 px-3 rounded-lg bg-slate-800 border border-slate-600 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-rose-800 ${
+                    (inventorySize5?.skeins || 0) > 0 ? "text-emerald-400" : "text-slate-400"
+                  }`}
+                />
+                <button
+                  onClick={() => handleUpdateInventory(1)}
+                  disabled={updatingInventory === 5}
+                  className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
+                >
+                  +
+                </button>
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleUpdateInventory(-1)}
-                disabled={updatingInventory === 5 || (inventorySize5?.skeins || 0) <= 0}
-                className="w-12 h-12 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
-              >
-                −
-              </button>
-              <button
-                onClick={() => handleUpdateInventory(1)}
-                disabled={updatingInventory === 5}
-                className="w-12 h-12 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
-              >
-                +
-              </button>
+              <span className="text-slate-400 text-sm mr-2">Quick add:</span>
               <button
                 onClick={() => handleUpdateInventory(5)}
                 disabled={updatingInventory === 5}
-                className="px-4 h-12 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium"
+                className="px-4 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium"
               >
                 +5
               </button>
               <button
                 onClick={() => handleUpdateInventory(10)}
                 disabled={updatingInventory === 5}
-                className="px-4 h-12 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium"
+                className="px-4 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium"
               >
                 +10
               </button>
