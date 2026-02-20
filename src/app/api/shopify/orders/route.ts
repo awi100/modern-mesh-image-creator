@@ -18,6 +18,7 @@ export interface OrderItem {
   needsKit: boolean;
   itemType: ItemType;
   productType: string | null; // Shopify product type
+  // Design info (for canvas items)
   designId: string | null;
   designName: string | null;
   previewImageUrl: string | null;
@@ -26,6 +27,10 @@ export interface OrderItem {
   folderId: string | null;
   folderName: string | null;
   totalSold: number;
+  // Supply info (for supply items)
+  supplyId: string | null;
+  supplyName: string | null;
+  supplyQuantity: number; // Stock count
 }
 
 export interface Order {
@@ -47,36 +52,16 @@ export interface OrdersResponse {
   };
 }
 
-// Supply product types (exact match, case-insensitive)
-// Products with these EXACT types are classified as supplies, not canvases
-const SUPPLY_PRODUCT_TYPES = new Set([
-  "supplies",
-  "supply",
-  "accessory",
-  "accessories",
-  "needle",
-  "needles",
-  "finisher",
-  "finishers",
-  "needle minder",
-  "needle minders",
-  "tool",
-  "tools",
-]);
-
-// Classify item type based on product type and whether it matches a design
-function classifyItemType(productType: string | null, matchedDesign: boolean): ItemType {
-  // If it matches a design in our system, it's always a canvas
+// Classify item type based on whether it matches a design or supply
+function classifyItemType(matchedDesign: boolean, matchedSupply: boolean): ItemType {
+  // If it matches a design in our system, it's a canvas
   if (matchedDesign) {
     return "canvas";
   }
 
-  // If product type EXACTLY matches a supply type, it's a supply
-  if (productType) {
-    const normalized = productType.toLowerCase().trim();
-    if (SUPPLY_PRODUCT_TYPES.has(normalized)) {
-      return "supply";
-    }
+  // If it matches a supply in our system, it's a supply
+  if (matchedSupply) {
+    return "supply";
   }
 
   // Default to canvas for unmatched products (they might be new designs not yet added)
@@ -119,10 +104,24 @@ export async function GET() {
       },
     });
 
-    // Create a map for fast lookup by normalized name
+    // Fetch all supplies for matching
+    const supplies = await prisma.supply.findMany({
+      select: {
+        id: true,
+        name: true,
+        quantity: true,
+      },
+    });
+
+    // Create maps for fast lookup by normalized name
     const designMap = new Map<string, typeof designs[0]>();
     for (const design of designs) {
       designMap.set(normalizeTitle(design.name), design);
+    }
+
+    const supplyMap = new Map<string, typeof supplies[0]>();
+    for (const supply of supplies) {
+      supplyMap.set(normalizeTitle(supply.name), supply);
     }
 
     // Fetch unfulfilled orders from Shopify
@@ -144,14 +143,15 @@ export async function GET() {
         const productType = lineItem.product?.productType || null;
         const needsKit = parseNeedsKit(lineItem.variantTitle);
 
-        // Try to match to a design
+        // Try to match to a design or supply
         const normalizedTitle = normalizeTitle(productTitle);
         const matchedDesign = designMap.get(normalizedTitle);
+        const matchedSupply = supplyMap.get(normalizedTitle);
 
-        // Classify item type
-        const itemType = classifyItemType(productType, !!matchedDesign);
+        // Classify item type based on matches
+        const itemType = classifyItemType(!!matchedDesign, !!matchedSupply);
 
-        if (!matchedDesign && itemType === "canvas") {
+        if (!matchedDesign && !matchedSupply && itemType === "canvas") {
           unmatchedProducts.add(productTitle);
         }
 
@@ -171,6 +171,9 @@ export async function GET() {
           folderId: matchedDesign?.folderId || null,
           folderName: matchedDesign?.folder?.name || null,
           totalSold: matchedDesign?.totalSold || 0,
+          supplyId: matchedSupply?.id || null,
+          supplyName: matchedSupply?.name || null,
+          supplyQuantity: matchedSupply?.quantity || 0,
         });
 
         // Count what's needed based on item type

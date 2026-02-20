@@ -132,23 +132,24 @@ export default function OrdersPage() {
     });
   }, [kitData.size, fetchKits]);
 
-  // Fulfill an order - deduct kits and canvases
+  // Fulfill an order - deduct kits, canvases, and supplies
   const handleFulfillOrder = useCallback(async (order: Order) => {
     setFulfilling(order.shopifyOrderId);
     setError(null);
 
     try {
-      // Prepare items for fulfillment
+      // Prepare items for fulfillment (both designs and supplies)
       const items = order.items
-        .filter(item => item.designId) // Only items with matching designs
+        .filter(item => item.designId || item.supplyId) // Items with matching designs or supplies
         .map(item => ({
-          designId: item.designId!,
+          designId: item.designId || undefined,
+          supplyId: item.supplyId || undefined,
           quantity: item.quantity,
           needsKit: item.needsKit,
         }));
 
       if (items.length === 0) {
-        setError("No items with matching designs to fulfill");
+        setError("No items with matching designs or supplies to fulfill");
         setFulfilling(null);
         return;
       }
@@ -857,41 +858,53 @@ export default function OrdersPage() {
             {/* Supplies View */}
             {filter === "supplies" && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-white">Supplies Ordered</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-white">Supplies Ordered</h2>
+                  <Link
+                    href="/supplies"
+                    className="text-sm text-purple-400 hover:text-purple-300"
+                  >
+                    Manage Supplies →
+                  </Link>
+                </div>
                 {(() => {
-                  // Aggregate supply items by product title
-                  const suppliesByProduct = new Map<string, {
+                  // Aggregate supply items by supply ID or product title
+                  const suppliesByKey = new Map<string, {
+                    supplyId: string | null;
                     productTitle: string;
                     productType: string | null;
                     quantity: number;
+                    inStock: number;
                   }>();
 
                   for (const order of data.orders) {
                     for (const item of order.items) {
                       if (item.itemType !== "supply") continue;
 
-                      const key = item.productTitle;
-                      const existing = suppliesByProduct.get(key);
+                      const key = item.supplyId || item.productTitle;
+                      const existing = suppliesByKey.get(key);
                       if (existing) {
                         existing.quantity += item.quantity;
                       } else {
-                        suppliesByProduct.set(key, {
+                        suppliesByKey.set(key, {
+                          supplyId: item.supplyId,
                           productTitle: item.productTitle,
                           productType: item.productType,
                           quantity: item.quantity,
+                          inStock: item.supplyQuantity,
                         });
                       }
                     }
                   }
 
-                  const supplies = Array.from(suppliesByProduct.values()).sort((a, b) => b.quantity - a.quantity);
+                  const supplies = Array.from(suppliesByKey.values()).sort((a, b) => b.quantity - a.quantity);
 
                   if (supplies.length === 0) {
                     return (
                       <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
                         <p className="text-slate-400">No supplies ordered</p>
                         <p className="text-sm text-slate-500 mt-2">
-                          Products with type &quot;Supplies&quot;, &quot;Accessories&quot;, etc. will appear here
+                          Add supplies in &quot;Manage Supplies&quot; to track their inventory
                         </p>
                       </div>
                     );
@@ -900,25 +913,48 @@ export default function OrdersPage() {
                   return (
                     <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
                       <div className="divide-y divide-slate-700/50">
-                        {supplies.map((supply, idx) => (
-                          <div key={idx} className="p-4 flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-lg bg-purple-900/30 border border-purple-700/50 flex items-center justify-center flex-shrink-0">
-                              <svg className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                              </svg>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-white font-medium truncate">{supply.productTitle}</p>
-                              {supply.productType && (
-                                <p className="text-xs text-purple-400">{supply.productType}</p>
+                        {supplies.map((supply, idx) => {
+                          const hasEnough = supply.inStock >= supply.quantity;
+                          const shortage = supply.quantity - supply.inStock;
+                          return (
+                            <div key={idx} className="p-4 flex items-center gap-4">
+                              <div className="w-14 h-14 rounded-lg bg-purple-900/30 border border-purple-700/50 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-white font-medium truncate">{supply.productTitle}</p>
+                                {supply.productType && (
+                                  <p className="text-xs text-purple-400">{supply.productType}</p>
+                                )}
+                                {!supply.supplyId && (
+                                  <p className="text-xs text-yellow-500">Not matched to a supply</p>
+                                )}
+                              </div>
+                              <div className="text-center px-4">
+                                <p className="text-2xl font-bold text-purple-400">{supply.quantity}</p>
+                                <p className="text-xs text-slate-400">ordered</p>
+                              </div>
+                              {supply.supplyId && (
+                                <>
+                                  <div className="text-center px-4">
+                                    <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                      {supply.inStock}
+                                    </p>
+                                    <p className="text-xs text-slate-400">in stock</p>
+                                  </div>
+                                  {!hasEnough && (
+                                    <div className="text-center px-4">
+                                      <p className="text-2xl font-bold text-red-400">-{shortage}</p>
+                                      <p className="text-xs text-slate-400">short</p>
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
-                            <div className="text-center px-4">
-                              <p className="text-2xl font-bold text-purple-400">{supply.quantity}</p>
-                              <p className="text-xs text-slate-400">ordered</p>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );

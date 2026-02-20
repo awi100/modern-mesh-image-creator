@@ -232,3 +232,17 @@ model CanvasPreset {
 
   @@map("canvas_presets")
 }
+
+// Supply products (needles, finishers, needle minders, etc.)
+model Supply {
+  id          String   @id @default(cuid())
+  name        String   @unique // Must match Shopify product title for matching
+  sku         String?  // Optional SKU
+  description String?
+  imageUrl    String?
+  quantity    Int      @default(0) // Stock count
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("supplies")
+}

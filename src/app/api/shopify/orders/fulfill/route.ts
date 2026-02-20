@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 
 interface FulfillItem {
-  designId: string;
+  designId?: string;
+  supplyId?: string;
   quantity: number;
   needsKit: boolean;
 }
@@ -24,50 +25,71 @@ export async function POST(request: NextRequest) {
 
     let kitsDeducted = 0;
     let canvasesDeducted = 0;
+    let suppliesDeducted = 0;
 
     // Process each item in a transaction
     await prisma.$transaction(async (tx) => {
       for (const item of items) {
-        if (!item.designId) continue;
-
-        // Get current counts
-        const design = await tx.design.findUnique({
-          where: { id: item.designId },
-          select: { kitsReady: true, canvasPrinted: true },
-        });
-
-        if (!design) continue;
-
-        // Always deduct canvasPrinted (but not below 0)
-        const canvasDeduction = Math.min(item.quantity, design.canvasPrinted);
-        if (canvasDeduction > 0) {
-          await tx.design.update({
+        // Handle design items (canvases/kits)
+        if (item.designId) {
+          // Get current counts
+          const design = await tx.design.findUnique({
             where: { id: item.designId },
-            data: { canvasPrinted: { decrement: canvasDeduction } },
+            select: { kitsReady: true, canvasPrinted: true },
           });
-          canvasesDeducted += canvasDeduction;
-        }
 
-        // Deduct kitsReady if kit was needed (but not below 0)
-        if (item.needsKit) {
-          const kitDeduction = Math.min(item.quantity, design.kitsReady);
-          if (kitDeduction > 0) {
+          if (design) {
+            // Always deduct canvasPrinted (but not below 0)
+            const canvasDeduction = Math.min(item.quantity, design.canvasPrinted);
+            if (canvasDeduction > 0) {
+              await tx.design.update({
+                where: { id: item.designId },
+                data: { canvasPrinted: { decrement: canvasDeduction } },
+              });
+              canvasesDeducted += canvasDeduction;
+            }
+
+            // Deduct kitsReady if kit was needed (but not below 0)
+            if (item.needsKit) {
+              const kitDeduction = Math.min(item.quantity, design.kitsReady);
+              if (kitDeduction > 0) {
+                await tx.design.update({
+                  where: { id: item.designId },
+                  data: { kitsReady: { decrement: kitDeduction } },
+                });
+                kitsDeducted += kitDeduction;
+              }
+            }
+
+            // Increment sales counts
             await tx.design.update({
               where: { id: item.designId },
-              data: { kitsReady: { decrement: kitDeduction } },
+              data: {
+                totalSold: { increment: item.quantity },
+                totalKitsSold: item.needsKit ? { increment: item.quantity } : undefined,
+              },
             });
-            kitsDeducted += kitDeduction;
           }
         }
 
-        // Increment sales counts
-        await tx.design.update({
-          where: { id: item.designId },
-          data: {
-            totalSold: { increment: item.quantity },
-            totalKitsSold: item.needsKit ? { increment: item.quantity } : undefined,
-          },
-        });
+        // Handle supply items
+        if (item.supplyId) {
+          const supply = await tx.supply.findUnique({
+            where: { id: item.supplyId },
+            select: { quantity: true },
+          });
+
+          if (supply) {
+            const supplyDeduction = Math.min(item.quantity, supply.quantity);
+            if (supplyDeduction > 0) {
+              await tx.supply.update({
+                where: { id: item.supplyId },
+                data: { quantity: { decrement: supplyDeduction } },
+              });
+              suppliesDeducted += supplyDeduction;
+            }
+          }
+        }
       }
     });
 
@@ -75,6 +97,7 @@ export async function POST(request: NextRequest) {
       success: true,
       kitsDeducted,
       canvasesDeducted,
+      suppliesDeducted,
     });
   } catch (error) {
     console.error("Error fulfilling order:", error);
