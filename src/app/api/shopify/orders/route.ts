@@ -47,9 +47,9 @@ export interface OrdersResponse {
   };
 }
 
-// Supply product types (case-insensitive matching)
-// Products with these types are classified as supplies, not canvases
-const SUPPLY_PRODUCT_TYPES = [
+// Supply product types (exact match, case-insensitive)
+// Products with these EXACT types are classified as supplies, not canvases
+const SUPPLY_PRODUCT_TYPES = new Set([
   "supplies",
   "supply",
   "accessory",
@@ -62,21 +62,21 @@ const SUPPLY_PRODUCT_TYPES = [
   "needle minders",
   "tool",
   "tools",
-];
+]);
 
 // Classify item type based on product type and whether it matches a design
 function classifyItemType(productType: string | null, matchedDesign: boolean): ItemType {
-  // If product type indicates it's a supply, it's a supply
-  if (productType) {
-    const normalized = productType.toLowerCase().trim();
-    if (SUPPLY_PRODUCT_TYPES.some(t => normalized.includes(t))) {
-      return "supply";
-    }
-  }
-
-  // If it matches a design in our system, it's a canvas
+  // If it matches a design in our system, it's always a canvas
   if (matchedDesign) {
     return "canvas";
+  }
+
+  // If product type EXACTLY matches a supply type, it's a supply
+  if (productType) {
+    const normalized = productType.toLowerCase().trim();
+    if (SUPPLY_PRODUCT_TYPES.has(normalized)) {
+      return "supply";
+    }
   }
 
   // Default to canvas for unmatched products (they might be new designs not yet added)
