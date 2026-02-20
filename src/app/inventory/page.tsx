@@ -135,7 +135,16 @@ interface ColorUsage {
   designs: ColorUsageDesign[];
 }
 
-type TabType = "threads" | "kits" | "canvases" | "alerts" | "bobbins";
+type TabType = "threads" | "kits" | "canvases" | "alerts" | "bobbins" | "supplies";
+
+interface Supply {
+  id: string;
+  name: string;
+  sku: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  quantity: number;
+}
 
 interface BobbinDesign {
   id: string;
@@ -192,6 +201,12 @@ export default function InventoryPage() {
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [bobbinData, setBobbinData] = useState<BobbinAnalysisData | null>(null);
   const [bobbinsLoading, setBobbinsLoading] = useState(false);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
+  const [suppliesLoading, setSuppliesLoading] = useState(false);
+  const [showAddSupply, setShowAddSupply] = useState(false);
+  const [supplyForm, setSupplyForm] = useState({ name: "", sku: "", description: "", quantity: 0 });
+  const [editingSupplyId, setEditingSupplyId] = useState<string | null>(null);
+  const [savingSupply, setSavingSupply] = useState(false);
   // Filter defaults - Size 5 only in internal app, so no need to change these
   const bobbinSizeFilter = null;
   const sizeFilter = null;
@@ -314,6 +329,77 @@ export default function InventoryPage() {
       fetchBobbins();
     }
   }, [activeTab, bobbinData]);
+
+  const fetchSupplies = async () => {
+    setSuppliesLoading(true);
+    try {
+      const response = await fetch("/api/supplies");
+      if (response.ok) {
+        const data = await response.json();
+        setSupplies(data);
+      }
+    } catch (error) {
+      console.error("Error fetching supplies:", error);
+    }
+    setSuppliesLoading(false);
+  };
+
+  // Fetch supplies when tab changes to supplies
+  useEffect(() => {
+    if (activeTab === "supplies" && supplies.length === 0) {
+      fetchSupplies();
+    }
+  }, [activeTab, supplies.length]);
+
+  const handleSaveSupply = async () => {
+    if (!supplyForm.name.trim()) return;
+    setSavingSupply(true);
+    try {
+      const url = editingSupplyId ? `/api/supplies/${editingSupplyId}` : "/api/supplies";
+      const method = editingSupplyId ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(supplyForm),
+      });
+      if (res.ok) {
+        await fetchSupplies();
+        setShowAddSupply(false);
+        setEditingSupplyId(null);
+        setSupplyForm({ name: "", sku: "", description: "", quantity: 0 });
+      }
+    } catch (error) {
+      console.error("Error saving supply:", error);
+    }
+    setSavingSupply(false);
+  };
+
+  const handleDeleteSupply = async (id: string) => {
+    if (!confirm("Delete this supply?")) return;
+    try {
+      const res = await fetch(`/api/supplies/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setSupplies(supplies.filter((s) => s.id !== id));
+      }
+    } catch (error) {
+      console.error("Error deleting supply:", error);
+    }
+  };
+
+  const handleSupplyQuantityChange = async (id: string, delta: number) => {
+    // Optimistic update
+    setSupplies(supplies.map((s) => s.id === id ? { ...s, quantity: Math.max(0, s.quantity + delta) } : s));
+    try {
+      await fetch(`/api/supplies/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantityDelta: delta }),
+      });
+    } catch (error) {
+      console.error("Error updating supply quantity:", error);
+      fetchSupplies(); // Revert on error
+    }
+  };
 
   const filteredItems = useMemo(() => {
     let result = items;
@@ -723,6 +809,22 @@ export default function InventoryPage() {
                 <span className="ml-1 text-xs opacity-75">
                   ({bobbinData.summary.totalBobbins})
                 </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("supplies")}
+              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+                activeTab === "supplies"
+                  ? "bg-rose-900 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-700"
+              }`}
+            >
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              Supplies
+              {supplies.length > 0 && (
+                <span className="ml-1 text-xs opacity-75">({supplies.length})</span>
               )}
             </button>
           </div>
@@ -2391,7 +2493,216 @@ export default function InventoryPage() {
             )}
           </>
         )}
+
+        {/* Supplies Tab */}
+        {activeTab === "supplies" && (
+          <>
+            {/* Header with Add button */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Supplies Inventory</h2>
+                <p className="text-sm text-slate-400">Track needles, finishers, needle minders, and other supplies</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAddSupply(true);
+                  setEditingSupplyId(null);
+                  setSupplyForm({ name: "", sku: "", description: "", quantity: 0 });
+                }}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Supply
+              </button>
+            </div>
+
+            {/* Info box */}
+            <div className="p-4 bg-slate-800 border border-slate-700 rounded-lg mb-4">
+              <p className="text-sm text-slate-400">
+                Supply names must match Shopify product titles exactly for automatic order matching.
+              </p>
+            </div>
+
+            {suppliesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-slate-400 flex items-center gap-3">
+                  <svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Loading supplies...
+                </div>
+              </div>
+            ) : supplies.length === 0 ? (
+              <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+                <svg className="w-12 h-12 mx-auto text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <p className="text-slate-400">No supplies added yet</p>
+                <p className="text-sm text-slate-500 mt-2">Click &quot;Add Supply&quot; to start tracking supply inventory</p>
+              </div>
+            ) : (
+              <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                <div className="divide-y divide-slate-700/50">
+                  {supplies.map((supply) => (
+                    <div key={supply.id} className="p-4 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-lg bg-purple-900/30 border border-purple-700/50 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate">{supply.name}</p>
+                        {supply.sku && <p className="text-xs text-slate-500">SKU: {supply.sku}</p>}
+                        {supply.description && <p className="text-xs text-slate-400 truncate">{supply.description}</p>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleSupplyQuantityChange(supply.id, -1)}
+                          disabled={supply.quantity <= 0}
+                          className="w-8 h-8 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                        >
+                          −
+                        </button>
+                        <div className="text-center w-16">
+                          <p className="text-2xl font-bold text-purple-400">{supply.quantity}</p>
+                          <p className="text-xs text-slate-400">in stock</p>
+                        </div>
+                        <button
+                          onClick={() => handleSupplyQuantityChange(supply.id, 1)}
+                          className="w-8 h-8 rounded bg-purple-700 hover:bg-purple-600 flex items-center justify-center text-white font-bold"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingSupplyId(supply.id);
+                            setSupplyForm({
+                              name: supply.name,
+                              sku: supply.sku || "",
+                              description: supply.description || "",
+                              quantity: supply.quantity,
+                            });
+                            setShowAddSupply(true);
+                          }}
+                          className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
+                          title="Edit"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSupply(supply.id)}
+                          className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg"
+                          title="Delete"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Add/Edit Supply Modal */}
+      {showAddSupply && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-lg">
+            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white">
+                {editingSupplyId ? "Edit Supply" : "Add New Supply"}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAddSupply(false);
+                  setEditingSupplyId(null);
+                  setSupplyForm({ name: "", sku: "", description: "", quantity: 0 });
+                }}
+                className="p-1 text-slate-400 hover:text-white"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={supplyForm.name}
+                  onChange={(e) => setSupplyForm({ ...supplyForm, name: e.target.value })}
+                  placeholder="Exact Shopify product title"
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <p className="text-xs text-slate-500 mt-1">Must match Shopify product title exactly</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">SKU</label>
+                  <input
+                    type="text"
+                    value={supplyForm.sku}
+                    onChange={(e) => setSupplyForm({ ...supplyForm, sku: e.target.value })}
+                    placeholder="Optional"
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    value={supplyForm.quantity}
+                    onChange={(e) => setSupplyForm({ ...supplyForm, quantity: parseInt(e.target.value) || 0 })}
+                    min="0"
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">Description</label>
+                <textarea
+                  value={supplyForm.description}
+                  onChange={(e) => setSupplyForm({ ...supplyForm, description: e.target.value })}
+                  placeholder="Optional"
+                  rows={2}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-700 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowAddSupply(false);
+                  setEditingSupplyId(null);
+                  setSupplyForm({ name: "", sku: "", description: "", quantity: 0 });
+                }}
+                className="flex-1 py-2.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveSupply}
+                disabled={!supplyForm.name.trim() || savingSupply}
+                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                {savingSupply ? "Saving..." : editingSupplyId ? "Update" : "Add Supply"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Thread Modal */}
       {showAddForm && (
