@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 
-// DELETE - Reverse a kit sale and restore inventory
+// DELETE - Reverse a kit assembly (decrement kitsReady)
+// Note: Thread inventory is managed manually, so we don't restore it here
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,12 +15,13 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // Get the sale with items and design info
+    // Get the sale
     const sale = await prisma.kitSale.findUnique({
       where: { id },
-      include: {
-        items: true,
-        design: { select: { meshCount: true } },
+      select: {
+        id: true,
+        designId: true,
+        quantity: true,
       },
     });
 
@@ -27,37 +29,15 @@ export async function DELETE(
       return NextResponse.json({ error: "Sale not found" }, { status: 404 });
     }
 
-    const threadSize = 5; // Size 5 only (14 mesh) in internal app
-
-    // Atomic transaction: restore inventory + delete sale
+    // Atomic transaction: decrement kitsReady + delete sale
     await prisma.$transaction(async (tx) => {
-      // Restore inventory for each item
-      for (const item of sale.items) {
-        await tx.inventoryItem.upsert({
-          where: {
-            dmcNumber_size: {
-              dmcNumber: item.dmcNumber,
-              size: threadSize,
-            },
-          },
-          update: {
-            skeins: { increment: item.skeins },
-          },
-          create: {
-            dmcNumber: item.dmcNumber,
-            size: threadSize,
-            skeins: item.skeins,
-          },
-        });
-      }
-
       // Decrement kitsReady by the quantity that was assembled
       await tx.design.update({
         where: { id: sale.designId },
         data: { kitsReady: { decrement: sale.quantity ?? 1 } },
       });
 
-      // Delete the sale (cascade deletes items)
+      // Delete the sale (cascade deletes items if any)
       await tx.kitSale.delete({
         where: { id },
       });
@@ -65,9 +45,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error reversing kit sale:", error);
+    console.error("Error reversing kit assembly:", error);
     return NextResponse.json(
-      { error: "Failed to reverse kit sale" },
+      { error: "Failed to reverse kit assembly" },
       { status: 500 }
     );
   }

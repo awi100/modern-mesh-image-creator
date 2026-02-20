@@ -211,7 +211,7 @@ export default function KitPage() {
         setSellNote("");
         setKitsReady((prev) => prev + assemblyQuantity);
         setAssemblyQuantity(1);
-        // Refresh both kit contents (stock changed) and sales
+        // Refresh kit contents and sales history
         fetchKit();
         fetchSales();
       } else {
@@ -240,8 +240,8 @@ export default function KitPage() {
 
   const handleDeleteSale = async (saleId: string, quantity: number = 1) => {
     const msg = quantity > 1
-      ? `Reverse this assembly of ${quantity} kits? Inventory will be restored.`
-      : "Reverse this assembly? Inventory will be restored.";
+      ? `Reverse this assembly of ${quantity} kits? Kits Ready will be decremented.`
+      : "Reverse this assembly? Kits Ready will be decremented.";
     if (!confirm(msg)) return;
 
     try {

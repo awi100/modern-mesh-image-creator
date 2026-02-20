@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/route";
-import type { SyncResult } from "@/app/api/shopify/sync/route";
 import { Breadcrumb } from "@/components/Breadcrumb";
 
 // Kit content types
@@ -59,11 +58,10 @@ function calculateDemandByDesign(orders: Order[]) {
 export default function OrdersPage() {
   const [data, setData] = useState<OrdersResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastSync, setLastSync] = useState<SyncResult | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
   const [updating, setUpdating] = useState<string | null>(null); // Track which design is being updated
+  const [fulfilling, setFulfilling] = useState<string | null>(null); // Track which order is being fulfilled
 
   // Kit data for showing what's needed to make each kit
   const [kitData, setKitData] = useState<Map<string, KitData>>(new Map());
@@ -134,25 +132,57 @@ export default function OrdersPage() {
     });
   }, [kitData.size, fetchKits]);
 
-  const handleSync = async (fullHistory = false) => {
-    setSyncing(true);
-    setLastSync(null);
+  // Fulfill an order - deduct kits and canvases
+  const handleFulfillOrder = useCallback(async (order: Order) => {
+    setFulfilling(order.shopifyOrderId);
+    setError(null);
+
     try {
-      const url = fullHistory ? "/api/shopify/sync?fullHistory=true" : "/api/shopify/sync";
-      const res = await fetch(url, { method: "POST" });
+      // Prepare items for fulfillment
+      const items = order.items
+        .filter(item => item.designId) // Only items with matching designs
+        .map(item => ({
+          designId: item.designId!,
+          quantity: item.quantity,
+          needsKit: item.needsKit,
+        }));
+
+      if (items.length === 0) {
+        setError("No items with matching designs to fulfill");
+        setFulfilling(null);
+        return;
+      }
+
+      const res = await fetch("/api/shopify/orders/fulfill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to sync");
+        throw new Error(err.error || "Failed to fulfill order");
       }
-      const result: SyncResult = await res.json();
-      setLastSync(result);
-      // Refresh orders after sync
-      fetchOrders();
+
+      // Remove the fulfilled order from the list
+      setData(prevData => {
+        if (!prevData) return prevData;
+        return {
+          ...prevData,
+          orders: prevData.orders.filter(o => o.shopifyOrderId !== order.shopifyOrderId),
+          summary: {
+            ...prevData.summary,
+            totalOrders: prevData.summary.totalOrders - 1,
+            totalKitsNeeded: prevData.summary.totalKitsNeeded - order.items.reduce((sum, item) => sum + (item.needsKit ? item.quantity : 0), 0),
+            totalCanvasesNeeded: prevData.summary.totalCanvasesNeeded - order.items.reduce((sum, item) => sum + item.quantity, 0),
+          },
+        };
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sync failed");
+      setError(err instanceof Error ? err.message : "Fulfill failed");
     }
-    setSyncing(false);
-  };
+    setFulfilling(null);
+  }, []);
 
   useEffect(() => {
     fetchOrders();
@@ -269,32 +299,6 @@ export default function OrdersPage() {
               </svg>
               Refresh
             </button>
-            <button
-              onClick={() => handleSync(false)}
-              disabled={syncing}
-              className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
-              title="Sync orders from last 30 days"
-            >
-              {syncing ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Syncing...
-                </>
-              ) : (
-                "Sync Recent"
-              )}
-            </button>
-            <button
-              onClick={() => handleSync(true)}
-              disabled={syncing}
-              className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 disabled:opacity-50 text-sm flex items-center gap-2"
-              title="Sync ALL orders from entire Shopify history"
-            >
-              Full Sync
-            </button>
           </div>
         </div>
       </header>
@@ -306,23 +310,6 @@ export default function OrdersPage() {
         {error && (
           <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg">
             <p className="text-red-400">{error}</p>
-          </div>
-        )}
-
-        {/* Sync Result */}
-        {lastSync && (
-          <div className="p-4 bg-emerald-900/30 border border-emerald-700 rounded-lg">
-            <p className="text-emerald-400 font-medium">Sync Complete</p>
-            <p className="text-sm text-slate-300 mt-1">
-              Fetched {lastSync.totalOrdersFetched || 0} orders from Shopify &middot;
-              Processed {lastSync.processedOrders} new orders &middot;
-              Deducted {lastSync.kitsDeducted} kits, {lastSync.canvasesDeducted} canvases
-            </p>
-            {lastSync.errors.length > 0 && (
-              <p className="text-sm text-yellow-400 mt-1">
-                {lastSync.errors.length} errors: {lastSync.errors.join(", ")}
-              </p>
-            )}
           </div>
         )}
 
@@ -510,7 +497,7 @@ export default function OrdersPage() {
                                     <div className="p-4 flex items-center gap-4">
                                       {kit.designId ? (
                                         <Link
-                                          href={`/design/${kit.designId}`}
+                                          href={`/design/${kit.designId}/info`}
                                           className="flex-shrink-0"
                                         >
                                           {kit.previewImageUrl ? (
@@ -539,7 +526,7 @@ export default function OrdersPage() {
                                       <div className="flex-1 min-w-0">
                                         {kit.designId ? (
                                           <Link
-                                            href={`/design/${kit.designId}`}
+                                            href={`/design/${kit.designId}/info`}
                                             className="text-white font-medium truncate hover:text-rose-400 transition-colors block"
                                           >
                                             {kit.designName || kit.productTitle}
@@ -745,7 +732,7 @@ export default function OrdersPage() {
                           return (
                             <div key={idx} className="p-4 flex items-center gap-4">
                               {canvas.designId ? (
-                                <Link href={`/design/${canvas.designId}`} className="flex-shrink-0">
+                                <Link href={`/design/${canvas.designId}/info`} className="flex-shrink-0">
                                   {canvas.previewImageUrl ? (
                                     <img
                                       src={canvas.previewImageUrl}
@@ -772,7 +759,7 @@ export default function OrdersPage() {
                               <div className="flex-1 min-w-0">
                                 {canvas.designId ? (
                                   <Link
-                                    href={`/design/${canvas.designId}`}
+                                    href={`/design/${canvas.designId}/info`}
                                     className="text-white font-medium truncate hover:text-rose-400 transition-colors block"
                                   >
                                     {canvas.designName || canvas.productTitle}
@@ -831,7 +818,7 @@ export default function OrdersPage() {
                               )}
                               {canvas.designId && (
                                 <Link
-                                  href={`/design/${canvas.designId}`}
+                                  href={`/design/${canvas.designId}/info`}
                                   className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"
                                   title="View design"
                                 >
@@ -862,7 +849,13 @@ export default function OrdersPage() {
                   (() => {
                     const demandByDesign = calculateDemandByDesign(data.orders);
                     return data.orders.map((order) => (
-                      <OrderCard key={order.shopifyOrderId} order={order} demandByDesign={demandByDesign} />
+                      <OrderCard
+                        key={order.shopifyOrderId}
+                        order={order}
+                        demandByDesign={demandByDesign}
+                        onFulfill={handleFulfillOrder}
+                        fulfilling={fulfilling === order.shopifyOrderId}
+                      />
                     ));
                   })()
                 )}
@@ -880,7 +873,14 @@ interface DemandMap {
   totalCanvasesNeeded: number;
 }
 
-function OrderCard({ order, demandByDesign }: { order: Order; demandByDesign: Map<string, DemandMap> }) {
+interface OrderCardProps {
+  order: Order;
+  demandByDesign: Map<string, DemandMap>;
+  onFulfill: (order: Order) => void;
+  fulfilling: boolean;
+}
+
+function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const kitsInOrder = order.items.reduce((sum, item) => sum + (item.needsKit ? item.quantity : 0), 0);
@@ -898,59 +898,90 @@ function OrderCard({ order, demandByDesign }: { order: Order; demandByDesign: Ma
     return item.canvasPrinted >= (demand?.totalCanvasesNeeded || item.quantity);
   });
 
+  const canFulfill = hasEnoughKitsForOrder && hasEnoughCanvasesForOrder;
+
   return (
     <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
       {/* Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full p-4 flex items-center justify-between hover:bg-slate-700/30 transition-colors"
-      >
-        <div className="flex items-center gap-4">
-          <div className="text-left">
+      <div className="p-4 flex items-center justify-between">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-1 flex items-center gap-4 text-left hover:bg-slate-700/30 transition-colors rounded-lg -m-2 p-2"
+        >
+          <div>
             <p className="text-white font-medium">{order.orderNumber}</p>
             <p className="text-sm text-slate-400">{order.customerName}</p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <p className="text-sm text-slate-300">
-              {order.items.length} {order.items.length === 1 ? "item" : "items"}
-            </p>
-            <p className="text-xs text-slate-500">
-              {new Date(order.createdAt).toLocaleDateString()}
-            </p>
-          </div>
+          <div className="flex items-center gap-4 ml-auto">
+            <div className="text-right">
+              <p className="text-sm text-slate-300">
+                {order.items.length} {order.items.length === 1 ? "item" : "items"}
+              </p>
+              <p className="text-xs text-slate-500">
+                {new Date(order.createdAt).toLocaleDateString()}
+              </p>
+            </div>
 
-          <div className="flex items-center gap-2">
-            {kitsInOrder > 0 && (
+            <div className="flex items-center gap-2">
+              {kitsInOrder > 0 && (
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  hasEnoughKitsForOrder
+                    ? "bg-emerald-900/50 text-emerald-400"
+                    : "bg-red-900/50 text-red-400"
+                }`}>
+                  {kitsInOrder} kit{kitsInOrder > 1 ? "s" : ""}
+                </span>
+              )}
               <span className={`px-2 py-1 rounded text-xs font-medium ${
-                hasEnoughKitsForOrder
+                hasEnoughCanvasesForOrder
                   ? "bg-emerald-900/50 text-emerald-400"
                   : "bg-red-900/50 text-red-400"
               }`}>
-                {kitsInOrder} kit{kitsInOrder > 1 ? "s" : ""}
+                {canvasesInOrder} canvas{canvasesInOrder > 1 ? "es" : ""}
               </span>
-            )}
-            <span className={`px-2 py-1 rounded text-xs font-medium ${
-              hasEnoughCanvasesForOrder
-                ? "bg-emerald-900/50 text-emerald-400"
-                : "bg-red-900/50 text-red-400"
-            }`}>
-              {canvasesInOrder} canvas{canvasesInOrder > 1 ? "es" : ""}
-            </span>
-          </div>
+            </div>
 
-          <svg
-            className={`w-5 h-5 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
+            <svg
+              className={`w-5 h-5 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </button>
+
+        {/* Fulfill Order Button */}
+        <button
+          onClick={() => onFulfill(order)}
+          disabled={fulfilling || !canFulfill}
+          className={`ml-4 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+            canFulfill
+              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+              : "bg-slate-700 text-slate-500 cursor-not-allowed"
+          } disabled:opacity-50`}
+          title={canFulfill ? "Mark as fulfilled and deduct inventory" : "Not enough kits or canvases ready"}
+        >
+          {fulfilling ? (
+            <>
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Fulfilling...
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Fulfill Order
+            </>
+          )}
+        </button>
+      </div>
 
       {/* Expanded Content */}
       {expanded && (
@@ -982,7 +1013,7 @@ function OrderItemRow({ item, demandByDesign }: { item: OrderItem; demandByDesig
     <div className="p-4 flex items-center gap-4">
       {/* Preview */}
       {item.designId ? (
-        <Link href={`/design/${item.designId}`} className="flex-shrink-0">
+        <Link href={`/design/${item.designId}/info`} className="flex-shrink-0">
           {item.previewImageUrl ? (
             <img
               src={item.previewImageUrl}
@@ -1011,7 +1042,7 @@ function OrderItemRow({ item, demandByDesign }: { item: OrderItem; demandByDesig
       <div className="flex-1 min-w-0">
         {item.designId ? (
           <Link
-            href={`/design/${item.designId}`}
+            href={`/design/${item.designId}/info`}
             className="text-white font-medium truncate hover:text-rose-400 transition-colors block"
           >
             {item.productTitle}

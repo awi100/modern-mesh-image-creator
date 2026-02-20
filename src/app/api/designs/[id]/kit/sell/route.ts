@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
-import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage } from "@/lib/yarn-calculator";
-import pako from "pako";
 
-const SKEIN_YARDS = 27;
-const BOBBIN_ONLY_MAX = 5; // If ≤ this many yards, it's bobbin-only
-
-// POST - Record a kit assembly and deduct inventory
+// POST - Record kit assembly (increments kitsReady)
+// Note: Thread inventory is managed manually via the inventory page
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -30,10 +25,6 @@ export async function POST(
       select: {
         id: true,
         name: true,
-        meshCount: true,
-        stitchType: true,
-        bufferPercent: true,
-        pixelData: true,
       },
     });
 
@@ -41,96 +32,46 @@ export async function POST(
       return NextResponse.json({ error: "Design not found" }, { status: 404 });
     }
 
-    // Decompress pixel data and compute yarn usage
-    const compressed = Buffer.from(design.pixelData);
-    const decompressed = pako.inflate(compressed, { to: "string" });
-    const grid: (string | null)[][] = JSON.parse(decompressed);
-
-    const stitchCounts = countStitchesByColor(grid);
-    const stitchType = design.stitchType as "continental" | "basketweave";
-    // 14 mesh / Size 5 only in internal app
-    const yarnUsage = calculateYarnUsage(
-      stitchCounts,
-      14,
-      stitchType,
-      design.bufferPercent
-    );
-
-    const threadSize = 5; // Size 5 only (14 mesh)
-
-    // Calculate actual skeins to deduct for each color
-    // For bobbin-only colors: accumulate yards across all kits, then calculate skeins
-    // For full-skein colors: multiply skeins by quantity
-    const itemsToCreate: { dmcNumber: string; skeins: number }[] = [];
-
-    for (const usage of yarnUsage) {
-      const yardsWithBuffer = usage.withBuffer;
-      const isBobbin = yardsWithBuffer <= BOBBIN_ONLY_MAX;
-
-      let skeinsToDeduct: number;
-      if (isBobbin) {
-        // Bobbin-only: accumulate yards across kits
-        const totalBobbinYards = yardsWithBuffer * qty;
-        skeinsToDeduct = Math.ceil(totalBobbinYards / SKEIN_YARDS);
-      } else {
-        // Full skeins: multiply by quantity
-        skeinsToDeduct = usage.skeinsNeeded * qty;
-      }
-
-      itemsToCreate.push({
-        dmcNumber: usage.dmcNumber,
-        skeins: skeinsToDeduct,
-      });
-    }
-
-    // Atomic transaction: create sale + deduct inventory
-    const sale = await prisma.$transaction(async (tx) => {
-      // Create the kit sale with items
-      const kitSale = await tx.kitSale.create({
+    // Create sale record and increment kitsReady in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create kit sale record for tracking history
+      const sale = await tx.kitSale.create({
         data: {
           designId: design.id,
           quantity: qty,
           note: note || null,
-          items: {
-            create: itemsToCreate,
-          },
         },
-        include: {
-          items: true,
-          design: { select: { name: true } },
+        select: {
+          id: true,
+          createdAt: true,
+          quantity: true,
+          note: true,
         },
       });
 
-      // Deduct inventory for each color
-      for (const item of itemsToCreate) {
-        await tx.inventoryItem.upsert({
-          where: {
-            dmcNumber_size: {
-              dmcNumber: item.dmcNumber,
-              size: threadSize,
-            },
-          },
-          update: {
-            skeins: { decrement: item.skeins },
-          },
-          create: {
-            dmcNumber: item.dmcNumber,
-            size: threadSize,
-            skeins: -item.skeins,
-          },
-        });
-      }
-
-      // Increment kitsReady by quantity
-      await tx.design.update({
+      // Increment kitsReady
+      const updated = await tx.design.update({
         where: { id: design.id },
         data: { kitsReady: { increment: qty } },
+        select: {
+          id: true,
+          name: true,
+          kitsReady: true,
+        },
       });
 
-      return kitSale;
+      return { sale, design: updated };
     });
 
-    return NextResponse.json(sale, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      saleId: result.sale.id,
+      designId: result.design.id,
+      designName: result.design.name,
+      kitsAdded: qty,
+      newKitsReady: result.design.kitsReady,
+      note: result.sale.note,
+    }, { status: 201 });
   } catch (error) {
     console.error("Error recording kit assembly:", error);
     return NextResponse.json(

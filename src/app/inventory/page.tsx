@@ -1186,7 +1186,7 @@ export default function InventoryPage() {
                           className="bg-slate-800 rounded-xl border border-slate-700 p-3 md:p-4 flex items-center gap-3 md:gap-4"
                         >
                           {/* Preview */}
-                          <Link href={`/design/${design.id}`} className="flex-shrink-0">
+                          <Link href={`/design/${design.id}/info`} className="flex-shrink-0">
                             {design.previewImageUrl ? (
                               <img
                                 src={design.previewImageUrl}
@@ -1204,7 +1204,7 @@ export default function InventoryPage() {
 
                           {/* Info */}
                           <div className="flex-1 min-w-0">
-                            <Link href={`/design/${design.id}`} className="text-white font-medium hover:text-rose-400 truncate block text-sm md:text-base">
+                            <Link href={`/design/${design.id}/info`} className="text-white font-medium hover:text-rose-400 truncate block text-sm md:text-base">
                               {design.name}
                             </Link>
                             <p className="text-slate-400 text-xs md:text-sm">
@@ -1322,7 +1322,7 @@ export default function InventoryPage() {
                           className="bg-slate-800 rounded-xl border border-slate-700 p-3 md:p-4 flex items-center gap-3 md:gap-4"
                         >
                           {/* Preview */}
-                          <Link href={`/design/${design.id}`} className="flex-shrink-0">
+                          <Link href={`/design/${design.id}/info`} className="flex-shrink-0">
                             {design.previewImageUrl ? (
                               <img
                                 src={design.previewImageUrl}
@@ -1340,7 +1340,7 @@ export default function InventoryPage() {
 
                           {/* Info */}
                           <div className="flex-1 min-w-0">
-                            <Link href={`/design/${design.id}`} className="text-white font-medium hover:text-rose-400 truncate block text-sm md:text-base">
+                            <Link href={`/design/${design.id}/info`} className="text-white font-medium hover:text-rose-400 truncate block text-sm md:text-base">
                               {design.name}
                             </Link>
                             <p className="text-slate-400 text-xs md:text-sm">
@@ -2147,7 +2147,7 @@ export default function InventoryPage() {
                     >
                       <div className="flex items-start gap-4">
                         {/* Preview */}
-                        <Link href={`/design/${alert.id}`} className="flex-shrink-0">
+                        <Link href={`/design/${alert.id}/info`} className="flex-shrink-0">
                           {alert.previewImageUrl ? (
                             <img
                               src={alert.previewImageUrl}
@@ -2166,7 +2166,7 @@ export default function InventoryPage() {
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-1">
-                            <Link href={`/design/${alert.id}`} className="text-white font-medium hover:text-rose-400 truncate">
+                            <Link href={`/design/${alert.id}/info`} className="text-white font-medium hover:text-rose-400 truncate">
                               {alert.name}
                             </Link>
                             <span className={`text-xs px-2 py-0.5 rounded ${

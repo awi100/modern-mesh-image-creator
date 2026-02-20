@@ -198,35 +198,15 @@ export default function KitsPage() {
       });
 
       if (res.ok) {
-        // Optimistic update: increment kitsReady and deduct inventory
+        // Optimistic update: increment kitsReady only
+        // Note: Thread inventory is managed manually via the inventory page
         mutateKits((currentKits) => {
           if (!currentKits) return currentKits;
           return currentKits.map(kit => {
             if (kit.designId !== assemblingKit.designId) return kit;
-
-            // Calculate skeins to deduct per color
-            const updatedContents = kit.kitContents.map(item => {
-              const isBobbin = item.bobbinYards > 0 && item.fullSkeins === 0;
-              let skeinsDeducted: number;
-              if (isBobbin) {
-                const totalBobbinYards = item.bobbinYards * assemblyQuantity;
-                skeinsDeducted = Math.ceil(totalBobbinYards / SKEIN_YARDS);
-              } else {
-                skeinsDeducted = item.skeinsNeeded * assemblyQuantity;
-              }
-              const newSkeins = Math.max(0, item.inventorySkeins - skeinsDeducted);
-              return {
-                ...item,
-                inventorySkeins: newSkeins,
-                inStock: newSkeins >= item.skeinsNeeded,
-              };
-            });
-
             return {
               ...kit,
               kitsReady: kit.kitsReady + assemblyQuantity,
-              kitContents: updatedContents,
-              allInStock: updatedContents.every(item => item.inStock),
             };
           });
         }, false);
@@ -238,8 +218,6 @@ export default function KitsPage() {
 
         // Revalidate to ensure data is fresh
         mutateKits();
-        mutate("/api/inventory?size=5");
-        mutate("/api/inventory?size=8");
       } else {
         const err = await res.json();
         alert(err.error || "Failed to assemble kits");
@@ -434,7 +412,7 @@ export default function KitsPage() {
                         >
                           {/* Preview image - clickable link to design */}
                           <Link
-                            href={`/design/${kit.designId}`}
+                            href={`/design/${kit.designId}/info`}
                             onClick={(e) => e.stopPropagation()}
                             className="flex-shrink-0"
                           >
@@ -456,7 +434,7 @@ export default function KitsPage() {
                           {/* Design info */}
                           <div className="flex-1 min-w-0">
                             <Link
-                              href={`/design/${kit.designId}`}
+                              href={`/design/${kit.designId}/info`}
                               onClick={(e) => e.stopPropagation()}
                               className="text-white font-semibold truncate hover:text-rose-400 transition-colors block"
                             >

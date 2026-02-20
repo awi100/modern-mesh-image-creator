@@ -283,7 +283,7 @@ export default function ColorDetailPage() {
               {colorUsage.designs.map((design) => (
                 <Link
                   key={design.id}
-                  href={`/design/${design.id}`}
+                  href={`/design/${design.id}/info`}
                   className="flex items-center gap-4 p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
                 >
                   {design.previewImageUrl ? (
