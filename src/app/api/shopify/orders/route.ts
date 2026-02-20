@@ -141,7 +141,13 @@ export async function GET() {
       for (const lineItem of shopifyOrder.lineItems.nodes) {
         const productTitle = lineItem.product?.title || lineItem.title;
         const productType = lineItem.product?.productType || null;
-        const needsKit = parseNeedsKit(lineItem.variantTitle);
+
+        // Check if this is an intro/beginner product (always includes kit)
+        const lowerTitle = productTitle.toLowerCase();
+        const isIntroProduct = lowerTitle.includes("intro") || lowerTitle.includes("beginner");
+
+        // Intro products always need a kit, otherwise check variant
+        const needsKit = isIntroProduct || parseNeedsKit(lineItem.variantTitle);
 
         // Try to match to a design or supply
         const normalizedTitle = normalizeTitle(productTitle);
