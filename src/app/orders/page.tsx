@@ -33,21 +33,21 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
-type FilterType = "all" | "kits" | "canvases";
+type FilterType = "all" | "canvases" | "kits" | "supplies";
 
-// Calculate aggregated demand per design across all orders
+// Calculate aggregated demand per design across all orders (only for canvas items)
 function calculateDemandByDesign(orders: Order[]) {
   const demand = new Map<string, { totalKitsNeeded: number; totalCanvasesNeeded: number }>();
 
   for (const order of orders) {
     for (const item of order.items) {
-      if (!item.designId) continue;
+      if (!item.designId || item.itemType !== "canvas") continue;
 
       const existing = demand.get(item.designId) || { totalKitsNeeded: 0, totalCanvasesNeeded: 0 };
       if (item.needsKit) {
         existing.totalKitsNeeded += item.quantity;
       }
-      existing.totalCanvasesNeeded += item.quantity; // All orders need canvases
+      existing.totalCanvasesNeeded += item.quantity;
       demand.set(item.designId, existing);
     }
   }
@@ -329,24 +329,28 @@ export default function OrdersPage() {
         {/* Summary */}
         {data && (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
                 <p className="text-3xl font-bold text-white">{data.summary.totalOrders}</p>
                 <p className="text-sm text-slate-400">Unfulfilled Orders</p>
               </div>
               <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <p className="text-3xl font-bold text-amber-400">{data.summary.totalKitsNeeded}</p>
-                <p className="text-sm text-slate-400">Kits Needed</p>
+                <p className="text-3xl font-bold text-blue-400">{data.summary.totalCanvasesNeeded}</p>
+                <p className="text-sm text-slate-400">Canvases</p>
               </div>
               <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <p className="text-3xl font-bold text-blue-400">{data.summary.totalCanvasesNeeded}</p>
-                <p className="text-sm text-slate-400">Canvases Needed</p>
+                <p className="text-3xl font-bold text-amber-400">{data.summary.totalKitsNeeded}</p>
+                <p className="text-sm text-slate-400">Kits</p>
+              </div>
+              <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <p className="text-3xl font-bold text-purple-400">{data.summary.totalSupplies}</p>
+                <p className="text-sm text-slate-400">Supplies</p>
               </div>
               <div className={`rounded-xl p-4 border ${data.summary.unmatchedProducts.length > 0 ? "bg-yellow-900/20 border-yellow-700" : "bg-emerald-900/20 border-emerald-700"}`}>
                 <p className={`text-3xl font-bold ${data.summary.unmatchedProducts.length > 0 ? "text-yellow-400" : "text-emerald-400"}`}>
                   {data.summary.unmatchedProducts.length}
                 </p>
-                <p className="text-sm text-slate-400">Unmatched Products</p>
+                <p className="text-sm text-slate-400">Unmatched</p>
               </div>
             </div>
 
@@ -366,7 +370,7 @@ export default function OrdersPage() {
             )}
 
             {/* Filter Buttons */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-slate-400 mr-2">Show:</span>
               <button
                 onClick={() => setFilter("all")}
@@ -379,16 +383,6 @@ export default function OrdersPage() {
                 All Orders
               </button>
               <button
-                onClick={() => setFilter("kits")}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  filter === "kits"
-                    ? "bg-amber-600 text-white"
-                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-amber-400"
-                }`}
-              >
-                Needs Kit ({data.summary.totalKitsNeeded})
-              </button>
-              <button
                 onClick={() => setFilter("canvases")}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   filter === "canvases"
@@ -396,7 +390,27 @@ export default function OrdersPage() {
                     : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-blue-400"
                 }`}
               >
-                All Canvases ({data.summary.totalCanvasesNeeded})
+                Canvases ({data.summary.totalCanvasesNeeded})
+              </button>
+              <button
+                onClick={() => setFilter("kits")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filter === "kits"
+                    ? "bg-amber-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-amber-400"
+                }`}
+              >
+                Kits ({data.summary.totalKitsNeeded})
+              </button>
+              <button
+                onClick={() => setFilter("supplies")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filter === "supplies"
+                    ? "bg-purple-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-purple-400"
+                }`}
+              >
+                Supplies ({data.summary.totalSupplies})
               </button>
             </div>
 
@@ -420,7 +434,7 @@ export default function OrdersPage() {
 
                   for (const order of data.orders) {
                     for (const item of order.items) {
-                      if (!item.needsKit) continue;
+                      if (!item.needsKit || item.itemType !== "canvas") continue;
 
                       const key = item.designId || item.productTitle;
                       const existing = kitsByDesign.get(key);
@@ -692,6 +706,9 @@ export default function OrdersPage() {
 
                   for (const order of data.orders) {
                     for (const item of order.items) {
+                      // Only include canvas items, not supplies
+                      if (item.itemType !== "canvas") continue;
+
                       const key = item.designId || item.productTitle;
                       const existing = canvasesByDesign.get(key);
                       if (existing) {
@@ -837,6 +854,78 @@ export default function OrdersPage() {
               </div>
             )}
 
+            {/* Supplies View */}
+            {filter === "supplies" && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-white">Supplies Ordered</h2>
+                {(() => {
+                  // Aggregate supply items by product title
+                  const suppliesByProduct = new Map<string, {
+                    productTitle: string;
+                    productType: string | null;
+                    quantity: number;
+                  }>();
+
+                  for (const order of data.orders) {
+                    for (const item of order.items) {
+                      if (item.itemType !== "supply") continue;
+
+                      const key = item.productTitle;
+                      const existing = suppliesByProduct.get(key);
+                      if (existing) {
+                        existing.quantity += item.quantity;
+                      } else {
+                        suppliesByProduct.set(key, {
+                          productTitle: item.productTitle,
+                          productType: item.productType,
+                          quantity: item.quantity,
+                        });
+                      }
+                    }
+                  }
+
+                  const supplies = Array.from(suppliesByProduct.values()).sort((a, b) => b.quantity - a.quantity);
+
+                  if (supplies.length === 0) {
+                    return (
+                      <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+                        <p className="text-slate-400">No supplies ordered</p>
+                        <p className="text-sm text-slate-500 mt-2">
+                          Products with type &quot;Supplies&quot;, &quot;Accessories&quot;, etc. will appear here
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                      <div className="divide-y divide-slate-700/50">
+                        {supplies.map((supply, idx) => (
+                          <div key={idx} className="p-4 flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-lg bg-purple-900/30 border border-purple-700/50 flex items-center justify-center flex-shrink-0">
+                              <svg className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-medium truncate">{supply.productTitle}</p>
+                              {supply.productType && (
+                                <p className="text-xs text-purple-400">{supply.productType}</p>
+                              )}
+                            </div>
+                            <div className="text-center px-4">
+                              <p className="text-2xl font-bold text-purple-400">{supply.quantity}</p>
+                              <p className="text-xs text-slate-400">ordered</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             {/* All Orders View */}
             {filter === "all" && (
               <div className="space-y-4">
@@ -883,22 +972,29 @@ interface OrderCardProps {
 function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const kitsInOrder = order.items.reduce((sum, item) => sum + (item.needsKit ? item.quantity : 0), 0);
-  const canvasesInOrder = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  // Only count canvas items for kits/canvases
+  const canvasItems = order.items.filter(item => item.itemType === "canvas");
+  const supplyItems = order.items.filter(item => item.itemType === "supply");
+
+  const kitsInOrder = canvasItems.reduce((sum, item) => sum + (item.needsKit ? item.quantity : 0), 0);
+  const canvasesInOrder = canvasItems.reduce((sum, item) => sum + item.quantity, 0);
+  const suppliesInOrder = supplyItems.reduce((sum, item) => sum + item.quantity, 0);
 
   // Check if we have enough kits/canvases for THIS order based on total demand
-  const hasEnoughKitsForOrder = order.items.every((item) => {
+  const hasEnoughKitsForOrder = canvasItems.every((item) => {
     if (!item.needsKit || !item.designId) return true;
     const demand = demandByDesign.get(item.designId);
     return item.kitsReady >= (demand?.totalKitsNeeded || item.quantity);
   });
-  const hasEnoughCanvasesForOrder = order.items.every((item) => {
+  const hasEnoughCanvasesForOrder = canvasItems.every((item) => {
     if (!item.designId) return true;
     const demand = demandByDesign.get(item.designId);
     return item.canvasPrinted >= (demand?.totalCanvasesNeeded || item.quantity);
   });
 
-  const canFulfill = hasEnoughKitsForOrder && hasEnoughCanvasesForOrder;
+  // Can fulfill if we have enough kits and canvases for canvas items
+  // Supplies don't block fulfillment
+  const canFulfill = (canvasItems.length === 0) || (hasEnoughKitsForOrder && hasEnoughCanvasesForOrder);
 
   return (
     <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
@@ -924,6 +1020,15 @@ function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardPr
             </div>
 
             <div className="flex items-center gap-2">
+              {canvasesInOrder > 0 && (
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  hasEnoughCanvasesForOrder
+                    ? "bg-emerald-900/50 text-emerald-400"
+                    : "bg-red-900/50 text-red-400"
+                }`}>
+                  {canvasesInOrder} canvas{canvasesInOrder > 1 ? "es" : ""}
+                </span>
+              )}
               {kitsInOrder > 0 && (
                 <span className={`px-2 py-1 rounded text-xs font-medium ${
                   hasEnoughKitsForOrder
@@ -933,13 +1038,11 @@ function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardPr
                   {kitsInOrder} kit{kitsInOrder > 1 ? "s" : ""}
                 </span>
               )}
-              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                hasEnoughCanvasesForOrder
-                  ? "bg-emerald-900/50 text-emerald-400"
-                  : "bg-red-900/50 text-red-400"
-              }`}>
-                {canvasesInOrder} canvas{canvasesInOrder > 1 ? "es" : ""}
-              </span>
+              {suppliesInOrder > 0 && (
+                <span className="px-2 py-1 rounded text-xs font-medium bg-purple-900/50 text-purple-400">
+                  {suppliesInOrder} suppl{suppliesInOrder > 1 ? "ies" : "y"}
+                </span>
+              )}
             </div>
 
             <svg

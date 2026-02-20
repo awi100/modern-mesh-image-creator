@@ -51,6 +51,7 @@ export interface ShopifyLineItem {
   product: {
     id: string;
     title: string;
+    productType: string;
   } | null;
 }
 
@@ -106,6 +107,7 @@ export async function fetchUnfulfilledOrders(cursor?: string): Promise<OrdersQue
               product {
                 id
                 title
+                productType
               }
             }
           }
@@ -154,6 +156,7 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
               product {
                 id
                 title
+                productType
               }
             }
           }

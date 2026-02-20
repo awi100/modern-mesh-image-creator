@@ -8,12 +8,16 @@ import {
   ShopifyOrderNode,
 } from "@/lib/shopify";
 
+export type ItemType = "canvas" | "supply";
+
 export interface OrderItem {
   lineItemId: string;
   productTitle: string;
   variantTitle: string | null;
   quantity: number;
   needsKit: boolean;
+  itemType: ItemType;
+  productType: string | null; // Shopify product type
   designId: string | null;
   designName: string | null;
   previewImageUrl: string | null;
@@ -38,8 +42,46 @@ export interface OrdersResponse {
     totalOrders: number;
     totalKitsNeeded: number;
     totalCanvasesNeeded: number;
+    totalSupplies: number;
     unmatchedProducts: string[];
   };
+}
+
+// Supply product types (case-insensitive matching)
+// Products with these types are classified as supplies, not canvases
+const SUPPLY_PRODUCT_TYPES = [
+  "supplies",
+  "supply",
+  "accessory",
+  "accessories",
+  "needle",
+  "needles",
+  "finisher",
+  "finishers",
+  "needle minder",
+  "needle minders",
+  "tool",
+  "tools",
+];
+
+// Classify item type based on product type and whether it matches a design
+function classifyItemType(productType: string | null, matchedDesign: boolean): ItemType {
+  // If product type indicates it's a supply, it's a supply
+  if (productType) {
+    const normalized = productType.toLowerCase().trim();
+    if (SUPPLY_PRODUCT_TYPES.some(t => normalized.includes(t))) {
+      return "supply";
+    }
+  }
+
+  // If it matches a design in our system, it's a canvas
+  if (matchedDesign) {
+    return "canvas";
+  }
+
+  // Default to canvas for unmatched products (they might be new designs not yet added)
+  // The user can see unmatched products in the warning and decide
+  return "canvas";
 }
 
 // GET - Fetch unfulfilled Shopify orders and match to designs
@@ -91,6 +133,7 @@ export async function GET() {
     const orders: Order[] = [];
     let totalKitsNeeded = 0;
     let totalCanvasesNeeded = 0;
+    let totalSupplies = 0;
     const unmatchedProducts = new Set<string>();
 
     for (const shopifyOrder of shopifyOrders) {
@@ -98,13 +141,17 @@ export async function GET() {
 
       for (const lineItem of shopifyOrder.lineItems.nodes) {
         const productTitle = lineItem.product?.title || lineItem.title;
+        const productType = lineItem.product?.productType || null;
         const needsKit = parseNeedsKit(lineItem.variantTitle);
 
         // Try to match to a design
         const normalizedTitle = normalizeTitle(productTitle);
         const matchedDesign = designMap.get(normalizedTitle);
 
-        if (!matchedDesign) {
+        // Classify item type
+        const itemType = classifyItemType(productType, !!matchedDesign);
+
+        if (!matchedDesign && itemType === "canvas") {
           unmatchedProducts.add(productTitle);
         }
 
@@ -113,7 +160,9 @@ export async function GET() {
           productTitle,
           variantTitle: lineItem.variantTitle,
           quantity: lineItem.quantity,
-          needsKit,
+          needsKit: itemType === "canvas" ? needsKit : false, // Supplies don't have kits
+          itemType,
+          productType,
           designId: matchedDesign?.id || null,
           designName: matchedDesign?.name || null,
           previewImageUrl: matchedDesign?.previewImageUrl || null,
@@ -124,11 +173,15 @@ export async function GET() {
           totalSold: matchedDesign?.totalSold || 0,
         });
 
-        // Count what's needed
-        if (needsKit) {
-          totalKitsNeeded += lineItem.quantity;
+        // Count what's needed based on item type
+        if (itemType === "canvas") {
+          if (needsKit) {
+            totalKitsNeeded += lineItem.quantity;
+          }
+          totalCanvasesNeeded += lineItem.quantity;
+        } else {
+          totalSupplies += lineItem.quantity;
         }
-        totalCanvasesNeeded += lineItem.quantity;
       }
 
       orders.push({
@@ -146,6 +199,7 @@ export async function GET() {
         totalOrders: orders.length,
         totalKitsNeeded,
         totalCanvasesNeeded,
+        totalSupplies,
         unmatchedProducts: Array.from(unmatchedProducts),
       },
     };
