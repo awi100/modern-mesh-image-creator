@@ -744,40 +744,56 @@ export default function InventoryPage() {
           <div className="flex gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 w-fit min-w-fit">
             <button
               onClick={() => setActiveTab("threads")}
-              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === "threads"
                   ? "bg-rose-900 text-white"
                   : "text-slate-400 hover:text-white hover:bg-slate-700"
               }`}
             >
               Threads
-              <span className="ml-1 md:ml-2 text-xs opacity-75">({items.length})</span>
+              <span className="ml-1 text-xs opacity-75">({items.length})</span>
             </button>
             <button
               onClick={() => setActiveTab("kits")}
-              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === "kits"
                   ? "bg-rose-900 text-white"
                   : "text-slate-400 hover:text-white hover:bg-slate-700"
               }`}
             >
               Kits
-              <span className="ml-1 md:ml-2 text-xs opacity-75">({totalKitsReady})</span>
+              <span className="ml-1 text-xs opacity-75">({totalKitsReady})</span>
             </button>
             <button
               onClick={() => setActiveTab("canvases")}
-              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === "canvases"
                   ? "bg-rose-900 text-white"
                   : "text-slate-400 hover:text-white hover:bg-slate-700"
               }`}
             >
               Canvases
-              <span className="ml-1 md:ml-2 text-xs opacity-75">({totalCanvasesPrinted})</span>
+              <span className="ml-1 text-xs opacity-75">({totalCanvasesPrinted})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("supplies")}
+              className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+                activeTab === "supplies"
+                  ? "bg-rose-900 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-700"
+              }`}
+            >
+              <svg className="w-4 h-4 flex-shrink-0 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              Supplies
+              {supplies.length > 0 && (
+                <span className="ml-1 text-xs opacity-75">({supplies.length})</span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab("alerts")}
-              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+              className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
                 activeTab === "alerts"
                   ? "bg-rose-900 text-white"
                   : "text-slate-400 hover:text-white hover:bg-slate-700"
@@ -795,13 +811,13 @@ export default function InventoryPage() {
             </button>
             <button
               onClick={() => setActiveTab("bobbins")}
-              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+              className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
                 activeTab === "bobbins"
                   ? "bg-rose-900 text-white"
                   : "text-slate-400 hover:text-white hover:bg-slate-700"
               }`}
             >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4 flex-shrink-0 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
               Bobbins
@@ -809,22 +825,6 @@ export default function InventoryPage() {
                 <span className="ml-1 text-xs opacity-75">
                   ({bobbinData.summary.totalBobbins})
                 </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("supplies")}
-              className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
-                activeTab === "supplies"
-                  ? "bg-rose-900 text-white"
-                  : "text-slate-400 hover:text-white hover:bg-slate-700"
-              }`}
-            >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              Supplies
-              {supplies.length > 0 && (
-                <span className="ml-1 text-xs opacity-75">({supplies.length})</span>
               )}
             </button>
           </div>

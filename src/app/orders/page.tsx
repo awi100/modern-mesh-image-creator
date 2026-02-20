@@ -280,25 +280,25 @@ export default function OrdersPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
             </Link>
-            <h1 className="text-xl font-bold text-white">Shopify Orders</h1>
+            <h1 className="text-lg md:text-xl font-bold text-white">Orders</h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Link
               href="/shopify"
-              className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
+              className="px-2 md:px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-xs md:text-sm"
             >
               Products
             </Link>
             <button
               onClick={fetchOrders}
               disabled={loading}
-              className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 disabled:opacity-50 text-sm flex items-center gap-2"
+              className="p-2 text-slate-400 hover:text-white disabled:opacity-50"
+              title="Refresh"
             >
-              <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Refresh
             </button>
           </div>
         </div>
@@ -371,47 +371,47 @@ export default function OrdersPage() {
             )}
 
             {/* Filter Buttons */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-slate-400 mr-2">Show:</span>
+            <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+              <span className="text-xs md:text-sm text-slate-400 mr-1 md:mr-2">Show:</span>
               <button
                 onClick={() => setFilter("all")}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-2 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors ${
                   filter === "all"
                     ? "bg-slate-600 text-white"
                     : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
                 }`}
               >
-                All Orders
+                All
               </button>
               <button
                 onClick={() => setFilter("canvases")}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-2 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors ${
                   filter === "canvases"
                     ? "bg-blue-600 text-white"
                     : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-blue-400"
                 }`}
               >
-                Canvases ({data.summary.totalCanvasesNeeded})
+                Canvases <span className="opacity-75">({data.summary.totalCanvasesNeeded})</span>
               </button>
               <button
                 onClick={() => setFilter("kits")}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-2 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors ${
                   filter === "kits"
                     ? "bg-amber-600 text-white"
                     : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-amber-400"
                 }`}
               >
-                Kits ({data.summary.totalKitsNeeded})
+                Kits <span className="opacity-75">({data.summary.totalKitsNeeded})</span>
               </button>
               <button
                 onClick={() => setFilter("supplies")}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-2 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors ${
                   filter === "supplies"
                     ? "bg-purple-600 text-white"
                     : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-purple-400"
                 }`}
               >
-                Supplies ({data.summary.totalSupplies})
+                Supplies <span className="opacity-75">({data.summary.totalSupplies})</span>
               </button>
             </div>
 
