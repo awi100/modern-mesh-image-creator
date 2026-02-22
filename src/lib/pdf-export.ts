@@ -85,9 +85,10 @@ export function exportStitchGuideImage(options: ExportOptions): string {
   const stitchCounts = countStitches(grid);
 
   // Canvas dimensions (landscape, similar to letter size ratio)
-  const canvasWidth = 2200;
-  const canvasHeight = 1700;
-  const margin = 40;
+  // Use higher resolution for cleaner grid lines
+  const canvasWidth = 3300;
+  const canvasHeight = 2550;
+  const margin = 60;
 
   const canvas = document.createElement("canvas");
   canvas.width = canvasWidth;
@@ -102,16 +103,16 @@ export function exportStitchGuideImage(options: ExportOptions): string {
 
   // --- Title at top ---
   ctx.fillStyle = "#000000";
-  ctx.font = "bold 48px Arial";
+  ctx.font = "bold 64px Arial";
   ctx.textAlign = "center";
-  ctx.fillText(designName, canvasWidth / 2, margin + 40);
+  ctx.fillText(designName, canvasWidth / 2, margin + 50);
 
-  const contentStartY = margin + 70;
+  const contentStartY = margin + 90;
   const contentHeight = canvasHeight - contentStartY - margin;
 
-  // Layout: Image on left (70%), Legend on right (30%)
-  const imageAreaWidth = (canvasWidth - 2 * margin) * 0.70;
-  const legendAreaWidth = (canvasWidth - 2 * margin) * 0.26;
+  // Layout: Image on left (72%), Legend on right (28%)
+  const imageAreaWidth = (canvasWidth - 2 * margin) * 0.72;
+  const legendAreaWidth = (canvasWidth - 2 * margin) * 0.24;
   const gapBetween = (canvasWidth - 2 * margin) * 0.04;
 
   // --- Draw the stitch image on the left ---
@@ -119,9 +120,13 @@ export function exportStitchGuideImage(options: ExportOptions): string {
   const imageY = contentStartY;
 
   // Calculate cell size to fit image in available space
+  // Ensure minimum cell size for visible grid lines
   const maxImageWidth = imageAreaWidth;
   const maxImageHeight = contentHeight;
-  const cellSize = Math.min(maxImageWidth / gridWidth, maxImageHeight / gridHeight);
+  const cellSize = Math.max(
+    Math.min(maxImageWidth / gridWidth, maxImageHeight / gridHeight),
+    4 // Minimum 4 pixels per cell for visibility
+  );
   const actualImageWidth = cellSize * gridWidth;
   const actualImageHeight = cellSize * gridHeight;
 
@@ -129,11 +134,21 @@ export function exportStitchGuideImage(options: ExportOptions): string {
   const imageOffsetX = imageX + (maxImageWidth - actualImageWidth) / 2;
   const imageOffsetY = imageY + (maxImageHeight - actualImageHeight) / 2;
 
-  // Draw pixels
+  // Draw pixels (fill cells first)
   for (let y = 0; y < gridHeight; y++) {
     for (let x = 0; x < gridWidth; x++) {
       const dmcNumber = grid[y][x];
-      if (dmcNumber === null) continue;
+      if (dmcNumber === null) {
+        // Draw empty cells with very light gray
+        ctx.fillStyle = "#FAFAFA";
+        ctx.fillRect(
+          imageOffsetX + x * cellSize,
+          imageOffsetY + y * cellSize,
+          cellSize,
+          cellSize
+        );
+        continue;
+      }
 
       const color = getDmcColorByNumber(dmcNumber);
       if (!color) continue;
@@ -148,9 +163,53 @@ export function exportStitchGuideImage(options: ExportOptions): string {
     }
   }
 
+  // Draw grid lines for each stitch
+  ctx.strokeStyle = "#CCCCCC";
+  ctx.lineWidth = 0.5;
+
+  // Vertical lines
+  for (let x = 0; x <= gridWidth; x++) {
+    const lineX = imageOffsetX + x * cellSize;
+    ctx.beginPath();
+    ctx.moveTo(lineX, imageOffsetY);
+    ctx.lineTo(lineX, imageOffsetY + actualImageHeight);
+    ctx.stroke();
+  }
+
+  // Horizontal lines
+  for (let y = 0; y <= gridHeight; y++) {
+    const lineY = imageOffsetY + y * cellSize;
+    ctx.beginPath();
+    ctx.moveTo(imageOffsetX, lineY);
+    ctx.lineTo(imageOffsetX + actualImageWidth, lineY);
+    ctx.stroke();
+  }
+
+  // Draw thicker lines every 10 stitches for easier counting
+  ctx.strokeStyle = "#888888";
+  ctx.lineWidth = 1.5;
+
+  // Vertical lines every 10
+  for (let x = 0; x <= gridWidth; x += 10) {
+    const lineX = imageOffsetX + x * cellSize;
+    ctx.beginPath();
+    ctx.moveTo(lineX, imageOffsetY);
+    ctx.lineTo(lineX, imageOffsetY + actualImageHeight);
+    ctx.stroke();
+  }
+
+  // Horizontal lines every 10
+  for (let y = 0; y <= gridHeight; y += 10) {
+    const lineY = imageOffsetY + y * cellSize;
+    ctx.beginPath();
+    ctx.moveTo(imageOffsetX, lineY);
+    ctx.lineTo(imageOffsetX + actualImageWidth, lineY);
+    ctx.stroke();
+  }
+
   // Draw border around image
   ctx.strokeStyle = "#000000";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3;
   ctx.strokeRect(imageOffsetX, imageOffsetY, actualImageWidth, actualImageHeight);
 
   // --- Draw compact legend on the right ---
@@ -158,16 +217,16 @@ export function exportStitchGuideImage(options: ExportOptions): string {
   const legendY = contentStartY;
 
   ctx.fillStyle = "#000000";
-  ctx.font = "bold 28px Arial";
+  ctx.font = "bold 36px Arial";
   ctx.textAlign = "left";
-  ctx.fillText("Legend", legendX, legendY + 25);
+  ctx.fillText("Legend", legendX, legendY + 35);
 
-  const legendStartY = legendY + 50;
-  const colorBoxSize = 36;
-  const legendLineHeight = 50;
+  const legendStartY = legendY + 70;
+  const colorBoxSize = 48;
+  const legendLineHeight = 64;
 
   // Calculate how many colors can fit
-  const maxLegendRows = Math.floor((contentHeight - 50) / legendLineHeight);
+  const maxLegendRows = Math.floor((contentHeight - 70) / legendLineHeight);
 
   usedColors.forEach((color, i) => {
     if (i >= maxLegendRows) return; // Skip if too many colors
@@ -178,30 +237,40 @@ export function exportStitchGuideImage(options: ExportOptions): string {
     ctx.fillStyle = color.hex;
     ctx.fillRect(legendX, y, colorBoxSize, colorBoxSize);
     ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.5;
     ctx.strokeRect(legendX, y, colorBoxSize, colorBoxSize);
 
     // DMC number and stitch count
     ctx.fillStyle = "#000000";
-    ctx.font = "bold 20px Arial";
+    ctx.font = "bold 26px Arial";
     const count = stitchCounts.get(color.dmcNumber) || 0;
-    ctx.fillText(`${color.dmcNumber}`, legendX + colorBoxSize + 12, y + 16);
+    ctx.fillText(`${color.dmcNumber}`, legendX + colorBoxSize + 16, y + 22);
 
-    ctx.font = "16px Arial";
+    ctx.font = "20px Arial";
     ctx.fillStyle = "#666666";
-    ctx.fillText(`${count.toLocaleString()}`, legendX + colorBoxSize + 12, y + 34);
+    ctx.fillText(`${count.toLocaleString()} stitches`, legendX + colorBoxSize + 16, y + 44);
   });
 
   // If there are more colors than fit, show a note
   if (usedColors.length > maxLegendRows) {
-    ctx.font = "16px Arial";
+    ctx.font = "22px Arial";
     ctx.fillStyle = "#888888";
     ctx.fillText(
-      `+ ${usedColors.length - maxLegendRows} more`,
+      `+ ${usedColors.length - maxLegendRows} more colors`,
       legendX,
-      legendStartY + maxLegendRows * legendLineHeight + 20
+      legendStartY + maxLegendRows * legendLineHeight + 30
     );
   }
+
+  // Add grid dimensions at the bottom
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "#666666";
+  ctx.textAlign = "center";
+  ctx.fillText(
+    `${gridWidth} × ${gridHeight} stitches`,
+    canvasWidth / 2,
+    canvasHeight - margin / 2
+  );
 
   return canvas.toDataURL("image/png");
 }
