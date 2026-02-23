@@ -101,41 +101,58 @@ function renderSingleChar(
     return { pixels: [], width: 0, height: 0 };
   }
 
+  // Use a larger base size for better quality rendering
   const fontStyle = `${italic ? "italic " : ""}${bold ? "bold " : ""}`;
-  const baseSize = 200;
+  const baseSize = 300;
   ctx.font = `${fontStyle}${baseSize}px ${fontFamily}`;
 
   const metrics = ctx.measureText(char);
   const charWidth = metrics.width;
-  const textHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+  // Use actualBoundingBox metrics for accurate sizing
+  const ascent = metrics.actualBoundingBoxAscent || baseSize * 0.8;
+  const descent = metrics.actualBoundingBoxDescent || baseSize * 0.2;
+  const textHeight = ascent + descent;
 
   if (textHeight === 0 || charWidth === 0) {
     return { pixels: [], width: 0, height: 0 };
   }
 
+  // Scale based on desired height
   const scale = heightInStitches / textHeight;
-  const finalWidth = Math.ceil(charWidth * scale) + 4; // Add buffer for width
-  // Add extra height buffer to ensure text isn't cut off (will be trimmed later)
-  const heightBuffer = Math.max(4, Math.ceil(heightInStitches * 0.3));
-  const canvasHeight = heightInStitches + heightBuffer;
+
+  // Add generous buffers to prevent any clipping
+  const widthBuffer = Math.max(8, Math.ceil(charWidth * scale * 0.3));
+  const heightBuffer = Math.max(8, Math.ceil(heightInStitches * 0.5));
+
+  const finalWidth = Math.ceil(charWidth * scale) + widthBuffer;
+  const canvasHeight = heightInStitches + heightBuffer * 2;
 
   canvas.width = finalWidth;
   canvas.height = canvasHeight;
 
+  // Fill with white background
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, finalWidth, canvasHeight);
 
+  // Set up scaled font
   const scaledFontSize = baseSize * scale;
   ctx.font = `${fontStyle}${scaledFontSize}px ${fontFamily}`;
   ctx.fillStyle = "black";
-  ctx.textBaseline = "top";
 
+  // Use alphabetic baseline for consistent positioning
+  ctx.textBaseline = "alphabetic";
+
+  // Get scaled metrics
   const scaledMetrics = ctx.measureText(char);
-  // Center the text vertically within the canvas, accounting for buffer
-  const actualTextHeight = scaledMetrics.actualBoundingBoxAscent + scaledMetrics.actualBoundingBoxDescent;
-  const yOffset = Math.max(0, (canvasHeight - actualTextHeight) / 2);
+  const scaledAscent = scaledMetrics.actualBoundingBoxAscent || scaledFontSize * 0.8;
+  const scaledDescent = scaledMetrics.actualBoundingBoxDescent || scaledFontSize * 0.2;
+  const totalScaledHeight = scaledAscent + scaledDescent;
 
-  ctx.fillText(char, 2, yOffset); // Small offset from left edge
+  // Position text: center it vertically, baseline positioned correctly
+  const xPos = widthBuffer / 4;
+  const yPos = heightBuffer + scaledAscent + (heightInStitches - totalScaledHeight) / 2;
+
+  ctx.fillText(char, xPos, yPos);
 
   const imageData = ctx.getImageData(0, 0, finalWidth, canvasHeight);
   const pixels: (string | null)[][] = [];
@@ -145,7 +162,8 @@ function renderSingleChar(
     for (let x = 0; x < finalWidth; x++) {
       const i = (y * finalWidth + x) * 4;
       const brightness = (imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2]) / 3;
-      pixels[y][x] = brightness < 200 ? dmcNumber : null;
+      // Use a slightly higher threshold for cleaner edges
+      pixels[y][x] = brightness < 180 ? dmcNumber : null;
     }
   }
 

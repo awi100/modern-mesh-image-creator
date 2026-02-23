@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useEditorStore } from "@/lib/store";
-import { getDmcColorByNumber, DMC_PEARL_COTTON, DmcColor } from "@/lib/dmc-pearl-cotton";
+import { getDmcColorByNumber, DMC_PEARL_COTTON, DmcColor, searchDmcColors } from "@/lib/dmc-pearl-cotton";
 import {
   renderTextToPixels,
   addBorder,
@@ -10,6 +10,99 @@ import {
   RenderedText,
   BorderOptions,
 } from "@/lib/text-renderer";
+
+// Helper to get contrasting text color
+function getContrastColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? "#000000" : "#FFFFFF";
+}
+
+// Color picker component for text
+function TextColorPicker({
+  currentColor,
+  onSelect,
+  onClose,
+}: {
+  currentColor: DmcColor | null;
+  onSelect: (color: DmcColor) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+
+  const filteredColors = useMemo(() => {
+    if (!search.trim()) {
+      // Show common colors first when no search
+      const common = ["310", "blanc", "ecru", "321", "815", "666", "817", "349", "498", "3801"];
+      const commonColors = common
+        .map(num => DMC_PEARL_COTTON.find(c => c.dmcNumber === num))
+        .filter(Boolean) as DmcColor[];
+      return [...commonColors, ...DMC_PEARL_COTTON.filter(c => !common.includes(c.dmcNumber))];
+    }
+    return searchDmcColors(search);
+  }, [search]);
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Select Text Color</h3>
+            <button
+              onClick={onClose}
+              className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by DMC number or color name..."
+            className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-800"
+            autoFocus
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+            {filteredColors.slice(0, 100).map((color: DmcColor) => (
+              <button
+                key={color.dmcNumber}
+                onClick={() => onSelect(color)}
+                className={`p-2 rounded-lg border-2 transition-all text-center ${
+                  currentColor?.dmcNumber === color.dmcNumber
+                    ? "border-rose-500 ring-2 ring-rose-500/30"
+                    : "border-slate-200 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-400"
+                }`}
+              >
+                <div
+                  className="w-full aspect-square rounded-md mb-1 flex items-center justify-center text-xs font-bold"
+                  style={{ backgroundColor: color.hex, color: getContrastColor(color.hex) }}
+                >
+                  {color.dmcNumber}
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 truncate" title={color.name}>
+                  {color.name.length > 10 ? color.name.slice(0, 10) + "..." : color.name}
+                </p>
+              </button>
+            ))}
+          </div>
+          {filteredColors.length > 100 && (
+            <p className="text-center text-sm text-slate-500 mt-3">
+              Showing first 100 results. Search to narrow down.
+            </p>
+          )}
+          {filteredColors.length === 0 && (
+            <p className="text-center text-slate-500 py-8">No colors found</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface AddTextDialogProps {
   onClose: () => void;
@@ -388,37 +481,14 @@ export default function AddTextDialog({ onClose, onAddText }: AddTextDialogProps
 
       {/* Color picker modal */}
       {showColorPicker && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 w-full max-w-md max-h-[80vh] overflow-auto">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Select Color</h3>
-              <button
-                onClick={() => setShowColorPicker(false)}
-                className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="grid grid-cols-8 gap-1">
-              {DMC_PEARL_COTTON.map((color: DmcColor) => (
-                <button
-                  key={color.dmcNumber}
-                  onClick={() => {
-                    setCurrentColor(color);
-                    setShowColorPicker(false);
-                  }}
-                  className={`w-8 h-8 rounded border-2 transition-all ${
-                    currentColor?.dmcNumber === color.dmcNumber
-                      ? "border-rose-500 scale-110"
-                      : "border-transparent hover:border-slate-400"
-                  }`}
-                  style={{ backgroundColor: color.hex }}
-                  title={`DMC ${color.dmcNumber} - ${color.name}`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
+        <TextColorPicker
+          currentColor={currentColor}
+          onSelect={(color) => {
+            setCurrentColor(color);
+            setShowColorPicker(false);
+          }}
+          onClose={() => setShowColorPicker(false)}
+        />
       )}
     </div>
   );
