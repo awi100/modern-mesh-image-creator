@@ -113,6 +113,7 @@ export default function KitPage() {
   const [sellNote, setSellNote] = useState("");
   const [assemblyQuantity, setAssemblyQuantity] = useState(1);
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
+  const [pendingInventory, setPendingInventory] = useState<Record<string, string>>({});
 
   const fetchKit = async () => {
     try {
@@ -191,6 +192,20 @@ export default function KitPage() {
     }
     setUpdatingInventory(null);
   }, [updatingInventory, design, kitContents]);
+
+  const handleSetInventory = useCallback(async (dmcNumber: string, value: number) => {
+    const item = kitContents.find((i) => i.dmcNumber === dmcNumber);
+    if (!item) return;
+
+    const newVal = Math.max(0, value);
+    const delta = newVal - item.inventorySkeins;
+
+    if (delta !== 0) {
+      await handleUpdateInventory(dmcNumber, delta);
+    }
+    // Clear pending value
+    setPendingInventory((prev) => { const next = { ...prev }; delete next[dmcNumber]; return next; });
+  }, [kitContents, handleUpdateInventory]);
 
   useEffect(() => {
     fetchKit();
@@ -505,23 +520,48 @@ export default function KitPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="inline-flex items-center gap-2">
+                      <div className="inline-flex items-center gap-1">
                         <button
                           onClick={() => handleUpdateInventory(item.dmcNumber, -1)}
                           disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
-                          className="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-sm font-bold"
+                          className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Remove 1"
                         >
-                          −
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                          </svg>
                         </button>
-                        <span className={`text-sm font-medium w-8 text-center ${item.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                          {item.inventorySkeins}
-                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={pendingInventory[item.dmcNumber] ?? item.inventorySkeins}
+                          onChange={(e) => setPendingInventory((prev) => ({ ...prev, [item.dmcNumber]: e.target.value }))}
+                          onBlur={() => {
+                            const val = pendingInventory[item.dmcNumber];
+                            if (val !== undefined) {
+                              handleSetInventory(item.dmcNumber, Number(val));
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const val = pendingInventory[item.dmcNumber];
+                              if (val !== undefined) {
+                                handleSetInventory(item.dmcNumber, Number(val));
+                              }
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
+                        />
                         <button
                           onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
                           disabled={updatingInventory === item.dmcNumber}
-                          className="w-6 h-6 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-sm font-bold"
+                          className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Add 1"
                         >
-                          +
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
                         </button>
                         {!item.inStock && (
                           <span className="text-red-400 text-xs ml-1">/{item.skeinsNeeded}</span>
@@ -573,19 +613,44 @@ export default function KitPage() {
                     <button
                       onClick={() => handleUpdateInventory(item.dmcNumber, -1)}
                       disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
-                      className="w-5 h-5 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xs font-bold"
+                      className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Remove 1"
                     >
-                      −
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                      </svg>
                     </button>
-                    <span className={`text-xs font-medium w-5 text-center ${item.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                      {item.inventorySkeins}
-                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={pendingInventory[item.dmcNumber] ?? item.inventorySkeins}
+                      onChange={(e) => setPendingInventory((prev) => ({ ...prev, [item.dmcNumber]: e.target.value }))}
+                      onBlur={() => {
+                        const val = pendingInventory[item.dmcNumber];
+                        if (val !== undefined) {
+                          handleSetInventory(item.dmcNumber, Number(val));
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const val = pendingInventory[item.dmcNumber];
+                          if (val !== undefined) {
+                            handleSetInventory(item.dmcNumber, Number(val));
+                          }
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                      className={`w-10 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
+                    />
                     <button
                       onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
                       disabled={updatingInventory === item.dmcNumber}
-                      className="w-5 h-5 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xs font-bold"
+                      className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Add 1"
                     >
-                      +
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
                     </button>
                     {!item.inStock && (
                       <span className="text-red-400 text-xs">/{item.skeinsNeeded}</span>

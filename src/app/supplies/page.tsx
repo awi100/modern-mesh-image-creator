@@ -28,6 +28,7 @@ export default function SuppliesPage() {
     quantity: 0,
   });
   const [saving, setSaving] = useState(false);
+  const [pendingQuantity, setPendingQuantity] = useState<Record<string, string>>({});
 
   const fetchSupplies = useCallback(async () => {
     try {
@@ -125,6 +126,20 @@ export default function SuppliesPage() {
       // Revert on error
       fetchSupplies();
     }
+  };
+
+  const handleSetQuantity = async (id: string, value: number) => {
+    const supply = supplies.find((s) => s.id === id);
+    if (!supply) return;
+
+    const newVal = Math.max(0, value);
+    const delta = newVal - supply.quantity;
+
+    if (delta !== 0) {
+      await handleQuantityChange(id, delta);
+    }
+    // Clear pending value
+    setPendingQuantity((prev) => { const next = { ...prev }; delete next[id]; return next; });
   };
 
   const cancelForm = () => {
@@ -356,25 +371,47 @@ export default function SuppliesPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleQuantityChange(supply.id, -1)}
                       disabled={supply.quantity <= 0}
-                      className="w-8 h-8 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                      className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Remove 1"
                     >
-                      −
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                      </svg>
                     </button>
-                    <div className="text-center w-16">
-                      <p className="text-2xl font-bold text-purple-400">
-                        {supply.quantity}
-                      </p>
-                      <p className="text-xs text-slate-400">in stock</p>
-                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      value={pendingQuantity[supply.id] ?? supply.quantity}
+                      onChange={(e) => setPendingQuantity((prev) => ({ ...prev, [supply.id]: e.target.value }))}
+                      onBlur={() => {
+                        const val = pendingQuantity[supply.id];
+                        if (val !== undefined) {
+                          handleSetQuantity(supply.id, Number(val));
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const val = pendingQuantity[supply.id];
+                          if (val !== undefined) {
+                            handleSetQuantity(supply.id, Number(val));
+                          }
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                      className="w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-800"
+                    />
                     <button
                       onClick={() => handleQuantityChange(supply.id, 1)}
-                      className="w-8 h-8 rounded bg-purple-700 hover:bg-purple-600 flex items-center justify-center text-white font-bold"
+                      className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                      title="Add 1"
                     >
-                      +
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
                     </button>
                   </div>
 

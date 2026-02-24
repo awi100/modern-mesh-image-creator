@@ -63,6 +63,10 @@ export default function OrdersPage() {
   const [updating, setUpdating] = useState<string | null>(null); // Track which design is being updated
   const [fulfilling, setFulfilling] = useState<string | null>(null); // Track which order is being fulfilled
 
+  // Track pending values being typed
+  const [pendingKits, setPendingKits] = useState<Record<string, string>>({});
+  const [pendingCanvases, setPendingCanvases] = useState<Record<string, string>>({});
+
   // Kit data for showing what's needed to make each kit
   const [kitData, setKitData] = useState<Map<string, KitData>>(new Map());
   const [loadingKits, setLoadingKits] = useState(false);
@@ -268,6 +272,36 @@ export default function OrdersPage() {
       pendingUpdates.current.set(key, { field, delta, timeout });
     }
   }, [sendUpdate]);
+
+  // Set an absolute value for kitsReady or canvasPrinted
+  const handleSetValue = useCallback((designId: string, field: "kitsReady" | "canvasPrinted", value: number) => {
+    // Find current value from data
+    let currentValue = 0;
+    if (data) {
+      for (const order of data.orders) {
+        for (const item of order.items) {
+          if (item.designId === designId) {
+            currentValue = field === "kitsReady" ? item.kitsReady : item.canvasPrinted;
+            break;
+          }
+        }
+      }
+    }
+
+    const newVal = Math.max(0, value);
+    const delta = newVal - currentValue;
+
+    if (delta !== 0) {
+      handleUpdateCount(designId, field, delta);
+    }
+
+    // Clear pending value
+    if (field === "kitsReady") {
+      setPendingKits((prev) => { const next = { ...prev }; delete next[designId]; return next; });
+    } else {
+      setPendingCanvases((prev) => { const next = { ...prev }; delete next[designId]; return next; });
+    }
+  }, [data, handleUpdateCount]);
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -579,29 +613,60 @@ export default function OrdersPage() {
                                         <p className="text-xs text-slate-400">needed</p>
                                       </div>
                                       <div className="text-center px-4">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1">
                                           {kit.designId && (
                                             <button
                                               onClick={() => handleUpdateCount(kit.designId!, "kitsReady", -1)}
                                               disabled={updating === kit.designId || kit.kitsReady <= 0}
-                                              className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                              className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                              title="Remove 1"
                                             >
-                                              −
+                                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                              </svg>
                                             </button>
                                           )}
-                                          <div>
-                                            <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
-                                              {kit.kitsReady}
-                                            </p>
+                                          <div className="text-center">
+                                            {kit.designId ? (
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                value={pendingKits[kit.designId] ?? kit.kitsReady}
+                                                onChange={(e) => setPendingKits((prev) => ({ ...prev, [kit.designId!]: e.target.value }))}
+                                                onBlur={() => {
+                                                  const val = pendingKits[kit.designId!];
+                                                  if (val !== undefined) {
+                                                    handleSetValue(kit.designId!, "kitsReady", Number(val));
+                                                  }
+                                                }}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Enter") {
+                                                    const val = pendingKits[kit.designId!];
+                                                    if (val !== undefined) {
+                                                      handleSetValue(kit.designId!, "kitsReady", Number(val));
+                                                    }
+                                                    (e.target as HTMLInputElement).blur();
+                                                  }
+                                                }}
+                                                className={`w-14 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-emerald-600 ${hasEnough ? "text-emerald-400" : "text-red-400"}`}
+                                              />
+                                            ) : (
+                                              <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                                {kit.kitsReady}
+                                              </p>
+                                            )}
                                             <p className="text-xs text-slate-400">ready</p>
                                           </div>
                                           {kit.designId && (
                                             <button
                                               onClick={() => handleUpdateCount(kit.designId!, "kitsReady", 1)}
                                               disabled={updating === kit.designId}
-                                              className="w-7 h-7 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                              className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                              title="Add 1"
                                             >
-                                              +
+                                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                              </svg>
                                             </button>
                                           )}
                                         </div>
@@ -801,29 +866,60 @@ export default function OrdersPage() {
                                 <p className="text-xs text-slate-400">canvases</p>
                               </div>
                               <div className="text-center px-4">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
                                   {canvas.designId && (
                                     <button
                                       onClick={() => handleUpdateCount(canvas.designId!, "canvasPrinted", -1)}
                                       disabled={updating === canvas.designId || canvas.canvasPrinted <= 0}
-                                      className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                      className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                      title="Remove 1"
                                     >
-                                      −
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                      </svg>
                                     </button>
                                   )}
-                                  <div>
-                                    <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
-                                      {canvas.canvasPrinted}
-                                    </p>
+                                  <div className="text-center">
+                                    {canvas.designId ? (
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={pendingCanvases[canvas.designId] ?? canvas.canvasPrinted}
+                                        onChange={(e) => setPendingCanvases((prev) => ({ ...prev, [canvas.designId!]: e.target.value }))}
+                                        onBlur={() => {
+                                          const val = pendingCanvases[canvas.designId!];
+                                          if (val !== undefined) {
+                                            handleSetValue(canvas.designId!, "canvasPrinted", Number(val));
+                                          }
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") {
+                                            const val = pendingCanvases[canvas.designId!];
+                                            if (val !== undefined) {
+                                              handleSetValue(canvas.designId!, "canvasPrinted", Number(val));
+                                            }
+                                            (e.target as HTMLInputElement).blur();
+                                          }
+                                        }}
+                                        className={`w-14 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 ${hasEnough ? "text-emerald-400" : "text-red-400"}`}
+                                      />
+                                    ) : (
+                                      <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                        {canvas.canvasPrinted}
+                                      </p>
+                                    )}
                                     <p className="text-xs text-slate-400">printed</p>
                                   </div>
                                   {canvas.designId && (
                                     <button
                                       onClick={() => handleUpdateCount(canvas.designId!, "canvasPrinted", 1)}
                                       disabled={updating === canvas.designId}
-                                      className="w-7 h-7 rounded bg-blue-700 hover:bg-blue-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold"
+                                      className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                      title="Add 1"
                                     >
-                                      +
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                      </svg>
                                     </button>
                                   )}
                                 </div>
