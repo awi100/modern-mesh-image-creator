@@ -79,8 +79,8 @@ export interface OrdersQueryResult {
   };
 }
 
-// Fetch unfulfilled orders from Shopify
-export async function fetchUnfulfilledOrders(cursor?: string): Promise<OrdersQueryResult> {
+// Fetch unfulfilled orders from Shopify (with pagination, capped at 200)
+export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
   const query = `
     query GetUnfulfilledOrders($cursor: String) {
       orders(
@@ -120,7 +120,30 @@ export async function fetchUnfulfilledOrders(cursor?: string): Promise<OrdersQue
     }
   `;
 
-  return shopifyGraphQL<OrdersQueryResult>(query, { cursor });
+  // Fetch all pages up to 200 orders
+  const allOrders: ShopifyOrderNode[] = [];
+  let cursor: string | undefined;
+  let hasMore = true;
+
+  while (hasMore) {
+    const result = await shopifyGraphQL<OrdersQueryResult>(query, { cursor });
+    allOrders.push(...result.orders.nodes);
+    hasMore = result.orders.pageInfo.hasNextPage;
+    cursor = result.orders.pageInfo.endCursor || undefined;
+
+    // Cap at 200 orders
+    if (allOrders.length >= 200) {
+      console.warn("Reached limit of 200 unfulfilled orders");
+      break;
+    }
+  }
+
+  return {
+    orders: {
+      nodes: allOrders.slice(0, 200),
+      pageInfo: { hasNextPage: false, endCursor: null },
+    },
+  };
 }
 
 // Fetch recently fulfilled orders (to sync fulfillment status)
