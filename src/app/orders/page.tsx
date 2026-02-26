@@ -66,6 +66,8 @@ export default function OrdersPage() {
   // Track pending values being typed
   const [pendingKits, setPendingKits] = useState<Record<string, string>>({});
   const [pendingCanvases, setPendingCanvases] = useState<Record<string, string>>({});
+  const [pendingInventory, setPendingInventory] = useState<Record<string, string>>({});
+  const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
 
   // Kit data for showing what's needed to make each kit
   const [kitData, setKitData] = useState<Map<string, KitData>>(new Map());
@@ -302,6 +304,75 @@ export default function OrdersPage() {
       setPendingCanvases((prev) => { const next = { ...prev }; delete next[designId]; return next; });
     }
   }, [data, handleUpdateCount]);
+
+  // Update thread inventory for a kit color
+  const handleUpdateInventory = useCallback(async (dmcNumber: string, delta: number) => {
+    if (updatingInventory === dmcNumber) return;
+
+    setUpdatingInventory(dmcNumber);
+    const size = 5; // Size 5 only in internal app (14 mesh)
+
+    // Optimistic update in kitData
+    setKitData(prevKitData => {
+      const newMap = new Map(prevKitData);
+      for (const [designId, kit] of newMap) {
+        const updatedContents = kit.kitContents.map(item => {
+          if (item.dmcNumber !== dmcNumber) return item;
+          const newSkeins = Math.max(0, item.inventorySkeins + delta);
+          return {
+            ...item,
+            inventorySkeins: newSkeins,
+            inStock: newSkeins >= item.skeinsNeeded,
+          };
+        });
+        newMap.set(designId, {
+          ...kit,
+          kitContents: updatedContents,
+          allInStock: updatedContents.every(i => i.inStock),
+        });
+      }
+      return newMap;
+    });
+
+    try {
+      const res = await fetch("/api/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dmcNumber, size, delta }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update inventory");
+      }
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      // Revert by refetching kits
+      fetchKits();
+    }
+    setUpdatingInventory(null);
+  }, [updatingInventory, fetchKits]);
+
+  // Set absolute inventory value for a kit color
+  const handleSetInventory = useCallback(async (dmcNumber: string, value: number) => {
+    // Find current value from kitData
+    let currentValue = 0;
+    for (const kit of kitData.values()) {
+      const item = kit.kitContents.find(i => i.dmcNumber === dmcNumber);
+      if (item) {
+        currentValue = item.inventorySkeins;
+        break;
+      }
+    }
+
+    const newVal = Math.max(0, value);
+    const delta = newVal - currentValue;
+
+    if (delta !== 0) {
+      await handleUpdateInventory(dmcNumber, delta);
+    }
+    // Clear pending value
+    setPendingInventory((prev) => { const next = { ...prev }; delete next[dmcNumber]; return next; });
+  }, [kitData, handleUpdateInventory]);
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -704,34 +775,71 @@ export default function OrdersPage() {
                                                   {kitInfo.allInStock ? "All in stock" : "Some out of stock"}
                                                 </span>
                                               </div>
-                                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                 {kitInfo.kitContents.map((item) => (
-                                                  <Link
+                                                  <div
                                                     key={item.dmcNumber}
-                                                    href={`/inventory/color/${item.dmcNumber}`}
-                                                    className={`flex items-center gap-2 p-2 rounded text-xs hover:ring-1 hover:ring-rose-500 transition-all ${
+                                                    className={`flex items-center gap-2 p-2 rounded text-xs ${
                                                       item.inStock ? "bg-slate-800" : "bg-red-900/30"
                                                     }`}
                                                   >
-                                                    <div
-                                                      className="w-4 h-4 rounded flex-shrink-0 border border-slate-600"
+                                                    <Link
+                                                      href={`/inventory/color/${item.dmcNumber}`}
+                                                      className="w-6 h-6 rounded flex-shrink-0 border border-slate-600 hover:ring-1 hover:ring-rose-500"
                                                       style={{ backgroundColor: item.hex }}
+                                                      title={`View DMC ${item.dmcNumber}`}
                                                     />
                                                     <div className="min-w-0 flex-1">
-                                                      <p className="text-white font-medium truncate">{item.dmcNumber}</p>
-                                                      <p className="text-slate-500 truncate">{item.colorName}</p>
-                                                    </div>
-                                                    <div className="text-right flex-shrink-0">
-                                                      {item.fullSkeins > 0 ? (
-                                                        <p className="text-slate-300">{item.fullSkeins} sk</p>
-                                                      ) : (
-                                                        <p className="text-slate-400">{item.bobbinYards}y</p>
-                                                      )}
-                                                      <p className={`text-xs ${item.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                                                        {item.inventorySkeins} in stock
+                                                      <p className="text-white font-medium truncate">{item.dmcNumber} - {item.colorName}</p>
+                                                      <p className="text-slate-500">
+                                                        {item.fullSkeins > 0 ? `${item.fullSkeins} sk needed` : `${item.bobbinYards}y bobbin`}
                                                       </p>
                                                     </div>
-                                                  </Link>
+                                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                                      <button
+                                                        onClick={() => handleUpdateInventory(item.dmcNumber, -1)}
+                                                        disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
+                                                        className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                        title="Remove 1"
+                                                      >
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                                        </svg>
+                                                      </button>
+                                                      <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={pendingInventory[item.dmcNumber] ?? item.inventorySkeins}
+                                                        onChange={(e) => setPendingInventory((prev) => ({ ...prev, [item.dmcNumber]: e.target.value }))}
+                                                        onBlur={() => {
+                                                          const val = pendingInventory[item.dmcNumber];
+                                                          if (val !== undefined) {
+                                                            handleSetInventory(item.dmcNumber, Number(val));
+                                                          }
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                          if (e.key === "Enter") {
+                                                            const val = pendingInventory[item.dmcNumber];
+                                                            if (val !== undefined) {
+                                                              handleSetInventory(item.dmcNumber, Number(val));
+                                                            }
+                                                            (e.target as HTMLInputElement).blur();
+                                                          }
+                                                        }}
+                                                        className={`w-10 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
+                                                      />
+                                                      <button
+                                                        onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
+                                                        disabled={updatingInventory === item.dmcNumber}
+                                                        className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                        title="Add 1"
+                                                      >
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                        </svg>
+                                                      </button>
+                                                    </div>
+                                                  </div>
                                                 ))}
                                               </div>
                                             </div>
