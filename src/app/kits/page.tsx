@@ -90,6 +90,7 @@ export default function KitsPage() {
   const [assemblyQuantity, setAssemblyQuantity] = useState(1);
   const [assemblyNote, setAssemblyNote] = useState("");
   const [isAssembling, setIsAssembling] = useState(false);
+  const [pendingInventory, setPendingInventory] = useState<Record<string, string>>({});
 
   // Use refs for debounced inventory updates to handle rapid clicks
   const pendingInventoryUpdates = useRef<Map<string, { delta: number; timeout: NodeJS.Timeout }>>(new Map());
@@ -184,6 +185,33 @@ export default function KitsPage() {
       pendingInventoryUpdates.current.set(key, { delta, timeout });
     }
   }, [mutateKits, sendInventoryUpdate]);
+
+  // Set absolute inventory value for a color
+  const handleSetInventory = useCallback((dmcNumber: string, meshCount: number, value: number) => {
+    // Find current value from kits data
+    let currentValue = 0;
+    if (kits) {
+      for (const kit of kits) {
+        if (kit.meshCount === meshCount) {
+          const item = kit.kitContents.find(i => i.dmcNumber === dmcNumber);
+          if (item) {
+            currentValue = item.inventorySkeins;
+            break;
+          }
+        }
+      }
+    }
+
+    const newVal = Math.max(0, value);
+    const delta = newVal - currentValue;
+
+    if (delta !== 0) {
+      handleUpdateInventory(dmcNumber, meshCount, delta);
+    }
+    // Clear pending value
+    const key = `${dmcNumber}-${meshCount}`;
+    setPendingInventory((prev) => { const next = { ...prev }; delete next[key]; return next; });
+  }, [kits, handleUpdateInventory]);
 
   // Handle kit assembly
   const handleAssembleKit = useCallback(async () => {
@@ -525,7 +553,7 @@ export default function KitsPage() {
                                           }
                                         </p>
                                       </div>
-                                      {/* Inventory with +/- buttons */}
+                                      {/* Inventory with +/- buttons and editable input */}
                                       <div className="flex items-center gap-1 flex-shrink-0">
                                         <button
                                           onClick={(e) => {
@@ -533,24 +561,53 @@ export default function KitsPage() {
                                             handleUpdateInventory(item.dmcNumber, kit.meshCount, -1);
                                           }}
                                           disabled={isUpdating || item.inventorySkeins <= 0}
-                                          className="w-5 h-5 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xs font-bold"
+                                          className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                          title="Remove 1"
                                         >
-                                          −
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                          </svg>
                                         </button>
-                                        <span className={`text-xs font-medium w-6 text-center ${
-                                          item.inStock ? "text-emerald-400" : "text-red-400"
-                                        }`}>
-                                          {item.inventorySkeins}
-                                        </span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={pendingInventory[`${item.dmcNumber}-${kit.meshCount}`] ?? item.inventorySkeins}
+                                          onClick={(e) => e.stopPropagation()}
+                                          onChange={(e) => {
+                                            const key = `${item.dmcNumber}-${kit.meshCount}`;
+                                            setPendingInventory((prev) => ({ ...prev, [key]: e.target.value }));
+                                          }}
+                                          onBlur={() => {
+                                            const key = `${item.dmcNumber}-${kit.meshCount}`;
+                                            const val = pendingInventory[key];
+                                            if (val !== undefined) {
+                                              handleSetInventory(item.dmcNumber, kit.meshCount, Number(val));
+                                            }
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                              const key = `${item.dmcNumber}-${kit.meshCount}`;
+                                              const val = pendingInventory[key];
+                                              if (val !== undefined) {
+                                                handleSetInventory(item.dmcNumber, kit.meshCount, Number(val));
+                                              }
+                                              (e.target as HTMLInputElement).blur();
+                                            }
+                                          }}
+                                          className={`w-10 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
+                                        />
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             handleUpdateInventory(item.dmcNumber, kit.meshCount, 1);
                                           }}
                                           disabled={isUpdating}
-                                          className="w-5 h-5 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xs font-bold"
+                                          className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                          title="Add 1"
                                         >
-                                          +
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                          </svg>
                                         </button>
                                       </div>
                                     </div>
