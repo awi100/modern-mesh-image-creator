@@ -62,6 +62,23 @@ interface KitSale {
   design: { id: string; name: string };
 }
 
+interface ColorDesignUsage {
+  id: string;
+  name: string;
+  previewImageUrl: string | null;
+  meshCount: number;
+  stitchCount: number;
+  skeinsNeeded: number;
+  yardsWithBuffer: number;
+  fullSkeins: number;
+  bobbinYards: number;
+}
+
+interface ColorUsage {
+  dmcNumber: string;
+  designs: ColorDesignUsage[];
+}
+
 const SKEIN_YARDS = 27;
 const BOBBIN_ONLY_MAX = 5;
 
@@ -114,6 +131,8 @@ export default function KitPage() {
   const [assemblyQuantity, setAssemblyQuantity] = useState(1);
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
   const [pendingInventory, setPendingInventory] = useState<Record<string, string>>({});
+  const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
+  const [colorUsage, setColorUsage] = useState<Map<string, ColorDesignUsage[]>>(new Map());
 
   const fetchKit = async () => {
     try {
@@ -141,6 +160,22 @@ export default function KitPage() {
       }
     } catch (error) {
       console.error("Error fetching sales:", error);
+    }
+  };
+
+  const fetchColorUsage = async () => {
+    try {
+      const res = await fetch("/api/colors/usage");
+      if (res.ok) {
+        const data: ColorUsage[] = await res.json();
+        const usageMap = new Map<string, ColorDesignUsage[]>();
+        for (const usage of data) {
+          usageMap.set(usage.dmcNumber, usage.designs);
+        }
+        setColorUsage(usageMap);
+      }
+    } catch (error) {
+      console.error("Error fetching color usage:", error);
     }
   };
 
@@ -210,6 +245,7 @@ export default function KitPage() {
   useEffect(() => {
     fetchKit();
     fetchSales();
+    fetchColorUsage();
   }, [designId]);
 
   const handleAssembleKit = async () => {
@@ -484,8 +520,15 @@ export default function KitPage() {
                 </tr>
               </thead>
               <tbody>
-                {kitContents.map((item) => (
-                  <tr key={item.dmcNumber} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                {kitContents.map((item) => {
+                  const colorUsageKey = item.dmcNumber;
+                  const isColorExpanded = expandedColors.has(colorUsageKey);
+                  const otherDesigns = (colorUsage.get(item.dmcNumber) || []).filter(
+                    (d) => d.id !== designId
+                  );
+                  return (
+                  <React.Fragment key={item.dmcNumber}>
+                  <tr className="border-b border-slate-700/50 hover:bg-slate-700/30">
                     <td className="px-4 py-3">
                       <Link
                         href={`/inventory/color/${item.dmcNumber}`}
@@ -504,7 +547,35 @@ export default function KitPage() {
                     <td className="px-4 py-3">
                       <Link href={`/inventory/color/${item.dmcNumber}`} className="text-white font-mono text-sm hover:text-rose-400 transition-colors">{item.dmcNumber}</Link>
                     </td>
-                    <td className="px-4 py-3 text-slate-300 text-sm">{item.colorName}</td>
+                    <td className="px-4 py-3">
+                      <span className="text-slate-300 text-sm">{item.colorName}</span>
+                      {otherDesigns.length > 0 && (
+                        <button
+                          onClick={() => {
+                            setExpandedColors((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(colorUsageKey)) {
+                                next.delete(colorUsageKey);
+                              } else {
+                                next.add(colorUsageKey);
+                              }
+                              return next;
+                            });
+                          }}
+                          className="ml-2 text-[10px] text-slate-400 hover:text-slate-200 transition-colors"
+                        >
+                          (+{otherDesigns.length} design{otherDesigns.length !== 1 ? "s" : ""})
+                          <svg
+                            className={`inline w-3 h-3 ml-0.5 transition-transform ${isColorExpanded ? "rotate-180" : ""}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.stitchCount.toLocaleString()}</td>
                     <td className="px-4 py-3 text-slate-300 text-sm text-right">{item.yardsWithoutBuffer}</td>
                     <td className="px-4 py-3 text-white font-medium text-sm text-right">{item.yardsWithBuffer}</td>
@@ -569,36 +640,79 @@ export default function KitPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  {/* Expanded color usage row */}
+                  {isColorExpanded && otherDesigns.length > 0 && (
+                    <tr className="bg-slate-700/20">
+                      <td colSpan={8} className="px-4 py-2">
+                        <div className="flex flex-wrap gap-2">
+                          {otherDesigns.map((d) => (
+                            <Link
+                              key={d.id}
+                              href={`/design/${d.id}/kit`}
+                              className="flex items-center gap-2 p-2 rounded bg-slate-700/50 hover:bg-slate-700 transition-colors"
+                            >
+                              {d.previewImageUrl ? (
+                                <img
+                                  src={d.previewImageUrl}
+                                  alt={d.name}
+                                  className="w-8 h-8 object-cover rounded"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 bg-slate-600 rounded flex items-center justify-center">
+                                  <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-xs text-white">{d.name}</p>
+                                <p className="text-[10px] text-slate-400">{d.skeinsNeeded} sk ({d.yardsWithBuffer} yd)</p>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           {/* Mobile cards */}
           <div className="md:hidden divide-y divide-slate-700/50">
-            {kitContents.map((item) => (
-              <div key={item.dmcNumber} className="p-3 flex items-center gap-3">
-                <Link
-                  href={`/inventory/color/${item.dmcNumber}`}
-                  className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-rose-500 transition-all"
-                  style={{ backgroundColor: item.hex }}
-                  title={`View DMC ${item.dmcNumber} details`}
-                >
-                  <span
-                    className="text-[8px] font-bold"
-                    style={{ color: getContrastTextColor(item.hex) }}
+            {kitContents.map((item) => {
+              const colorUsageKey = `mobile-${item.dmcNumber}`;
+              const isColorExpanded = expandedColors.has(colorUsageKey);
+              const otherDesigns = (colorUsage.get(item.dmcNumber) || []).filter(
+                (d) => d.id !== designId
+              );
+              return (
+              <div key={item.dmcNumber}>
+                <div className="p-3 flex items-center gap-3">
+                  <Link
+                    href={`/inventory/color/${item.dmcNumber}`}
+                    className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-rose-500 transition-all"
+                    style={{ backgroundColor: item.hex }}
+                    title={`View DMC ${item.dmcNumber} details`}
                   >
-                    {item.dmcNumber}
-                  </span>
-                </Link>
-                <div className="flex-1 min-w-0">
-                  <Link href={`/inventory/color/${item.dmcNumber}`} className="text-white text-sm font-medium truncate hover:text-rose-400 transition-colors block">
-                    DMC {item.dmcNumber} - {item.colorName}
+                    <span
+                      className="text-[8px] font-bold"
+                      style={{ color: getContrastTextColor(item.hex) }}
+                    >
+                      {item.dmcNumber}
+                    </span>
                   </Link>
-                  <p className="text-slate-400 text-xs">
-                    {item.stitchCount.toLocaleString()} stitches &middot; {item.yardsWithoutBuffer} yds ({item.yardsWithBuffer} w/ buffer)
-                  </p>
-                </div>
+                  <div className="flex-1 min-w-0">
+                    <Link href={`/inventory/color/${item.dmcNumber}`} className="text-white text-sm font-medium truncate hover:text-rose-400 transition-colors block">
+                      DMC {item.dmcNumber} - {item.colorName}
+                    </Link>
+                    <p className="text-slate-400 text-xs">
+                      {item.stitchCount.toLocaleString()} stitches &middot; {item.yardsWithoutBuffer} yds ({item.yardsWithBuffer} w/ buffer)
+                    </p>
+                  </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <p className="text-white font-medium text-sm">
                     {item.fullSkeins > 0 && <span>{item.fullSkeins} sk</span>}
@@ -658,7 +772,67 @@ export default function KitPage() {
                   </div>
                 </div>
               </div>
-            ))}
+              {/* Color usage indicator */}
+              {otherDesigns.length > 0 && (
+                <>
+                  <button
+                    onClick={() => {
+                      setExpandedColors((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(colorUsageKey)) {
+                          next.delete(colorUsageKey);
+                        } else {
+                          next.add(colorUsageKey);
+                        }
+                        return next;
+                      });
+                    }}
+                    className="w-full px-3 py-1.5 text-[10px] text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 flex items-center justify-center gap-1 border-t border-slate-700/30"
+                  >
+                    <span>Used in {otherDesigns.length} other design{otherDesigns.length !== 1 ? "s" : ""}</span>
+                    <svg
+                      className={`w-3 h-3 transition-transform ${isColorExpanded ? "rotate-180" : ""}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {isColorExpanded && (
+                    <div className="px-3 pb-3 space-y-1 max-h-40 overflow-y-auto bg-slate-700/20">
+                      {otherDesigns.map((d) => (
+                        <Link
+                          key={d.id}
+                          href={`/design/${d.id}/kit`}
+                          className="flex items-center gap-2 p-2 rounded bg-slate-700/50 hover:bg-slate-700 transition-colors"
+                        >
+                          {d.previewImageUrl ? (
+                            <img
+                              src={d.previewImageUrl}
+                              alt={d.name}
+                              className="w-8 h-8 object-cover rounded"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 bg-slate-600 rounded flex items-center justify-center">
+                              <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-xs text-white">{d.name}</p>
+                            <p className="text-[10px] text-slate-400">{d.skeinsNeeded} sk ({d.yardsWithBuffer} yd)</p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              </div>
+              );
+            })}
           </div>
 
           {kitContents.length === 0 && (

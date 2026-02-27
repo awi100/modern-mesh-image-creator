@@ -25,6 +25,23 @@ interface KitData {
   kitContents: KitItem[];
 }
 
+interface ColorDesignUsage {
+  id: string;
+  name: string;
+  previewImageUrl: string | null;
+  meshCount: number;
+  stitchCount: number;
+  skeinsNeeded: number;
+  yardsWithBuffer: number;
+  fullSkeins: number;
+  bobbinYards: number;
+}
+
+interface ColorUsage {
+  dmcNumber: string;
+  designs: ColorDesignUsage[];
+}
+
 function getContrastTextColor(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -76,6 +93,8 @@ export default function OrdersPage() {
   const [kitData, setKitData] = useState<Map<string, KitData>>(new Map());
   const [loadingKits, setLoadingKits] = useState(false);
   const [expandedKits, setExpandedKits] = useState<Set<string>>(new Set());
+  const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
+  const [colorUsage, setColorUsage] = useState<Map<string, ColorDesignUsage[]>>(new Map());
 
   // Use refs for debounced updates to handle rapid clicks
   const pendingUpdates = useRef<Map<string, { field: "kitsReady" | "canvasPrinted"; delta: number; timeout: NodeJS.Timeout }>>(new Map());
@@ -124,6 +143,24 @@ export default function OrdersPage() {
     setLoadingKits(false);
   }, [kitData.size]);
 
+  // Fetch color usage data for showing which designs use each color
+  const fetchColorUsage = useCallback(async () => {
+    if (colorUsage.size > 0) return; // Already loaded
+    try {
+      const res = await fetch("/api/colors/usage");
+      if (res.ok) {
+        const data: ColorUsage[] = await res.json();
+        const usageMap = new Map<string, ColorDesignUsage[]>();
+        for (const usage of data) {
+          usageMap.set(usage.dmcNumber, usage.designs);
+        }
+        setColorUsage(usageMap);
+      }
+    } catch (err) {
+      console.error("Failed to fetch color usage:", err);
+    }
+  }, [colorUsage.size]);
+
   // Toggle expanded kit view
   const toggleKitExpanded = useCallback((designId: string) => {
     setExpandedKits(prev => {
@@ -132,14 +169,17 @@ export default function OrdersPage() {
         next.delete(designId);
       } else {
         next.add(designId);
-        // Fetch kit data if not already loaded
+        // Fetch kit data and color usage if not already loaded
         if (kitData.size === 0) {
           fetchKits();
+        }
+        if (colorUsage.size === 0) {
+          fetchColorUsage();
         }
       }
       return next;
     });
-  }, [kitData.size, fetchKits]);
+  }, [kitData.size, fetchKits, colorUsage.size, fetchColorUsage]);
 
   // Fulfill an order - deduct kits, canvases, and supplies
   const handleFulfillOrder = useCallback(async (order: Order) => {
@@ -787,54 +827,61 @@ export default function OrdersPage() {
                                                 </span>
                                               </div>
                                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                {kitInfo.kitContents.map((item) => (
+                                                {kitInfo.kitContents.map((item) => {
+                                                  const colorUsageKey = `${kit.designId}-${item.dmcNumber}`;
+                                                  const isColorExpanded = expandedColors.has(colorUsageKey);
+                                                  const otherDesigns = (colorUsage.get(item.dmcNumber) || []).filter(
+                                                    (d) => d.id !== kit.designId
+                                                  );
+                                                  return (
                                                   <div
                                                     key={item.dmcNumber}
-                                                    className={`flex items-center gap-2 p-2 rounded text-xs ${
+                                                    className={`rounded text-xs ${
                                                       item.inStock ? "bg-slate-800" : "bg-red-900/30"
                                                     }`}
                                                   >
-                                                    <Link
-                                                      href={`/inventory/color/${item.dmcNumber}`}
-                                                      className="w-6 h-6 rounded flex-shrink-0 border border-slate-600 hover:ring-1 hover:ring-rose-500"
-                                                      style={{ backgroundColor: item.hex }}
-                                                      title={`View DMC ${item.dmcNumber}`}
-                                                    />
-                                                    <div className="min-w-0 flex-1">
-                                                      <p className="text-white font-medium truncate">{item.dmcNumber} - {item.colorName}</p>
-                                                      <p className="text-slate-500">
-                                                        {item.fullSkeins > 0 ? `${item.fullSkeins} sk needed` : `${item.bobbinYards}y bobbin`}
-                                                      </p>
-                                                    </div>
-                                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                                      <button
-                                                        onClick={() => handleUpdateInventory(item.dmcNumber, -1)}
-                                                        disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
-                                                        className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                                        title="Remove 1"
-                                                      >
-                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                                        </svg>
-                                                      </button>
-                                                      <input
-                                                        type="number"
-                                                        min="0"
-                                                        value={pendingInventory[item.dmcNumber] ?? item.inventorySkeins}
-                                                        onChange={(e) => setPendingInventory((prev) => ({ ...prev, [item.dmcNumber]: e.target.value }))}
-                                                        onBlur={() => {
-                                                          const val = pendingInventory[item.dmcNumber];
-                                                          if (val !== undefined) {
-                                                            handleSetInventory(item.dmcNumber, Number(val));
-                                                          }
-                                                        }}
-                                                        onKeyDown={(e) => {
-                                                          if (e.key === "Enter") {
+                                                    <div className="flex items-center gap-2 p-2">
+                                                      <Link
+                                                        href={`/inventory/color/${item.dmcNumber}`}
+                                                        className="w-6 h-6 rounded flex-shrink-0 border border-slate-600 hover:ring-1 hover:ring-rose-500"
+                                                        style={{ backgroundColor: item.hex }}
+                                                        title={`View DMC ${item.dmcNumber}`}
+                                                      />
+                                                      <div className="min-w-0 flex-1">
+                                                        <p className="text-white font-medium truncate">{item.dmcNumber} - {item.colorName}</p>
+                                                        <p className="text-slate-500">
+                                                          {item.fullSkeins > 0 ? `${item.fullSkeins} sk needed` : `${item.bobbinYards}y bobbin`}
+                                                        </p>
+                                                      </div>
+                                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                                        <button
+                                                          onClick={() => handleUpdateInventory(item.dmcNumber, -1)}
+                                                          disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
+                                                          className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                          title="Remove 1"
+                                                        >
+                                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                                          </svg>
+                                                        </button>
+                                                        <input
+                                                          type="number"
+                                                          min="0"
+                                                          value={pendingInventory[item.dmcNumber] ?? item.inventorySkeins}
+                                                          onChange={(e) => setPendingInventory((prev) => ({ ...prev, [item.dmcNumber]: e.target.value }))}
+                                                          onBlur={() => {
                                                             const val = pendingInventory[item.dmcNumber];
                                                             if (val !== undefined) {
                                                               handleSetInventory(item.dmcNumber, Number(val));
                                                             }
-                                                            (e.target as HTMLInputElement).blur();
+                                                          }}
+                                                          onKeyDown={(e) => {
+                                                            if (e.key === "Enter") {
+                                                              const val = pendingInventory[item.dmcNumber];
+                                                              if (val !== undefined) {
+                                                                handleSetInventory(item.dmcNumber, Number(val));
+                                                              }
+                                                              (e.target as HTMLInputElement).blur();
                                                           }
                                                         }}
                                                         className={`w-10 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
@@ -849,9 +896,71 @@ export default function OrdersPage() {
                                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                                         </svg>
                                                       </button>
+                                                      </div>
                                                     </div>
+                                                    {/* Color usage indicator */}
+                                                    {otherDesigns.length > 0 && (
+                                                      <>
+                                                        <button
+                                                          onClick={() => {
+                                                            setExpandedColors((prev) => {
+                                                              const next = new Set(prev);
+                                                              if (next.has(colorUsageKey)) {
+                                                                next.delete(colorUsageKey);
+                                                              } else {
+                                                                next.add(colorUsageKey);
+                                                              }
+                                                              return next;
+                                                            });
+                                                          }}
+                                                          className="w-full px-2 py-1 text-[10px] text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 flex items-center justify-center gap-1 border-t border-slate-700/50"
+                                                        >
+                                                          <span>Used in {otherDesigns.length} other design{otherDesigns.length !== 1 ? "s" : ""}</span>
+                                                          <svg
+                                                            className={`w-3 h-3 transition-transform ${isColorExpanded ? "rotate-180" : ""}`}
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                          >
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                          </svg>
+                                                        </button>
+                                                        {isColorExpanded && (
+                                                          <div className="px-2 pb-2 border-t border-slate-700/50 space-y-1 max-h-32 overflow-y-auto">
+                                                            {otherDesigns.map((design) => (
+                                                              <Link
+                                                                key={design.id}
+                                                                href={`/design/${design.id}/kit`}
+                                                                className="flex items-center gap-2 p-1.5 rounded bg-slate-700/30 hover:bg-slate-700/60 transition-colors"
+                                                              >
+                                                                {design.previewImageUrl ? (
+                                                                  <img
+                                                                    src={design.previewImageUrl}
+                                                                    alt={design.name}
+                                                                    className="w-6 h-6 object-cover rounded"
+                                                                  />
+                                                                ) : (
+                                                                  <div className="w-6 h-6 bg-slate-600 rounded flex items-center justify-center">
+                                                                    <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                                    </svg>
+                                                                  </div>
+                                                                )}
+                                                                <div className="min-w-0 flex-1">
+                                                                  <p className="text-[10px] text-white truncate">{design.name}</p>
+                                                                  <p className="text-[9px] text-slate-400">
+                                                                    {design.skeinsNeeded} sk ({design.yardsWithBuffer} yd)
+                                                                  </p>
+                                                                </div>
+                                                              </Link>
+                                                            ))}
+                                                          </div>
+                                                        )}
+                                                      </>
+                                                    )}
                                                   </div>
-                                                ))}
+                                                  );
+                                                })}
                                               </div>
                                             </div>
                                           ) : (
