@@ -103,6 +103,13 @@ model Design {
   totalSold             Int     @default(0)  // total units sold (kits + canvas-only)
   totalKitsSold         Int     @default(0)  // units sold with kit included
 
+  // Velocity tracking for smart stock alerts
+  salesVelocity         Float?  // weighted units per week (4-week rolling, recent weighted more)
+  velocityCategory      String? // "fast" (3+/wk), "medium" (1-3/wk), "slow" (<1/wk), "new"
+  velocityCategoryOverride String? // manual override: "fast", "medium", "slow"
+  targetStockWeeks      Int?    // optional override for target weeks of stock
+  lastVelocityUpdate    DateTime? // when velocity was last calculated
+
   // Precomputed kit summary (updated on design save)
   kitColorCount         Int     @default(0)  // distinct colors in the kit
   kitSkeinCount         Int     @default(0)  // total skeins for one kit

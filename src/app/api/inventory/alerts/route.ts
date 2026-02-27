@@ -24,6 +24,14 @@ interface DesignAlert {
   bottleneckColors: ColorRequirement[]; // Colors limiting capacity
   totalColors: number;
   totalSkeinsPerKit: number;
+  // Velocity-based metrics
+  salesVelocity: number | null; // units per week
+  velocityCategory: string | null; // "fast", "medium", "slow", "new"
+  velocityCategoryOverride: string | null;
+  kitsReady: number;
+  weeksOfStock: number; // kitsReady / velocity
+  targetWeeks: number; // target weeks of stock for this velocity category
+  stockStatus: "critical" | "low" | "healthy"; // based on weeks vs target
 }
 
 interface ColorDesignUsage {
@@ -81,7 +89,7 @@ export async function GET() {
   }
 
   try {
-    // Fetch all non-draft designs with pixel data
+    // Fetch all non-draft designs with pixel data and velocity info
     const designs = await prisma.design.findMany({
       where: { isDraft: false, deletedAt: null },
       select: {
@@ -93,6 +101,11 @@ export async function GET() {
         bufferPercent: true,
         pixelData: true,
         kitsReady: true,
+        // Velocity fields
+        salesVelocity: true,
+        velocityCategory: true,
+        velocityCategoryOverride: true,
+        targetStockWeeks: true,
       },
     });
 
@@ -213,6 +226,36 @@ export async function GET() {
           .filter((c) => c.fulfillmentCapacity <= minCapacity + 2) // Within 2 of minimum
           .sort((a, b) => a.fulfillmentCapacity - b.fulfillmentCapacity);
 
+        // Calculate velocity-based metrics
+        const velocity = design.salesVelocity ?? 0;
+        const kitsReadyCount = design.kitsReady ?? 0;
+        const weeksOfStock = velocity > 0 ? kitsReadyCount / velocity : (kitsReadyCount > 0 ? 999 : 0);
+
+        // Determine target weeks based on velocity category
+        let targetWeeks = design.targetStockWeeks;
+        if (!targetWeeks) {
+          switch (design.velocityCategory) {
+            case "fast": targetWeeks = 6; break;
+            case "medium": targetWeeks = 8; break;
+            case "slow": targetWeeks = 12; break;
+            case "new": targetWeeks = 4; break;
+            default: targetWeeks = 8;
+          }
+        }
+
+        // Determine stock status based on weeks vs target
+        let stockStatus: "critical" | "low" | "healthy";
+        const criticalThreshold = targetWeeks * 0.33; // 1/3 of target
+        const lowThreshold = targetWeeks * 0.66; // 2/3 of target
+
+        if (weeksOfStock < criticalThreshold) {
+          stockStatus = "critical";
+        } else if (weeksOfStock < lowThreshold) {
+          stockStatus = "low";
+        } else {
+          stockStatus = "healthy";
+        }
+
         alerts.push({
           id: design.id,
           name: design.name,
@@ -222,6 +265,14 @@ export async function GET() {
           bottleneckColors: bottleneckColors.slice(0, 5), // Top 5 bottlenecks
           totalColors: colorRequirements.length,
           totalSkeinsPerKit: yarnUsage.reduce((sum, u) => sum + u.skeinsNeeded, 0),
+          // Velocity-based metrics
+          salesVelocity: design.salesVelocity,
+          velocityCategory: design.velocityCategory,
+          velocityCategoryOverride: design.velocityCategoryOverride,
+          kitsReady: kitsReadyCount,
+          weeksOfStock: Math.round(weeksOfStock * 10) / 10,
+          targetWeeks,
+          stockStatus,
         });
       } catch (e) {
         console.error(`Error processing design ${design.id}:`, e);
@@ -229,8 +280,20 @@ export async function GET() {
       }
     }
 
-    // Sort by fulfillment capacity (lowest first = most urgent)
-    alerts.sort((a, b) => a.fulfillmentCapacity - b.fulfillmentCapacity);
+    // Sort by stock status (critical first), then by weeks of stock (lowest first), then by velocity (highest first)
+    const statusOrder = { critical: 0, low: 1, healthy: 2 };
+    alerts.sort((a, b) => {
+      // First by status
+      if (statusOrder[a.stockStatus] !== statusOrder[b.stockStatus]) {
+        return statusOrder[a.stockStatus] - statusOrder[b.stockStatus];
+      }
+      // Then by weeks of stock (lowest first)
+      if (a.weeksOfStock !== b.weeksOfStock) {
+        return a.weeksOfStock - b.weeksOfStock;
+      }
+      // Then by velocity (highest first - more urgent)
+      return (b.salesVelocity ?? 0) - (a.salesVelocity ?? 0);
+    });
 
     // Build most used colors list with aggregate demand metrics
     // Use 22 effective yards per skein (vs 27 actual) to account for waste when winding bobbins
@@ -295,12 +358,22 @@ export async function GET() {
       return b.designCount - a.designCount;
     });
 
-    // Summary stats for per-design alerts
+    // Summary stats for per-design alerts (velocity-based)
     const summary = {
       totalDesigns: alerts.length,
-      criticalCount: alerts.filter((a) => a.fulfillmentCapacity <= 3).length,
-      lowCount: alerts.filter((a) => a.fulfillmentCapacity >= 4 && a.fulfillmentCapacity <= 6).length,
-      healthyCount: alerts.filter((a) => a.fulfillmentCapacity >= 7).length,
+      // Velocity-based counts
+      criticalCount: alerts.filter((a) => a.stockStatus === "critical").length,
+      lowCount: alerts.filter((a) => a.stockStatus === "low").length,
+      healthyCount: alerts.filter((a) => a.stockStatus === "healthy").length,
+      // Velocity category counts
+      fastCount: alerts.filter((a) => a.velocityCategory === "fast").length,
+      mediumCount: alerts.filter((a) => a.velocityCategory === "medium").length,
+      slowCount: alerts.filter((a) => a.velocityCategory === "slow").length,
+      newCount: alerts.filter((a) => a.velocityCategory === "new").length,
+      // Legacy capacity-based counts (for backwards compatibility)
+      legacyCritical: alerts.filter((a) => a.fulfillmentCapacity <= 3).length,
+      legacyLow: alerts.filter((a) => a.fulfillmentCapacity >= 4 && a.fulfillmentCapacity <= 6).length,
+      legacyHealthy: alerts.filter((a) => a.fulfillmentCapacity >= 7).length,
     };
 
     // Global demand summary

@@ -62,6 +62,14 @@ interface StockAlert {
   bottleneckColors: ColorRequirement[];
   totalColors: number;
   totalSkeinsPerKit: number;
+  // Velocity-based metrics
+  salesVelocity: number | null;
+  velocityCategory: string | null;
+  velocityCategoryOverride: string | null;
+  kitsReady: number;
+  weeksOfStock: number;
+  targetWeeks: number;
+  stockStatus: "critical" | "low" | "healthy";
 }
 
 interface AlertSummary {
@@ -69,6 +77,11 @@ interface AlertSummary {
   criticalCount: number;
   lowCount: number;
   healthyCount: number;
+  // Velocity category counts
+  fastCount?: number;
+  mediumCount?: number;
+  slowCount?: number;
+  newCount?: number;
 }
 
 interface ColorDesignUsage {
@@ -1520,24 +1533,77 @@ export default function InventoryPage() {
         {/* Stock Alerts Tab */}
         {activeTab === "alerts" && (
           <>
-            {/* Summary stats */}
+            {/* Velocity controls */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm text-slate-400">
+                Stock levels based on sales velocity (weighted 4-week average)
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/inventory/velocity", { method: "POST" });
+                    if (res.ok) {
+                      // Refresh alerts after recalculating
+                      const alertsRes = await fetch("/api/inventory/alerts");
+                      if (alertsRes.ok) {
+                        const data = await alertsRes.json();
+                        setAlerts(data.alerts);
+                        setAlertSummary(data.summary);
+                      }
+                    }
+                  } catch (err) {
+                    console.error("Failed to recalculate velocities:", err);
+                  }
+                }}
+                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg flex items-center gap-2 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Recalculate Velocities
+              </button>
+            </div>
+
+            {/* Summary stats - Stock Status */}
             {alertSummary && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                   <p className="text-xs text-slate-400 uppercase tracking-wider">Total Designs</p>
                   <p className="text-xl font-bold text-white">{alertSummary.totalDesigns}</p>
                 </div>
                 <div className="bg-red-900/30 rounded-lg p-3 border border-red-800/50">
-                  <p className="text-xs text-red-400 uppercase tracking-wider">Critical (≤3)</p>
+                  <p className="text-xs text-red-400 uppercase tracking-wider">Critical</p>
                   <p className="text-xl font-bold text-red-400">{alertSummary.criticalCount}</p>
                 </div>
                 <div className="bg-yellow-900/30 rounded-lg p-3 border border-yellow-800/50">
-                  <p className="text-xs text-yellow-400 uppercase tracking-wider">Low (4-6)</p>
+                  <p className="text-xs text-yellow-400 uppercase tracking-wider">Low</p>
                   <p className="text-xl font-bold text-yellow-400">{alertSummary.lowCount}</p>
                 </div>
                 <div className="bg-green-900/30 rounded-lg p-3 border border-green-800/50">
-                  <p className="text-xs text-green-400 uppercase tracking-wider">Healthy (7+)</p>
+                  <p className="text-xs text-green-400 uppercase tracking-wider">Healthy</p>
                   <p className="text-xl font-bold text-green-400">{alertSummary.healthyCount}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Summary stats - Velocity Categories */}
+            {alertSummary && (
+              <div className="grid grid-cols-4 gap-3 mb-6">
+                <div className="bg-rose-900/20 rounded-lg p-2 border border-rose-800/30 text-center">
+                  <p className="text-lg font-bold text-rose-400">{alertSummary.fastCount || 0}</p>
+                  <p className="text-xs text-rose-400/70">Fast (3+/wk)</p>
+                </div>
+                <div className="bg-amber-900/20 rounded-lg p-2 border border-amber-800/30 text-center">
+                  <p className="text-lg font-bold text-amber-400">{alertSummary.mediumCount || 0}</p>
+                  <p className="text-xs text-amber-400/70">Medium (1-3/wk)</p>
+                </div>
+                <div className="bg-slate-700/50 rounded-lg p-2 border border-slate-600/50 text-center">
+                  <p className="text-lg font-bold text-slate-400">{alertSummary.slowCount || 0}</p>
+                  <p className="text-xs text-slate-400/70">Slow (&lt;1/wk)</p>
+                </div>
+                <div className="bg-blue-900/20 rounded-lg p-2 border border-blue-800/30 text-center">
+                  <p className="text-lg font-bold text-blue-400">{alertSummary.newCount || 0}</p>
+                  <p className="text-xs text-blue-400/70">New</p>
                 </div>
               </div>
             )}
@@ -2237,25 +2303,27 @@ export default function InventoryPage() {
                 {alerts
                   .filter((alert) => {
                     if (alertStatusFilter === "all") return true;
-                    const status = alert.fulfillmentCapacity <= 3
-                      ? "critical"
-                      : alert.fulfillmentCapacity <= 6
-                      ? "low"
-                      : "healthy";
-                    return status === alertStatusFilter;
+                    return alert.stockStatus === alertStatusFilter;
                   })
                   .map((alert) => {
-                  const statusColor = alert.fulfillmentCapacity <= 3
+                  const statusColor = alert.stockStatus === "critical"
                     ? "border-red-800/50 bg-red-900/20"
-                    : alert.fulfillmentCapacity <= 6
+                    : alert.stockStatus === "low"
                     ? "border-yellow-800/50 bg-yellow-900/20"
                     : "border-green-800/50 bg-green-900/20";
 
-                  const capacityColor = alert.fulfillmentCapacity <= 3
+                  const weeksColor = alert.stockStatus === "critical"
                     ? "text-red-400"
-                    : alert.fulfillmentCapacity <= 6
+                    : alert.stockStatus === "low"
                     ? "text-yellow-400"
                     : "text-green-400";
+
+                  const velocityCategoryColor = {
+                    fast: "bg-rose-900/50 text-rose-300",
+                    medium: "bg-amber-900/50 text-amber-300",
+                    slow: "bg-slate-700 text-slate-300",
+                    new: "bg-blue-900/50 text-blue-300",
+                  }[alert.velocityCategory || "new"] || "bg-slate-700 text-slate-300";
 
                   return (
                     <div
@@ -2282,18 +2350,20 @@ export default function InventoryPage() {
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <Link href={`/design/${alert.id}/info`} className="text-white font-medium hover:text-rose-400 truncate">
                               {alert.name}
                             </Link>
-                            <span className={`text-xs px-2 py-0.5 rounded ${
-                              alert.meshCount === 14 ? "bg-blue-900/50 text-blue-300" : "bg-purple-900/50 text-purple-300"
-                            }`}>
-                              {alert.meshCount} mesh
+                            <span className={`text-xs px-2 py-0.5 rounded ${velocityCategoryColor}`}>
+                              {alert.velocityCategoryOverride && "★ "}
+                              {alert.velocityCategory || "new"}
+                              {alert.salesVelocity !== null && alert.salesVelocity > 0 && (
+                                <span className="ml-1 opacity-75">({alert.salesVelocity.toFixed(1)}/wk)</span>
+                              )}
                             </span>
                           </div>
                           <p className="text-slate-400 text-sm mb-2">
-                            {alert.totalColors} colors &middot; {alert.totalSkeinsPerKit} skeins/kit
+                            {alert.totalColors} colors &middot; {alert.totalSkeinsPerKit} skeins/kit &middot; {alert.kitsReady} ready
                           </p>
 
                           {/* Bottleneck colors */}
@@ -2323,13 +2393,15 @@ export default function InventoryPage() {
                           )}
                         </div>
 
-                        {/* Capacity indicator */}
+                        {/* Stock indicator - weeks of stock */}
                         <div className="text-right flex-shrink-0">
-                          <p className="text-xs text-slate-500 mb-1">Can make</p>
-                          <p className={`text-3xl font-bold ${capacityColor}`}>
-                            {alert.fulfillmentCapacity >= 999 ? "∞" : alert.fulfillmentCapacity}
+                          <p className={`text-3xl font-bold ${weeksColor}`}>
+                            {alert.weeksOfStock >= 999 ? "∞" : alert.weeksOfStock}
                           </p>
-                          <p className="text-xs text-slate-500">kits</p>
+                          <p className="text-xs text-slate-500">weeks of stock</p>
+                          <p className="text-xs text-slate-600 mt-1">
+                            target: {alert.targetWeeks} wk
+                          </p>
                         </div>
                       </div>
 
