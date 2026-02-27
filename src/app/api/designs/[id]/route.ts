@@ -288,6 +288,15 @@ export async function PATCH(
       data.sizeCategory = body.sizeCategory || null;
     }
 
+    // Handle absolute value updates for counters
+    if (body.kitsReady !== undefined) {
+      data.kitsReady = Math.max(0, body.kitsReady);
+    }
+
+    if (body.canvasPrinted !== undefined) {
+      data.canvasPrinted = Math.max(0, body.canvasPrinted);
+    }
+
     // Handle delta updates for counters
     if (body.canvasPrintedDelta !== undefined || body.kitsReadyDelta !== undefined) {
       const current = await prisma.design.findUnique({
