@@ -739,6 +739,13 @@ export default function InventoryPage() {
   const totalKitsReady = designs.reduce((sum, d) => sum + d.kitsReady, 0);
   const totalCanvasesPrinted = designs.reduce((sum, d) => sum + d.canvasPrinted, 0);
 
+  // Filtered alerts count for display
+  const filteredAlerts = useMemo(() => {
+    return alerts
+      .filter((alert) => alertStatusFilter === "all" || alert.stockStatus === alertStatusFilter)
+      .filter((alert) => velocityFilter === "all" || alert.velocityCategory === velocityFilter);
+  }, [alerts, alertStatusFilter, velocityFilter]);
+
   // Group designs by collection (folder)
   const designsByCollection = useMemo(() => {
     const groups: { folderId: string | null; folderName: string; designs: Design[] }[] = [];
@@ -2209,8 +2216,8 @@ export default function InventoryPage() {
             </div>
 
             {/* Velocity Filter */}
-            <div className="flex flex-wrap gap-2 mb-6">
-              <span className="text-slate-400 text-sm self-center mr-2">Velocity:</span>
+            <div className="flex flex-wrap items-center gap-2 mb-6">
+              <span className="text-slate-400 text-sm mr-2">Velocity:</span>
               <button
                 onClick={() => setVelocityFilter("all")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -2261,6 +2268,11 @@ export default function InventoryPage() {
               >
                 New ({alertSummary?.newCount || 0})
               </button>
+              {(alertStatusFilter !== "all" || velocityFilter !== "all") && (
+                <span className="text-slate-500 text-xs ml-2">
+                  Showing {filteredAlerts.length} of {alerts.length} designs
+                </span>
+              )}
             </div>
 
             {/* Most Used Colors Section */}
@@ -2514,18 +2526,19 @@ export default function InventoryPage() {
               <div className="text-center py-12">
                 <p className="text-slate-400">No designs to analyze. Create some non-draft designs first.</p>
               </div>
+            ) : filteredAlerts.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-slate-400">No designs match the selected filters.</p>
+                <button
+                  onClick={() => { setAlertStatusFilter("all"); setVelocityFilter("all"); }}
+                  className="mt-2 text-rose-400 hover:text-rose-300 text-sm"
+                >
+                  Clear filters
+                </button>
+              </div>
             ) : (
               <div className="space-y-4">
-                {alerts
-                  .filter((alert) => {
-                    if (alertStatusFilter === "all") return true;
-                    return alert.stockStatus === alertStatusFilter;
-                  })
-                  .filter((alert) => {
-                    if (velocityFilter === "all") return true;
-                    return alert.velocityCategory === velocityFilter;
-                  })
-                  .map((alert) => {
+                {filteredAlerts.map((alert) => {
                   const statusColor = alert.stockStatus === "critical"
                     ? "border-red-800/50 bg-red-900/20"
                     : alert.stockStatus === "low"
