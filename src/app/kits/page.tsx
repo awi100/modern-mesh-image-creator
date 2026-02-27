@@ -773,7 +773,7 @@ export default function KitsPage() {
                                         </div>
                                       </div>
                                       {/* Color usage indicator */}
-                                      {otherDesigns.length > 0 && (
+                                      {otherDesigns.length > 0 ? (
                                         <>
                                           <button
                                             onClick={(e) => {
@@ -833,6 +833,10 @@ export default function KitsPage() {
                                             </div>
                                           )}
                                         </>
+                                      ) : (
+                                        <div className="w-full px-2 py-1 text-[10px] text-slate-500 flex items-center justify-center border-t border-slate-700/50">
+                                          <span>Only in this design</span>
+                                        </div>
                                       )}
                                     </div>
                                   );

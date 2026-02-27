@@ -187,6 +187,30 @@ interface BobbinAnalysisData {
   summary: BobbinAnalysisSummary;
 }
 
+interface KitItem {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  stitchCount: number;
+  skeinsNeeded: number;
+  yardsWithoutBuffer: number;
+  yardsWithBuffer: number;
+  fullSkeins: number;
+  bobbinYards: number;
+  inventorySkeins: number;
+  inStock: boolean;
+}
+
+interface KitContents {
+  kitContents: KitItem[];
+  totals: {
+    colors: number;
+    skeins: number;
+    bobbins: number;
+    allInStock: boolean;
+  };
+}
+
 function getContrastTextColor(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -240,6 +264,11 @@ export default function InventoryPage() {
   const [pendingKits, setPendingKits] = useState<Record<string, string>>({});
   const [pendingCanvases, setPendingCanvases] = useState<Record<string, string>>({});
   const [pendingSupplyQuantity, setPendingSupplyQuantity] = useState<Record<string, string>>({});
+
+  // Kit contents expansion state
+  const [expandedKits, setExpandedKits] = useState<Set<string>>(new Set());
+  const [kitContentsCache, setKitContentsCache] = useState<Map<string, KitContents>>(new Map());
+  const [loadingKitContents, setLoadingKitContents] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchInventory();
@@ -303,6 +332,52 @@ export default function InventoryPage() {
     } catch (error) {
       console.error("Error fetching designs:", error);
     }
+  };
+
+  const fetchKitContents = async (designId: string) => {
+    // Check if already loading or cached
+    if (loadingKitContents.has(designId) || kitContentsCache.has(designId)) {
+      return;
+    }
+
+    setLoadingKitContents((prev) => new Set([...prev, designId]));
+    try {
+      const response = await fetch(`/api/designs/${designId}/kit`);
+      if (response.ok) {
+        const data = await response.json();
+        setKitContentsCache((prev) => {
+          const next = new Map(prev);
+          next.set(designId, {
+            kitContents: data.kitContents,
+            totals: data.totals,
+          });
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching kit contents:", error);
+    }
+    setLoadingKitContents((prev) => {
+      const next = new Set(prev);
+      next.delete(designId);
+      return next;
+    });
+  };
+
+  const toggleKitExpansion = (designId: string) => {
+    setExpandedKits((prev) => {
+      const next = new Set(prev);
+      if (next.has(designId)) {
+        next.delete(designId);
+      } else {
+        next.add(designId);
+        // Fetch kit contents if not already loaded
+        if (!kitContentsCache.has(designId)) {
+          fetchKitContents(designId);
+        }
+      }
+      return next;
+    });
   };
 
   const fetchAlerts = async () => {
@@ -1310,82 +1385,167 @@ export default function InventoryPage() {
 
                     {/* Designs in collection */}
                     <div className="grid gap-3 pl-2 md:pl-4 border-l-2 border-slate-700">
-                      {group.designs.map((design) => (
-                        <div
-                          key={design.id}
-                          className="bg-slate-800 rounded-xl border border-slate-700 p-3 md:p-4 flex items-center gap-3 md:gap-4"
-                        >
-                          {/* Preview */}
-                          <Link href={`/design/${design.id}/info`} className="flex-shrink-0">
-                            {design.previewImageUrl ? (
-                              <img
-                                src={design.previewImageUrl}
-                                alt={design.name}
-                                className="w-12 h-12 md:w-16 md:h-16 object-cover rounded-lg border border-slate-600"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-700 rounded-lg border border-slate-600 flex items-center justify-center">
-                                <svg className="w-5 h-5 md:w-6 md:h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
+                      {group.designs.map((design) => {
+                        const isExpanded = expandedKits.has(design.id);
+                        const kitContents = kitContentsCache.get(design.id);
+                        const isLoading = loadingKitContents.has(design.id);
+
+                        return (
+                          <div
+                            key={design.id}
+                            className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden"
+                          >
+                            {/* Main row */}
+                            <div className="p-3 md:p-4 flex items-center gap-3 md:gap-4">
+                              {/* Preview */}
+                              <Link href={`/design/${design.id}/info`} className="flex-shrink-0">
+                                {design.previewImageUrl ? (
+                                  <img
+                                    src={design.previewImageUrl}
+                                    alt={design.name}
+                                    className="w-12 h-12 md:w-16 md:h-16 object-cover rounded-lg border border-slate-600"
+                                  />
+                                ) : (
+                                  <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-700 rounded-lg border border-slate-600 flex items-center justify-center">
+                                    <svg className="w-5 h-5 md:w-6 md:h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                  </div>
+                                )}
+                              </Link>
+
+                              {/* Info */}
+                              <div className="flex-1 min-w-0">
+                                <Link href={`/design/${design.id}/info`} className="text-white font-medium hover:text-rose-400 truncate block text-sm md:text-base">
+                                  {design.name}
+                                </Link>
+                                <button
+                                  onClick={() => toggleKitExpansion(design.id)}
+                                  className="text-slate-400 text-xs md:text-sm hover:text-rose-400 flex items-center gap-1"
+                                >
+                                  {design.kitColorCount} colors · {design.kitSkeinCount} skeins/kit
+                                  <svg
+                                    className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              {/* Kits Ready control */}
+                              <div className="flex items-center gap-1 md:gap-2">
+                                <button
+                                  onClick={() => handleUpdateDesign(design.id, "kitsReady", -1)}
+                                  className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                  disabled={design.kitsReady <= 0}
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                  </svg>
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={pendingKits[design.id] ?? design.kitsReady}
+                                  onChange={(e) => setPendingKits((prev) => ({ ...prev, [design.id]: e.target.value }))}
+                                  onBlur={() => {
+                                    const val = pendingKits[design.id];
+                                    if (val !== undefined) {
+                                      handleSetDesignValue(design.id, "kitsReady", Number(val));
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      const val = pendingKits[design.id];
+                                      if (val !== undefined) {
+                                        handleSetDesignValue(design.id, "kitsReady", Number(val));
+                                      }
+                                      (e.target as HTMLInputElement).blur();
+                                    }
+                                  }}
+                                  className="w-14 md:w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
+                                />
+                                <button
+                                  onClick={() => handleUpdateDesign(design.id, "kitsReady", 1)}
+                                  className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Expanded kit contents */}
+                            {isExpanded && (
+                              <div className="border-t border-slate-700 bg-slate-900/50 p-3 md:p-4">
+                                {isLoading ? (
+                                  <div className="flex items-center justify-center py-4">
+                                    <div className="w-5 h-5 border-2 border-rose-400 border-t-transparent rounded-full animate-spin"></div>
+                                    <span className="ml-2 text-slate-400 text-sm">Loading kit contents...</span>
+                                  </div>
+                                ) : kitContents ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {kitContents.kitContents.map((item) => {
+                                      const otherDesigns = (colorUsage.get(item.dmcNumber) || []).filter(
+                                        (d) => d.id !== design.id
+                                      );
+                                      return (
+                                        <div
+                                          key={item.dmcNumber}
+                                          className="flex items-center gap-2 bg-slate-800 rounded-lg px-2 py-1.5 border border-slate-700"
+                                        >
+                                          <div
+                                            className="w-4 h-4 rounded-sm border border-slate-600"
+                                            style={{ backgroundColor: item.hex }}
+                                          />
+                                          <span className="text-white text-xs font-mono">{item.dmcNumber}</span>
+                                          <span className="text-slate-400 text-xs">
+                                            {item.skeinsNeeded} sk
+                                          </span>
+                                          {item.inStock ? (
+                                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" title="In stock" />
+                                          ) : (
+                                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full" title="Out of stock" />
+                                          )}
+                                          {otherDesigns.length > 0 ? (
+                                            <span className="text-slate-500 text-[10px]" title={`Also used in: ${otherDesigns.map(d => d.name).join(", ")}`}>
+                                              +{otherDesigns.length}
+                                            </span>
+                                          ) : (
+                                            <span className="text-slate-600 text-[10px]" title="Only in this design">
+                                              unique
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-slate-400 text-sm">Failed to load kit contents</p>
+                                )}
+                                {kitContents && (
+                                  <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                                    <span>
+                                      {kitContents.totals.colors} colors · {kitContents.totals.skeins} skeins total
+                                      {kitContents.totals.bobbins > 0 && ` · ${kitContents.totals.bobbins} bobbins`}
+                                    </span>
+                                    <Link
+                                      href={`/design/${design.id}/kit`}
+                                      className="text-rose-400 hover:text-rose-300"
+                                    >
+                                      View full kit details →
+                                    </Link>
+                                  </div>
+                                )}
                               </div>
                             )}
-                          </Link>
-
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <Link href={`/design/${design.id}/info`} className="text-white font-medium hover:text-rose-400 truncate block text-sm md:text-base">
-                              {design.name}
-                            </Link>
-                            <p className="text-slate-400 text-xs md:text-sm">
-                              {design.kitColorCount} colors · {design.kitSkeinCount} skeins/kit
-                            </p>
                           </div>
-
-                          {/* Kits Ready control */}
-                          <div className="flex items-center gap-1 md:gap-2">
-                            <button
-                              onClick={() => handleUpdateDesign(design.id, "kitsReady", -1)}
-                              className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                              disabled={design.kitsReady <= 0}
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              value={pendingKits[design.id] ?? design.kitsReady}
-                              onChange={(e) => setPendingKits((prev) => ({ ...prev, [design.id]: e.target.value }))}
-                              onBlur={() => {
-                                const val = pendingKits[design.id];
-                                if (val !== undefined) {
-                                  handleSetDesignValue(design.id, "kitsReady", Number(val));
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  const val = pendingKits[design.id];
-                                  if (val !== undefined) {
-                                    handleSetDesignValue(design.id, "kitsReady", Number(val));
-                                  }
-                                  (e.target as HTMLInputElement).blur();
-                                }
-                              }}
-                              className="w-14 md:w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
-                            />
-                            <button
-                              onClick={() => handleUpdateDesign(design.id, "kitsReady", 1)}
-                              className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
