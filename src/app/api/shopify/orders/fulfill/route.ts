@@ -5,19 +5,32 @@ import { isAuthenticated } from "@/lib/session";
 interface FulfillItem {
   designId?: string;
   supplyId?: string;
+  productTitle: string;
+  variantTitle?: string | null;
   quantity: number;
   needsKit: boolean;
 }
 
-// POST - Fulfill an order (deduct kitsReady and canvasPrinted)
+interface FulfillRequest {
+  shopifyOrderId: string;
+  orderNumber: string;
+  customerName?: string;
+  items: FulfillItem[];
+}
+
+// POST - Fulfill an order (deduct kitsReady and canvasPrinted, record local fulfillment)
 export async function POST(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const body = await request.json();
-    const { items } = body as { items: FulfillItem[] };
+    const body: FulfillRequest = await request.json();
+    const { shopifyOrderId, orderNumber, customerName, items } = body;
+
+    if (!shopifyOrderId || !orderNumber) {
+      return NextResponse.json({ error: "Missing shopifyOrderId or orderNumber" }, { status: 400 });
+    }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "No items provided" }, { status: 400 });
@@ -27,9 +40,48 @@ export async function POST(request: NextRequest) {
     let canvasesDeducted = 0;
     let suppliesDeducted = 0;
 
-    // Process each item in a transaction
+    // Check if already locally fulfilled
+    const existingOrder = await prisma.shopifyOrder.findUnique({
+      where: { shopifyOrderId },
+    });
+
+    if (existingOrder?.fulfilledAt) {
+      return NextResponse.json(
+        { error: "Order already fulfilled locally", fulfilledAt: existingOrder.fulfilledAt },
+        { status: 400 }
+      );
+    }
+
+    // Process each item in a transaction and record local fulfillment
     await prisma.$transaction(async (tx) => {
+      // Create or update ShopifyOrder record
+      const shopifyOrder = await tx.shopifyOrder.upsert({
+        where: { shopifyOrderId },
+        create: {
+          shopifyOrderId,
+          orderNumber,
+          customerName: customerName || null,
+          fulfilledAt: new Date(),
+        },
+        update: {
+          fulfilledAt: new Date(),
+        },
+      });
+
       for (const item of items) {
+        // Create ShopifyOrderItem record
+        await tx.shopifyOrderItem.create({
+          data: {
+            shopifyOrderId: shopifyOrder.id,
+            designId: item.designId || null,
+            productTitle: item.productTitle,
+            variantTitle: item.variantTitle || null,
+            quantity: item.quantity,
+            needsKit: item.needsKit,
+            processed: true,
+          },
+        });
+
         // Handle design items (canvases/kits)
         if (item.designId) {
           // Get current counts

@@ -39,6 +39,9 @@ export interface Order {
   customerName: string;
   createdAt: string;
   items: OrderItem[];
+  // Local fulfillment tracking
+  locallyFulfilled: boolean;
+  locallyFulfilledAt: string | null;
 }
 
 export interface OrdersResponse {
@@ -128,6 +131,24 @@ export async function GET() {
     const shopifyData = await fetchUnfulfilledOrders();
     const shopifyOrders = shopifyData.orders.nodes;
 
+    // Fetch local fulfillment status for all orders
+    const localFulfillments = await prisma.shopifyOrder.findMany({
+      where: {
+        shopifyOrderId: {
+          in: shopifyOrders.map((o) => o.id),
+        },
+        fulfilledAt: { not: null },
+      },
+      select: {
+        shopifyOrderId: true,
+        fulfilledAt: true,
+      },
+    });
+
+    const localFulfillmentMap = new Map(
+      localFulfillments.map((f) => [f.shopifyOrderId, f.fulfilledAt])
+    );
+
     // Process orders
     const orders: Order[] = [];
     let totalKitsNeeded = 0;
@@ -193,12 +214,16 @@ export async function GET() {
         }
       }
 
+      const localFulfilledAt = localFulfillmentMap.get(shopifyOrder.id);
+
       orders.push({
         shopifyOrderId: shopifyOrder.id,
         orderNumber: shopifyOrder.name,
         customerName: shopifyOrder.billingAddress?.name || "Guest",
         createdAt: shopifyOrder.createdAt,
         items,
+        locallyFulfilled: !!localFulfilledAt,
+        locallyFulfilledAt: localFulfilledAt?.toISOString() || null,
       });
     }
 

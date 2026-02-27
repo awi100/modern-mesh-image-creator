@@ -35,11 +35,14 @@ function getContrastTextColor(hex: string): string {
 
 type FilterType = "all" | "canvases" | "kits" | "supplies";
 
-// Calculate aggregated demand per design across all orders (only for canvas items)
+// Calculate aggregated demand per design across all orders (only for canvas items, excludes locally fulfilled)
 function calculateDemandByDesign(orders: Order[]) {
   const demand = new Map<string, { totalKitsNeeded: number; totalCanvasesNeeded: number }>();
 
   for (const order of orders) {
+    // Skip locally fulfilled orders - they've already been deducted
+    if (order.locallyFulfilled) continue;
+
     for (const item of order.items) {
       if (!item.designId || item.itemType !== "canvas") continue;
 
@@ -150,6 +153,8 @@ export default function OrdersPage() {
         .map(item => ({
           designId: item.designId || undefined,
           supplyId: item.supplyId || undefined,
+          productTitle: item.productTitle,
+          variantTitle: item.variantTitle,
           quantity: item.quantity,
           needsKit: item.needsKit,
         }));
@@ -163,7 +168,12 @@ export default function OrdersPage() {
       const res = await fetch("/api/shopify/orders/fulfill", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({
+          shopifyOrderId: order.shopifyOrderId,
+          orderNumber: order.orderNumber,
+          customerName: order.customerName,
+          items,
+        }),
       });
 
       if (!res.ok) {
@@ -171,18 +181,19 @@ export default function OrdersPage() {
         throw new Error(err.error || "Failed to fulfill order");
       }
 
-      // Remove the fulfilled order from the list
+      // Mark the order as locally fulfilled (instead of removing it)
       setData(prevData => {
         if (!prevData) return prevData;
         return {
           ...prevData,
-          orders: prevData.orders.filter(o => o.shopifyOrderId !== order.shopifyOrderId),
-          summary: {
-            ...prevData.summary,
-            totalOrders: prevData.summary.totalOrders - 1,
-            totalKitsNeeded: prevData.summary.totalKitsNeeded - order.items.reduce((sum, item) => sum + (item.needsKit ? item.quantity : 0), 0),
-            totalCanvasesNeeded: prevData.summary.totalCanvasesNeeded - order.items.reduce((sum, item) => sum + item.quantity, 0),
-          },
+          orders: prevData.orders.map(o => {
+            if (o.shopifyOrderId !== order.shopifyOrderId) return o;
+            return {
+              ...o,
+              locallyFulfilled: true,
+              locallyFulfilledAt: new Date().toISOString(),
+            };
+          }),
         };
       });
     } catch (err) {
@@ -1234,10 +1245,15 @@ function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardPr
 
   // Can fulfill if we have enough kits and canvases for canvas items
   // Supplies don't block fulfillment
-  const canFulfill = (canvasItems.length === 0) || (hasEnoughKitsForOrder && hasEnoughCanvasesForOrder);
+  // Can't fulfill if already locally fulfilled
+  const canFulfill = !order.locallyFulfilled && ((canvasItems.length === 0) || (hasEnoughKitsForOrder && hasEnoughCanvasesForOrder));
 
   return (
-    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+    <div className={`bg-slate-800 rounded-xl border overflow-hidden ${
+      order.locallyFulfilled
+        ? "border-emerald-700/50 opacity-60"
+        : "border-slate-700"
+    }`}>
       {/* Header */}
       <div className="p-4 flex items-center justify-between">
         <button
@@ -1247,6 +1263,11 @@ function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardPr
           <div>
             <p className="text-white font-medium">{order.orderNumber}</p>
             <p className="text-sm text-slate-400">{order.customerName}</p>
+            {order.locallyFulfilled && order.locallyFulfilledAt && (
+              <p className="text-xs text-emerald-400 mt-0.5">
+                Deducted {new Date(order.locallyFulfilledAt).toLocaleDateString()}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-4 ml-auto">
@@ -1297,33 +1318,42 @@ function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardPr
         </button>
 
         {/* Fulfill Order Button */}
-        <button
-          onClick={() => onFulfill(order)}
-          disabled={fulfilling || !canFulfill}
-          className={`ml-4 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
-            canFulfill
-              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-              : "bg-slate-700 text-slate-500 cursor-not-allowed"
-          } disabled:opacity-50`}
-          title={canFulfill ? "Mark as fulfilled and deduct inventory" : "Not enough kits or canvases ready"}
-        >
-          {fulfilling ? (
-            <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Fulfilling...
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              Fulfill Order
-            </>
-          )}
-        </button>
+        {order.locallyFulfilled ? (
+          <div className="ml-4 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-emerald-900/30 text-emerald-400 border border-emerald-700/50">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Inventory Deducted
+          </div>
+        ) : (
+          <button
+            onClick={() => onFulfill(order)}
+            disabled={fulfilling || !canFulfill}
+            className={`ml-4 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+              canFulfill
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                : "bg-slate-700 text-slate-500 cursor-not-allowed"
+            } disabled:opacity-50`}
+            title={canFulfill ? "Mark as fulfilled and deduct inventory" : "Not enough kits or canvases ready"}
+          >
+            {fulfilling ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Fulfilling...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Fulfill Order
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Expanded Content */}
