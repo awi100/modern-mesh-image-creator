@@ -248,6 +248,7 @@ export default function InventoryPage() {
   const bobbinSizeFilter = null;
   const sizeFilter = null;
   const [alertStatusFilter, setAlertStatusFilter] = useState<"all" | "critical" | "low" | "healthy">("all");
+  const [velocityFilter, setVelocityFilter] = useState<"all" | "fast" | "medium" | "slow" | "new">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedColor, setExpandedColor] = useState<string | null>(null);
 
@@ -2207,6 +2208,61 @@ export default function InventoryPage() {
               </button>
             </div>
 
+            {/* Velocity Filter */}
+            <div className="flex flex-wrap gap-2 mb-6">
+              <span className="text-slate-400 text-sm self-center mr-2">Velocity:</span>
+              <button
+                onClick={() => setVelocityFilter("all")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  velocityFilter === "all"
+                    ? "bg-slate-600 text-white"
+                    : "bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setVelocityFilter("fast")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  velocityFilter === "fast"
+                    ? "bg-emerald-900 text-emerald-100"
+                    : "bg-slate-800 border border-slate-700 text-emerald-400 hover:bg-slate-700"
+                }`}
+              >
+                Fast ({alertSummary?.fastCount || 0})
+              </button>
+              <button
+                onClick={() => setVelocityFilter("medium")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  velocityFilter === "medium"
+                    ? "bg-blue-900 text-blue-100"
+                    : "bg-slate-800 border border-slate-700 text-blue-400 hover:bg-slate-700"
+                }`}
+              >
+                Medium ({alertSummary?.mediumCount || 0})
+              </button>
+              <button
+                onClick={() => setVelocityFilter("slow")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  velocityFilter === "slow"
+                    ? "bg-slate-600 text-slate-100"
+                    : "bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700"
+                }`}
+              >
+                Slow ({alertSummary?.slowCount || 0})
+              </button>
+              <button
+                onClick={() => setVelocityFilter("new")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  velocityFilter === "new"
+                    ? "bg-purple-900 text-purple-100"
+                    : "bg-slate-800 border border-slate-700 text-purple-400 hover:bg-slate-700"
+                }`}
+              >
+                New ({alertSummary?.newCount || 0})
+              </button>
+            </div>
+
             {/* Most Used Colors Section */}
             {mostUsedColors.length > 0 && (
               <div className="bg-slate-800 rounded-xl border border-slate-700 mb-6 overflow-hidden">
@@ -2464,6 +2520,10 @@ export default function InventoryPage() {
                   .filter((alert) => {
                     if (alertStatusFilter === "all") return true;
                     return alert.stockStatus === alertStatusFilter;
+                  })
+                  .filter((alert) => {
+                    if (velocityFilter === "all") return true;
+                    return alert.velocityCategory === velocityFilter;
                   })
                   .map((alert) => {
                   const statusColor = alert.stockStatus === "critical"
