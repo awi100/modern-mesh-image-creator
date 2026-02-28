@@ -1340,16 +1340,15 @@ function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardPr
   const canvasesInOrder = canvasItems.reduce((sum, item) => sum + item.quantity, 0);
   const suppliesInOrder = supplyItems.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Check if we have enough kits/canvases for THIS order based on total demand
+  // Check if we have enough kits/canvases for THIS order specifically
+  // (not total demand - allow fulfilling orders one at a time)
   const hasEnoughKitsForOrder = canvasItems.every((item) => {
     if (!item.needsKit || !item.designId) return true;
-    const demand = demandByDesign.get(item.designId);
-    return item.kitsReady >= (demand?.totalKitsNeeded || item.quantity);
+    return item.kitsReady >= item.quantity;
   });
   const hasEnoughCanvasesForOrder = canvasItems.every((item) => {
     if (!item.designId) return true;
-    const demand = demandByDesign.get(item.designId);
-    return item.canvasPrinted >= (demand?.totalCanvasesNeeded || item.quantity);
+    return item.canvasPrinted >= item.quantity;
   });
 
   // Can fulfill if we have enough kits and canvases for canvas items
