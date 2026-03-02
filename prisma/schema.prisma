@@ -115,8 +115,8 @@ model Design {
   kitSkeinCount         Int     @default(0)  // total skeins for one kit
   colorsUsed            String? // JSON array of DMC numbers used in design
 
-  // Draft status
-  isDraft               Boolean @default(false)
+  // Draft status (new designs start as draft, mark complete when ready to sell)
+  isDraft               Boolean @default(true)
 
   // Product categorization
   skillLevel            String? // "easy", "intermediate", "advanced"

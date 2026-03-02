@@ -221,7 +221,7 @@ const createInitialState = () => {
     designId: null,
     designName: "Untitled Design",
     folderId: null as string | null,
-    isDraft: false,
+    isDraft: true, // New designs start as draft
     widthInches: 8,
     heightInches: 8,
     meshCount: 14 as const,
