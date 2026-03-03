@@ -53,6 +53,15 @@ export async function GET() {
       inventoryBySize[item.size].set(item.dmcNumber, item.skeins);
     }
 
+    // Fetch global backup colors
+    const globalBackups = await prisma.colorBackup.findMany();
+    const globalBackupMap: Record<string, string> = {};
+    for (const backup of globalBackups) {
+      // Bidirectional mapping
+      globalBackupMap[backup.dmcNumber] = backup.backupDmcNumber;
+      globalBackupMap[backup.backupDmcNumber] = backup.dmcNumber;
+    }
+
     const kits = [];
 
     for (const design of designs) {
@@ -80,10 +89,13 @@ export async function GET() {
         // Get inventory for Size 5 thread (14 mesh only)
         const inventoryMap = inventoryBySize[5];
 
-        // Parse backup colors for this design
-        const backupColors: Record<string, string> = design.backupColors
+        // Parse design-specific backup colors
+        const designBackupColors: Record<string, string> = design.backupColors
           ? JSON.parse(design.backupColors)
           : {};
+
+        // Merge: design-specific backups override global backups
+        const backupColors: Record<string, string> = { ...globalBackupMap, ...designBackupColors };
 
         // Build kit contents
         const kitContents = yarnUsage.map((usage) => {

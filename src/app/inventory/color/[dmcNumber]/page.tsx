@@ -31,6 +31,10 @@ interface InventoryItem {
   skeins: number;
 }
 
+interface ColorBackupResponse {
+  backupMap: Record<string, string>;
+}
+
 function getContrastTextColor(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -58,8 +62,22 @@ export default function ColorDetailPage() {
     { revalidateOnFocus: false }
   );
 
+  // Fetch global color backups
+  const { data: backupData, mutate: mutateBackups } = useSWR<ColorBackupResponse>(
+    "/api/color-backups",
+    { revalidateOnFocus: false }
+  );
+
   const [updatingInventory, setUpdatingInventory] = useState<number | null>(null);
   const [pendingValue, setPendingValue] = useState<string>("");
+  const [editingBackup, setEditingBackup] = useState(false);
+  const [pendingBackup, setPendingBackup] = useState("");
+  const [savingBackup, setSavingBackup] = useState(false);
+
+  // Get backup color for this DMC number
+  const backupDmcNumber = backupData?.backupMap?.[dmcNumber] || null;
+  const backupColorInfo = backupDmcNumber ? getDmcColorByNumber(backupDmcNumber) : null;
+  const backupInventory = backupDmcNumber ? inventory5?.find(i => i.dmcNumber === backupDmcNumber) : null;
 
   // Find this color's usage
   const colorUsage = useMemo(() => {
@@ -98,6 +116,31 @@ export default function ColorDetailPage() {
     if (delta === 0) return;
     await handleUpdateInventory(delta);
     setPendingValue("");
+  };
+
+  // Handle setting backup color
+  const handleSetBackup = async (newBackupDmc: string) => {
+    setSavingBackup(true);
+    try {
+      const res = await fetch("/api/color-backups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dmcNumber,
+          backupDmcNumber: newBackupDmc.trim(),
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to set backup");
+
+      mutateBackups();
+      setEditingBackup(false);
+      setPendingBackup("");
+    } catch (error) {
+      console.error("Error setting backup:", error);
+    } finally {
+      setSavingBackup(false);
+    }
   };
 
   if (!colorInfo) {
@@ -262,6 +305,109 @@ export default function ColorDetailPage() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Backup Color Section */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Backup Color</h2>
+          <p className="text-slate-400 text-sm mb-4">
+            Set a substitute color that can be used when this color is out of stock.
+            The backup relationship is bidirectional — if you set 504 as a backup for 503,
+            then 503 will also be the backup for 504.
+          </p>
+
+          {editingBackup ? (
+            <div className="bg-slate-700/50 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={pendingBackup}
+                  onChange={(e) => setPendingBackup(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && pendingBackup.trim()) {
+                      handleSetBackup(pendingBackup);
+                    } else if (e.key === "Escape") {
+                      setEditingBackup(false);
+                      setPendingBackup("");
+                    }
+                  }}
+                  placeholder="Enter DMC number (e.g. 504)"
+                  className="flex-1 px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-600"
+                  autoFocus
+                />
+                <button
+                  onClick={() => handleSetBackup(pendingBackup)}
+                  disabled={savingBackup || !pendingBackup.trim()}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 font-medium"
+                >
+                  {savingBackup ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingBackup(false);
+                    setPendingBackup("");
+                  }}
+                  className="px-4 py-2 bg-slate-600 text-slate-300 rounded-lg hover:bg-slate-500"
+                >
+                  Cancel
+                </button>
+              </div>
+              {backupDmcNumber && (
+                <button
+                  onClick={() => handleSetBackup("")}
+                  disabled={savingBackup}
+                  className="mt-3 text-red-400 hover:text-red-300 text-sm"
+                >
+                  Remove backup color
+                </button>
+              )}
+            </div>
+          ) : backupDmcNumber && backupColorInfo ? (
+            <div className="bg-slate-700/50 rounded-lg p-4">
+              <div className="flex items-center gap-4">
+                <Link
+                  href={`/inventory/color/${backupDmcNumber}`}
+                  className="w-16 h-16 rounded-lg flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-amber-500 transition-all"
+                  style={{ backgroundColor: backupColorInfo.hex }}
+                >
+                  <span
+                    className="text-lg font-bold"
+                    style={{ color: getContrastTextColor(backupColorInfo.hex) }}
+                  >
+                    {backupDmcNumber}
+                  </span>
+                </Link>
+                <div className="flex-1">
+                  <Link
+                    href={`/inventory/color/${backupDmcNumber}`}
+                    className="text-white font-medium hover:text-amber-400 transition-colors"
+                  >
+                    DMC {backupDmcNumber}
+                  </Link>
+                  <p className="text-slate-400 text-sm">{backupColorInfo.name}</p>
+                  <p className={`text-sm font-medium ${(backupInventory?.skeins || 0) > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {backupInventory?.skeins || 0} in stock
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setPendingBackup(backupDmcNumber);
+                    setEditingBackup(true);
+                  }}
+                  className="px-4 py-2 bg-slate-600 text-slate-300 rounded-lg hover:bg-slate-500 text-sm"
+                >
+                  Change
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setEditingBackup(true)}
+              className="w-full py-4 border-2 border-dashed border-slate-600 rounded-lg text-slate-400 hover:text-amber-400 hover:border-amber-600 transition-colors"
+            >
+              + Add backup color
+            </button>
+          )}
         </div>
 
         {/* Designs Using This Color */}

@@ -257,3 +257,15 @@ model Supply {
 
   @@map("supplies")
 }
+
+// Global color backup pairs (bidirectional)
+// If 503 has backup 504, then 504 automatically has backup 503
+model ColorBackup {
+  id            String   @id @default(cuid())
+  dmcNumber     String   @unique // Primary color
+  backupDmcNumber String           // Backup color
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("color_backups")
+}

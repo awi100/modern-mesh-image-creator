@@ -65,10 +65,22 @@ export async function GET(
       design.bufferPercent
     );
 
-    // Parse backup colors mapping
-    const backupColors: Record<string, string> = design.backupColors
+    // Parse design-specific backup colors
+    const designBackupColors: Record<string, string> = design.backupColors
       ? JSON.parse(design.backupColors)
       : {};
+
+    // Fetch global backup colors
+    const globalBackups = await prisma.colorBackup.findMany();
+    const globalBackupMap: Record<string, string> = {};
+    for (const backup of globalBackups) {
+      // Bidirectional mapping
+      globalBackupMap[backup.dmcNumber] = backup.backupDmcNumber;
+      globalBackupMap[backup.backupDmcNumber] = backup.dmcNumber;
+    }
+
+    // Merge: design-specific backups override global backups
+    const backupColors: Record<string, string> = { ...globalBackupMap, ...designBackupColors };
 
     // Get inventory for Size 5 thread (14 mesh only)
     const inventoryItems = await prisma.inventoryItem.findMany({
