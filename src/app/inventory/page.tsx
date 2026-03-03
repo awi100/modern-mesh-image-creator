@@ -1236,8 +1236,10 @@ export default function InventoryPage() {
                                             style={{ backgroundColor: item.hex }}
                                           />
                                           <span className="text-white text-xs font-mono">{item.dmcNumber}</span>
-                                          <span className="text-slate-400 text-xs">
-                                            {item.skeinsNeeded} sk
+                                          <span className={`text-xs ${item.bobbinYards > 0 && item.fullSkeins === 0 ? "text-amber-400" : "text-slate-400"}`}>
+                                            {item.bobbinYards > 0 && item.fullSkeins === 0
+                                              ? `${item.bobbinYards} yd`
+                                              : `${item.skeinsNeeded} sk`}
                                           </span>
                                           {item.inStock ? (
                                             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" title="In stock" />
