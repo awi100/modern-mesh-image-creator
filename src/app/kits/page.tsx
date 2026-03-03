@@ -122,8 +122,11 @@ export default function KitsPage() {
   const [updatingKitsReady, setUpdatingKitsReady] = useState<string | null>(null);
   const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
 
-  // Use refs for debounced inventory updates to handle rapid clicks
-  const pendingInventoryUpdates = useRef<Map<string, { delta: number; timeout: NodeJS.Timeout }>>(new Map());
+  // Track pending deltas for each color to handle rapid clicks
+  // Key: "dmcNumber-meshCount", Value: accumulated delta not yet sent to server
+  const pendingDeltasRef = useRef<Map<string, number>>(new Map());
+  // Track which colors are currently being processed
+  const processingRef = useRef<Set<string>>(new Set());
 
   // Use SWR for caching - data persists across navigations
   const { data: kits, isLoading: loading, mutate: mutateKits } = useSWR<KitSummary[]>("/api/kits", {
@@ -148,9 +151,25 @@ export default function KitsPage() {
     return map;
   }, [colorUsage]);
 
-  // Send the actual API request for inventory update
-  const sendInventoryUpdate = useCallback(async (dmcNumber: string, meshCount: number, totalDelta: number) => {
+  // Process pending deltas for a specific color
+  const processInventoryUpdate = useCallback(async (dmcNumber: string, meshCount: number) => {
     const key = `${dmcNumber}-${meshCount}`;
+
+    // If already processing this color, skip (the current process will pick up accumulated delta)
+    if (processingRef.current.has(key)) {
+      return;
+    }
+
+    // Get the accumulated delta
+    const delta = pendingDeltasRef.current.get(key) || 0;
+    if (delta === 0) {
+      return;
+    }
+
+    // Mark as processing and clear the pending delta
+    processingRef.current.add(key);
+    pendingDeltasRef.current.delete(key);
+
     const size = meshCount === 14 ? 5 : 8;
     setUpdatingInventory(key);
 
@@ -158,7 +177,7 @@ export default function KitsPage() {
       const res = await fetch("/api/inventory", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dmcNumber, size, delta: totalDelta }),
+        body: JSON.stringify({ dmcNumber, size, delta }),
       });
 
       if (!res.ok) {
@@ -174,10 +193,16 @@ export default function KitsPage() {
       mutateKits();
     } finally {
       setUpdatingInventory(null);
+      processingRef.current.delete(key);
+
+      // Check if more deltas accumulated while we were processing
+      if (pendingDeltasRef.current.has(key)) {
+        processInventoryUpdate(dmcNumber, meshCount);
+      }
     }
   }, [mutateKits]);
 
-  // Update inventory for a specific color with debouncing
+  // Update inventory for a specific color - accumulates clicks and processes them
   const handleUpdateInventory = useCallback((dmcNumber: string, meshCount: number, delta: number) => {
     const key = `${dmcNumber}-${meshCount}`;
 
@@ -206,32 +231,17 @@ export default function KitsPage() {
       });
     }, false);
 
-    // Check if there's already a pending update for this color
-    const existing = pendingInventoryUpdates.current.get(key);
-    if (existing) {
-      // Accumulate the delta and reset the timer
-      clearTimeout(existing.timeout);
-      existing.delta += delta;
-      existing.timeout = setTimeout(() => {
-        const update = pendingInventoryUpdates.current.get(key);
-        if (update && update.delta !== 0) {
-          pendingInventoryUpdates.current.delete(key);
-          sendInventoryUpdate(dmcNumber, meshCount, update.delta);
-        }
-      }, 300); // 300ms debounce
-    } else {
-      // Create new pending update
-      const timeout = setTimeout(() => {
-        const update = pendingInventoryUpdates.current.get(key);
-        if (update && update.delta !== 0) {
-          pendingInventoryUpdates.current.delete(key);
-          sendInventoryUpdate(dmcNumber, meshCount, update.delta);
-        }
-      }, 300); // 300ms debounce
+    // Accumulate the delta
+    const currentDelta = pendingDeltasRef.current.get(key) || 0;
+    pendingDeltasRef.current.set(key, currentDelta + delta);
 
-      pendingInventoryUpdates.current.set(key, { delta, timeout });
-    }
-  }, [mutateKits, sendInventoryUpdate]);
+    // Schedule processing after a short debounce
+    // Use setTimeout to batch rapid clicks, but the processInventoryUpdate
+    // will handle any clicks that come in while it's running
+    setTimeout(() => {
+      processInventoryUpdate(dmcNumber, meshCount);
+    }, 150);
+  }, [mutateKits, processInventoryUpdate]);
 
   // Set absolute inventory value for a color
   const handleSetInventory = useCallback((dmcNumber: string, meshCount: number, value: number) => {
