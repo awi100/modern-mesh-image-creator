@@ -453,10 +453,12 @@ export default function ColorDetailPage() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-white font-medium">
-                      {design.skeinsNeeded} skein{design.skeinsNeeded !== 1 ? "s" : ""}
+                      {design.bobbinYards > 0 && design.fullSkeins === 0
+                        ? `${design.bobbinYards} yd bobbin`
+                        : `${design.fullSkeins} skein${design.fullSkeins !== 1 ? "s" : ""}`}
                     </p>
                     <p className="text-slate-400 text-sm">
-                      {design.yardsWithBuffer} yds
+                      {design.yardsWithBuffer} yds total
                     </p>
                   </div>
                   <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

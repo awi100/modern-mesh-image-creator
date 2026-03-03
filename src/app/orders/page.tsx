@@ -884,7 +884,7 @@ export default function OrdersPage() {
                                                               (e.target as HTMLInputElement).blur();
                                                           }
                                                         }}
-                                                        className={`w-10 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
+                                                        className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
                                                       />
                                                       <button
                                                         onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
@@ -949,7 +949,7 @@ export default function OrdersPage() {
                                                                 <div className="min-w-0 flex-1">
                                                                   <p className="text-[10px] text-white truncate">{design.name}</p>
                                                                   <p className="text-[9px] text-slate-400">
-                                                                    {design.skeinsNeeded} sk ({design.yardsWithBuffer} yd)
+                                                                    {design.bobbinYards > 0 && design.fullSkeins === 0 ? `${design.bobbinYards} yd` : `${design.fullSkeins} sk`}
                                                                   </p>
                                                                 </div>
                                                               </Link>

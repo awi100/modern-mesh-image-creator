@@ -780,7 +780,7 @@ export default function KitPage() {
                               )}
                               <div>
                                 <p className="text-xs text-white">{d.name}</p>
-                                <p className="text-[10px] text-slate-400">{d.skeinsNeeded} sk ({d.yardsWithBuffer} yd)</p>
+                                <p className="text-[10px] text-slate-400">{d.bobbinYards > 0 && d.fullSkeins === 0 ? `${d.bobbinYards} yd` : `${d.fullSkeins} sk`}</p>
                               </div>
                             </Link>
                           ))}
@@ -868,7 +868,7 @@ export default function KitPage() {
                           (e.target as HTMLInputElement).blur();
                         }
                       }}
-                      className={`w-10 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.primaryInStock !== false ? "text-emerald-400" : "text-red-400"}`}
+                      className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.primaryInStock !== false ? "text-emerald-400" : "text-red-400"}`}
                     />
                     <button
                       onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
@@ -994,7 +994,7 @@ export default function KitPage() {
                           )}
                           <div>
                             <p className="text-xs text-white">{d.name}</p>
-                            <p className="text-[10px] text-slate-400">{d.skeinsNeeded} sk ({d.yardsWithBuffer} yd)</p>
+                            <p className="text-[10px] text-slate-400">{d.bobbinYards > 0 && d.fullSkeins === 0 ? `${d.bobbinYards} yd` : `${d.fullSkeins} sk`}</p>
                           </div>
                         </Link>
                       ))}

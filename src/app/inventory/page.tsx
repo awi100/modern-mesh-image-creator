@@ -65,6 +65,14 @@ interface Supply {
   quantity: number;
 }
 
+interface BackupColorInfo {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  inventorySkeins: number;
+  inStock: boolean;
+}
+
 interface KitItem {
   dmcNumber: string;
   colorName: string;
@@ -77,6 +85,8 @@ interface KitItem {
   bobbinYards: number;
   inventorySkeins: number;
   inStock: boolean;
+  primaryInStock?: boolean;
+  backup: BackupColorInfo | null;
 }
 
 interface KitContents {
@@ -133,6 +143,13 @@ export default function InventoryPage() {
   const [expandedKits, setExpandedKits] = useState<Set<string>>(new Set());
   const [kitContentsCache, setKitContentsCache] = useState<Map<string, KitContents>>(new Map());
   const [loadingKitContents, setLoadingKitContents] = useState<Set<string>>(new Set());
+
+  // Color usage expansion state (for showing which designs use each color)
+  const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
+
+  // Inventory update state
+  const [pendingInventoryValues, setPendingInventoryValues] = useState<Record<string, string>>({});
+  const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
 
   useEffect(() => {
     fetchInventory();
@@ -230,6 +247,86 @@ export default function InventoryPage() {
           fetchKitContents(designId);
         }
       }
+      return next;
+    });
+  };
+
+  // Update inventory for a color within kit contents
+  const handleKitInventoryUpdate = async (dmcNumber: string, delta: number) => {
+    const key = dmcNumber;
+    setUpdatingInventory(key);
+
+    // Optimistic update for kit contents cache
+    setKitContentsCache((prev) => {
+      const next = new Map(prev);
+      for (const [designId, kit] of next) {
+        const updatedContents = kit.kitContents.map((item) => {
+          if (item.dmcNumber !== dmcNumber) return item;
+          const newSkeins = Math.max(0, item.inventorySkeins + delta);
+          return {
+            ...item,
+            inventorySkeins: newSkeins,
+            inStock: newSkeins >= item.skeinsNeeded || (item.backup?.inStock ?? false),
+            primaryInStock: newSkeins >= item.skeinsNeeded,
+          };
+        });
+        next.set(designId, { ...kit, kitContents: updatedContents });
+      }
+      return next;
+    });
+
+    try {
+      const response = await fetch("/api/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dmcNumber, size: 5, delta }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update inventory");
+      }
+
+      // Also refresh the main inventory items
+      fetchInventory();
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      // Revert by refetching kit contents for all expanded kits
+      for (const designId of expandedKits) {
+        setKitContentsCache((prev) => {
+          const next = new Map(prev);
+          next.delete(designId);
+          return next;
+        });
+        fetchKitContents(designId);
+      }
+    } finally {
+      setUpdatingInventory(null);
+    }
+  };
+
+  // Set absolute inventory value for a color
+  const handleSetKitInventory = async (dmcNumber: string, value: number) => {
+    // Find current value from kit contents
+    let currentValue = 0;
+    for (const [, kit] of kitContentsCache) {
+      const item = kit.kitContents.find((i) => i.dmcNumber === dmcNumber);
+      if (item) {
+        currentValue = item.inventorySkeins;
+        break;
+      }
+    }
+
+    const newVal = Math.max(0, value);
+    const delta = newVal - currentValue;
+
+    if (delta !== 0) {
+      await handleKitInventoryUpdate(dmcNumber, delta);
+    }
+
+    // Clear pending value
+    setPendingInventoryValues((prev) => {
+      const next = { ...prev };
+      delete next[dmcNumber];
       return next;
     });
   };
@@ -1221,39 +1318,191 @@ export default function InventoryPage() {
                                     <span className="ml-2 text-slate-400 text-sm">Loading kit contents...</span>
                                   </div>
                                 ) : kitContents ? (
-                                  <div className="flex flex-wrap gap-2">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                                     {kitContents.kitContents.map((item) => {
+                                      const colorUsageKey = `${design.id}-${item.dmcNumber}`;
+                                      const isColorExpanded = expandedColors.has(colorUsageKey);
+                                      const isUpdating = updatingInventory === item.dmcNumber;
                                       const otherDesigns = (colorUsage.get(item.dmcNumber) || []).filter(
                                         (d) => d.id !== design.id
                                       );
                                       return (
                                         <div
                                           key={item.dmcNumber}
-                                          className="flex items-center gap-2 bg-slate-800 rounded-lg px-2 py-1.5 border border-slate-700"
+                                          className={`rounded-lg bg-slate-800/50 ${
+                                            !item.inStock ? "ring-1 ring-red-500" : ""
+                                          }`}
                                         >
-                                          <div
-                                            className="w-4 h-4 rounded-sm border border-slate-600"
-                                            style={{ backgroundColor: item.hex }}
-                                          />
-                                          <span className="text-white text-xs font-mono">{item.dmcNumber}</span>
-                                          <span className={`text-xs ${item.bobbinYards > 0 && item.fullSkeins === 0 ? "text-amber-400" : "text-slate-400"}`}>
-                                            {item.bobbinYards > 0 && item.fullSkeins === 0
-                                              ? `${item.bobbinYards} yd`
-                                              : `${item.skeinsNeeded} sk`}
-                                          </span>
-                                          {item.inStock ? (
-                                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" title="In stock" />
-                                          ) : (
-                                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full" title="Out of stock" />
-                                          )}
+                                          <div className="flex items-center gap-2 p-2">
+                                            <Link
+                                              href={`/inventory/color/${item.dmcNumber}`}
+                                              className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
+                                              style={{ backgroundColor: item.hex }}
+                                              title={`View DMC ${item.dmcNumber} inventory`}
+                                            >
+                                              <span
+                                                className="text-[7px] font-bold"
+                                                style={{ color: getContrastTextColor(item.hex) }}
+                                              >
+                                                {item.dmcNumber}
+                                              </span>
+                                            </Link>
+                                            <div className="min-w-0 flex-1">
+                                              <Link
+                                                href={`/inventory/color/${item.dmcNumber}`}
+                                                className="text-white text-xs font-medium truncate hover:text-rose-400 transition-colors block"
+                                              >
+                                                {item.dmcNumber}
+                                              </Link>
+                                              <p className={`text-xs ${item.bobbinYards > 0 ? "text-amber-400" : "text-slate-400"}`}>
+                                                {item.fullSkeins > 0
+                                                  ? `Need ${item.fullSkeins} skein${item.fullSkeins > 1 ? "s" : ""}`
+                                                  : `${item.bobbinYards} yd bobbin`
+                                                }
+                                              </p>
+                                            </div>
+                                            {/* Inventory with +/- buttons and editable input */}
+                                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                              <div className="flex items-center gap-1">
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleKitInventoryUpdate(item.dmcNumber, -1);
+                                                  }}
+                                                  disabled={isUpdating || item.inventorySkeins <= 0}
+                                                  className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                  title="Remove 1"
+                                                >
+                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                                  </svg>
+                                                </button>
+                                                <input
+                                                  type="number"
+                                                  min="0"
+                                                  value={pendingInventoryValues[item.dmcNumber] ?? item.inventorySkeins}
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  onChange={(e) => {
+                                                    setPendingInventoryValues((prev) => ({ ...prev, [item.dmcNumber]: e.target.value }));
+                                                  }}
+                                                  onBlur={() => {
+                                                    const val = pendingInventoryValues[item.dmcNumber];
+                                                    if (val !== undefined) {
+                                                      handleSetKitInventory(item.dmcNumber, Number(val));
+                                                    }
+                                                  }}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === "Enter") {
+                                                      const val = pendingInventoryValues[item.dmcNumber];
+                                                      if (val !== undefined) {
+                                                        handleSetKitInventory(item.dmcNumber, Number(val));
+                                                      }
+                                                      (e.target as HTMLInputElement).blur();
+                                                    }
+                                                  }}
+                                                  className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.primaryInStock !== false ? "text-emerald-400" : "text-red-400"}`}
+                                                />
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleKitInventoryUpdate(item.dmcNumber, 1);
+                                                  }}
+                                                  disabled={isUpdating}
+                                                  className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                  title="Add 1"
+                                                >
+                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                  </svg>
+                                                </button>
+                                              </div>
+                                              {/* Backup color indicator */}
+                                              {item.backup && (
+                                                <Link
+                                                  href={`/inventory/color/${item.backup.dmcNumber}`}
+                                                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors"
+                                                  title={`Backup: ${item.backup.colorName}`}
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
+                                                  <span
+                                                    className="w-3 h-3 rounded-sm border border-white/20"
+                                                    style={{ backgroundColor: item.backup.hex }}
+                                                  />
+                                                  <span className="text-amber-400 text-[10px] font-mono">{item.backup.dmcNumber}</span>
+                                                  <span className={`text-[10px] ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                                                    ({item.backup.inventorySkeins})
+                                                  </span>
+                                                </Link>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {/* Color usage indicator */}
                                           {otherDesigns.length > 0 ? (
-                                            <span className="text-slate-500 text-[10px]" title={`Also used in: ${otherDesigns.map(d => d.name).join(", ")}`}>
-                                              +{otherDesigns.length}
-                                            </span>
+                                            <>
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setExpandedColors((prev) => {
+                                                    const next = new Set(prev);
+                                                    if (next.has(colorUsageKey)) {
+                                                      next.delete(colorUsageKey);
+                                                    } else {
+                                                      next.add(colorUsageKey);
+                                                    }
+                                                    return next;
+                                                  });
+                                                }}
+                                                className="w-full px-2 py-1 text-[10px] text-slate-400 hover:text-slate-300 hover:bg-slate-700/50 flex items-center justify-center gap-1 border-t border-slate-700/50"
+                                              >
+                                                <span>Used in {otherDesigns.length} other design{otherDesigns.length !== 1 ? "s" : ""}</span>
+                                                <svg
+                                                  className={`w-3 h-3 transition-transform ${isColorExpanded ? "rotate-180" : ""}`}
+                                                  fill="none"
+                                                  viewBox="0 0 24 24"
+                                                  stroke="currentColor"
+                                                >
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                              </button>
+                                              {isColorExpanded && (
+                                                <div className="px-2 pb-2 border-t border-slate-700/50 space-y-1 max-h-32 overflow-y-auto">
+                                                  {otherDesigns.map((otherDesign) => (
+                                                    <Link
+                                                      key={otherDesign.id}
+                                                      href={`/design/${otherDesign.id}/kit`}
+                                                      onClick={(e) => e.stopPropagation()}
+                                                      className="flex items-center gap-2 p-1.5 rounded bg-slate-700/30 hover:bg-slate-700/60 transition-colors"
+                                                    >
+                                                      {otherDesign.previewImageUrl ? (
+                                                        <img
+                                                          src={otherDesign.previewImageUrl}
+                                                          alt={otherDesign.name}
+                                                          className="w-6 h-6 object-cover rounded"
+                                                        />
+                                                      ) : (
+                                                        <div className="w-6 h-6 bg-slate-600 rounded flex items-center justify-center">
+                                                          <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                          </svg>
+                                                        </div>
+                                                      )}
+                                                      <div className="min-w-0 flex-1">
+                                                        <p className="text-[10px] text-white truncate">{otherDesign.name}</p>
+                                                        <p className="text-[9px] text-slate-400">
+                                                          {otherDesign.bobbinYards > 0 && otherDesign.fullSkeins === 0
+                                                          ? `${otherDesign.bobbinYards} yd`
+                                                          : `${otherDesign.fullSkeins} sk`}
+                                                        </p>
+                                                      </div>
+                                                    </Link>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </>
                                           ) : (
-                                            <span className="text-slate-600 text-[10px]" title="Only in this design">
-                                              unique
-                                            </span>
+                                            <div className="w-full px-2 py-1 text-[10px] text-slate-500 flex items-center justify-center border-t border-slate-700/50">
+                                              <span>Only in this design</span>
+                                            </div>
                                           )}
                                         </div>
                                       );
