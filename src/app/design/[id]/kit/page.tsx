@@ -12,6 +12,14 @@ import {
 } from "@/lib/shopping-list-export";
 import { Breadcrumb } from "@/components/Breadcrumb";
 
+interface BackupColorInfo {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  inventorySkeins: number;
+  inStock: boolean;
+}
+
 interface KitItem {
   dmcNumber: string;
   colorName: string;
@@ -24,6 +32,7 @@ interface KitItem {
   bobbinYards: number;
   inventorySkeins: number;
   inStock: boolean;
+  backup: BackupColorInfo | null;
 }
 
 interface DesignInfo {
@@ -133,6 +142,9 @@ export default function KitPage() {
   const [pendingInventory, setPendingInventory] = useState<Record<string, string>>({});
   const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
   const [colorUsage, setColorUsage] = useState<Map<string, ColorDesignUsage[]>>(new Map());
+  const [backupColors, setBackupColors] = useState<Record<string, string>>({});
+  const [editingBackup, setEditingBackup] = useState<string | null>(null);
+  const [pendingBackup, setPendingBackup] = useState<string>("");
 
   const fetchKit = async () => {
     try {
@@ -144,12 +156,41 @@ export default function KitPage() {
         setTotals(data.totals);
         setKitsReady(data.design.kitsReady ?? 0);
         setCanvasPrinted(data.design.canvasPrinted ?? 0);
+        setBackupColors(data.backupColors || {});
       }
     } catch (error) {
       console.error("Error fetching kit:", error);
     }
     setLoading(false);
   };
+
+  const handleSetBackupColor = useCallback(async (primaryDmc: string, backupDmc: string) => {
+    const newBackupColors = { ...backupColors };
+    if (backupDmc.trim()) {
+      newBackupColors[primaryDmc] = backupDmc.trim();
+    } else {
+      delete newBackupColors[primaryDmc];
+    }
+
+    try {
+      const res = await fetch(`/api/designs/${designId}/backup-colors`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ backupColors: newBackupColors }),
+      });
+
+      if (res.ok) {
+        setBackupColors(newBackupColors);
+        // Refetch kit to get updated backup inventory info
+        fetchKit();
+      }
+    } catch (error) {
+      console.error("Error setting backup color:", error);
+    }
+
+    setEditingBackup(null);
+    setPendingBackup("");
+  }, [backupColors, designId]);
 
   const fetchSales = async () => {
     try {
@@ -348,8 +389,8 @@ export default function KitPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-white flex items-center gap-3">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+        <div className="text-slate-600 dark:text-white flex items-center gap-3">
           <svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -362,10 +403,10 @@ export default function KitPage() {
 
   if (!design) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-white text-lg mb-4">Design not found</p>
-          <Link href="/" className="text-rose-400 hover:text-rose-300">
+          <p className="text-slate-900 dark:text-white text-lg mb-4">Design not found</p>
+          <Link href="/" className="text-rose-600 dark:text-rose-400 hover:text-rose-500 dark:hover:text-rose-300">
             Back to designs
           </Link>
         </div>
@@ -376,9 +417,9 @@ export default function KitPage() {
   const threadSize = design.meshCount === 14 ? 5 : 8;
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40">
+      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-3 md:px-4 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link
@@ -591,51 +632,123 @@ export default function KitPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="inline-flex items-center gap-1">
-                        <button
-                          onClick={() => handleUpdateInventory(item.dmcNumber, -1)}
-                          disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
-                          className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Remove 1"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                          </svg>
-                        </button>
-                        <input
-                          type="number"
-                          min="0"
-                          value={pendingInventory[item.dmcNumber] ?? item.inventorySkeins}
-                          onChange={(e) => setPendingInventory((prev) => ({ ...prev, [item.dmcNumber]: e.target.value }))}
-                          onBlur={() => {
-                            const val = pendingInventory[item.dmcNumber];
-                            if (val !== undefined) {
-                              handleSetInventory(item.dmcNumber, Number(val));
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
+                      <div className="flex flex-col items-end gap-1">
+                        {/* Primary color inventory */}
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => handleUpdateInventory(item.dmcNumber, -1)}
+                            disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
+                            className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Remove 1"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                            </svg>
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={pendingInventory[item.dmcNumber] ?? item.inventorySkeins}
+                            onChange={(e) => setPendingInventory((prev) => ({ ...prev, [item.dmcNumber]: e.target.value }))}
+                            onBlur={() => {
                               const val = pendingInventory[item.dmcNumber];
                               if (val !== undefined) {
                                 handleSetInventory(item.dmcNumber, Number(val));
                               }
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
-                        />
-                        <button
-                          onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
-                          disabled={updatingInventory === item.dmcNumber}
-                          className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Add 1"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                        </button>
-                        {!item.inStock && (
-                          <span className="text-red-400 text-xs ml-1">/{item.skeinsNeeded}</span>
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const val = pendingInventory[item.dmcNumber];
+                                if (val !== undefined) {
+                                  handleSetInventory(item.dmcNumber, Number(val));
+                                }
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
+                          />
+                          <button
+                            onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
+                            disabled={updatingInventory === item.dmcNumber}
+                            className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Add 1"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </button>
+                          {!item.inStock && (
+                            <span className="text-red-400 text-xs ml-1">/{item.skeinsNeeded}</span>
+                          )}
+                        </div>
+                        {/* Backup color indicator */}
+                        {editingBackup === item.dmcNumber ? (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-slate-500 text-xs">Backup:</span>
+                            <input
+                              type="text"
+                              value={pendingBackup}
+                              onChange={(e) => setPendingBackup(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  handleSetBackupColor(item.dmcNumber, pendingBackup);
+                                } else if (e.key === "Escape") {
+                                  setEditingBackup(null);
+                                  setPendingBackup("");
+                                }
+                              }}
+                              placeholder="DMC #"
+                              className="w-16 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center text-white focus:outline-none focus:ring-2 focus:ring-amber-600"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSetBackupColor(item.dmcNumber, pendingBackup)}
+                              className="p-0.5 text-emerald-400 hover:text-emerald-300"
+                              title="Save"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => { setEditingBackup(null); setPendingBackup(""); }}
+                              className="p-0.5 text-slate-400 hover:text-slate-300"
+                              title="Cancel"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ) : item.backup ? (
+                          <button
+                            onClick={() => {
+                              setEditingBackup(item.dmcNumber);
+                              setPendingBackup(item.backup?.dmcNumber || "");
+                            }}
+                            className="flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors"
+                            title={`Backup: ${item.backup.colorName}. Click to edit.`}
+                          >
+                            <span
+                              className="w-3 h-3 rounded-sm border border-white/20"
+                              style={{ backgroundColor: item.backup.hex }}
+                            />
+                            <span className="text-amber-400 text-xs font-mono">{item.backup.dmcNumber}</span>
+                            <span className={`text-xs ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                              ({item.backup.inventorySkeins})
+                            </span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setEditingBackup(item.dmcNumber);
+                              setPendingBackup("");
+                            }}
+                            className={`text-xs mt-1 ${item.inStock ? "text-slate-500 hover:text-slate-400" : "text-amber-500 hover:text-amber-400"}`}
+                            title="Set a backup color for when this color is unavailable"
+                          >
+                            + Backup
+                          </button>
                         )}
                       </div>
                     </td>
@@ -770,6 +883,64 @@ export default function KitPage() {
                       <span className="text-red-400 text-xs">/{item.skeinsNeeded}</span>
                     )}
                   </div>
+                  {/* Mobile backup color indicator */}
+                  {editingBackup === `mobile-${item.dmcNumber}` ? (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="text-slate-500 text-[10px]">Backup:</span>
+                      <input
+                        type="text"
+                        value={pendingBackup}
+                        onChange={(e) => setPendingBackup(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleSetBackupColor(item.dmcNumber, pendingBackup);
+                          } else if (e.key === "Escape") {
+                            setEditingBackup(null);
+                            setPendingBackup("");
+                          }
+                        }}
+                        placeholder="DMC #"
+                        className="w-14 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-[10px] text-center text-white focus:outline-none focus:ring-1 focus:ring-amber-600"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => handleSetBackupColor(item.dmcNumber, pendingBackup)}
+                        className="text-emerald-400"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : item.backup ? (
+                    <button
+                      onClick={() => {
+                        setEditingBackup(`mobile-${item.dmcNumber}`);
+                        setPendingBackup(item.backup?.dmcNumber || "");
+                      }}
+                      className="flex items-center gap-1 mt-0.5"
+                    >
+                      <span className="text-amber-500 text-[10px]">Backup:</span>
+                      <span
+                        className="w-2.5 h-2.5 rounded-sm border border-white/20"
+                        style={{ backgroundColor: item.backup.hex }}
+                      />
+                      <span className="text-amber-400 text-[10px] font-mono">{item.backup.dmcNumber}</span>
+                      <span className={`text-[10px] ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                        ({item.backup.inventorySkeins})
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditingBackup(`mobile-${item.dmcNumber}`);
+                        setPendingBackup("");
+                      }}
+                      className={`text-[10px] mt-0.5 ${item.inStock ? "text-slate-500" : "text-amber-500"}`}
+                    >
+                      + Backup
+                    </button>
+                  )}
                 </div>
               </div>
               {/* Color usage indicator */}

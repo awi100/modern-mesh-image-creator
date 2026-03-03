@@ -40,6 +40,7 @@ export async function GET(
         canvasPrinted: true,
         totalSold: true,
         totalKitsSold: true,
+        backupColors: true,
       },
     });
 
@@ -63,6 +64,11 @@ export async function GET(
       stitchType,
       design.bufferPercent
     );
+
+    // Parse backup colors mapping
+    const backupColors: Record<string, string> = design.backupColors
+      ? JSON.parse(design.backupColors)
+      : {};
 
     // Get inventory for Size 5 thread (14 mesh only)
     const inventoryItems = await prisma.inventoryItem.findMany({
@@ -106,6 +112,21 @@ export async function GET(
         }
       }
 
+      // Get backup color info if exists
+      const backupDmcNumber = backupColors[usage.dmcNumber];
+      let backup = null;
+      if (backupDmcNumber) {
+        const backupColor = getDmcColorByNumber(backupDmcNumber);
+        const backupInventorySkeins = inventoryMap.get(backupDmcNumber) ?? 0;
+        backup = {
+          dmcNumber: backupDmcNumber,
+          colorName: backupColor?.name ?? "Unknown",
+          hex: backupColor?.hex ?? "#888888",
+          inventorySkeins: backupInventorySkeins,
+          inStock: backupInventorySkeins >= usage.skeinsNeeded,
+        };
+      }
+
       return {
         dmcNumber: usage.dmcNumber,
         colorName: dmcColor?.name ?? "Unknown",
@@ -118,6 +139,7 @@ export async function GET(
         bobbinYards,
         inventorySkeins,
         inStock: inventorySkeins >= usage.skeinsNeeded,
+        backup,
       };
     });
 
@@ -151,6 +173,7 @@ export async function GET(
         totalKitsSold: design.totalKitsSold,
       },
       kitContents,
+      backupColors,
       totals: {
         colors: kitContents.length,
         skeins: kitContents.reduce((sum, c) => sum + c.skeinsNeeded, 0),

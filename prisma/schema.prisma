@@ -115,6 +115,10 @@ model Design {
   kitSkeinCount         Int     @default(0)  // total skeins for one kit
   colorsUsed            String? // JSON array of DMC numbers used in design
 
+  // Backup color mappings (for substitution when primary color is unavailable)
+  // Format: JSON object { "503": "504", "310": "3371" }
+  backupColors          String? // JSON map of primary DMC # to backup DMC #
+
   // Draft status (new designs start as draft, mark complete when ready to sell)
   isDraft               Boolean @default(true)
 
