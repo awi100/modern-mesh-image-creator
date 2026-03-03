@@ -32,6 +32,7 @@ interface KitItem {
   bobbinYards: number;
   inventorySkeins: number;
   inStock: boolean;
+  primaryInStock?: boolean;
   backup: BackupColorInfo | null;
 }
 
@@ -665,7 +666,7 @@ export default function KitPage() {
                                 (e.target as HTMLInputElement).blur();
                               }
                             }}
-                            className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
+                            className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.primaryInStock !== false ? "text-emerald-400" : "text-red-400"}`}
                           />
                           <button
                             onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
@@ -677,7 +678,7 @@ export default function KitPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
                           </button>
-                          {!item.inStock && (
+                          {item.primaryInStock === false && (
                             <span className="text-red-400 text-xs ml-1">/{item.skeinsNeeded}</span>
                           )}
                         </div>
@@ -867,7 +868,7 @@ export default function KitPage() {
                           (e.target as HTMLInputElement).blur();
                         }
                       }}
-                      className={`w-10 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
+                      className={`w-10 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.primaryInStock !== false ? "text-emerald-400" : "text-red-400"}`}
                     />
                     <button
                       onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
@@ -879,7 +880,7 @@ export default function KitPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
                     </button>
-                    {!item.inStock && (
+                    {item.primaryInStock === false && (
                       <span className="text-red-400 text-xs">/{item.skeinsNeeded}</span>
                     )}
                   </div>

@@ -7,6 +7,14 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 
 const SKEIN_YARDS = 27;
 
+interface BackupColorInfo {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  inventorySkeins: number;
+  inStock: boolean;
+}
+
 interface KitItem {
   dmcNumber: string;
   colorName: string;
@@ -19,6 +27,8 @@ interface KitItem {
   bobbinYards: number;
   inventorySkeins: number;
   inStock: boolean;
+  primaryInStock?: boolean;
+  backup: BackupColorInfo | null;
 }
 
 interface Folder {
@@ -715,61 +725,79 @@ export default function KitsPage() {
                                           </p>
                                         </div>
                                         {/* Inventory with +/- buttons and editable input */}
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleUpdateInventory(item.dmcNumber, kit.meshCount, -1);
-                                            }}
-                                            disabled={isUpdating || item.inventorySkeins <= 0}
-                                            className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                            title="Remove 1"
-                                          >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                            </svg>
-                                          </button>
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            value={pendingInventory[`${item.dmcNumber}-${kit.meshCount}`] ?? item.inventorySkeins}
-                                            onClick={(e) => e.stopPropagation()}
-                                            onChange={(e) => {
-                                              const key = `${item.dmcNumber}-${kit.meshCount}`;
-                                              setPendingInventory((prev) => ({ ...prev, [key]: e.target.value }));
-                                            }}
-                                            onBlur={() => {
-                                              const key = `${item.dmcNumber}-${kit.meshCount}`;
-                                              const val = pendingInventory[key];
-                                              if (val !== undefined) {
-                                                handleSetInventory(item.dmcNumber, kit.meshCount, Number(val));
-                                              }
-                                            }}
-                                            onKeyDown={(e) => {
-                                              if (e.key === "Enter") {
+                                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                          <div className="flex items-center gap-1">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleUpdateInventory(item.dmcNumber, kit.meshCount, -1);
+                                              }}
+                                              disabled={isUpdating || item.inventorySkeins <= 0}
+                                              className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                              title="Remove 1"
+                                            >
+                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                              </svg>
+                                            </button>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={pendingInventory[`${item.dmcNumber}-${kit.meshCount}`] ?? item.inventorySkeins}
+                                              onClick={(e) => e.stopPropagation()}
+                                              onChange={(e) => {
+                                                const key = `${item.dmcNumber}-${kit.meshCount}`;
+                                                setPendingInventory((prev) => ({ ...prev, [key]: e.target.value }));
+                                              }}
+                                              onBlur={() => {
                                                 const key = `${item.dmcNumber}-${kit.meshCount}`;
                                                 const val = pendingInventory[key];
                                                 if (val !== undefined) {
                                                   handleSetInventory(item.dmcNumber, kit.meshCount, Number(val));
                                                 }
-                                                (e.target as HTMLInputElement).blur();
-                                              }
-                                            }}
-                                            className={`w-10 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
-                                          />
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleUpdateInventory(item.dmcNumber, kit.meshCount, 1);
-                                            }}
-                                            disabled={isUpdating}
-                                            className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                            title="Add 1"
-                                          >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                            </svg>
-                                          </button>
+                                              }}
+                                              onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
+                                                  const key = `${item.dmcNumber}-${kit.meshCount}`;
+                                                  const val = pendingInventory[key];
+                                                  if (val !== undefined) {
+                                                    handleSetInventory(item.dmcNumber, kit.meshCount, Number(val));
+                                                  }
+                                                  (e.target as HTMLInputElement).blur();
+                                                }
+                                              }}
+                                              className={`w-10 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.primaryInStock !== false ? "text-emerald-400" : "text-red-400"}`}
+                                            />
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleUpdateInventory(item.dmcNumber, kit.meshCount, 1);
+                                              }}
+                                              disabled={isUpdating}
+                                              className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                              title="Add 1"
+                                            >
+                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                              </svg>
+                                            </button>
+                                          </div>
+                                          {/* Backup color indicator */}
+                                          {item.backup && (
+                                            <div
+                                              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50"
+                                              title={`Backup: ${item.backup.colorName}`}
+                                            >
+                                              <span
+                                                className="w-3 h-3 rounded-sm border border-white/20"
+                                                style={{ backgroundColor: item.backup.hex }}
+                                              />
+                                              <span className="text-amber-400 text-[10px] font-mono">{item.backup.dmcNumber}</span>
+                                              <span className={`text-[10px] ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                                                ({item.backup.inventorySkeins})
+                                              </span>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                       {/* Color usage indicator */}

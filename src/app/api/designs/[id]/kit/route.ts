@@ -127,6 +127,11 @@ export async function GET(
         };
       }
 
+      // Color is "in stock" if primary OR backup has enough
+      const primaryInStock = inventorySkeins >= usage.skeinsNeeded;
+      const backupInStock = backup?.inStock ?? false;
+      const effectiveInStock = primaryInStock || backupInStock;
+
       return {
         dmcNumber: usage.dmcNumber,
         colorName: dmcColor?.name ?? "Unknown",
@@ -138,7 +143,8 @@ export async function GET(
         fullSkeins,
         bobbinYards,
         inventorySkeins,
-        inStock: inventorySkeins >= usage.skeinsNeeded,
+        inStock: effectiveInStock,
+        primaryInStock,
         backup,
       };
     });

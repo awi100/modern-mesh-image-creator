@@ -32,6 +32,7 @@ export async function GET() {
         pixelData: true,
         kitsReady: true,
         canvasPrinted: true,
+        backupColors: true,
         folder: {
           select: {
             id: true,
@@ -79,6 +80,11 @@ export async function GET() {
         // Get inventory for Size 5 thread (14 mesh only)
         const inventoryMap = inventoryBySize[5];
 
+        // Parse backup colors for this design
+        const backupColors: Record<string, string> = design.backupColors
+          ? JSON.parse(design.backupColors)
+          : {};
+
         // Build kit contents
         const kitContents = yarnUsage.map((usage) => {
           const dmcColor = getDmcColorByNumber(usage.dmcNumber);
@@ -108,6 +114,26 @@ export async function GET() {
             }
           }
 
+          // Get backup color info if exists
+          const backupDmcNumber = backupColors[usage.dmcNumber];
+          let backup = null;
+          if (backupDmcNumber) {
+            const backupColor = getDmcColorByNumber(backupDmcNumber);
+            const backupInventorySkeins = inventoryMap.get(backupDmcNumber) ?? 0;
+            backup = {
+              dmcNumber: backupDmcNumber,
+              colorName: backupColor?.name ?? "Unknown",
+              hex: backupColor?.hex ?? "#888888",
+              inventorySkeins: backupInventorySkeins,
+              inStock: backupInventorySkeins >= usage.skeinsNeeded,
+            };
+          }
+
+          // Color is "in stock" if primary OR backup has enough
+          const primaryInStock = inventorySkeins >= usage.skeinsNeeded;
+          const backupInStock = backup?.inStock ?? false;
+          const effectiveInStock = primaryInStock || backupInStock;
+
           return {
             dmcNumber: usage.dmcNumber,
             colorName: dmcColor?.name ?? "Unknown",
@@ -119,7 +145,9 @@ export async function GET() {
             fullSkeins,
             bobbinYards,
             inventorySkeins,
-            inStock: inventorySkeins >= usage.skeinsNeeded,
+            inStock: effectiveInStock,
+            primaryInStock,
+            backup,
           };
         });
 
