@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -11,6 +11,7 @@ import {
   openPrintableWindow,
 } from "@/lib/shopping-list-export";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { searchDmcColors, getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
 interface BackupColorInfo {
   dmcNumber: string;
@@ -146,6 +147,18 @@ export default function KitPage() {
   const [backupColors, setBackupColors] = useState<Record<string, string>>({});
   const [editingBackup, setEditingBackup] = useState<string | null>(null);
   const [pendingBackup, setPendingBackup] = useState<string>("");
+
+  // Search for backup color suggestions
+  const backupColorSuggestions = useMemo(() => {
+    if (!pendingBackup.trim()) return [];
+    return searchDmcColors(pendingBackup.trim()).slice(0, 8);
+  }, [pendingBackup]);
+
+  // Get the color info for the current pendingBackup value (if it's an exact match)
+  const pendingBackupColor = useMemo(() => {
+    if (!pendingBackup.trim()) return null;
+    return getDmcColorByNumber(pendingBackup.trim());
+  }, [pendingBackup]);
 
   const fetchKit = async () => {
     try {
@@ -684,42 +697,86 @@ export default function KitPage() {
                         </div>
                         {/* Backup color indicator */}
                         {editingBackup === item.dmcNumber ? (
-                          <div className="flex items-center gap-1 mt-1">
-                            <span className="text-slate-500 text-xs">Backup:</span>
-                            <input
-                              type="text"
-                              value={pendingBackup}
-                              onChange={(e) => setPendingBackup(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  handleSetBackupColor(item.dmcNumber, pendingBackup);
-                                } else if (e.key === "Escape") {
-                                  setEditingBackup(null);
-                                  setPendingBackup("");
-                                }
-                              }}
-                              placeholder="DMC #"
-                              className="w-16 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center text-white focus:outline-none focus:ring-2 focus:ring-amber-600"
-                              autoFocus
-                            />
-                            <button
-                              onClick={() => handleSetBackupColor(item.dmcNumber, pendingBackup)}
-                              className="p-0.5 text-emerald-400 hover:text-emerald-300"
-                              title="Save"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => { setEditingBackup(null); setPendingBackup(""); }}
-                              className="p-0.5 text-slate-400 hover:text-slate-300"
-                              title="Cancel"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
+                          <div className="relative mt-1">
+                            <div className="flex items-center gap-1">
+                              <span className="text-slate-500 text-xs">Backup:</span>
+                              {/* Show selected color preview */}
+                              {pendingBackupColor && (
+                                <span
+                                  className="w-6 h-6 rounded flex items-center justify-center border border-white/20"
+                                  style={{ backgroundColor: pendingBackupColor.hex }}
+                                >
+                                  <span
+                                    className="text-[7px] font-bold"
+                                    style={{ color: getContrastTextColor(pendingBackupColor.hex) }}
+                                  >
+                                    {pendingBackupColor.dmcNumber}
+                                  </span>
+                                </span>
+                              )}
+                              <input
+                                type="text"
+                                value={pendingBackup}
+                                onChange={(e) => setPendingBackup(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    handleSetBackupColor(item.dmcNumber, pendingBackup);
+                                  } else if (e.key === "Escape") {
+                                    setEditingBackup(null);
+                                    setPendingBackup("");
+                                  }
+                                }}
+                                placeholder="Search DMC # or name"
+                                className="w-32 px-2 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-600"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleSetBackupColor(item.dmcNumber, pendingBackup)}
+                                className="p-0.5 text-emerald-400 hover:text-emerald-300"
+                                title="Save"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => { setEditingBackup(null); setPendingBackup(""); }}
+                                className="p-0.5 text-slate-400 hover:text-slate-300"
+                                title="Cancel"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                            {/* Color suggestions dropdown */}
+                            {backupColorSuggestions.length > 0 && !pendingBackupColor && (
+                              <div className="absolute z-10 mt-1 w-64 bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                                {backupColorSuggestions.map((color) => (
+                                  <button
+                                    key={color.dmcNumber}
+                                    onClick={() => {
+                                      setPendingBackup(color.dmcNumber);
+                                      handleSetBackupColor(item.dmcNumber, color.dmcNumber);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-slate-700 transition-colors"
+                                  >
+                                    <span
+                                      className="w-7 h-7 rounded flex items-center justify-center border border-white/20 flex-shrink-0"
+                                      style={{ backgroundColor: color.hex }}
+                                    >
+                                      <span
+                                        className="text-[7px] font-bold"
+                                        style={{ color: getContrastTextColor(color.hex) }}
+                                      >
+                                        {color.dmcNumber}
+                                      </span>
+                                    </span>
+                                    <span className="text-white text-xs truncate">{color.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ) : item.backup ? (
                           <button
@@ -892,32 +949,84 @@ export default function KitPage() {
                   </div>
                   {/* Mobile backup color indicator */}
                   {editingBackup === `mobile-${item.dmcNumber}` ? (
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-slate-500 text-[10px]">Backup:</span>
-                      <input
-                        type="text"
-                        value={pendingBackup}
-                        onChange={(e) => setPendingBackup(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            handleSetBackupColor(item.dmcNumber, pendingBackup);
-                          } else if (e.key === "Escape") {
-                            setEditingBackup(null);
-                            setPendingBackup("");
-                          }
-                        }}
-                        placeholder="DMC #"
-                        className="w-14 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-[10px] text-center text-white focus:outline-none focus:ring-1 focus:ring-amber-600"
-                        autoFocus
-                      />
-                      <button
-                        onClick={() => handleSetBackupColor(item.dmcNumber, pendingBackup)}
-                        className="text-emerald-400"
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </button>
+                    <div className="relative mt-0.5">
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-500 text-[10px]">Backup:</span>
+                        {/* Show selected color preview */}
+                        {pendingBackupColor && (
+                          <span
+                            className="w-5 h-5 rounded flex items-center justify-center border border-white/20"
+                            style={{ backgroundColor: pendingBackupColor.hex }}
+                          >
+                            <span
+                              className="text-[6px] font-bold"
+                              style={{ color: getContrastTextColor(pendingBackupColor.hex) }}
+                            >
+                              {pendingBackupColor.dmcNumber}
+                            </span>
+                          </span>
+                        )}
+                        <input
+                          type="text"
+                          value={pendingBackup}
+                          onChange={(e) => setPendingBackup(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleSetBackupColor(item.dmcNumber, pendingBackup);
+                            } else if (e.key === "Escape") {
+                              setEditingBackup(null);
+                              setPendingBackup("");
+                            }
+                          }}
+                          placeholder="Search..."
+                          className="w-20 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-[10px] text-white focus:outline-none focus:ring-1 focus:ring-amber-600"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleSetBackupColor(item.dmcNumber, pendingBackup)}
+                          className="text-emerald-400"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => { setEditingBackup(null); setPendingBackup(""); }}
+                          className="text-slate-400"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      {/* Color suggestions dropdown */}
+                      {backupColorSuggestions.length > 0 && !pendingBackupColor && (
+                        <div className="absolute z-10 mt-1 left-0 w-56 bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-40 overflow-y-auto">
+                          {backupColorSuggestions.map((color) => (
+                            <button
+                              key={color.dmcNumber}
+                              onClick={() => {
+                                setPendingBackup(color.dmcNumber);
+                                handleSetBackupColor(item.dmcNumber, color.dmcNumber);
+                              }}
+                              className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-slate-700 transition-colors"
+                            >
+                              <span
+                                className="w-6 h-6 rounded flex items-center justify-center border border-white/20 flex-shrink-0"
+                                style={{ backgroundColor: color.hex }}
+                              >
+                                <span
+                                  className="text-[6px] font-bold"
+                                  style={{ color: getContrastTextColor(color.hex) }}
+                                >
+                                  {color.dmcNumber}
+                                </span>
+                              </span>
+                              <span className="text-white text-[10px] truncate">{color.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ) : item.backup ? (
                     <button
