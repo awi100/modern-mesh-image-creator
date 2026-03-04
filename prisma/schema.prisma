@@ -171,10 +171,11 @@ model InventoryItem {
   dmcNumber String
   size      Int      // 5 (for 14 mesh) or 8 (for 18 mesh)
   skeins    Int      @default(1) // 1 skein = 27 yards
+  location  String   @default("main") // "main" (here) or "maddie" (partner location)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([dmcNumber, size])
+  @@unique([dmcNumber, size, location])
   @@map("inventory_items")
 }
 

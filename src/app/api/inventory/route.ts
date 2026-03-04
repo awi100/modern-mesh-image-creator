@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const size = searchParams.get("size");
     const search = searchParams.get("search");
+    const location = searchParams.get("location"); // "main", "maddie", or null for all
 
     const where: Record<string, unknown> = {};
 
@@ -21,6 +22,10 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       where.dmcNumber = { contains: search, mode: "insensitive" };
+    }
+
+    if (location) {
+      where.location = location;
     }
 
     const items = await prisma.inventoryItem.findMany({
@@ -46,7 +51,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { dmcNumber, size, skeins } = body;
+    const { dmcNumber, size, skeins, location = "main" } = body;
 
     if (!dmcNumber || !size || skeins === undefined) {
       return NextResponse.json(
@@ -62,10 +67,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (location !== "main" && location !== "maddie") {
+      return NextResponse.json(
+        { error: "Location must be 'main' or 'maddie'" },
+        { status: 400 }
+      );
+    }
+
     // Upsert: create or update if already exists
     const item = await prisma.inventoryItem.upsert({
       where: {
-        dmcNumber_size: { dmcNumber, size: Number(size) },
+        dmcNumber_size_location: { dmcNumber, size: Number(size), location },
       },
       update: {
         skeins: Number(skeins),
@@ -74,6 +86,7 @@ export async function POST(request: NextRequest) {
         dmcNumber,
         size: Number(size),
         skeins: Number(skeins),
+        location,
       },
     });
 
@@ -95,7 +108,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { dmcNumber, size, delta } = body;
+    const { dmcNumber, size, delta, location = "main" } = body;
 
     if (!dmcNumber || !size || delta === undefined) {
       return NextResponse.json(
@@ -111,10 +124,17 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    if (location !== "main" && location !== "maddie") {
+      return NextResponse.json(
+        { error: "Location must be 'main' or 'maddie'" },
+        { status: 400 }
+      );
+    }
+
     // Find existing inventory or create with 0
     const existing = await prisma.inventoryItem.findUnique({
       where: {
-        dmcNumber_size: { dmcNumber, size: Number(size) },
+        dmcNumber_size_location: { dmcNumber, size: Number(size), location },
       },
     });
 
@@ -123,7 +143,7 @@ export async function PATCH(request: NextRequest) {
 
     const item = await prisma.inventoryItem.upsert({
       where: {
-        dmcNumber_size: { dmcNumber, size: Number(size) },
+        dmcNumber_size_location: { dmcNumber, size: Number(size), location },
       },
       update: {
         skeins: newSkeins,
@@ -132,6 +152,7 @@ export async function PATCH(request: NextRequest) {
         dmcNumber,
         size: Number(size),
         skeins: newSkeins,
+        location,
       },
     });
 

@@ -11,9 +11,12 @@ interface InventoryItem {
   dmcNumber: string;
   size: number;
   skeins: number;
+  location: string; // "main" or "maddie"
   createdAt: string;
   updatedAt: string;
 }
+
+type LocationFilter = "all" | "main" | "maddie";
 
 interface Folder {
   id: string;
@@ -112,6 +115,9 @@ export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<TabType>("threads");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [designs, setDesigns] = useState<Design[]>([]);
+  const [locationFilter, setLocationFilter] = useState<LocationFilter>("all");
+  const [addLocation, setAddLocation] = useState<"main" | "maddie">("main");
+  const [transferring, setTransferring] = useState<string | null>(null);
   const [colorUsage, setColorUsage] = useState<Map<string, ColorUsageDesign[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -421,6 +427,9 @@ export default function InventoryPage() {
     if (sizeFilter !== null) {
       result = result.filter((item) => item.size === sizeFilter);
     }
+    if (locationFilter !== "all") {
+      result = result.filter((item) => item.location === locationFilter);
+    }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter((item) => {
@@ -443,7 +452,7 @@ export default function InventoryPage() {
       return a.dmcNumber.localeCompare(b.dmcNumber);
     });
     return result;
-  }, [items, sizeFilter, searchQuery]);
+  }, [items, sizeFilter, searchQuery, locationFilter]);
 
   const filteredDesigns = useMemo(() => {
     if (!searchQuery) return designs;
@@ -480,6 +489,7 @@ export default function InventoryPage() {
           dmcNumber: selectedColor.dmcNumber,
           size: addSize,
           skeins: skeinsNum,
+          location: addLocation,
         }),
       });
       if (response.ok) {
@@ -487,6 +497,7 @@ export default function InventoryPage() {
         setSelectedColor(null);
         setAddSearch("");
         setAddSkeins("1");
+        setAddLocation("main");
         setShowAddForm(false);
       }
     } catch (error) {
@@ -593,6 +604,47 @@ export default function InventoryPage() {
   const size5Count = items.filter((i) => i.size === 5).length;
   const totalKitsReady = designs.reduce((sum, d) => sum + d.kitsReady, 0);
   const totalCanvasesPrinted = designs.reduce((sum, d) => sum + d.canvasPrinted, 0);
+
+  // Location-specific stats
+  const mainSkeins = items.filter((i) => i.location === "main").reduce((sum, i) => sum + i.skeins, 0);
+  const maddieSkeins = items.filter((i) => i.location === "maddie").reduce((sum, i) => sum + i.skeins, 0);
+  const allSkeins = mainSkeins + maddieSkeins;
+
+  // Group items by DMC number for combined view
+  const itemsByDmc = useMemo(() => {
+    const map = new Map<string, { main: number; maddie: number; total: number }>();
+    for (const item of items) {
+      if (!map.has(item.dmcNumber)) {
+        map.set(item.dmcNumber, { main: 0, maddie: 0, total: 0 });
+      }
+      const entry = map.get(item.dmcNumber)!;
+      if (item.location === "main") {
+        entry.main += item.skeins;
+      } else {
+        entry.maddie += item.skeins;
+      }
+      entry.total = entry.main + entry.maddie;
+    }
+    return map;
+  }, [items]);
+
+  // Handle transfer from maddie to main
+  const handleTransfer = async (dmcNumber: string) => {
+    setTransferring(dmcNumber);
+    try {
+      const res = await fetch("/api/inventory/transfer", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dmcNumber, size: 5, from: "maddie", to: "main" }),
+      });
+      if (res.ok) {
+        fetchInventory();
+      }
+    } catch (error) {
+      console.error("Error transferring inventory:", error);
+    }
+    setTransferring(null);
+  };
 
   // Group designs by collection (folder)
   const designsByCollection = useMemo(() => {
@@ -770,22 +822,55 @@ export default function InventoryPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <p className="text-xs text-slate-400 uppercase tracking-wider">Total Colors</p>
-                <p className="text-xl font-bold text-white">{items.length}</p>
+                <p className="text-xl font-bold text-white">{itemsByDmc.size}</p>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Total Skeins</p>
-                <p className="text-xl font-bold text-white">{totalSkeins}</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Here (Main)</p>
+                <p className="text-xl font-bold text-emerald-400">{mainSkeins} skeins</p>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Total Yards</p>
-                <p className="text-xl font-bold text-white">{totalYards.toLocaleString()}</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Maddie&apos;s</p>
+                <p className="text-xl font-bold text-amber-400">{maddieSkeins} skeins</p>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Thread Size</p>
-                <p className="text-sm font-medium text-white">
-                  Size 5 (14 mesh): {size5Count}
-                </p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Combined Total</p>
+                <p className="text-xl font-bold text-white">{allSkeins} skeins</p>
               </div>
+            </div>
+
+            {/* Location filter */}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <span className="text-slate-400 text-sm">View:</span>
+              <button
+                onClick={() => setLocationFilter("all")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  locationFilter === "all"
+                    ? "bg-rose-900 text-white"
+                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                }`}
+              >
+                All Locations
+              </button>
+              <button
+                onClick={() => setLocationFilter("main")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  locationFilter === "main"
+                    ? "bg-emerald-900 text-emerald-300"
+                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                }`}
+              >
+                Here (Main)
+              </button>
+              <button
+                onClick={() => setLocationFilter("maddie")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  locationFilter === "maddie"
+                    ? "bg-amber-900 text-amber-300"
+                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                }`}
+              >
+                Maddie&apos;s
+              </button>
             </div>
 
             {/* Search and filter */}
@@ -952,7 +1037,7 @@ export default function InventoryPage() {
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Color</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">DMC #</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden sm:table-cell">Name</th>
-                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Size</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Location</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Skeins</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Yards</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden lg:table-cell">Used In</th>
@@ -988,13 +1073,13 @@ export default function InventoryPage() {
                             <td className="px-4 py-3 hidden sm:table-cell">
                               <span className="text-slate-300">{color?.name || "Unknown"}</span>
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3 hidden md:table-cell">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                item.size === 5
-                                  ? "bg-blue-900/50 text-blue-300"
-                                  : "bg-purple-900/50 text-purple-300"
+                                item.location === "main"
+                                  ? "bg-emerald-900/50 text-emerald-300"
+                                  : "bg-amber-900/50 text-amber-300"
                               }`}>
-                                Size {item.size}
+                                {item.location === "main" ? "Here" : "Maddie"}
                               </span>
                             </td>
                             <td className="px-4 py-3">
@@ -1066,6 +1151,34 @@ export default function InventoryPage() {
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1">
+                                {/* Show location badge on mobile */}
+                                <span className={`md:hidden inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  item.location === "main"
+                                    ? "bg-emerald-900/50 text-emerald-300"
+                                    : "bg-amber-900/50 text-amber-300"
+                                }`}>
+                                  {item.location === "main" ? "Here" : "M"}
+                                </span>
+                                {/* Transfer button for Maddie's items */}
+                                {item.location === "maddie" && (
+                                  <button
+                                    onClick={() => handleTransfer(item.dmcNumber)}
+                                    disabled={transferring === item.dmcNumber}
+                                    className="p-1.5 text-amber-400 hover:text-emerald-400 transition-colors disabled:opacity-50"
+                                    title="Transfer all to main inventory"
+                                  >
+                                    {transferring === item.dmcNumber ? (
+                                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                      </svg>
+                                    ) : (
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                )}
                                 {/* Show expand button on smaller screens */}
                                 <button
                                   onClick={() => setExpandedColor(isExpanded ? null : item.dmcNumber)}
@@ -1927,6 +2040,7 @@ export default function InventoryPage() {
                   setSelectedColor(null);
                   setAddSearch("");
                   setAddSkeins("1");
+                  setAddLocation("main");
                 }}
                 className="p-1 text-slate-400 hover:text-white"
               >
@@ -2011,12 +2125,43 @@ export default function InventoryPage() {
                 </>
               )}
 
+              {/* Location selector */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Location</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAddLocation("main")}
+                    className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${
+                      addLocation === "main"
+                        ? "border-emerald-600 bg-emerald-900/30 text-emerald-300"
+                        : "border-slate-600 bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    }`}
+                  >
+                    <span className="font-medium block">Here (Main)</span>
+                    <span className="text-xs opacity-70">Your inventory</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddLocation("maddie")}
+                    className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${
+                      addLocation === "maddie"
+                        ? "border-amber-600 bg-amber-900/30 text-amber-300"
+                        : "border-slate-600 bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    }`}
+                  >
+                    <span className="font-medium block">Maddie&apos;s</span>
+                    <span className="text-xs opacity-70">Partner location</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Thread size - Size 5 only in internal app */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Thread Size</label>
-                <div className="py-3 px-4 rounded-lg border-2 border-rose-800 bg-rose-900/20 text-white text-center">
-                  <span className="text-lg font-bold block">Size 5</span>
-                  <span className="text-xs text-slate-400">For 14 mesh canvas</span>
+                <div className="py-2 px-4 rounded-lg border border-slate-600 bg-slate-700/50 text-slate-300 text-center">
+                  <span className="text-sm font-medium">Size 5</span>
+                  <span className="text-xs text-slate-400 ml-2">(14 mesh)</span>
                 </div>
               </div>
 
@@ -2063,6 +2208,7 @@ export default function InventoryPage() {
                   setSelectedColor(null);
                   setAddSearch("");
                   setAddSkeins("1");
+                  setAddLocation("main");
                 }}
                 className="flex-1 py-2.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm font-medium"
               >
