@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { Breadcrumb } from "@/components/Breadcrumb";
-import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { getDmcColorByNumber, searchDmcColors } from "@/lib/dmc-pearl-cotton";
 
 interface DesignUsage {
   id: string;
@@ -78,6 +78,18 @@ export default function ColorDetailPage() {
   const backupDmcNumber = backupData?.backupMap?.[dmcNumber] || null;
   const backupColorInfo = backupDmcNumber ? getDmcColorByNumber(backupDmcNumber) : null;
   const backupInventory = backupDmcNumber ? inventory5?.find(i => i.dmcNumber === backupDmcNumber) : null;
+
+  // Search for backup color suggestions
+  const backupColorSuggestions = useMemo(() => {
+    if (!pendingBackup.trim()) return [];
+    return searchDmcColors(pendingBackup.trim()).slice(0, 8);
+  }, [pendingBackup]);
+
+  // Get the color info for the current pendingBackup value (if it's an exact match)
+  const pendingBackupColorInfo = useMemo(() => {
+    if (!pendingBackup.trim()) return null;
+    return getDmcColorByNumber(pendingBackup.trim());
+  }, [pendingBackup]);
 
   // Find this color's usage
   const colorUsage = useMemo(() => {
@@ -319,22 +331,69 @@ export default function ColorDetailPage() {
           {editingBackup ? (
             <div className="bg-slate-700/50 rounded-lg p-4">
               <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={pendingBackup}
-                  onChange={(e) => setPendingBackup(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && pendingBackup.trim()) {
-                      handleSetBackup(pendingBackup);
-                    } else if (e.key === "Escape") {
-                      setEditingBackup(false);
-                      setPendingBackup("");
-                    }
-                  }}
-                  placeholder="Enter DMC number (e.g. 504)"
-                  className="flex-1 px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-600"
-                  autoFocus
-                />
+                {/* Show selected color preview */}
+                {pendingBackupColorInfo && (
+                  <div
+                    className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 border border-white/20"
+                    style={{ backgroundColor: pendingBackupColorInfo.hex }}
+                  >
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: getContrastTextColor(pendingBackupColorInfo.hex) }}
+                    >
+                      {pendingBackupColorInfo.dmcNumber}
+                    </span>
+                  </div>
+                )}
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={pendingBackup}
+                    onChange={(e) => setPendingBackup(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && pendingBackup.trim()) {
+                        handleSetBackup(pendingBackup);
+                      } else if (e.key === "Escape") {
+                        setEditingBackup(false);
+                        setPendingBackup("");
+                      }
+                    }}
+                    placeholder="Search DMC # or color name"
+                    className="w-full px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-600"
+                    autoFocus
+                  />
+                  {/* Color suggestions dropdown */}
+                  {backupColorSuggestions.length > 0 && !pendingBackupColorInfo && (
+                    <div className="absolute z-10 mt-1 w-full bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                      {backupColorSuggestions.map((color) => (
+                        <button
+                          key={color.dmcNumber}
+                          onClick={() => {
+                            setPendingBackup(color.dmcNumber);
+                            handleSetBackup(color.dmcNumber);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-700 transition-colors"
+                        >
+                          <span
+                            className="w-10 h-10 rounded-lg flex items-center justify-center border border-white/20 flex-shrink-0"
+                            style={{ backgroundColor: color.hex }}
+                          >
+                            <span
+                              className="text-xs font-bold"
+                              style={{ color: getContrastTextColor(color.hex) }}
+                            >
+                              {color.dmcNumber}
+                            </span>
+                          </span>
+                          <div className="text-left">
+                            <p className="text-white font-medium">{color.dmcNumber}</p>
+                            <p className="text-slate-400 text-sm">{color.name}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => handleSetBackup(pendingBackup)}
                   disabled={savingBackup || !pendingBackup.trim()}
