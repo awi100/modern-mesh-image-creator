@@ -727,16 +727,22 @@ export default function KitPage() {
                               setEditingBackup(item.dmcNumber);
                               setPendingBackup(item.backup?.dmcNumber || "");
                             }}
-                            className="flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors"
+                            className="flex items-center gap-1.5 mt-1 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors"
                             title={`Backup: ${item.backup.colorName}. Click to edit.`}
                           >
                             <span
-                              className="w-3 h-3 rounded-sm border border-white/20"
+                              className="w-6 h-6 rounded flex items-center justify-center border border-white/20"
                               style={{ backgroundColor: item.backup.hex }}
-                            />
-                            <span className="text-amber-400 text-xs font-mono">{item.backup.dmcNumber}</span>
-                            <span className={`text-xs ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                              ({item.backup.inventorySkeins})
+                            >
+                              <span
+                                className="text-[7px] font-bold"
+                                style={{ color: getContrastTextColor(item.backup.hex) }}
+                              >
+                                {item.backup.dmcNumber}
+                              </span>
+                            </span>
+                            <span className={`text-xs font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                              {item.backup.inventorySkeins} sk
                             </span>
                           </button>
                         ) : (
@@ -919,16 +925,21 @@ export default function KitPage() {
                         setEditingBackup(`mobile-${item.dmcNumber}`);
                         setPendingBackup(item.backup?.dmcNumber || "");
                       }}
-                      className="flex items-center gap-1 mt-0.5"
+                      className="flex items-center gap-1.5 mt-0.5 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50"
                     >
-                      <span className="text-amber-500 text-[10px]">Backup:</span>
                       <span
-                        className="w-2.5 h-2.5 rounded-sm border border-white/20"
+                        className="w-5 h-5 rounded flex items-center justify-center border border-white/20"
                         style={{ backgroundColor: item.backup.hex }}
-                      />
-                      <span className="text-amber-400 text-[10px] font-mono">{item.backup.dmcNumber}</span>
-                      <span className={`text-[10px] ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                        ({item.backup.inventorySkeins})
+                      >
+                        <span
+                          className="text-[6px] font-bold"
+                          style={{ color: getContrastTextColor(item.backup.hex) }}
+                        >
+                          {item.backup.dmcNumber}
+                        </span>
+                      </span>
+                      <span className={`text-[10px] font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                        {item.backup.inventorySkeins} sk
                       </span>
                     </button>
                   ) : (

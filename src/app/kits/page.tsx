@@ -794,19 +794,27 @@ export default function KitsPage() {
                                           </div>
                                           {/* Backup color indicator */}
                                           {item.backup && (
-                                            <div
-                                              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50"
+                                            <Link
+                                              href={`/inventory/color/${item.backup.dmcNumber}`}
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors"
                                               title={`Backup: ${item.backup.colorName}`}
                                             >
                                               <span
-                                                className="w-3 h-3 rounded-sm border border-white/20"
+                                                className="w-6 h-6 rounded flex items-center justify-center border border-white/20"
                                                 style={{ backgroundColor: item.backup.hex }}
-                                              />
-                                              <span className="text-amber-400 text-[10px] font-mono">{item.backup.dmcNumber}</span>
-                                              <span className={`text-[10px] ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                                                ({item.backup.inventorySkeins})
+                                              >
+                                                <span
+                                                  className="text-[7px] font-bold"
+                                                  style={{ color: getContrastTextColor(item.backup.hex) }}
+                                                >
+                                                  {item.backup.dmcNumber}
+                                                </span>
                                               </span>
-                                            </div>
+                                              <span className={`text-[10px] font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                                                {item.backup.inventorySkeins} sk
+                                              </span>
+                                            </Link>
                                           )}
                                         </div>
                                       </div>
