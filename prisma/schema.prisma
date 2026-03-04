@@ -97,7 +97,8 @@ model Design {
 
   // Kit tracking
   kitsReady             Int     @default(0)  // assembled kits awaiting sale
-  canvasPrinted         Int     @default(0)  // physical canvases printed
+  canvasPrinted         Int     @default(0)  // physical canvases printed (at main location)
+  canvasPrintedMaddie   Int     @default(0)  // canvases printed at Maddie's location
 
   // Sales tracking (from Shopify fulfilled orders)
   totalSold             Int     @default(0)  // total units sold (kits + canvas-only)
@@ -171,11 +172,10 @@ model InventoryItem {
   dmcNumber String
   size      Int      // 5 (for 14 mesh) or 8 (for 18 mesh)
   skeins    Int      @default(1) // 1 skein = 27 yards
-  location  String   @default("main") // "main" (here) or "maddie" (partner location)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([dmcNumber, size, location])
+  @@unique([dmcNumber, size])
   @@map("inventory_items")
 }
 

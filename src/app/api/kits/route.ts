@@ -43,10 +43,8 @@ export async function GET() {
       orderBy: [{ folder: { name: "asc" } }, { name: "asc" }],
     });
 
-    // Get inventory from main location only (maddie's is just for tracking)
-    const inventoryItems = await prisma.inventoryItem.findMany({
-      where: { location: "main" },
-    });
+    // Get inventory
+    const inventoryItems = await prisma.inventoryItem.findMany();
     const inventoryBySize: Record<number, Map<string, number>> = {
       5: new Map(),
       8: new Map(),

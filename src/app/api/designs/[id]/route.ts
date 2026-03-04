@@ -297,16 +297,25 @@ export async function PATCH(
       data.canvasPrinted = Math.max(0, body.canvasPrinted);
     }
 
+    if (body.canvasPrintedMaddie !== undefined) {
+      data.canvasPrintedMaddie = Math.max(0, body.canvasPrintedMaddie);
+    }
+
     // Handle delta updates for counters
-    if (body.canvasPrintedDelta !== undefined || body.kitsReadyDelta !== undefined) {
+    if (body.canvasPrintedDelta !== undefined || body.kitsReadyDelta !== undefined || body.canvasPrintedMaddieDelta !== undefined) {
       const current = await prisma.design.findUnique({
         where: { id },
-        select: { canvasPrinted: true, kitsReady: true },
+        select: { canvasPrinted: true, kitsReady: true, canvasPrintedMaddie: true },
       });
 
       if (body.canvasPrintedDelta !== undefined) {
         const newVal = (current?.canvasPrinted ?? 0) + body.canvasPrintedDelta;
         data.canvasPrinted = Math.max(0, newVal);
+      }
+
+      if (body.canvasPrintedMaddieDelta !== undefined) {
+        const newVal = (current?.canvasPrintedMaddie ?? 0) + body.canvasPrintedMaddieDelta;
+        data.canvasPrintedMaddie = Math.max(0, newVal);
       }
 
       if (body.kitsReadyDelta !== undefined) {

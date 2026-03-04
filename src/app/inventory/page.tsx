@@ -11,12 +11,9 @@ interface InventoryItem {
   dmcNumber: string;
   size: number;
   skeins: number;
-  location: string; // "main" or "maddie"
   createdAt: string;
   updatedAt: string;
 }
-
-type LocationFilter = "all" | "main" | "maddie";
 
 interface Folder {
   id: string;
@@ -30,6 +27,7 @@ interface Design {
   previewImageUrl: string | null;
   kitsReady: number;
   canvasPrinted: number;
+  canvasPrintedMaddie: number;
   isDraft: boolean;
   kitColorCount: number;
   kitSkeinCount: number;
@@ -115,9 +113,7 @@ export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<TabType>("threads");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [designs, setDesigns] = useState<Design[]>([]);
-  const [locationFilter, setLocationFilter] = useState<LocationFilter>("all");
-  const [addLocation, setAddLocation] = useState<"main" | "maddie">("main");
-  const [transferring, setTransferring] = useState<string | null>(null);
+  const [transferringCanvas, setTransferringCanvas] = useState<string | null>(null);
   const [colorUsage, setColorUsage] = useState<Map<string, ColorUsageDesign[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -143,6 +139,7 @@ export default function InventoryPage() {
   const [pendingSkeins, setPendingSkeins] = useState<Record<string, string>>({});
   const [pendingKits, setPendingKits] = useState<Record<string, string>>({});
   const [pendingCanvases, setPendingCanvases] = useState<Record<string, string>>({});
+  const [pendingCanvasesMaddie, setPendingCanvasesMaddie] = useState<Record<string, string>>({});
   const [pendingSupplyQuantity, setPendingSupplyQuantity] = useState<Record<string, string>>({});
 
   // Kit contents expansion state
@@ -427,9 +424,6 @@ export default function InventoryPage() {
     if (sizeFilter !== null) {
       result = result.filter((item) => item.size === sizeFilter);
     }
-    if (locationFilter !== "all") {
-      result = result.filter((item) => item.location === locationFilter);
-    }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter((item) => {
@@ -452,7 +446,7 @@ export default function InventoryPage() {
       return a.dmcNumber.localeCompare(b.dmcNumber);
     });
     return result;
-  }, [items, sizeFilter, searchQuery, locationFilter]);
+  }, [items, sizeFilter, searchQuery]);
 
   const filteredDesigns = useMemo(() => {
     if (!searchQuery) return designs;
@@ -489,7 +483,6 @@ export default function InventoryPage() {
           dmcNumber: selectedColor.dmcNumber,
           size: addSize,
           skeins: skeinsNum,
-          location: addLocation,
         }),
       });
       if (response.ok) {
@@ -497,7 +490,6 @@ export default function InventoryPage() {
         setSelectedColor(null);
         setAddSearch("");
         setAddSkeins("1");
-        setAddLocation("main");
         setShowAddForm(false);
       }
     } catch (error) {
@@ -525,11 +517,15 @@ export default function InventoryPage() {
     }
   };
 
-  const handleUpdateDesign = async (id: string, field: "kitsReady" | "canvasPrinted", delta: number) => {
+  const handleUpdateDesign = async (id: string, field: "kitsReady" | "canvasPrinted" | "canvasPrintedMaddie", delta: number) => {
     const design = designs.find((d) => d.id === id);
     if (!design) return;
 
-    const currentVal = field === "kitsReady" ? design.kitsReady : design.canvasPrinted;
+    const currentVal = field === "kitsReady"
+      ? design.kitsReady
+      : field === "canvasPrinted"
+      ? design.canvasPrinted
+      : (design.canvasPrintedMaddie || 0);
     const newVal = Math.max(0, currentVal + delta);
 
     // Optimistic update
@@ -538,14 +534,18 @@ export default function InventoryPage() {
     // Clear pending
     if (field === "kitsReady") {
       setPendingKits((prev) => { const next = { ...prev }; delete next[id]; return next; });
-    } else {
+    } else if (field === "canvasPrinted") {
       setPendingCanvases((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    } else {
+      setPendingCanvasesMaddie((prev) => { const next = { ...prev }; delete next[id]; return next; });
     }
 
     try {
       const body = field === "kitsReady"
         ? { kitsReadyDelta: delta }
-        : { canvasPrintedDelta: delta };
+        : field === "canvasPrinted"
+        ? { canvasPrintedDelta: delta }
+        : { canvasPrintedMaddieDelta: delta };
 
       const response = await fetch(`/api/designs/${id}`, {
         method: "PATCH",
@@ -561,11 +561,15 @@ export default function InventoryPage() {
     }
   };
 
-  const handleSetDesignValue = async (id: string, field: "kitsReady" | "canvasPrinted", value: number) => {
+  const handleSetDesignValue = async (id: string, field: "kitsReady" | "canvasPrinted" | "canvasPrintedMaddie", value: number) => {
     const design = designs.find((d) => d.id === id);
     if (!design) return;
 
-    const currentVal = field === "kitsReady" ? design.kitsReady : design.canvasPrinted;
+    const currentVal = field === "kitsReady"
+      ? design.kitsReady
+      : field === "canvasPrinted"
+      ? design.canvasPrinted
+      : (design.canvasPrintedMaddie || 0);
     const newVal = Math.max(0, value);
     const delta = newVal - currentVal;
 
@@ -575,8 +579,10 @@ export default function InventoryPage() {
       // Just clear pending
       if (field === "kitsReady") {
         setPendingKits((prev) => { const next = { ...prev }; delete next[id]; return next; });
-      } else {
+      } else if (field === "canvasPrinted") {
         setPendingCanvases((prev) => { const next = { ...prev }; delete next[id]; return next; });
+      } else {
+        setPendingCanvasesMaddie((prev) => { const next = { ...prev }; delete next[id]; return next; });
       }
     }
   };
@@ -605,45 +611,33 @@ export default function InventoryPage() {
   const totalKitsReady = designs.reduce((sum, d) => sum + d.kitsReady, 0);
   const totalCanvasesPrinted = designs.reduce((sum, d) => sum + d.canvasPrinted, 0);
 
-  // Location-specific stats
-  const mainSkeins = items.filter((i) => i.location === "main").reduce((sum, i) => sum + i.skeins, 0);
-  const maddieSkeins = items.filter((i) => i.location === "maddie").reduce((sum, i) => sum + i.skeins, 0);
-  const allSkeins = mainSkeins + maddieSkeins;
+  // Canvas location-specific stats
+  const mainCanvases = designs.reduce((sum, d) => sum + d.canvasPrinted, 0);
+  const maddieCanvases = designs.reduce((sum, d) => sum + (d.canvasPrintedMaddie || 0), 0);
+  const allCanvases = mainCanvases + maddieCanvases;
 
-  // Group items by DMC number for combined view
-  const itemsByDmc = useMemo(() => {
-    const map = new Map<string, { main: number; maddie: number; total: number }>();
-    for (const item of items) {
-      if (!map.has(item.dmcNumber)) {
-        map.set(item.dmcNumber, { main: 0, maddie: 0, total: 0 });
-      }
-      const entry = map.get(item.dmcNumber)!;
-      if (item.location === "main") {
-        entry.main += item.skeins;
-      } else {
-        entry.maddie += item.skeins;
-      }
-      entry.total = entry.main + entry.maddie;
-    }
-    return map;
-  }, [items]);
-
-  // Handle transfer from maddie to main
-  const handleTransfer = async (dmcNumber: string) => {
-    setTransferring(dmcNumber);
+  // Handle canvas transfer from Maddie to main
+  const handleCanvasTransfer = async (designId: string) => {
+    setTransferringCanvas(designId);
     try {
       const res = await fetch("/api/inventory/transfer", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dmcNumber, size: 5, from: "maddie", to: "main" }),
+        body: JSON.stringify({ designId }),
       });
       if (res.ok) {
-        fetchInventory();
+        const data = await res.json();
+        // Update local state
+        setDesigns(designs.map(d =>
+          d.id === designId
+            ? { ...d, canvasPrinted: data.design.canvasPrinted, canvasPrintedMaddie: data.design.canvasPrintedMaddie }
+            : d
+        ));
       }
     } catch (error) {
-      console.error("Error transferring inventory:", error);
+      console.error("Error transferring canvases:", error);
     }
-    setTransferring(null);
+    setTransferringCanvas(null);
   };
 
   // Group designs by collection (folder)
@@ -819,58 +813,19 @@ export default function InventoryPage() {
         {activeTab === "threads" && (
           <>
             {/* Stats bar */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <p className="text-xs text-slate-400 uppercase tracking-wider">Total Colors</p>
-                <p className="text-xl font-bold text-white">{itemsByDmc.size}</p>
+                <p className="text-xl font-bold text-white">{filteredItems.length}</p>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Here (Main)</p>
-                <p className="text-xl font-bold text-emerald-400">{mainSkeins} skeins</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Total Skeins</p>
+                <p className="text-xl font-bold text-white">{totalSkeins}</p>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Maddie&apos;s</p>
-                <p className="text-xl font-bold text-amber-400">{maddieSkeins} skeins</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Total Yards</p>
+                <p className="text-xl font-bold text-white">{totalYards}</p>
               </div>
-              <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Combined Total</p>
-                <p className="text-xl font-bold text-white">{allSkeins} skeins</p>
-              </div>
-            </div>
-
-            {/* Location filter */}
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <span className="text-slate-400 text-sm">View:</span>
-              <button
-                onClick={() => setLocationFilter("all")}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  locationFilter === "all"
-                    ? "bg-rose-900 text-white"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                }`}
-              >
-                All Locations
-              </button>
-              <button
-                onClick={() => setLocationFilter("main")}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  locationFilter === "main"
-                    ? "bg-emerald-900 text-emerald-300"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                }`}
-              >
-                Here (Main)
-              </button>
-              <button
-                onClick={() => setLocationFilter("maddie")}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  locationFilter === "maddie"
-                    ? "bg-amber-900 text-amber-300"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                }`}
-              >
-                Maddie&apos;s
-              </button>
             </div>
 
             {/* Search and filter */}
@@ -1037,7 +992,7 @@ export default function InventoryPage() {
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Color</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">DMC #</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden sm:table-cell">Name</th>
-                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Location</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Size</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Skeins</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Yards</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider hidden lg:table-cell">Used In</th>
@@ -1073,13 +1028,13 @@ export default function InventoryPage() {
                             <td className="px-4 py-3 hidden sm:table-cell">
                               <span className="text-slate-300">{color?.name || "Unknown"}</span>
                             </td>
-                            <td className="px-4 py-3 hidden md:table-cell">
+                            <td className="px-4 py-3">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                item.location === "main"
-                                  ? "bg-emerald-900/50 text-emerald-300"
-                                  : "bg-amber-900/50 text-amber-300"
+                                item.size === 5
+                                  ? "bg-blue-900/50 text-blue-300"
+                                  : "bg-purple-900/50 text-purple-300"
                               }`}>
-                                {item.location === "main" ? "Here" : "Maddie"}
+                                Size {item.size}
                               </span>
                             </td>
                             <td className="px-4 py-3">
@@ -1151,34 +1106,6 @@ export default function InventoryPage() {
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1">
-                                {/* Show location badge on mobile */}
-                                <span className={`md:hidden inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                  item.location === "main"
-                                    ? "bg-emerald-900/50 text-emerald-300"
-                                    : "bg-amber-900/50 text-amber-300"
-                                }`}>
-                                  {item.location === "main" ? "Here" : "M"}
-                                </span>
-                                {/* Transfer button for Maddie's items */}
-                                {item.location === "maddie" && (
-                                  <button
-                                    onClick={() => handleTransfer(item.dmcNumber)}
-                                    disabled={transferring === item.dmcNumber}
-                                    className="p-1.5 text-amber-400 hover:text-emerald-400 transition-colors disabled:opacity-50"
-                                    title="Transfer all to main inventory"
-                                  >
-                                    {transferring === item.dmcNumber ? (
-                                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                      </svg>
-                                    ) : (
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                      </svg>
-                                    )}
-                                  </button>
-                                )}
                                 {/* Show expand button on smaller screens */}
                                 <button
                                   onClick={() => setExpandedColor(isExpanded ? null : item.dmcNumber)}
@@ -1661,18 +1588,22 @@ export default function InventoryPage() {
         {activeTab === "canvases" && (
           <>
             {/* Stats bar */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Total Canvases</p>
-                <p className="text-xl font-bold text-white">{totalCanvasesPrinted}</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Here (Main)</p>
+                <p className="text-xl font-bold text-emerald-400">{mainCanvases}</p>
+              </div>
+              <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Maddie&apos;s</p>
+                <p className="text-xl font-bold text-amber-400">{maddieCanvases}</p>
+              </div>
+              <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Combined Total</p>
+                <p className="text-xl font-bold text-white">{allCanvases}</p>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <p className="text-xs text-slate-400 uppercase tracking-wider">Designs</p>
                 <p className="text-xl font-bold text-white">{designs.length}</p>
-              </div>
-              <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">With Stock</p>
-                <p className="text-xl font-bold text-white">{designs.filter(d => d.canvasPrinted > 0).length}</p>
               </div>
             </div>
 
@@ -1741,47 +1672,115 @@ export default function InventoryPage() {
                             </p>
                           </div>
 
-                          {/* Canvases Printed control */}
-                          <div className="flex items-center gap-1 md:gap-2">
-                            <button
-                              onClick={() => handleUpdateDesign(design.id, "canvasPrinted", -1)}
-                              className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                              disabled={design.canvasPrinted <= 0}
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              value={pendingCanvases[design.id] ?? design.canvasPrinted}
-                              onChange={(e) => setPendingCanvases((prev) => ({ ...prev, [design.id]: e.target.value }))}
-                              onBlur={() => {
-                                const val = pendingCanvases[design.id];
-                                if (val !== undefined) {
-                                  handleSetDesignValue(design.id, "canvasPrinted", Number(val));
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
+                          {/* Canvases controls - Main (Here) */}
+                          <div className="flex flex-col md:flex-row items-end md:items-center gap-2 md:gap-4">
+                            {/* Main location */}
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-emerald-400 mr-1 hidden md:inline">Here:</span>
+                              <button
+                                onClick={() => handleUpdateDesign(design.id, "canvasPrinted", -1)}
+                                className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                disabled={design.canvasPrinted <= 0}
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                </svg>
+                              </button>
+                              <input
+                                type="number"
+                                min="0"
+                                value={pendingCanvases[design.id] ?? design.canvasPrinted}
+                                onChange={(e) => setPendingCanvases((prev) => ({ ...prev, [design.id]: e.target.value }))}
+                                onBlur={() => {
                                   const val = pendingCanvases[design.id];
                                   if (val !== undefined) {
                                     handleSetDesignValue(design.id, "canvasPrinted", Number(val));
                                   }
-                                  (e.target as HTMLInputElement).blur();
-                                }
-                              }}
-                              className="w-14 md:w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
-                            />
-                            <button
-                              onClick={() => handleUpdateDesign(design.id, "canvasPrinted", 1)}
-                              className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    const val = pendingCanvases[design.id];
+                                    if (val !== undefined) {
+                                      handleSetDesignValue(design.id, "canvasPrinted", Number(val));
+                                    }
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className="w-12 px-1 py-1 bg-emerald-900/30 border border-emerald-700/50 rounded text-emerald-300 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                              />
+                              <button
+                                onClick={() => handleUpdateDesign(design.id, "canvasPrinted", 1)}
+                                className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                              </button>
+                            </div>
+
+                            {/* Maddie's location with transfer */}
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-amber-400 mr-1 hidden md:inline">Maddie:</span>
+                              <button
+                                onClick={() => handleUpdateDesign(design.id, "canvasPrintedMaddie", -1)}
+                                className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                disabled={(design.canvasPrintedMaddie || 0) <= 0}
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                </svg>
+                              </button>
+                              <input
+                                type="number"
+                                min="0"
+                                value={pendingCanvasesMaddie[design.id] ?? (design.canvasPrintedMaddie || 0)}
+                                onChange={(e) => setPendingCanvasesMaddie((prev) => ({ ...prev, [design.id]: e.target.value }))}
+                                onBlur={() => {
+                                  const val = pendingCanvasesMaddie[design.id];
+                                  if (val !== undefined) {
+                                    handleSetDesignValue(design.id, "canvasPrintedMaddie", Number(val));
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    const val = pendingCanvasesMaddie[design.id];
+                                    if (val !== undefined) {
+                                      handleSetDesignValue(design.id, "canvasPrintedMaddie", Number(val));
+                                    }
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className="w-12 px-1 py-1 bg-amber-900/30 border border-amber-700/50 rounded text-amber-300 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-600"
+                              />
+                              <button
+                                onClick={() => handleUpdateDesign(design.id, "canvasPrintedMaddie", 1)}
+                                className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                              </button>
+                              {/* Transfer button */}
+                              {(design.canvasPrintedMaddie || 0) > 0 && (
+                                <button
+                                  onClick={() => handleCanvasTransfer(design.id)}
+                                  disabled={transferringCanvas === design.id}
+                                  className="ml-1 p-1 text-amber-400 hover:text-emerald-400 transition-colors rounded hover:bg-slate-700 disabled:opacity-50"
+                                  title="Transfer all to main"
+                                >
+                                  {transferringCanvas === design.id ? (
+                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -2040,7 +2039,6 @@ export default function InventoryPage() {
                   setSelectedColor(null);
                   setAddSearch("");
                   setAddSkeins("1");
-                  setAddLocation("main");
                 }}
                 className="p-1 text-slate-400 hover:text-white"
               >
@@ -2125,37 +2123,6 @@ export default function InventoryPage() {
                 </>
               )}
 
-              {/* Location selector */}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Location</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAddLocation("main")}
-                    className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${
-                      addLocation === "main"
-                        ? "border-emerald-600 bg-emerald-900/30 text-emerald-300"
-                        : "border-slate-600 bg-slate-700 text-slate-300 hover:bg-slate-600"
-                    }`}
-                  >
-                    <span className="font-medium block">Here (Main)</span>
-                    <span className="text-xs opacity-70">Your inventory</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAddLocation("maddie")}
-                    className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${
-                      addLocation === "maddie"
-                        ? "border-amber-600 bg-amber-900/30 text-amber-300"
-                        : "border-slate-600 bg-slate-700 text-slate-300 hover:bg-slate-600"
-                    }`}
-                  >
-                    <span className="font-medium block">Maddie&apos;s</span>
-                    <span className="text-xs opacity-70">Partner location</span>
-                  </button>
-                </div>
-              </div>
-
               {/* Thread size - Size 5 only in internal app */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Thread Size</label>
@@ -2208,7 +2175,6 @@ export default function InventoryPage() {
                   setSelectedColor(null);
                   setAddSearch("");
                   setAddSkeins("1");
-                  setAddLocation("main");
                 }}
                 className="flex-1 py-2.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm font-medium"
               >

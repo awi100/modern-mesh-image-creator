@@ -82,9 +82,9 @@ export async function GET(
     // Merge: design-specific backups override global backups
     const backupColors: Record<string, string> = { ...globalBackupMap, ...designBackupColors };
 
-    // Get inventory for Size 5 thread from main location only (14 mesh only)
+    // Get inventory for Size 5 thread (14 mesh only)
     const inventoryItems = await prisma.inventoryItem.findMany({
-      where: { size: 5, location: "main" },
+      where: { size: 5 },
     });
     const inventoryMap = new Map(
       inventoryItems.map((item) => [item.dmcNumber, item.skeins])
