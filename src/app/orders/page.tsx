@@ -6,6 +6,14 @@ import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/
 import { Breadcrumb } from "@/components/Breadcrumb";
 
 // Kit content types
+interface BackupColorInfo {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  inventorySkeins: number;
+  inStock: boolean;
+}
+
 interface KitItem {
   dmcNumber: string;
   colorName: string;
@@ -15,6 +23,8 @@ interface KitItem {
   bobbinYards: number;
   inventorySkeins: number;
   inStock: boolean;
+  primaryInStock?: boolean;
+  backup: BackupColorInfo | null;
 }
 
 interface KitData {
@@ -897,6 +907,30 @@ export default function OrdersPage() {
                                                         </svg>
                                                       </button>
                                                       </div>
+                                                      {/* Backup color indicator */}
+                                                      {item.backup && (
+                                                        <Link
+                                                          href={`/inventory/color/${item.backup.dmcNumber}`}
+                                                          onClick={(e) => e.stopPropagation()}
+                                                          className="flex items-center gap-1 px-1 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors ml-auto"
+                                                          title={`Backup: ${item.backup.colorName}`}
+                                                        >
+                                                          <span
+                                                            className="w-5 h-5 rounded flex items-center justify-center border border-white/20"
+                                                            style={{ backgroundColor: item.backup.hex }}
+                                                          >
+                                                            <span
+                                                              className="text-[6px] font-bold"
+                                                              style={{ color: getContrastTextColor(item.backup.hex) }}
+                                                            >
+                                                              {item.backup.dmcNumber}
+                                                            </span>
+                                                          </span>
+                                                          <span className={`text-[9px] font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                                                            {item.backup.inventorySkeins}sk
+                                                          </span>
+                                                        </Link>
+                                                      )}
                                                     </div>
                                                     {/* Color usage indicator */}
                                                     {otherDesigns.length > 0 && (
