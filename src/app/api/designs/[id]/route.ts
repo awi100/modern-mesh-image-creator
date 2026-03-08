@@ -301,29 +301,66 @@ export async function PATCH(
       data.canvasPrintedMaddie = Math.max(0, body.canvasPrintedMaddie);
     }
 
-    // Handle delta updates for counters
-    if (body.canvasPrintedDelta !== undefined || body.kitsReadyDelta !== undefined || body.canvasPrintedMaddieDelta !== undefined) {
-      const current = await prisma.design.findUnique({
-        where: { id },
-        select: { canvasPrinted: true, kitsReady: true, canvasPrintedMaddie: true },
+    // Handle delta updates for counters using atomic increment
+    // This prevents race conditions when multiple requests update simultaneously
+    const hasDeltaUpdates = body.canvasPrintedDelta !== undefined ||
+                            body.kitsReadyDelta !== undefined ||
+                            body.canvasPrintedMaddieDelta !== undefined;
+
+    if (hasDeltaUpdates) {
+      // Use transaction for atomic delta updates with floor check
+      const design = await prisma.$transaction(async (tx) => {
+        // First, get current values to check if delta would go negative
+        const current = await tx.design.findUnique({
+          where: { id },
+          select: { canvasPrinted: true, kitsReady: true, canvasPrintedMaddie: true },
+        });
+
+        if (!current) {
+          throw new Error("Design not found");
+        }
+
+        // Calculate safe deltas (prevent going below 0)
+        if (body.canvasPrintedDelta !== undefined) {
+          const newVal = current.canvasPrinted + body.canvasPrintedDelta;
+          if (newVal < 0) {
+            // Clamp to 0 - set absolute value instead of increment
+            data.canvasPrinted = 0;
+          } else {
+            data.canvasPrinted = { increment: body.canvasPrintedDelta };
+          }
+        }
+
+        if (body.canvasPrintedMaddieDelta !== undefined) {
+          const newVal = current.canvasPrintedMaddie + body.canvasPrintedMaddieDelta;
+          if (newVal < 0) {
+            data.canvasPrintedMaddie = 0;
+          } else {
+            data.canvasPrintedMaddie = { increment: body.canvasPrintedMaddieDelta };
+          }
+        }
+
+        if (body.kitsReadyDelta !== undefined) {
+          const newVal = current.kitsReady + body.kitsReadyDelta;
+          if (newVal < 0) {
+            data.kitsReady = 0;
+          } else {
+            data.kitsReady = { increment: body.kitsReadyDelta };
+          }
+        }
+
+        // Apply all updates atomically
+        return tx.design.update({
+          where: { id },
+          data,
+          include: { folder: true },
+        });
       });
 
-      if (body.canvasPrintedDelta !== undefined) {
-        const newVal = (current?.canvasPrinted ?? 0) + body.canvasPrintedDelta;
-        data.canvasPrinted = Math.max(0, newVal);
-      }
-
-      if (body.canvasPrintedMaddieDelta !== undefined) {
-        const newVal = (current?.canvasPrintedMaddie ?? 0) + body.canvasPrintedMaddieDelta;
-        data.canvasPrintedMaddie = Math.max(0, newVal);
-      }
-
-      if (body.kitsReadyDelta !== undefined) {
-        const newVal = (current?.kitsReady ?? 0) + body.kitsReadyDelta;
-        data.kitsReady = Math.max(0, newVal);
-      }
+      return NextResponse.json(design);
     }
 
+    // Non-delta updates (absolute values only)
     const design = await prisma.design.update({
       where: { id },
       data,

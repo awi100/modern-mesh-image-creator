@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 
 // PUT - Transfer ALL canvases from Maddie to main for a specific design
+// Uses transaction with atomic operations to prevent race conditions
 export async function PUT(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -19,50 +20,60 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Get current design
-    const design = await prisma.design.findUnique({
-      where: { id: designId },
-      select: { canvasPrinted: true, canvasPrintedMaddie: true },
-    });
+    // Use transaction for atomic transfer
+    const result = await prisma.$transaction(async (tx) => {
+      // Get current design within transaction
+      const design = await tx.design.findUnique({
+        where: { id: designId },
+        select: { canvasPrinted: true, canvasPrintedMaddie: true },
+      });
 
-    if (!design) {
-      return NextResponse.json(
-        { error: "Design not found" },
-        { status: 404 }
-      );
-    }
+      if (!design) {
+        throw new Error("Design not found");
+      }
 
-    if (design.canvasPrintedMaddie === 0) {
-      return NextResponse.json(
-        { error: "No canvases at Maddie's location to transfer" },
-        { status: 400 }
-      );
-    }
+      if (design.canvasPrintedMaddie === 0) {
+        throw new Error("No canvases at Maddie's location to transfer");
+      }
 
-    const quantity = design.canvasPrintedMaddie;
+      const quantity = design.canvasPrintedMaddie;
 
-    // Transfer: add to main, set Maddie's to 0
-    const updatedDesign = await prisma.design.update({
-      where: { id: designId },
-      data: {
-        canvasPrinted: design.canvasPrinted + quantity,
-        canvasPrintedMaddie: 0,
-      },
-      select: {
-        id: true,
-        name: true,
-        canvasPrinted: true,
-        canvasPrintedMaddie: true,
-      },
+      // Atomic transfer: increment main, set Maddie's to 0
+      const updatedDesign = await tx.design.update({
+        where: { id: designId },
+        data: {
+          canvasPrinted: { increment: quantity },
+          canvasPrintedMaddie: 0,
+        },
+        select: {
+          id: true,
+          name: true,
+          canvasPrinted: true,
+          canvasPrintedMaddie: true,
+        },
+      });
+
+      return { quantity, design: updatedDesign };
     });
 
     return NextResponse.json({
       success: true,
-      transferred: quantity,
-      design: updatedDesign,
+      transferred: result.quantity,
+      design: result.design,
     });
   } catch (error) {
     console.error("Error transferring canvases:", error);
+
+    // Handle specific error messages
+    if (error instanceof Error) {
+      if (error.message === "Design not found") {
+        return NextResponse.json({ error: "Design not found" }, { status: 404 });
+      }
+      if (error.message === "No canvases at Maddie's location to transfer") {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+    }
+
     return NextResponse.json(
       { error: "Failed to transfer canvases" },
       { status: 500 }
