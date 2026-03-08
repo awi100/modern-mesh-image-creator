@@ -85,6 +85,89 @@ function calculateDemandByDesign(orders: Order[]) {
   return demand;
 }
 
+// Calculate which orders can actually be fulfilled, processing oldest first
+// Returns a Set of shopifyOrderId that have enough inventory (after accounting for older orders)
+function calculateFulfillableOrders(orders: Order[]) {
+  const fulfillableOrders = new Set<string>();
+
+  // Sort orders by date (oldest first) - exclude locally fulfilled
+  const unfulfilledOrders = orders
+    .filter(o => !o.locallyFulfilled)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  // Track remaining inventory per design
+  // We need to get initial inventory from the first item of each design
+  const remainingKits = new Map<string, number>();
+  const remainingCanvases = new Map<string, number>();
+  const remainingSupplies = new Map<string, number>();
+
+  // Initialize remaining inventory from the actual design values
+  for (const order of unfulfilledOrders) {
+    for (const item of order.items) {
+      if (item.designId && !remainingKits.has(item.designId)) {
+        remainingKits.set(item.designId, item.kitsReady);
+        remainingCanvases.set(item.designId, item.canvasPrinted);
+      }
+      if (item.supplyId && !remainingSupplies.has(item.supplyId)) {
+        remainingSupplies.set(item.supplyId, item.supplyQuantity);
+      }
+    }
+  }
+
+  // Process orders chronologically
+  for (const order of unfulfilledOrders) {
+    const canvasItems = order.items.filter(item => item.itemType === "canvas");
+
+    // Check if this order can be fulfilled with remaining inventory
+    let canFulfill = true;
+
+    for (const item of canvasItems) {
+      if (!item.designId) continue;
+
+      const remainingKitsForDesign = remainingKits.get(item.designId) || 0;
+      const remainingCanvasesForDesign = remainingCanvases.get(item.designId) || 0;
+
+      // Need enough canvases
+      if (remainingCanvasesForDesign < item.quantity) {
+        canFulfill = false;
+        break;
+      }
+
+      // Need enough kits if this item needs a kit
+      if (item.needsKit && remainingKitsForDesign < item.quantity) {
+        canFulfill = false;
+        break;
+      }
+    }
+
+    if (canFulfill) {
+      fulfillableOrders.add(order.shopifyOrderId);
+
+      // Deduct from remaining inventory
+      for (const item of canvasItems) {
+        if (!item.designId) continue;
+
+        const currentCanvases = remainingCanvases.get(item.designId) || 0;
+        remainingCanvases.set(item.designId, currentCanvases - item.quantity);
+
+        if (item.needsKit) {
+          const currentKits = remainingKits.get(item.designId) || 0;
+          remainingKits.set(item.designId, currentKits - item.quantity);
+        }
+      }
+
+      // Deduct supplies
+      for (const item of order.items.filter(i => i.itemType === "supply")) {
+        if (!item.supplyId) continue;
+        const currentSupply = remainingSupplies.get(item.supplyId) || 0;
+        remainingSupplies.set(item.supplyId, currentSupply - item.quantity);
+      }
+    }
+  }
+
+  return fulfillableOrders;
+}
+
 export default function OrdersPage() {
   const [data, setData] = useState<OrdersResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1331,11 +1414,13 @@ export default function OrdersPage() {
                 ) : (
                   (() => {
                     const demandByDesign = calculateDemandByDesign(data.orders);
+                    const fulfillableOrders = calculateFulfillableOrders(data.orders);
                     return data.orders.map((order) => (
                       <OrderCard
                         key={order.shopifyOrderId}
                         order={order}
                         demandByDesign={demandByDesign}
+                        canFulfillOrder={fulfillableOrders.has(order.shopifyOrderId)}
                         onFulfill={handleFulfillOrder}
                         fulfilling={fulfilling === order.shopifyOrderId}
                       />
@@ -1359,11 +1444,12 @@ interface DemandMap {
 interface OrderCardProps {
   order: Order;
   demandByDesign: Map<string, DemandMap>;
+  canFulfillOrder: boolean;
   onFulfill: (order: Order) => void;
   fulfilling: boolean;
 }
 
-function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardProps) {
+function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilling }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Only count canvas items for kits/canvases
@@ -1374,8 +1460,7 @@ function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardPr
   const canvasesInOrder = canvasItems.reduce((sum, item) => sum + item.quantity, 0);
   const suppliesInOrder = supplyItems.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Check if we have enough kits/canvases for THIS order specifically
-  // (not total demand - allow fulfilling orders one at a time)
+  // Check if we have enough kits/canvases for THIS order specifically (for badge display)
   const hasEnoughKitsForOrder = canvasItems.every((item) => {
     if (!item.needsKit || !item.designId) return true;
     return item.kitsReady >= item.quantity;
@@ -1385,10 +1470,9 @@ function OrderCard({ order, demandByDesign, onFulfill, fulfilling }: OrderCardPr
     return item.canvasPrinted >= item.quantity;
   });
 
-  // Can fulfill if we have enough kits and canvases for canvas items
-  // Supplies don't block fulfillment
+  // canFulfillOrder is calculated by parent, accounting for older orders consuming inventory first
   // Can't fulfill if already locally fulfilled
-  const canFulfill = !order.locallyFulfilled && ((canvasItems.length === 0) || (hasEnoughKitsForOrder && hasEnoughCanvasesForOrder));
+  const canFulfill = !order.locallyFulfilled && canFulfillOrder;
 
   return (
     <div className={`bg-slate-800 rounded-xl border overflow-hidden ${
