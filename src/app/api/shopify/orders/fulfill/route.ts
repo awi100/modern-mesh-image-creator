@@ -181,3 +181,115 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// DELETE - Undo a local fulfillment (restore inventory)
+export async function DELETE(request: NextRequest) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const shopifyOrderId = searchParams.get("shopifyOrderId");
+
+    if (!shopifyOrderId) {
+      return NextResponse.json({ error: "Missing shopifyOrderId" }, { status: 400 });
+    }
+
+    // Find the local order record with its items
+    const localOrder = await prisma.shopifyOrder.findUnique({
+      where: { shopifyOrderId },
+      include: {
+        items: true,
+      },
+    });
+
+    if (!localOrder) {
+      return NextResponse.json({ error: "Order not found locally" }, { status: 404 });
+    }
+
+    if (!localOrder.fulfilledAt) {
+      return NextResponse.json({ error: "Order was not fulfilled locally" }, { status: 400 });
+    }
+
+    // Aggregate what needs to be restored by designId
+    const designRestoreMap = new Map<string, {
+      canvasRestore: number;
+      kitRestore: number;
+      totalSoldRestore: number;
+      totalKitsSoldRestore: number;
+    }>();
+    const supplyRestoreMap = new Map<string, number>();
+
+    for (const item of localOrder.items) {
+      if (item.designId && item.processed) {
+        const existing = designRestoreMap.get(item.designId) || {
+          canvasRestore: 0,
+          kitRestore: 0,
+          totalSoldRestore: 0,
+          totalKitsSoldRestore: 0,
+        };
+        existing.canvasRestore += item.quantity;
+        existing.totalSoldRestore += item.quantity;
+        if (item.needsKit) {
+          existing.kitRestore += item.quantity;
+          existing.totalKitsSoldRestore += item.quantity;
+        }
+        designRestoreMap.set(item.designId, existing);
+      }
+
+      // Check if item has a supplyId by looking up the product title
+      // Note: We don't store supplyId in ShopifyOrderItem currently, so we'll need to match by title
+      // For now, we'll skip supply restoration (TODO: add supplyId to ShopifyOrderItem schema)
+    }
+
+    let kitsRestored = 0;
+    let canvasesRestored = 0;
+
+    // Restore inventory in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Restore design inventory
+      for (const [designId, restore] of designRestoreMap) {
+        await tx.design.update({
+          where: { id: designId },
+          data: {
+            canvasPrinted: { increment: restore.canvasRestore },
+            kitsReady: restore.kitRestore > 0 ? { increment: restore.kitRestore } : undefined,
+            totalSold: { decrement: restore.totalSoldRestore },
+            totalKitsSold: restore.totalKitsSoldRestore > 0 ? { decrement: restore.totalKitsSoldRestore } : undefined,
+          },
+        });
+
+        canvasesRestored += restore.canvasRestore;
+        kitsRestored += restore.kitRestore;
+      }
+
+      // Clear fulfillment status (but keep the record for history)
+      await tx.shopifyOrder.update({
+        where: { shopifyOrderId },
+        data: {
+          fulfilledAt: null,
+        },
+      });
+
+      // Mark items as not processed
+      await tx.shopifyOrderItem.updateMany({
+        where: { shopifyOrderId: localOrder.id },
+        data: { processed: false },
+      });
+    });
+
+    return NextResponse.json({
+      success: true,
+      kitsRestored,
+      canvasesRestored,
+      message: "Fulfillment undone, inventory restored",
+    });
+  } catch (error) {
+    console.error("Error undoing fulfillment:", error);
+    return NextResponse.json(
+      { error: "Failed to undo fulfillment" },
+      { status: 500 }
+    );
+  }
+}

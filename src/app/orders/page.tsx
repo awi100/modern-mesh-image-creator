@@ -196,6 +196,11 @@ export default function OrdersPage() {
   const [savingBackup, setSavingBackup] = useState(false);
   const [inventoryStock, setInventoryStock] = useState<Map<string, number>>(new Map());
 
+  // Sync state
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ synced: number; message: string } | null>(null);
+  const [undoing, setUndoing] = useState<string | null>(null);
+
   // Search results for backup color picker
   const backupColorSuggestions = useMemo(() => {
     if (!backupSearch.trim()) return [];
@@ -239,6 +244,75 @@ export default function OrdersPage() {
     }
     setLoading(false);
   }, []);
+
+  // Sync fulfilled orders from Shopify
+  const syncOrders = useCallback(async (showResult = true) => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/shopify/orders/sync", { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to sync orders");
+      }
+      const result = await res.json();
+      if (showResult && result.synced > 0) {
+        setSyncResult({
+          synced: result.synced,
+          message: `Synced ${result.synced} fulfilled order${result.synced > 1 ? "s" : ""} from Shopify`,
+        });
+        // Refetch orders to update the list
+        await fetchOrders();
+      }
+      return result;
+    } catch (err) {
+      console.error("Sync error:", err);
+      if (showResult) {
+        setError(err instanceof Error ? err.message : "Sync failed");
+      }
+      return null;
+    } finally {
+      setSyncing(false);
+    }
+  }, [fetchOrders]);
+
+  // Undo a local fulfillment
+  const handleUndoFulfillment = useCallback(async (shopifyOrderId: string) => {
+    setUndoing(shopifyOrderId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/shopify/orders/fulfill?shopifyOrderId=${encodeURIComponent(shopifyOrderId)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to undo fulfillment");
+      }
+
+      // Update local state to mark as not fulfilled
+      setData(prevData => {
+        if (!prevData) return prevData;
+        return {
+          ...prevData,
+          orders: prevData.orders.map(o => {
+            if (o.shopifyOrderId !== shopifyOrderId) return o;
+            return {
+              ...o,
+              locallyFulfilled: false,
+              locallyFulfilledAt: null,
+            };
+          }),
+        };
+      });
+
+      // Refetch to get updated inventory counts
+      await fetchOrders();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Undo failed");
+    } finally {
+      setUndoing(null);
+    }
+  }, [fetchOrders]);
 
   // Fetch kit data for showing kit contents
   const fetchKits = useCallback(async () => {
@@ -373,8 +447,13 @@ export default function OrdersPage() {
   }, [editingBackup, fetchInventoryStock]);
 
   useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+    const loadAndSync = async () => {
+      await fetchOrders();
+      // Auto-sync fulfilled orders from Shopify (silent, no toast on 0 synced)
+      await syncOrders(true);
+    };
+    loadAndSync();
+  }, [fetchOrders, syncOrders]);
 
   // Send the actual API request for a design update
   const sendUpdate = useCallback(async (designId: string, field: "kitsReady" | "canvasPrinted", totalDelta: number) => {
@@ -654,6 +733,24 @@ export default function OrdersPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => syncOrders(true)}
+              disabled={syncing || loading}
+              className="px-2 md:px-3 py-2 bg-emerald-700 text-emerald-100 rounded-lg hover:bg-emerald-600 disabled:opacity-50 text-xs md:text-sm flex items-center gap-1.5"
+              title="Sync fulfilled orders from Shopify"
+            >
+              {syncing ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+              <span className="hidden md:inline">Sync</span>
+            </button>
             <Link
               href="/shopify"
               className="px-2 md:px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-xs md:text-sm"
@@ -681,6 +778,26 @@ export default function OrdersPage() {
         {error && (
           <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg">
             <p className="text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* Sync Result */}
+        {syncResult && (
+          <div className="p-4 bg-emerald-900/30 border border-emerald-700 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <p className="text-emerald-400">{syncResult.message}</p>
+            </div>
+            <button
+              onClick={() => setSyncResult(null)}
+              className="text-emerald-400 hover:text-emerald-300"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         )}
 
@@ -1557,6 +1674,8 @@ export default function OrdersPage() {
                         canFulfillOrder={fulfillableOrders.has(order.shopifyOrderId)}
                         onFulfill={handleFulfillOrder}
                         fulfilling={fulfilling === order.shopifyOrderId}
+                        onUndo={handleUndoFulfillment}
+                        undoing={undoing === order.shopifyOrderId}
                       />
                     ));
                   })()
@@ -1667,9 +1786,11 @@ interface OrderCardProps {
   canFulfillOrder: boolean;
   onFulfill: (order: Order) => void;
   fulfilling: boolean;
+  onUndo: (shopifyOrderId: string) => void;
+  undoing: boolean;
 }
 
-function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilling }: OrderCardProps) {
+function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilling, onUndo, undoing }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Only count canvas items for kits/canvases
@@ -1765,11 +1886,31 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
 
         {/* Fulfill Order Button */}
         {order.locallyFulfilled ? (
-          <div className="ml-4 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-emerald-900/30 text-emerald-400 border border-emerald-700/50">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Inventory Deducted
+          <div className="ml-4 flex items-center gap-2">
+            <div className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-emerald-900/30 text-emerald-400 border border-emerald-700/50">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Deducted
+            </div>
+            <button
+              onClick={() => onUndo(order.shopifyOrderId)}
+              disabled={undoing}
+              className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-amber-900/30 text-amber-400 border border-amber-700/50 hover:bg-amber-900/50 transition-colors disabled:opacity-50"
+              title="Undo fulfillment and restore inventory"
+            >
+              {undoing ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+              )}
+              Undo
+            </button>
           </div>
         ) : (
           <button
