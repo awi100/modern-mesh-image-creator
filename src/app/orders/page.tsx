@@ -194,12 +194,30 @@ export default function OrdersPage() {
   const [editingBackup, setEditingBackup] = useState<{ designId: string; dmcNumber: string } | null>(null);
   const [backupSearch, setBackupSearch] = useState("");
   const [savingBackup, setSavingBackup] = useState(false);
+  const [inventoryStock, setInventoryStock] = useState<Map<string, number>>(new Map());
 
   // Search results for backup color picker
   const backupColorSuggestions = useMemo(() => {
     if (!backupSearch.trim()) return [];
     return searchDmcColors(backupSearch.trim()).slice(0, 50);
   }, [backupSearch]);
+
+  // Fetch inventory for backup color picker (size 5 only - 14 mesh)
+  const fetchInventoryStock = useCallback(async () => {
+    try {
+      const res = await fetch("/api/inventory?size=5");
+      if (res.ok) {
+        const items: { dmcNumber: string; skeins: number }[] = await res.json();
+        const stockMap = new Map<string, number>();
+        for (const item of items) {
+          stockMap.set(item.dmcNumber, item.skeins);
+        }
+        setInventoryStock(stockMap);
+      }
+    } catch (err) {
+      console.error("Failed to fetch inventory:", err);
+    }
+  }, []);
 
   // Use refs for debounced updates to handle rapid clicks
   const pendingUpdates = useRef<Map<string, { field: "kitsReady" | "canvasPrinted"; delta: number; timeout: NodeJS.Timeout }>>(new Map());
@@ -346,6 +364,13 @@ export default function OrdersPage() {
     }
     setFulfilling(null);
   }, []);
+
+  // Fetch inventory when backup picker opens
+  useEffect(() => {
+    if (editingBackup) {
+      fetchInventoryStock();
+    }
+  }, [editingBackup, fetchInventoryStock]);
 
   useEffect(() => {
     fetchOrders();
@@ -1568,23 +1593,29 @@ export default function OrdersPage() {
                 {/* Color grid */}
                 <div className="max-h-64 overflow-y-auto rounded-lg bg-slate-900 p-2">
                   <div className="grid grid-cols-8 sm:grid-cols-10 gap-1">
-                    {(backupSearch.trim() ? backupColorSuggestions : DMC_PEARL_COTTON.slice(0, 100)).map((color) => (
-                      <button
-                        key={color.dmcNumber}
-                        onClick={() => handleSaveBackup(color.dmcNumber)}
-                        disabled={savingBackup}
-                        className="aspect-square rounded-md flex items-center justify-center transition-all hover:scale-110 hover:ring-2 hover:ring-amber-500 disabled:opacity-50"
-                        style={{ backgroundColor: color.hex }}
-                        title={`DMC ${color.dmcNumber} - ${color.name}`}
-                      >
-                        <span
-                          className="text-[7px] font-bold leading-none select-none"
-                          style={{ color: getContrastTextColor(color.hex) }}
+                    {(backupSearch.trim() ? backupColorSuggestions : DMC_PEARL_COTTON.slice(0, 100)).map((color) => {
+                      const inStock = (inventoryStock.get(color.dmcNumber) || 0) > 0;
+                      return (
+                        <button
+                          key={color.dmcNumber}
+                          onClick={() => handleSaveBackup(color.dmcNumber)}
+                          disabled={savingBackup}
+                          className="relative aspect-square rounded-md flex items-center justify-center transition-all hover:scale-110 hover:ring-2 hover:ring-amber-500 disabled:opacity-50"
+                          style={{ backgroundColor: color.hex }}
+                          title={`DMC ${color.dmcNumber} - ${color.name}${inStock ? " (in stock)" : ""}`}
                         >
-                          {color.dmcNumber}
-                        </span>
-                      </button>
-                    ))}
+                          <span
+                            className="text-[7px] font-bold leading-none select-none"
+                            style={{ color: getContrastTextColor(color.hex) }}
+                          >
+                            {color.dmcNumber}
+                          </span>
+                          {inStock && (
+                            <span className="absolute top-0 right-0 w-2 h-2 bg-emerald-500 rounded-full border border-white/50 transform translate-x-0.5 -translate-y-0.5" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                   {backupSearch.trim() && backupColorSuggestions.length === 0 && (
                     <p className="text-slate-500 text-center py-4 text-sm">No colors found</p>
