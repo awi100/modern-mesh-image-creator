@@ -71,13 +71,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "No fulfillments to process" });
     }
 
-    // Check if already processed (idempotent)
     const shopifyOrderId = payload.admin_graphql_api_id;
+
+    // Quick check outside transaction (optimization, not relied upon for correctness)
     const existingOrder = await prisma.shopifyOrder.findUnique({
       where: { shopifyOrderId },
     });
 
     if (existingOrder?.fulfilledAt) {
+      console.log(`Webhook: Order ${payload.name} already processed, skipping`);
       return NextResponse.json({
         message: "Order already processed",
         orderId: shopifyOrderId
@@ -175,12 +177,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let kitsDeducted = 0;
-    let canvasesDeducted = 0;
-    let suppliesDeducted = 0;
+    // Process in transaction with idempotency check inside
+    const result = await prisma.$transaction(async (tx) => {
+      // Check again inside transaction to prevent race conditions
+      const existingInTx = await tx.shopifyOrder.findUnique({
+        where: { shopifyOrderId },
+      });
 
-    // Process in transaction
-    await prisma.$transaction(async (tx) => {
+      if (existingInTx?.fulfilledAt) {
+        // Already processed by another request (race condition avoided)
+        return { alreadyProcessed: true };
+      }
+
       // Create ShopifyOrder record
       const order = await tx.shopifyOrder.upsert({
         where: { shopifyOrderId },
@@ -210,6 +218,10 @@ export async function POST(request: NextRequest) {
           },
         });
       }
+
+      let kitsDeducted = 0;
+      let canvasesDeducted = 0;
+      let suppliesDeducted = 0;
 
       // Process design updates
       for (const [designId, updates] of designUpdatesMap) {
@@ -255,16 +267,26 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+
+      return { alreadyProcessed: false, kitsDeducted, canvasesDeducted, suppliesDeducted };
     });
 
-    console.log(`Webhook processed order ${payload.name}: ${canvasesDeducted} canvases, ${kitsDeducted} kits, ${suppliesDeducted} supplies`);
+    if (result.alreadyProcessed) {
+      console.log(`Webhook: Order ${payload.name} was already processed (race condition avoided)`);
+      return NextResponse.json({
+        message: "Order already processed",
+        orderId: shopifyOrderId
+      });
+    }
+
+    console.log(`Webhook processed order ${payload.name}: ${result.canvasesDeducted} canvases, ${result.kitsDeducted} kits, ${result.suppliesDeducted} supplies`);
 
     return NextResponse.json({
       success: true,
       orderNumber: payload.name,
-      kitsDeducted,
-      canvasesDeducted,
-      suppliesDeducted,
+      kitsDeducted: result.kitsDeducted,
+      canvasesDeducted: result.canvasesDeducted,
+      suppliesDeducted: result.suppliesDeducted,
     });
   } catch (error) {
     console.error("Error processing fulfillment webhook:", error);

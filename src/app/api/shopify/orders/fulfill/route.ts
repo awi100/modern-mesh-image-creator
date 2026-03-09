@@ -84,12 +84,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let kitsDeducted = 0;
-    let canvasesDeducted = 0;
-    let suppliesDeducted = 0;
+    // Process all updates in a single transaction with idempotency check
+    const result = await prisma.$transaction(async (tx) => {
+      // Check again inside transaction to prevent race conditions with webhook
+      const existingInTx = await tx.shopifyOrder.findUnique({
+        where: { shopifyOrderId },
+      });
 
-    // Process all updates in a single transaction
-    await prisma.$transaction(async (tx) => {
+      if (existingInTx?.fulfilledAt) {
+        // Already processed (possibly by webhook)
+        return { alreadyProcessed: true, kitsDeducted: 0, canvasesDeducted: 0, suppliesDeducted: 0 };
+      }
+
+      let kitsDeducted = 0;
+      let canvasesDeducted = 0;
+      let suppliesDeducted = 0;
+
       // Create or update ShopifyOrder record
       const shopifyOrder = await tx.shopifyOrder.upsert({
         where: { shopifyOrderId },
@@ -166,13 +176,25 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+
+      return { alreadyProcessed: false, kitsDeducted, canvasesDeducted, suppliesDeducted };
     });
+
+    if (result.alreadyProcessed) {
+      return NextResponse.json({
+        success: true,
+        message: "Order already processed (possibly by webhook)",
+        kitsDeducted: 0,
+        canvasesDeducted: 0,
+        suppliesDeducted: 0,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      kitsDeducted,
-      canvasesDeducted,
-      suppliesDeducted,
+      kitsDeducted: result.kitsDeducted,
+      canvasesDeducted: result.canvasesDeducted,
+      suppliesDeducted: result.suppliesDeducted,
     });
   } catch (error) {
     console.error("Error fulfilling order:", error);
