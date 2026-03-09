@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/route";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 
 // Kit content types
 interface BackupColorInfo {
@@ -188,6 +189,17 @@ export default function OrdersPage() {
   const [expandedKits, setExpandedKits] = useState<Set<string>>(new Set());
   const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
   const [colorUsage, setColorUsage] = useState<Map<string, ColorDesignUsage[]>>(new Map());
+
+  // Backup color picker state
+  const [editingBackup, setEditingBackup] = useState<{ designId: string; dmcNumber: string } | null>(null);
+  const [backupSearch, setBackupSearch] = useState("");
+  const [savingBackup, setSavingBackup] = useState(false);
+
+  // Search results for backup color picker
+  const backupColorSuggestions = useMemo(() => {
+    if (!backupSearch.trim()) return [];
+    return searchDmcColors(backupSearch.trim()).slice(0, 50);
+  }, [backupSearch]);
 
   // Use refs for debounced updates to handle rapid clicks
   const pendingUpdates = useRef<Map<string, { field: "kitsReady" | "canvasPrinted"; delta: number; timeout: NodeJS.Timeout }>>(new Map());
@@ -517,6 +529,90 @@ export default function OrdersPage() {
     // Clear pending value
     setPendingInventory((prev) => { const next = { ...prev }; delete next[dmcNumber]; return next; });
   }, [kitData, handleUpdateInventory]);
+
+  // Save backup color for a design
+  const handleSaveBackup = useCallback(async (backupDmcNumber: string) => {
+    if (!editingBackup || savingBackup) return;
+
+    const { designId, dmcNumber } = editingBackup;
+    setSavingBackup(true);
+
+    try {
+      // Get current backup colors for this design from kitData
+      const kit = kitData.get(designId);
+      const existingBackups: Record<string, string> = {};
+
+      // Build existing backups from kit contents
+      if (kit) {
+        for (const item of kit.kitContents) {
+          if (item.backup) {
+            existingBackups[item.dmcNumber] = item.backup.dmcNumber;
+          }
+        }
+      }
+
+      // Update with new backup
+      const newBackups = { ...existingBackups, [dmcNumber]: backupDmcNumber.trim() };
+
+      // If empty, remove the backup
+      if (!backupDmcNumber.trim()) {
+        delete newBackups[dmcNumber];
+      }
+
+      const res = await fetch(`/api/designs/${designId}/backup-colors`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ backupColors: newBackups }),
+      });
+
+      if (!res.ok) throw new Error("Failed to save backup color");
+
+      // Optimistic update: update kitData with new backup
+      setKitData(prevKitData => {
+        const newMap = new Map(prevKitData);
+        const kit = newMap.get(designId);
+        if (kit) {
+          const backupColor = backupDmcNumber ? getDmcColorByNumber(backupDmcNumber) : null;
+          const updatedContents = kit.kitContents.map(item => {
+            if (item.dmcNumber !== dmcNumber) return item;
+            if (!backupDmcNumber.trim()) {
+              return { ...item, backup: null };
+            }
+            // Find inventory for backup color
+            let backupInventorySkeins = 0;
+            for (const k of prevKitData.values()) {
+              const backupItem = k.kitContents.find(i => i.dmcNumber === backupDmcNumber);
+              if (backupItem) {
+                backupInventorySkeins = backupItem.inventorySkeins;
+                break;
+              }
+            }
+            return {
+              ...item,
+              backup: {
+                dmcNumber: backupDmcNumber,
+                colorName: backupColor?.name ?? "Unknown",
+                hex: backupColor?.hex ?? "#888888",
+                inventorySkeins: backupInventorySkeins,
+                inStock: backupInventorySkeins >= item.skeinsNeeded,
+              },
+            };
+          });
+          newMap.set(designId, { ...kit, kitContents: updatedContents });
+        }
+        return newMap;
+      });
+
+      // Close modal
+      setEditingBackup(null);
+      setBackupSearch("");
+    } catch (error) {
+      console.error("Error saving backup color:", error);
+      setError("Failed to save backup color");
+    } finally {
+      setSavingBackup(false);
+    }
+  }, [editingBackup, savingBackup, kitData]);
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -990,13 +1086,15 @@ export default function OrdersPage() {
                                                         </svg>
                                                       </button>
                                                       </div>
-                                                      {/* Backup color indicator */}
-                                                      {item.backup && (
-                                                        <Link
-                                                          href={`/inventory/color/${item.backup.dmcNumber}`}
-                                                          onClick={(e) => e.stopPropagation()}
-                                                          className="flex items-center gap-1 px-1 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors ml-auto"
-                                                          title={`Backup: ${item.backup.colorName}`}
+                                                      {/* Backup color indicator - clickable to change */}
+                                                      {item.backup ? (
+                                                        <button
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingBackup({ designId: kit.designId!, dmcNumber: item.dmcNumber });
+                                                          }}
+                                                          className="flex items-center gap-1 px-1 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 hover:border-amber-600 transition-colors ml-auto"
+                                                          title={`Backup: ${item.backup.colorName} (click to change)`}
                                                         >
                                                           <span
                                                             className="w-5 h-5 rounded flex items-center justify-center border border-white/20"
@@ -1012,7 +1110,18 @@ export default function OrdersPage() {
                                                           <span className={`text-[9px] font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
                                                             {item.backup.inventorySkeins}sk
                                                           </span>
-                                                        </Link>
+                                                        </button>
+                                                      ) : (
+                                                        <button
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingBackup({ designId: kit.designId!, dmcNumber: item.dmcNumber });
+                                                          }}
+                                                          className="px-1.5 py-0.5 rounded bg-slate-700/50 border border-dashed border-slate-600 hover:border-amber-600 hover:bg-amber-900/20 transition-colors text-[9px] text-slate-500 hover:text-amber-400 ml-auto"
+                                                          title="Add backup color"
+                                                        >
+                                                          + backup
+                                                        </button>
                                                       )}
                                                     </div>
                                                     {/* Color usage indicator */}
@@ -1430,6 +1539,86 @@ export default function OrdersPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* Backup Color Picker Modal */}
+        {editingBackup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+              {/* Header */}
+              <div className="p-4 border-b border-slate-700 flex-shrink-0">
+                <h3 className="text-lg font-semibold text-white">Set Backup Color</h3>
+                <p className="text-sm text-slate-400">
+                  Select a substitute for DMC {editingBackup.dmcNumber}
+                </p>
+              </div>
+
+              {/* Content */}
+              <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+                {/* Search input */}
+                <input
+                  type="text"
+                  value={backupSearch}
+                  onChange={(e) => setBackupSearch(e.target.value)}
+                  placeholder="Search DMC # or color name..."
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-600"
+                  autoFocus
+                />
+
+                {/* Color grid */}
+                <div className="max-h-64 overflow-y-auto rounded-lg bg-slate-900 p-2">
+                  <div className="grid grid-cols-8 sm:grid-cols-10 gap-1">
+                    {(backupSearch.trim() ? backupColorSuggestions : DMC_PEARL_COTTON.slice(0, 100)).map((color) => (
+                      <button
+                        key={color.dmcNumber}
+                        onClick={() => handleSaveBackup(color.dmcNumber)}
+                        disabled={savingBackup}
+                        className="aspect-square rounded-md flex items-center justify-center transition-all hover:scale-110 hover:ring-2 hover:ring-amber-500 disabled:opacity-50"
+                        style={{ backgroundColor: color.hex }}
+                        title={`DMC ${color.dmcNumber} - ${color.name}`}
+                      >
+                        <span
+                          className="text-[7px] font-bold leading-none select-none"
+                          style={{ color: getContrastTextColor(color.hex) }}
+                        >
+                          {color.dmcNumber}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {backupSearch.trim() && backupColorSuggestions.length === 0 && (
+                    <p className="text-slate-500 text-center py-4 text-sm">No colors found</p>
+                  )}
+                  {!backupSearch.trim() && (
+                    <p className="text-slate-500 text-center py-2 text-xs">
+                      Search to see all {DMC_PEARL_COTTON.length} colors
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-700 flex gap-3 flex-shrink-0">
+                <button
+                  onClick={() => handleSaveBackup("")}
+                  disabled={savingBackup}
+                  className="px-4 py-2 bg-red-900/50 text-red-400 rounded-lg hover:bg-red-900/70 text-sm disabled:opacity-50"
+                >
+                  Remove Backup
+                </button>
+                <div className="flex-1" />
+                <button
+                  onClick={() => {
+                    setEditingBackup(null);
+                    setBackupSearch("");
+                  }}
+                  className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>
