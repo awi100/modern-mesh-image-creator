@@ -1,0 +1,278 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { parseNeedsKit, normalizeTitle } from "@/lib/shopify";
+import crypto from "crypto";
+
+// Shopify webhook payload types
+interface ShopifyLineItem {
+  id: number;
+  title: string;
+  variant_title: string | null;
+  quantity: number;
+  product_id: number;
+}
+
+interface ShopifyFulfillment {
+  id: number;
+  order_id: number;
+  status: string;
+  line_items: ShopifyLineItem[];
+}
+
+interface ShopifyWebhookPayload {
+  id: number; // Order ID
+  name: string; // Order number like "#1001"
+  admin_graphql_api_id: string; // "gid://shopify/Order/123"
+  billing_address?: {
+    name?: string;
+  };
+  fulfillments: ShopifyFulfillment[];
+  line_items: ShopifyLineItem[];
+}
+
+// Verify Shopify webhook HMAC signature
+function verifyWebhook(rawBody: string, hmacHeader: string): boolean {
+  const secret = process.env.SHOPIFY_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error("SHOPIFY_WEBHOOK_SECRET not configured");
+    return false;
+  }
+
+  const hash = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody, "utf8")
+    .digest("base64");
+
+  return crypto.timingSafeEqual(
+    Buffer.from(hash),
+    Buffer.from(hmacHeader)
+  );
+}
+
+// POST - Handle Shopify fulfillment webhook
+// This is called by Shopify when an order is fulfilled
+export async function POST(request: NextRequest) {
+  try {
+    // Get raw body for HMAC verification
+    const rawBody = await request.text();
+    const hmacHeader = request.headers.get("x-shopify-hmac-sha256");
+
+    // Verify webhook authenticity
+    if (!hmacHeader || !verifyWebhook(rawBody, hmacHeader)) {
+      console.error("Webhook verification failed");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Parse the webhook payload
+    const payload: ShopifyWebhookPayload = JSON.parse(rawBody);
+
+    // Only process if there are fulfillments
+    if (!payload.fulfillments || payload.fulfillments.length === 0) {
+      return NextResponse.json({ message: "No fulfillments to process" });
+    }
+
+    // Check if already processed (idempotent)
+    const shopifyOrderId = payload.admin_graphql_api_id;
+    const existingOrder = await prisma.shopifyOrder.findUnique({
+      where: { shopifyOrderId },
+    });
+
+    if (existingOrder?.fulfilledAt) {
+      return NextResponse.json({
+        message: "Order already processed",
+        orderId: shopifyOrderId
+      });
+    }
+
+    // Fetch all designs and supplies for matching
+    const designs = await prisma.design.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        kitsReady: true,
+        canvasPrinted: true,
+      },
+    });
+
+    const supplies = await prisma.supply.findMany({
+      select: {
+        id: true,
+        name: true,
+        quantity: true,
+      },
+    });
+
+    const designMap = new Map<string, typeof designs[0]>();
+    for (const design of designs) {
+      designMap.set(normalizeTitle(design.name), design);
+    }
+
+    const supplyMap = new Map<string, typeof supplies[0]>();
+    for (const supply of supplies) {
+      supplyMap.set(normalizeTitle(supply.name), supply);
+    }
+
+    // Build items list with design/supply matching
+    const items: {
+      designId: string | null;
+      supplyId: string | null;
+      productTitle: string;
+      variantTitle: string | null;
+      quantity: number;
+      needsKit: boolean;
+    }[] = [];
+
+    for (const lineItem of payload.line_items) {
+      const productTitle = lineItem.title;
+      const lowerTitle = productTitle.toLowerCase();
+      const isIntroProduct = lowerTitle.includes("intro") || lowerTitle.includes("beginner");
+      const needsKit = isIntroProduct || parseNeedsKit(lineItem.variant_title);
+
+      const normalizedTitle = normalizeTitle(productTitle);
+      const matchedDesign = designMap.get(normalizedTitle);
+      const matchedSupply = supplyMap.get(normalizedTitle);
+
+      items.push({
+        designId: matchedDesign?.id || null,
+        supplyId: matchedSupply?.id || null,
+        productTitle,
+        variantTitle: lineItem.variant_title,
+        quantity: lineItem.quantity,
+        needsKit: matchedDesign ? needsKit : false,
+      });
+    }
+
+    // Aggregate updates by designId
+    const designUpdatesMap = new Map<string, {
+      canvasDeduction: number;
+      kitDeduction: number;
+      totalSold: number;
+      totalKitsSold: number;
+    }>();
+    const supplyUpdatesMap = new Map<string, number>();
+
+    for (const item of items) {
+      if (item.designId) {
+        const existing = designUpdatesMap.get(item.designId) || {
+          canvasDeduction: 0,
+          kitDeduction: 0,
+          totalSold: 0,
+          totalKitsSold: 0,
+        };
+        existing.canvasDeduction += item.quantity;
+        existing.totalSold += item.quantity;
+        if (item.needsKit) {
+          existing.kitDeduction += item.quantity;
+          existing.totalKitsSold += item.quantity;
+        }
+        designUpdatesMap.set(item.designId, existing);
+      }
+
+      if (item.supplyId) {
+        const existing = supplyUpdatesMap.get(item.supplyId) || 0;
+        supplyUpdatesMap.set(item.supplyId, existing + item.quantity);
+      }
+    }
+
+    let kitsDeducted = 0;
+    let canvasesDeducted = 0;
+    let suppliesDeducted = 0;
+
+    // Process in transaction
+    await prisma.$transaction(async (tx) => {
+      // Create ShopifyOrder record
+      const order = await tx.shopifyOrder.upsert({
+        where: { shopifyOrderId },
+        create: {
+          shopifyOrderId,
+          orderNumber: payload.name,
+          customerName: payload.billing_address?.name || null,
+          fulfilledAt: new Date(),
+        },
+        update: {
+          fulfilledAt: new Date(),
+        },
+      });
+
+      // Create ShopifyOrderItem records
+      for (const item of items) {
+        await tx.shopifyOrderItem.create({
+          data: {
+            shopifyOrderId: order.id,
+            designId: item.designId,
+            supplyId: item.supplyId,
+            productTitle: item.productTitle,
+            variantTitle: item.variantTitle,
+            quantity: item.quantity,
+            needsKit: item.needsKit,
+            processed: true,
+          },
+        });
+      }
+
+      // Process design updates
+      for (const [designId, updates] of designUpdatesMap) {
+        const design = await tx.design.findUnique({
+          where: { id: designId },
+          select: { kitsReady: true, canvasPrinted: true },
+        });
+
+        if (design) {
+          const actualCanvasDeduction = Math.min(updates.canvasDeduction, design.canvasPrinted);
+          const actualKitDeduction = Math.min(updates.kitDeduction, design.kitsReady);
+
+          await tx.design.update({
+            where: { id: designId },
+            data: {
+              canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
+              kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
+              totalSold: { increment: updates.totalSold },
+              totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
+            },
+          });
+
+          canvasesDeducted += actualCanvasDeduction;
+          kitsDeducted += actualKitDeduction;
+        }
+      }
+
+      // Process supply updates
+      for (const [supplyId, deduction] of supplyUpdatesMap) {
+        const supply = await tx.supply.findUnique({
+          where: { id: supplyId },
+          select: { quantity: true },
+        });
+
+        if (supply) {
+          const actualDeduction = Math.min(deduction, supply.quantity);
+          if (actualDeduction > 0) {
+            await tx.supply.update({
+              where: { id: supplyId },
+              data: { quantity: { decrement: actualDeduction } },
+            });
+            suppliesDeducted += actualDeduction;
+          }
+        }
+      }
+    });
+
+    console.log(`Webhook processed order ${payload.name}: ${canvasesDeducted} canvases, ${kitsDeducted} kits, ${suppliesDeducted} supplies`);
+
+    return NextResponse.json({
+      success: true,
+      orderNumber: payload.name,
+      kitsDeducted,
+      canvasesDeducted,
+      suppliesDeducted,
+    });
+  } catch (error) {
+    console.error("Error processing fulfillment webhook:", error);
+    // Return 200 to prevent Shopify from retrying (we log the error)
+    // In production, you might want to queue for retry
+    return NextResponse.json({
+      error: "Failed to process webhook",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}

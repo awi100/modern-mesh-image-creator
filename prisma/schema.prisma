@@ -222,6 +222,8 @@ model ShopifyOrderItem {
   order           ShopifyOrder @relation(fields: [shopifyOrderId], references: [id], onDelete: Cascade)
   designId        String?      // Linked design (null if no match found)
   design          Design?      @relation(fields: [designId], references: [id], onDelete: SetNull)
+  supplyId        String?      // Linked supply (for supply items)
+  supply          Supply?      @relation(fields: [supplyId], references: [id], onDelete: SetNull)
   productTitle    String       // Original Shopify product title
   variantTitle    String?      // e.g., "8x8 / Yes" or "10x10 / No"
   quantity        Int
@@ -255,6 +257,7 @@ model Supply {
   quantity    Int      @default(0) // Stock count
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  shopifyOrderItems ShopifyOrderItem[]
 
   @@map("supplies")
 }

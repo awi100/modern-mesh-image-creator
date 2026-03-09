@@ -110,6 +110,7 @@ export async function POST(request: NextRequest) {
           data: {
             shopifyOrderId: shopifyOrder.id,
             designId: item.designId || null,
+            supplyId: item.supplyId || null,
             productTitle: item.productTitle,
             variantTitle: item.variantTitle || null,
             quantity: item.quantity,
@@ -212,7 +213,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Order was not fulfilled locally" }, { status: 400 });
     }
 
-    // Aggregate what needs to be restored by designId
+    // Aggregate what needs to be restored by designId and supplyId
     const designRestoreMap = new Map<string, {
       canvasRestore: number;
       kitRestore: number;
@@ -238,13 +239,16 @@ export async function DELETE(request: NextRequest) {
         designRestoreMap.set(item.designId, existing);
       }
 
-      // Check if item has a supplyId by looking up the product title
-      // Note: We don't store supplyId in ShopifyOrderItem currently, so we'll need to match by title
-      // For now, we'll skip supply restoration (TODO: add supplyId to ShopifyOrderItem schema)
+      // Restore supply inventory using stored supplyId
+      if (item.supplyId && item.processed) {
+        const existing = supplyRestoreMap.get(item.supplyId) || 0;
+        supplyRestoreMap.set(item.supplyId, existing + item.quantity);
+      }
     }
 
     let kitsRestored = 0;
     let canvasesRestored = 0;
+    let suppliesRestored = 0;
 
     // Restore inventory in a transaction
     await prisma.$transaction(async (tx) => {
@@ -262,6 +266,17 @@ export async function DELETE(request: NextRequest) {
 
         canvasesRestored += restore.canvasRestore;
         kitsRestored += restore.kitRestore;
+      }
+
+      // Restore supply inventory
+      for (const [supplyId, quantity] of supplyRestoreMap) {
+        await tx.supply.update({
+          where: { id: supplyId },
+          data: {
+            quantity: { increment: quantity },
+          },
+        });
+        suppliesRestored += quantity;
       }
 
       // Clear fulfillment status (but keep the record for history)
@@ -283,6 +298,7 @@ export async function DELETE(request: NextRequest) {
       success: true,
       kitsRestored,
       canvasesRestored,
+      suppliesRestored,
       message: "Fulfillment undone, inventory restored",
     });
   } catch (error) {

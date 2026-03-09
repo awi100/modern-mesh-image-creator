@@ -196,6 +196,7 @@ export async function POST() {
               data: {
                 shopifyOrderId: order.id,
                 designId: item.designId,
+                supplyId: item.supplyId,
                 productTitle: item.productTitle,
                 variantTitle: item.variantTitle,
                 quantity: item.quantity,
