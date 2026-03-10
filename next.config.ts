@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Prevent trailing slash redirects (breaks Shopify webhooks)
+  skipTrailingSlashRedirect: true,
 };
 
 export default nextConfig;
