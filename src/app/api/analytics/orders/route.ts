@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { fetchRecentlyFulfilledOrders, ShopifyOrderNode } from "@/lib/shopify";
+import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
 interface DesignAnalytics {
   designId: string;
@@ -380,19 +381,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const dmcColors = await prisma.dmcColor.findMany({
-      where: { dmcNumber: { in: Array.from(colorDemandMap.keys()) } },
-      select: { dmcNumber: true, name: true, hexColor: true },
-    });
-    const dmcColorMap = new Map(dmcColors.map((c) => [c.dmcNumber, c]));
-
+    // Use local DMC color data (more reliable than database lookup)
     const colorDemand: ColorDemand[] = Array.from(colorDemandMap.entries())
       .map(([dmcNumber, data]) => {
-        const color = dmcColorMap.get(dmcNumber);
+        const color = getDmcColorByNumber(dmcNumber);
         return {
           dmcNumber,
           colorName: color?.name || "Unknown",
-          hex: color?.hexColor || "#888888",
+          hex: color?.hex || "#888888",
           totalSkeinsNeeded: data.skeins,
           designCount: data.designs.size,
           topDesigns: Array.from(data.topDesigns.entries())
