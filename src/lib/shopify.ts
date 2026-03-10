@@ -63,6 +63,11 @@ export interface ShopifyOrderNode {
   // Note: customer field requires read_customers scope
   billingAddress: {
     name: string | null;
+    city: string | null;
+    province: string | null;
+    provinceCode: string | null;
+    country: string | null;
+    countryCodeV2: string | null;
   } | null;
   lineItems: {
     nodes: ShopifyLineItem[];
@@ -97,6 +102,11 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
           displayFulfillmentStatus
           billingAddress {
             name
+            city
+            province
+            provinceCode
+            country
+            countryCodeV2
           }
           lineItems(first: 50) {
             nodes {
@@ -169,6 +179,11 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
           displayFulfillmentStatus
           billingAddress {
             name
+            city
+            province
+            provinceCode
+            country
+            countryCodeV2
           }
           lineItems(first: 50) {
             nodes {
