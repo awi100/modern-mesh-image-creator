@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { USHeatMap } from "@/components/USHeatMap";
 
 interface DesignAnalytics {
   designId: string;
@@ -578,6 +579,12 @@ export default function AnalyticsPage() {
         {/* Geography Tab */}
         {activeTab === "geography" && (
           <div className="space-y-4">
+            {/* US Heat Map */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+              <h3 className="text-white font-semibold mb-4">Order Distribution Map</h3>
+              <USHeatMap data={analytics.geographicDistribution} />
+            </div>
+
             <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
               <div className="p-4 border-b border-slate-700">
                 <h3 className="text-white font-semibold">Sales by State</h3>
