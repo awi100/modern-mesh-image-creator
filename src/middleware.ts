@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // Routes that don't require authentication
-const publicPaths = ["/login", "/api/auth/login", "/api/auth/logout"];
+const publicPaths = [
+  "/login",
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/shopify/webhooks", // Shopify webhooks (authenticated via HMAC)
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
