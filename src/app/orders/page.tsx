@@ -730,6 +730,12 @@ export default function OrdersPage() {
               </svg>
             </Link>
             <h1 className="text-lg md:text-xl font-bold text-white">Orders</h1>
+            <Link
+              href="/analytics"
+              className="px-2 py-1 text-xs text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+            >
+              Analytics →
+            </Link>
           </div>
 
           <div className="flex items-center gap-2">
