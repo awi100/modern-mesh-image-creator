@@ -49,8 +49,11 @@ export interface OrdersResponse {
   summary: {
     totalOrders: number;
     totalKitsNeeded: number;
+    totalKitsReady: number;
     totalCanvasesNeeded: number;
+    totalCanvasesReady: number;
     totalSupplies: number;
+    totalSuppliesReady: number;
     unmatchedProducts: string[];
   };
 }
@@ -156,6 +159,10 @@ export async function GET() {
     let totalSupplies = 0;
     const unmatchedProducts = new Set<string>();
 
+    // Track demand per design/supply for calculating "ready" counts
+    const designDemand = new Map<string, { canvasesNeeded: number; kitsNeeded: number; canvasesReady: number; kitsReady: number }>();
+    const supplyDemand = new Map<string, { needed: number; ready: number }>();
+
     for (const shopifyOrder of shopifyOrders) {
       const items: OrderItem[] = [];
 
@@ -209,8 +216,33 @@ export async function GET() {
             totalKitsNeeded += lineItem.quantity;
           }
           totalCanvasesNeeded += lineItem.quantity;
+
+          // Track per-design demand
+          if (matchedDesign) {
+            const existing = designDemand.get(matchedDesign.id) || {
+              canvasesNeeded: 0,
+              kitsNeeded: 0,
+              canvasesReady: matchedDesign.canvasPrinted,
+              kitsReady: matchedDesign.kitsReady,
+            };
+            existing.canvasesNeeded += lineItem.quantity;
+            if (needsKit) {
+              existing.kitsNeeded += lineItem.quantity;
+            }
+            designDemand.set(matchedDesign.id, existing);
+          }
         } else {
           totalSupplies += lineItem.quantity;
+
+          // Track per-supply demand
+          if (matchedSupply) {
+            const existing = supplyDemand.get(matchedSupply.id) || {
+              needed: 0,
+              ready: matchedSupply.quantity,
+            };
+            existing.needed += lineItem.quantity;
+            supplyDemand.set(matchedSupply.id, existing);
+          }
         }
       }
 
@@ -227,13 +259,29 @@ export async function GET() {
       });
     }
 
+    // Calculate "ready" totals (capped at what's needed per design/supply)
+    let totalCanvasesReady = 0;
+    let totalKitsReady = 0;
+    for (const demand of designDemand.values()) {
+      totalCanvasesReady += Math.min(demand.canvasesReady, demand.canvasesNeeded);
+      totalKitsReady += Math.min(demand.kitsReady, demand.kitsNeeded);
+    }
+
+    let totalSuppliesReady = 0;
+    for (const demand of supplyDemand.values()) {
+      totalSuppliesReady += Math.min(demand.ready, demand.needed);
+    }
+
     const response: OrdersResponse = {
       orders,
       summary: {
         totalOrders: orders.length,
         totalKitsNeeded,
+        totalKitsReady,
         totalCanvasesNeeded,
+        totalCanvasesReady,
         totalSupplies,
+        totalSuppliesReady,
         unmatchedProducts: Array.from(unmatchedProducts),
       },
     };

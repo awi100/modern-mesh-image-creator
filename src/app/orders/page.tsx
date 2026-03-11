@@ -828,17 +828,26 @@ export default function OrdersPage() {
                 <p className="text-3xl font-bold text-white">{data.summary.totalOrders}</p>
                 <p className="text-sm text-slate-400">Unfulfilled Orders</p>
               </div>
-              <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <p className="text-3xl font-bold text-blue-400">{data.summary.totalCanvasesNeeded}</p>
-                <p className="text-sm text-slate-400">Canvases</p>
+              <div className={`rounded-xl p-4 border ${(data.summary.totalCanvasesReady ?? 0) >= data.summary.totalCanvasesNeeded ? "bg-slate-800 border-slate-700" : "bg-blue-900/20 border-blue-700"}`}>
+                <p className="text-3xl font-bold text-blue-400">
+                  <span className={(data.summary.totalCanvasesReady ?? 0) >= data.summary.totalCanvasesNeeded ? "text-emerald-400" : ""}>{data.summary.totalCanvasesReady ?? 0}</span>
+                  <span className="text-slate-500 text-xl">/{data.summary.totalCanvasesNeeded}</span>
+                </p>
+                <p className="text-sm text-slate-400">Canvases Ready</p>
               </div>
-              <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <p className="text-3xl font-bold text-amber-400">{data.summary.totalKitsNeeded}</p>
-                <p className="text-sm text-slate-400">Kits</p>
+              <div className={`rounded-xl p-4 border ${(data.summary.totalKitsReady ?? 0) >= data.summary.totalKitsNeeded ? "bg-slate-800 border-slate-700" : "bg-amber-900/20 border-amber-700"}`}>
+                <p className="text-3xl font-bold text-amber-400">
+                  <span className={(data.summary.totalKitsReady ?? 0) >= data.summary.totalKitsNeeded ? "text-emerald-400" : ""}>{data.summary.totalKitsReady ?? 0}</span>
+                  <span className="text-slate-500 text-xl">/{data.summary.totalKitsNeeded}</span>
+                </p>
+                <p className="text-sm text-slate-400">Kits Ready</p>
               </div>
-              <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <p className="text-3xl font-bold text-purple-400">{data.summary.totalSupplies}</p>
-                <p className="text-sm text-slate-400">Supplies</p>
+              <div className={`rounded-xl p-4 border ${(data.summary.totalSuppliesReady ?? 0) >= data.summary.totalSupplies ? "bg-slate-800 border-slate-700" : "bg-purple-900/20 border-purple-700"}`}>
+                <p className="text-3xl font-bold text-purple-400">
+                  <span className={(data.summary.totalSuppliesReady ?? 0) >= data.summary.totalSupplies ? "text-emerald-400" : ""}>{data.summary.totalSuppliesReady ?? 0}</span>
+                  <span className="text-slate-500 text-xl">/{data.summary.totalSupplies}</span>
+                </p>
+                <p className="text-sm text-slate-400">Supplies Ready</p>
               </div>
               <div className={`rounded-xl p-4 border ${data.summary.unmatchedProducts.length > 0 ? "bg-yellow-900/20 border-yellow-700" : "bg-emerald-900/20 border-emerald-700"}`}>
                 <p className={`text-3xl font-bold ${data.summary.unmatchedProducts.length > 0 ? "text-yellow-400" : "text-emerald-400"}`}>
@@ -884,7 +893,7 @@ export default function OrdersPage() {
                     : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-blue-400"
                 }`}
               >
-                Canvases <span className="opacity-75">({data.summary.totalCanvasesNeeded})</span>
+                Canvases <span className="opacity-75">({data.summary.totalCanvasesReady ?? 0}/{data.summary.totalCanvasesNeeded})</span>
               </button>
               <button
                 onClick={() => setFilter("kits")}
@@ -894,7 +903,7 @@ export default function OrdersPage() {
                     : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-amber-400"
                 }`}
               >
-                Kits <span className="opacity-75">({data.summary.totalKitsNeeded})</span>
+                Kits <span className="opacity-75">({data.summary.totalKitsReady ?? 0}/{data.summary.totalKitsNeeded})</span>
               </button>
               <button
                 onClick={() => setFilter("supplies")}
@@ -904,7 +913,7 @@ export default function OrdersPage() {
                     : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-purple-400"
                 }`}
               >
-                Supplies <span className="opacity-75">({data.summary.totalSupplies})</span>
+                Supplies <span className="opacity-75">({data.summary.totalSuppliesReady ?? 0}/{data.summary.totalSupplies})</span>
               </button>
             </div>
 
