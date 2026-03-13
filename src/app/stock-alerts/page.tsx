@@ -415,8 +415,8 @@ export default function StockAlertsPage() {
           </div>
 
           {/* Order Builder - 1 column */}
-          <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 sticky top-4">
+          <div className="lg:col-span-1 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto space-y-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
               <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <h2 className="text-slate-900 dark:text-white font-semibold">Order Builder</h2>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
@@ -516,7 +516,7 @@ export default function StockAlertsPage() {
             </div>
 
             {/* Excluded Designs */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 mt-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
               <button
                 onClick={() => setShowExcluded(!showExcluded)}
                 className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
