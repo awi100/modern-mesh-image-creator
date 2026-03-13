@@ -288,6 +288,10 @@ export async function PATCH(
       data.sizeCategory = body.sizeCategory || null;
     }
 
+    if (body.excludeFromStockAlerts !== undefined) {
+      data.excludeFromStockAlerts = !!body.excludeFromStockAlerts;
+    }
+
     // Handle absolute value updates for counters
     if (body.kitsReady !== undefined) {
       data.kitsReady = Math.max(0, body.kitsReady);

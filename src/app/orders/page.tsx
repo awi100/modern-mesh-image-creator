@@ -201,6 +201,18 @@ export default function OrdersPage() {
   const [syncResult, setSyncResult] = useState<{ synced: number; message: string } | null>(null);
   const [undoing, setUndoing] = useState<string | null>(null);
 
+  // Calculate how many orders can be fully filled with current inventory
+  const fulfillableOrderCount = useMemo(() => {
+    if (!data) return 0;
+    const fulfillable = calculateFulfillableOrders(data.orders);
+    return fulfillable.size;
+  }, [data]);
+
+  const totalUnfulfilledOrders = useMemo(() => {
+    if (!data) return 0;
+    return data.orders.filter(o => !o.locallyFulfilled).length;
+  }, [data]);
+
   // Search results for backup color picker
   const backupColorSuggestions = useMemo(() => {
     if (!backupSearch.trim()) return [];
@@ -824,9 +836,12 @@ export default function OrdersPage() {
         {data && (
           <>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <p className="text-3xl font-bold text-white">{data.summary.totalOrders}</p>
-                <p className="text-sm text-slate-400">Unfulfilled Orders</p>
+              <div className={`rounded-xl p-4 border ${fulfillableOrderCount >= totalUnfulfilledOrders ? "bg-slate-800 border-slate-700" : "bg-emerald-900/20 border-emerald-700"}`}>
+                <p className="text-3xl font-bold text-emerald-400">
+                  <span className={fulfillableOrderCount >= totalUnfulfilledOrders ? "text-emerald-400" : ""}>{fulfillableOrderCount}</span>
+                  <span className="text-slate-500 text-xl">/{totalUnfulfilledOrders}</span>
+                </p>
+                <p className="text-sm text-slate-400">Orders Fillable</p>
               </div>
               <div className={`rounded-xl p-4 border ${(data.summary.totalCanvasesReady ?? 0) >= data.summary.totalCanvasesNeeded ? "bg-slate-800 border-slate-700" : "bg-blue-900/20 border-blue-700"}`}>
                 <p className="text-3xl font-bold text-blue-400">

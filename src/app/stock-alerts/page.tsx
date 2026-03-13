@@ -39,9 +39,15 @@ interface OrderSuggestion {
   currentStock: number;
   demandPerRound: number;
   currentCoverage: number;
-  skeinsFor7Rounds: number;
   skeinsFor10Rounds: number;
-  skeinsFor14Rounds: number;
+  skeinsFor20Rounds: number;
+  skeinsFor30Rounds: number;
+}
+
+interface ExcludedDesign {
+  id: string;
+  name: string;
+  previewImageUrl: string | null;
 }
 
 interface GlobalDemandSummary {
@@ -59,7 +65,7 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
-type TargetRounds = 7 | 10 | 14;
+type TargetRounds = 10 | 20 | 30;
 type StatusFilter = "all" | "critical" | "low" | "healthy";
 
 export default function StockAlertsPage() {
@@ -68,9 +74,12 @@ export default function StockAlertsPage() {
   const [globalDemand, setGlobalDemand] = useState<GlobalDemandSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
-  const [targetRounds, setTargetRounds] = useState<TargetRounds>(7);
+  const [targetRounds, setTargetRounds] = useState<TargetRounds>(10);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [copiedOrder, setCopiedOrder] = useState(false);
+  const [excludedDesigns, setExcludedDesigns] = useState<ExcludedDesign[]>([]);
+  const [showExcluded, setShowExcluded] = useState(false);
+  const [togglingExclusion, setTogglingExclusion] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAlerts = async () => {
@@ -82,6 +91,7 @@ export default function StockAlertsPage() {
           setColors(data.mostUsedColors || []);
           setOrderSuggestions(data.orderSuggestions || []);
           setGlobalDemand(data.globalDemand);
+          setExcludedDesigns(data.excludedDesigns || []);
         }
       } catch (error) {
         console.error("Error fetching stock alerts:", error);
@@ -116,9 +126,9 @@ export default function StockAlertsPage() {
 
   const orderList = useMemo(() => {
     return orderSuggestions.map((s) => {
-      const qty = targetRounds === 7 ? s.skeinsFor7Rounds
-        : targetRounds === 10 ? s.skeinsFor10Rounds
-        : s.skeinsFor14Rounds;
+      const qty = targetRounds === 10 ? s.skeinsFor10Rounds
+        : targetRounds === 20 ? s.skeinsFor20Rounds
+        : s.skeinsFor30Rounds;
       return { ...s, orderQty: qty };
     }).filter((s) => s.orderQty > 0);
   }, [orderSuggestions, targetRounds]);
@@ -133,6 +143,44 @@ export default function StockAlertsPage() {
     navigator.clipboard.writeText(text);
     setCopiedOrder(true);
     setTimeout(() => setCopiedOrder(false), 2000);
+  };
+
+  // Get all unique designs from the color data (for excluding)
+  const allIncludedDesigns = useMemo(() => {
+    const designMap = new Map<string, { id: string; name: string; previewImageUrl: string | null }>();
+    for (const color of colors) {
+      for (const design of color.designs) {
+        if (!designMap.has(design.id)) {
+          designMap.set(design.id, { id: design.id, name: design.name, previewImageUrl: design.previewImageUrl });
+        }
+      }
+    }
+    return Array.from(designMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [colors]);
+
+  const toggleDesignExclusion = async (designId: string, exclude: boolean) => {
+    setTogglingExclusion(designId);
+    try {
+      const res = await fetch(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excludeFromStockAlerts: exclude }),
+      });
+      if (res.ok) {
+        // Refetch alerts data
+        const response = await fetch("/api/inventory/alerts");
+        if (response.ok) {
+          const data = await response.json();
+          setColors(data.mostUsedColors || []);
+          setOrderSuggestions(data.orderSuggestions || []);
+          setGlobalDemand(data.globalDemand);
+          setExcludedDesigns(data.excludedDesigns || []);
+        }
+      }
+    } catch (error) {
+      console.error("Error toggling design exclusion:", error);
+    }
+    setTogglingExclusion(null);
   };
 
   return (
@@ -380,7 +428,7 @@ export default function StockAlertsPage() {
               <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <div className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider mb-2">Target Rounds</div>
                 <div className="flex gap-2">
-                  {([7, 10, 14] as const).map((rounds) => (
+                  {([10, 20, 30] as const).map((rounds) => (
                     <button
                       key={rounds}
                       onClick={() => setTargetRounds(rounds)}
@@ -465,6 +513,83 @@ export default function StockAlertsPage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Excluded Designs */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 mt-4">
+              <button
+                onClick={() => setShowExcluded(!showExcluded)}
+                className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+              >
+                <div>
+                  <h2 className="text-slate-900 dark:text-white font-semibold text-left">Excluded Designs</h2>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
+                    {excludedDesigns.length} excluded, {allIncludedDesigns.length} included
+                  </p>
+                </div>
+                <svg
+                  className={`w-5 h-5 text-slate-400 transition-transform ${showExcluded ? "rotate-180" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showExcluded && (
+                <div className="border-t border-slate-200 dark:border-slate-700">
+                  {/* Currently excluded */}
+                  {excludedDesigns.length > 0 && (
+                    <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Excluded from calculations</div>
+                      <div className="space-y-1">
+                        {excludedDesigns.map((design) => (
+                          <div key={design.id} className="flex items-center gap-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                            {design.previewImageUrl ? (
+                              <img src={design.previewImageUrl} alt={design.name} className="w-6 h-6 object-cover rounded border border-slate-200 dark:border-slate-600" />
+                            ) : (
+                              <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded" />
+                            )}
+                            <span className="text-slate-900 dark:text-white text-sm flex-1 truncate">{design.name}</span>
+                            <button
+                              onClick={() => toggleDesignExclusion(design.id, false)}
+                              disabled={togglingExclusion === design.id}
+                              className="text-xs px-2 py-1 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900 disabled:opacity-50"
+                            >
+                              {togglingExclusion === design.id ? "..." : "Include"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Currently included (can exclude) */}
+                  <div className="p-4 max-h-64 overflow-y-auto">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Included designs</div>
+                    <div className="space-y-1">
+                      {allIncludedDesigns.map((design) => (
+                        <div key={design.id} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                          {design.previewImageUrl ? (
+                            <img src={design.previewImageUrl} alt={design.name} className="w-6 h-6 object-cover rounded border border-slate-200 dark:border-slate-600" />
+                          ) : (
+                            <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded" />
+                          )}
+                          <span className="text-slate-900 dark:text-white text-sm flex-1 truncate">{design.name}</span>
+                          <button
+                            onClick={() => toggleDesignExclusion(design.id, true)}
+                            disabled={togglingExclusion === design.id}
+                            className="text-xs px-2 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900 disabled:opacity-50"
+                          >
+                            {togglingExclusion === design.id ? "..." : "Exclude"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -77,9 +77,9 @@ interface OrderSuggestion {
   currentStock: number;
   demandPerRound: number;
   currentCoverage: number;
-  skeinsFor7Rounds: number; // To reach healthy (7 rounds)
-  skeinsFor10Rounds: number; // To have 10 rounds
-  skeinsFor14Rounds: number; // To have 14 rounds (2 weeks worth)
+  skeinsFor10Rounds: number; // To reach 10 rounds
+  skeinsFor20Rounds: number; // To reach 20 rounds
+  skeinsFor30Rounds: number; // To reach 30 rounds
 }
 
 // GET - Calculate stock alerts for all non-draft designs
@@ -89,9 +89,16 @@ export async function GET() {
   }
 
   try {
-    // Fetch all non-draft designs with pixel data and velocity info
+    // Fetch excluded designs (to show in UI for toggling)
+    const excludedDesigns = await prisma.design.findMany({
+      where: { isDraft: false, deletedAt: null, excludeFromStockAlerts: true },
+      select: { id: true, name: true, previewImageUrl: true },
+      orderBy: { name: "asc" },
+    });
+
+    // Fetch all non-draft designs with pixel data and velocity info (excluding ones marked for exclusion)
     const designs = await prisma.design.findMany({
-      where: { isDraft: false, deletedAt: null },
+      where: { isDraft: false, deletedAt: null, excludeFromStockAlerts: false },
       select: {
         id: true,
         name: true,
@@ -385,17 +392,17 @@ export async function GET() {
       healthyColors: mostUsedColors.filter((c) => c.coverageRounds >= 7).length,
     };
 
-    // Generate order suggestions for colors that need ordering (< 7 rounds = not healthy)
+    // Generate order suggestions for colors that need ordering (< 10 rounds)
     const orderSuggestions: OrderSuggestion[] = mostUsedColors
-      .filter((c) => c.coverageRounds < 7 && c.totalSkeinsNeeded > 0) // Critical and low colors
+      .filter((c) => c.coverageRounds < 10 && c.totalSkeinsNeeded > 0)
       .map((c) => {
         const demandPerRound = c.totalSkeinsNeeded;
         const currentStock = c.effectiveInventory;
         const currentCoverage = c.coverageRounds;
-        // Calculate how many skeins needed to reach healthy levels (7, 10, 14 rounds)
-        const skeinsFor7Rounds = Math.max(0, demandPerRound * 7 - currentStock);
+        // Calculate how many skeins needed to reach target levels (10, 20, 30 rounds)
         const skeinsFor10Rounds = Math.max(0, demandPerRound * 10 - currentStock);
-        const skeinsFor14Rounds = Math.max(0, demandPerRound * 14 - currentStock);
+        const skeinsFor20Rounds = Math.max(0, demandPerRound * 20 - currentStock);
+        const skeinsFor30Rounds = Math.max(0, demandPerRound * 30 - currentStock);
 
         return {
           dmcNumber: c.dmcNumber,
@@ -405,13 +412,13 @@ export async function GET() {
           currentStock,
           demandPerRound,
           currentCoverage,
-          skeinsFor7Rounds,
           skeinsFor10Rounds,
-          skeinsFor14Rounds,
+          skeinsFor20Rounds,
+          skeinsFor30Rounds,
         };
       })
-      .filter((s) => s.skeinsFor7Rounds > 0) // Only include if needs ordering to reach healthy
-      .sort((a, b) => b.skeinsFor7Rounds - a.skeinsFor7Rounds); // Sort by most needed first
+      .filter((s) => s.skeinsFor10Rounds > 0) // Only include if needs ordering to reach 10 rounds
+      .sort((a, b) => b.skeinsFor10Rounds - a.skeinsFor10Rounds); // Sort by most needed first
 
     return NextResponse.json({
       alerts,
@@ -419,6 +426,7 @@ export async function GET() {
       mostUsedColors: mostUsedColors.slice(0, 50), // Increased from 25
       globalDemand,
       orderSuggestions,
+      excludedDesigns,
     });
   } catch (error) {
     console.error("Error calculating stock alerts:", error);
