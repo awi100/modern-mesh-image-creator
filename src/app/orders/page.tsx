@@ -1023,6 +1023,8 @@ export default function OrdersPage() {
                                 const shortage = kit.quantity - kit.kitsReady;
                                 const isExpanded = kit.designId ? expandedKits.has(kit.designId) : false;
                                 const kitInfo = kit.designId ? kitData.get(kit.designId) : null;
+                                const isIntroKit = kit.productTitle.toLowerCase().includes("intro") || kit.productTitle.toLowerCase().includes("beginner");
+                                const kitDelta = isIntroKit ? 2 : 1;
 
                                 return (
                                   <div key={idx}>
@@ -1099,10 +1101,10 @@ export default function OrdersPage() {
                                         <div className="flex items-center gap-1">
                                           {kit.designId && (
                                             <button
-                                              onClick={() => handleUpdateCount(kit.designId!, "kitsReady", -1)}
+                                              onClick={() => handleUpdateCount(kit.designId!, "kitsReady", -kitDelta)}
                                               disabled={updating === kit.designId || kit.kitsReady <= 0}
                                               className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                              title="Remove 1"
+                                              title={`Remove ${kitDelta}`}
                                             >
                                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
@@ -1142,10 +1144,10 @@ export default function OrdersPage() {
                                           </div>
                                           {kit.designId && (
                                             <button
-                                              onClick={() => handleUpdateCount(kit.designId!, "kitsReady", 1)}
+                                              onClick={() => handleUpdateCount(kit.designId!, "kitsReady", kitDelta)}
                                               disabled={updating === kit.designId}
                                               className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                              title="Add 1"
+                                              title={`Add ${kitDelta}`}
                                             >
                                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1438,6 +1440,8 @@ export default function OrdersPage() {
                         {canvases.map((canvas, idx) => {
                           const hasEnough = canvas.canvasPrinted >= canvas.quantity;
                           const shortage = canvas.quantity - canvas.canvasPrinted;
+                          const isIntroCanvas = canvas.productTitle.toLowerCase().includes("intro") || canvas.productTitle.toLowerCase().includes("beginner");
+                          const canvasDelta = isIntroCanvas ? 2 : 1;
                           return (
                             <div key={idx} className="p-4 flex items-center gap-4">
                               {canvas.designId ? (
@@ -1495,10 +1499,10 @@ export default function OrdersPage() {
                                 <div className="flex items-center gap-1">
                                   {canvas.designId && (
                                     <button
-                                      onClick={() => handleUpdateCount(canvas.designId!, "canvasPrinted", -1)}
+                                      onClick={() => handleUpdateCount(canvas.designId!, "canvasPrinted", -canvasDelta)}
                                       disabled={updating === canvas.designId || canvas.canvasPrinted <= 0}
                                       className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                      title="Remove 1"
+                                      title={`Remove ${canvasDelta}`}
                                     >
                                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
@@ -1538,10 +1542,10 @@ export default function OrdersPage() {
                                   </div>
                                   {canvas.designId && (
                                     <button
-                                      onClick={() => handleUpdateCount(canvas.designId!, "canvasPrinted", 1)}
+                                      onClick={() => handleUpdateCount(canvas.designId!, "canvasPrinted", canvasDelta)}
                                       disabled={updating === canvas.designId}
                                       className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                      title="Add 1"
+                                      title={`Add ${canvasDelta}`}
                                     >
                                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

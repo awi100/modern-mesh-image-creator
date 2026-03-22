@@ -50,7 +50,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
   const [newWidthInches, setNewWidthInches] = useState(widthInches);
   const [newHeightInches, setNewHeightInches] = useState(heightInches);
   const newMeshCount = 14; // Fixed at 14 mesh
-  const [resizeMode, setResizeMode] = useState<ResizeMode>("scale");
+  const [resizeMode, setResizeMode] = useState<ResizeMode>("crop");
   const [anchorPosition, setAnchorPosition] = useState<AnchorPosition>("mc"); // middle-center default
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
 

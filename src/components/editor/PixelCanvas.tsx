@@ -1136,10 +1136,52 @@ export default function PixelCanvas({
     );
   }, [zoom, panX, panY, setZoom, setPan]);
 
+  // Scrollbar calculations
+  const canvasPixelWidth = gridWidth * cellSize;
+  const canvasPixelHeight = gridHeight * cellSize;
+  const containerWidth = containerRef.current?.clientWidth || 1;
+  const containerHeight = containerRef.current?.clientHeight || 1;
+
+  // Total scrollable range: canvas can pan from showing right edge to left edge
+  const totalScrollX = Math.max(canvasPixelWidth, containerWidth);
+  const totalScrollY = Math.max(canvasPixelHeight, containerHeight);
+
+  // Thumb sizes (proportional to visible area)
+  const thumbWidthPct = Math.min(100, (containerWidth / totalScrollX) * 100);
+  const thumbHeightPct = Math.min(100, (containerHeight / totalScrollY) * 100);
+
+  // Pan range: how far pan can go in each direction from center
+  const panRangeX = (canvasPixelWidth + containerWidth) / 2;
+  const panRangeY = (canvasPixelHeight + containerHeight) / 2;
+
+  // Thumb position (0 = scrolled fully left/up, 100-thumbSize = fully right/down)
+  const scrollPctX = panRangeX > 0 ? ((panRangeX - panX) / (2 * panRangeX)) * 100 : 0;
+  const scrollPctY = panRangeY > 0 ? ((panRangeY - panY) / (2 * panRangeY)) * 100 : 0;
+
+  const thumbLeftPct = Math.max(0, Math.min(100 - thumbWidthPct, scrollPctX - thumbWidthPct / 2));
+  const thumbTopPct = Math.max(0, Math.min(100 - thumbHeightPct, scrollPctY - thumbHeightPct / 2));
+
+  const showHScrollbar = thumbWidthPct < 98;
+  const showVScrollbar = thumbHeightPct < 98;
+
+  const handleHScrollbarClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickPct = (e.clientX - rect.left) / rect.width;
+    const newPanX = panRangeX - clickPct * 2 * panRangeX;
+    setPan(newPanX, panY);
+  }, [panRangeX, panY, setPan]);
+
+  const handleVScrollbarClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickPct = (e.clientY - rect.top) / rect.height;
+    const newPanY = panRangeY - clickPct * 2 * panRangeY;
+    setPan(panX, newPanY);
+  }, [panRangeY, panX, setPan]);
+
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-hidden bg-slate-100 relative"
+      className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-800 relative"
     >
       {/* Inner wrapper that handles pan/zoom transform */}
       <div
@@ -1239,6 +1281,37 @@ export default function PixelCanvas({
             </>
           )}
         </div>
+      )}
+
+      {/* Horizontal scrollbar */}
+      {showHScrollbar && (
+        <div
+          className="absolute bottom-0 left-0 right-3 h-3 bg-slate-200/60 dark:bg-slate-700/60 cursor-pointer z-20 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 transition-colors"
+          onClick={handleHScrollbarClick}
+        >
+          <div
+            className="absolute top-0.5 h-2 bg-slate-400/70 dark:bg-slate-500/70 rounded-full hover:bg-slate-500 dark:hover:bg-slate-400 transition-colors min-w-[24px]"
+            style={{ left: `${thumbLeftPct}%`, width: `${thumbWidthPct}%` }}
+          />
+        </div>
+      )}
+
+      {/* Vertical scrollbar */}
+      {showVScrollbar && (
+        <div
+          className="absolute top-0 right-0 bottom-3 w-3 bg-slate-200/60 dark:bg-slate-700/60 cursor-pointer z-20 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 transition-colors"
+          onClick={handleVScrollbarClick}
+        >
+          <div
+            className="absolute left-0.5 w-2 bg-slate-400/70 dark:bg-slate-500/70 rounded-full hover:bg-slate-500 dark:hover:bg-slate-400 transition-colors min-h-[24px]"
+            style={{ top: `${thumbTopPct}%`, height: `${thumbHeightPct}%` }}
+          />
+        </div>
+      )}
+
+      {/* Corner */}
+      {showHScrollbar && showVScrollbar && (
+        <div className="absolute bottom-0 right-0 w-3 h-3 bg-slate-200/60 dark:bg-slate-700/60 z-20" />
       )}
     </div>
   );
