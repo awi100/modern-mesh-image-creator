@@ -142,6 +142,7 @@ export default function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [designs, setDesigns] = useState<Design[]>([]);
   const [transferringCanvas, setTransferringCanvas] = useState<string | null>(null);
+  const [transferringAll, setTransferringAll] = useState(false);
   const [colorUsage, setColorUsage] = useState<Map<string, ColorUsageDesign[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -689,6 +690,29 @@ export default function InventoryPage() {
       console.error("Error transferring canvases:", error);
     }
     setTransferringCanvas(null);
+  };
+
+  // Handle bulk transfer of ALL canvases from Maddie to main
+  const handleTransferAll = async () => {
+    if (!confirm(`Transfer all ${maddieCanvases} canvases from Maddie's to main?`)) return;
+    setTransferringAll(true);
+    try {
+      const res = await fetch("/api/inventory/transfer", {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Update local state for all transferred designs
+        const updatedMap = new Map(data.designs.map((d: { id: string; canvasPrinted: number; canvasPrintedMaddie: number }) => [d.id, d]));
+        setDesigns(designs.map(d => {
+          const updated = updatedMap.get(d.id) as { canvasPrinted: number; canvasPrintedMaddie: number } | undefined;
+          return updated ? { ...d, canvasPrinted: updated.canvasPrinted, canvasPrintedMaddie: updated.canvasPrintedMaddie } : d;
+        }));
+      }
+    } catch (error) {
+      console.error("Error transferring all canvases:", error);
+    }
+    setTransferringAll(false);
   };
 
   // Group designs by collection (folder)
@@ -1662,7 +1686,23 @@ export default function InventoryPage() {
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <p className="text-xs text-slate-400 uppercase tracking-wider">Maddie&apos;s</p>
-                <p className="text-xl font-bold text-amber-400">{maddieCanvases}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xl font-bold text-amber-400">{maddieCanvases}</p>
+                  {maddieCanvases > 0 && (
+                    <button
+                      onClick={handleTransferAll}
+                      disabled={transferringAll}
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-medium rounded-lg flex items-center gap-1 transition-colors"
+                    >
+                      {transferringAll ? (
+                        <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                      ) : (
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                      )}
+                      Transfer All
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <p className="text-xs text-slate-400 uppercase tracking-wider">Combined Total</p>

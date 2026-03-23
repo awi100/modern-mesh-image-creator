@@ -2,6 +2,60 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 
+// POST - Transfer ALL canvases from Maddie to main for ALL designs
+export async function POST() {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Find all designs with canvases at Maddie's
+      const designs = await tx.design.findMany({
+        where: { canvasPrintedMaddie: { gt: 0 }, deletedAt: null },
+        select: { id: true, name: true, canvasPrinted: true, canvasPrintedMaddie: true },
+      });
+
+      if (designs.length === 0) {
+        return { totalTransferred: 0, designs: [] };
+      }
+
+      const updated = [];
+      let totalTransferred = 0;
+
+      for (const design of designs) {
+        const qty = design.canvasPrintedMaddie;
+        totalTransferred += qty;
+
+        const updatedDesign = await tx.design.update({
+          where: { id: design.id },
+          data: {
+            canvasPrinted: { increment: qty },
+            canvasPrintedMaddie: 0,
+          },
+          select: { id: true, name: true, canvasPrinted: true, canvasPrintedMaddie: true },
+        });
+        updated.push(updatedDesign);
+      }
+
+      return { totalTransferred, designs: updated };
+    });
+
+    return NextResponse.json({
+      success: true,
+      totalTransferred: result.totalTransferred,
+      designCount: result.designs.length,
+      designs: result.designs,
+    });
+  } catch (error) {
+    console.error("Error bulk transferring canvases:", error);
+    return NextResponse.json(
+      { error: "Failed to transfer canvases" },
+      { status: 500 }
+    );
+  }
+}
+
 // PUT - Transfer ALL canvases from Maddie to main for a specific design
 // Uses transaction with atomic operations to prevent race conditions
 export async function PUT(request: NextRequest) {
