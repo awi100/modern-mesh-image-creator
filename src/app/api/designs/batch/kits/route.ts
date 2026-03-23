@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
             meshCounts: new Set([14]),
           });
         }
-        designTotalSkeins += usage.skeinsNeeded;
+        designTotalSkeins += usage.usesFullSkein ? usage.skeinsNeeded : 0;
       }
 
       designSummaries.push({
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
       if (yardsWithBuffer <= BOBBIN_ONLY_MAX) {
         fullSkeins = 0;
         bobbinYards = yardsWithBuffer;
-        skeinsNeeded = 1; // Still need at least partial access to a skein
+        skeinsNeeded = 0; // Bobbin only, no full skein needed
       } else {
         const baseSkeins = Math.floor(yardsWithBuffer / SKEIN_YARDS);
         const remainder = yardsWithBuffer - baseSkeins * SKEIN_YARDS;

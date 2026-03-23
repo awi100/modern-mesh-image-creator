@@ -11,6 +11,7 @@ interface ColorDesignUsage {
   stitchCount: number;
   yardsNeeded: number;
   skeinsNeeded: number;
+  usesFullSkein: boolean;
 }
 
 interface MostUsedColor {
@@ -29,6 +30,9 @@ interface MostUsedColor {
   coverageRounds: number;
   skeinsToNextRound: number;
   isCritical: boolean;
+  backupDmcNumber: string | null;
+  backupColorName: string | null;
+  backupHex: string | null;
 }
 
 interface OrderSuggestion {
@@ -315,26 +319,49 @@ export default function StockAlertsPage() {
                       className={`bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 border-l-4 ${statusColor} overflow-hidden`}
                     >
                       {/* Main row */}
-                      <button
+                      <div
                         onClick={() => toggleExpand(color.dmcNumber)}
-                        className="w-full p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                        className="w-full p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
                       >
-                        {/* Color swatch */}
-                        <div
-                          className="w-10 h-10 rounded-lg border border-slate-300 dark:border-slate-600 flex-shrink-0 flex items-center justify-center text-xs font-bold"
+                        {/* Color swatch - clickable link to color page */}
+                        <Link
+                          href={`/inventory/color/${color.dmcNumber}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-10 h-10 rounded-lg border border-slate-300 dark:border-slate-600 flex-shrink-0 flex items-center justify-center text-xs font-bold hover:ring-2 hover:ring-rose-400 transition-shadow"
                           style={{ backgroundColor: color.hex, color: getContrastTextColor(color.hex) }}
                         >
                           {color.dmcNumber}
-                        </div>
+                        </Link>
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-slate-900 dark:text-white font-medium truncate">{color.colorName}</span>
+                            <Link
+                              href={`/inventory/color/${color.dmcNumber}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-slate-900 dark:text-white font-medium truncate hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                            >
+                              {color.colorName}
+                            </Link>
                             <span className="text-slate-400 dark:text-slate-500 text-sm">#{color.dmcNumber}</span>
                           </div>
-                          <div className="text-slate-500 dark:text-slate-400 text-sm">
-                            Used in {color.designCount} design{color.designCount !== 1 ? "s" : ""}
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-slate-500 dark:text-slate-400">
+                              Used in {color.designCount} design{color.designCount !== 1 ? "s" : ""}
+                            </span>
+                            {color.backupDmcNumber && (
+                              <Link
+                                href={`/inventory/color/${color.backupDmcNumber}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                              >
+                                <div
+                                  className="w-3 h-3 rounded-sm border border-slate-300 dark:border-slate-600 flex-shrink-0"
+                                  style={{ backgroundColor: color.backupHex || "#888" }}
+                                />
+                                Backup: {color.backupDmcNumber} {color.backupColorName}
+                              </Link>
+                            )}
                           </div>
                         </div>
 
@@ -346,7 +373,11 @@ export default function StockAlertsPage() {
                           </div>
                           <div className="text-right">
                             <div className="text-slate-500 dark:text-slate-400 text-xs">Per Round</div>
-                            <div className="text-slate-900 dark:text-white font-medium">{color.totalSkeinsNeeded}</div>
+                            <div className="text-slate-900 dark:text-white font-medium">
+                              {color.totalSkeinsNeeded === 0 ? (
+                                <span className="text-slate-400 dark:text-slate-500 text-xs">bobbin</span>
+                              ) : color.totalSkeinsNeeded}
+                            </div>
                           </div>
                           <div className="text-right">
                             <div className="text-slate-500 dark:text-slate-400 text-xs">Rounds</div>
@@ -367,7 +398,7 @@ export default function StockAlertsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                         </div>
-                      </button>
+                      </div>
 
                       {/* Expanded designs list */}
                       {isExpanded && (
@@ -399,7 +430,11 @@ export default function StockAlertsPage() {
                                   <div className="text-slate-900 dark:text-white text-sm truncate">{design.name}</div>
                                 </div>
                                 <div className="text-right flex-shrink-0">
-                                  <div className="text-slate-900 dark:text-white text-sm font-medium">{design.skeinsNeeded} skein{design.skeinsNeeded !== 1 ? "s" : ""}</div>
+                                  <div className="text-slate-900 dark:text-white text-sm font-medium">
+                                    {design.usesFullSkein
+                                      ? `${design.skeinsNeeded} skein${design.skeinsNeeded !== 1 ? "s" : ""}`
+                                      : "bobbin"}
+                                  </div>
                                   <div className="text-slate-500 dark:text-slate-400 text-xs">{design.yardsNeeded} yds</div>
                                 </div>
                               </Link>

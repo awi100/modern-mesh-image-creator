@@ -423,6 +423,9 @@ export default function PixelCanvas({
 
   // Handle escape key to cancel text placement or move operation
   // Handle enter key to confirm shape placement
+  // Handle arrow keys to pan the canvas
+  const PAN_ARROW_STEP = 50; // pixels to pan per arrow key press
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -442,12 +445,21 @@ export default function PixelCanvas({
         if ((pendingText?.isShape || pendingText?.isText) && pendingText?.placedPosition && onConfirmPlacement) {
           onConfirmPlacement();
         }
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown") {
+        // Don't pan if user is typing in an input
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+        e.preventDefault();
+        const step = e.shiftKey ? PAN_ARROW_STEP * 3 : PAN_ARROW_STEP;
+        if (e.key === "ArrowLeft") setPan(panX + step, panY);
+        else if (e.key === "ArrowRight") setPan(panX - step, panY);
+        else if (e.key === "ArrowUp") setPan(panX, panY + step);
+        else if (e.key === "ArrowDown") setPan(panX, panY - step);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pendingText, onCancelTextPlacement, cancelMove, onConfirmPlacement]);
+  }, [pendingText, onCancelTextPlacement, cancelMove, onConfirmPlacement, panX, panY, setPan]);
 
   // Get grid coordinates from mouse or touch event
   const getGridCoords = useCallback((clientX: number, clientY: number) => {

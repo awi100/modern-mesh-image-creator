@@ -178,7 +178,7 @@ export async function GET() {
           return a.dmcNumber.localeCompare(b.dmcNumber);
         });
 
-        const totalSkeins = kitContents.reduce((sum, c) => sum + (c.fullSkeins > 0 ? c.fullSkeins : 1), 0);
+        const totalSkeins = kitContents.reduce((sum, c) => sum + c.fullSkeins, 0);
 
         kits.push({
           designId: design.id,

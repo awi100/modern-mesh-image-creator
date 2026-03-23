@@ -194,7 +194,7 @@ export async function GET(
       backupColors,
       totals: {
         colors: kitContents.length,
-        skeins: kitContents.reduce((sum, c) => sum + c.skeinsNeeded, 0),
+        skeins: kitContents.reduce((sum, c) => sum + c.fullSkeins, 0),
         bobbins: kitContents.filter((c) => c.bobbinYards > 0).length,
         allInStock: kitContents.every((c) => c.inStock),
       },

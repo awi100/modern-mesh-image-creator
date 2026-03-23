@@ -41,6 +41,7 @@ interface ColorDesignUsage {
   stitchCount: number;
   yardsNeeded: number;
   skeinsNeeded: number;
+  usesFullSkein: boolean;
 }
 
 interface MostUsedColor {
@@ -60,6 +61,10 @@ interface MostUsedColor {
   coverageRounds: number; // How many complete rounds (1 kit of each design) can be made
   skeinsToNextRound: number; // Skeins needed to complete one more round
   isCritical: boolean; // Coverage < 1 round
+  // Backup color info
+  backupDmcNumber: string | null;
+  backupColorName: string | null;
+  backupHex: string | null;
 }
 
 interface GlobalDemandSummary {
@@ -119,6 +124,14 @@ export async function GET() {
     // Fetch all inventory
     const inventoryItems = await prisma.inventoryItem.findMany();
 
+    // Fetch all color backups (bidirectional)
+    const colorBackups = await prisma.colorBackup.findMany();
+    const backupMap = new Map<string, string>();
+    for (const cb of colorBackups) {
+      backupMap.set(cb.dmcNumber, cb.backupDmcNumber);
+      backupMap.set(cb.backupDmcNumber, cb.dmcNumber); // Bidirectional
+    }
+
     // Build inventory maps by size
     const inventoryBySize: Record<number, Map<string, number>> = {
       5: new Map(),
@@ -167,8 +180,10 @@ export async function GET() {
           const existing = colorUsageMap.get(dmcNumber);
           const usage = yarnUsage.find((u) => u.dmcNumber === dmcNumber);
           const skeinsNeeded = usage?.skeinsNeeded ?? 0;
+          const usesFullSkein = usage?.usesFullSkein ?? false;
           const yardsNeeded = usage?.withBuffer ?? 0;
-          const skeinsReserved = skeinsNeeded * kitsReady; // Skeins used in assembled kits
+          // Only reserve full skeins for colors that actually use them
+          const skeinsReserved = usesFullSkein ? skeinsNeeded * kitsReady : 0;
 
           const designUsage: ColorDesignUsage = {
             id: design.id,
@@ -176,14 +191,17 @@ export async function GET() {
             previewImageUrl: design.previewImageUrl,
             stitchCount,
             yardsNeeded: Math.round(yardsNeeded * 10) / 10, // Round to 1 decimal
-            skeinsNeeded,
+            skeinsNeeded: usesFullSkein ? skeinsNeeded : 0, // 0 for bobbin amounts
+            usesFullSkein,
           };
+
+          const fullSkeinsCount = usesFullSkein ? skeinsNeeded : 0;
 
           if (existing) {
             existing.totalStitches += stitchCount;
             existing.totalYards += yardsNeeded;
             existing.designs.push(designUsage);
-            existing.skeinsNeededBySize[5] += skeinsNeeded;
+            existing.skeinsNeededBySize[5] += fullSkeinsCount;
             existing.skeinsReservedInKits[5] += skeinsReserved;
           } else {
             colorUsageMap.set(dmcNumber, {
@@ -191,7 +209,7 @@ export async function GET() {
               totalYards: yardsNeeded,
               designs: [designUsage],
               skeinsNeededBySize: {
-                5: skeinsNeeded,
+                5: fullSkeinsCount,
                 8: 0,
               },
               skeinsReservedInKits: {
@@ -305,6 +323,8 @@ export async function GET() {
     // Build most used colors list with aggregate demand metrics
     // Use 22 effective yards per skein (vs 27 actual) to account for waste when winding bobbins
     const EFFECTIVE_YARDS_PER_SKEIN = 22;
+    // Match the 5-yard threshold from yarn-calculator: under 5 yards = bobbin, not a full skein
+    const FULL_SKEIN_THRESHOLD = 5;
 
     const mostUsedColors: MostUsedColor[] = [];
     for (const [dmcNumber, data] of colorUsageMap.entries()) {
@@ -312,9 +332,12 @@ export async function GET() {
       // Determine primary thread size (the one with more yards needed)
       const primarySize: 5 | 8 = data.skeinsNeededBySize[5] >= data.skeinsNeededBySize[8] ? 5 : 8;
       const totalYardsNeeded = Math.round(data.totalYards * 10) / 10;
-      // Calculate skeins from yards, not by summing individual design skeins
-      // This properly accounts for bobbin amounts being combined across designs
-      const totalSkeinsNeeded = Math.ceil(data.totalYards / EFFECTIVE_YARDS_PER_SKEIN);
+      // Calculate skeins from yards, respecting the 5-yard threshold:
+      // Under 5 yards total = bobbin only (0 full skeins needed)
+      // 5+ yards = calculate full skeins needed
+      const totalSkeinsNeeded = data.totalYards <= FULL_SKEIN_THRESHOLD
+        ? 0
+        : Math.ceil(data.totalYards / EFFECTIVE_YARDS_PER_SKEIN);
       const inventorySkeins = (inventoryBySize[5].get(dmcNumber) ?? 0) + (inventoryBySize[8].get(dmcNumber) ?? 0);
       // Note: skeinsReservedInKits is tracked for display purposes only
       // The inventory already reflects deductions from kit assembly, so we don't subtract again
@@ -338,6 +361,10 @@ export async function GET() {
       // Sort designs by skeins needed (highest first)
       const sortedDesigns = [...data.designs].sort((a, b) => b.skeinsNeeded - a.skeinsNeeded);
 
+      // Look up backup color
+      const backupDmcNum = backupMap.get(dmcNumber) ?? null;
+      const backupColor = backupDmcNum ? getDmcColorByNumber(backupDmcNum) : null;
+
       mostUsedColors.push({
         dmcNumber,
         colorName: dmcColor?.name ?? "Unknown",
@@ -354,6 +381,9 @@ export async function GET() {
         coverageRounds: coverageRounds === Infinity ? 999 : coverageRounds,
         skeinsToNextRound,
         isCritical,
+        backupDmcNumber: backupDmcNum,
+        backupColorName: backupColor?.name ?? null,
+        backupHex: backupColor?.hex ?? null,
       });
     }
 

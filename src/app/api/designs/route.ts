@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
         bufferPercent ?? 20
       );
       kitColorCount = yarnUsage.length;
-      kitSkeinCount = yarnUsage.reduce((sum: number, u: { skeinsNeeded: number }) => sum + u.skeinsNeeded, 0);
+      kitSkeinCount = yarnUsage.reduce((sum: number, u: { skeinsNeeded: number; usesFullSkein: boolean }) => sum + (u.usesFullSkein ? u.skeinsNeeded : 0), 0);
     } catch (e) {
       console.error("Error computing kit summary:", e);
     }

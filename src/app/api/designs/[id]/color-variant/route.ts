@@ -99,7 +99,7 @@ export async function POST(
     );
 
     const kitColorCount = yarnUsage.length;
-    const kitSkeinCount = yarnUsage.reduce((sum, u) => sum + u.skeinsNeeded, 0);
+    const kitSkeinCount = yarnUsage.reduce((sum, u) => sum + (u.usesFullSkein ? u.skeinsNeeded : 0), 0);
     const colorsUsed = JSON.stringify(Array.from(stitchCounts.keys()));
 
     // Generate the variant name
