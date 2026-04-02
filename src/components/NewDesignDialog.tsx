@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useEditorStore } from "@/lib/store";
+import type { MeshCount } from "@/lib/yarn-calculator";
 
 // Built-in preset canvas sizes for common needlepoint projects
 const BUILTIN_PRESETS = [
@@ -37,7 +38,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
 
   const [widthInches, setWidthInches] = useState(8);
   const [heightInches, setHeightInches] = useState(8);
-  const meshCount = 14; // Fixed at 14 mesh for internal app
+  const [meshCount, setMeshCount] = useState<MeshCount>(14);
   const [designName, setDesignName] = useState("Untitled Design");
   const [showCustom, setShowCustom] = useState(false);
 
@@ -196,6 +197,26 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
             className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
             placeholder="Enter design name..."
           />
+        </div>
+
+        {/* Mesh count selector */}
+        <div className="mb-6">
+          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Mesh Count</label>
+          <div className="flex gap-2">
+            {([13, 14, 16] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMeshCount(m)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  meshCount === m
+                    ? "bg-rose-900 text-white"
+                    : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600"
+                }`}
+              >
+                {m} count
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Preset sizes */}
@@ -421,7 +442,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
         {/* Preview info */}
         <div className="mb-6 p-3 bg-rose-900/20 border border-rose-800/30 rounded-lg">
           <p className="text-sm text-rose-300">
-            Canvas: <span className="text-slate-900 dark:text-white font-medium">{widthInches}" × {heightInches}"</span> at 14 mesh
+            Canvas: <span className="text-slate-900 dark:text-white font-medium">{widthInches}" × {heightInches}"</span> at {meshCount} mesh
           </p>
           <p className="text-sm text-rose-300">
             Grid: <span className="text-slate-900 dark:text-white font-medium">{gridWidth} × {gridHeight}</span> stitches

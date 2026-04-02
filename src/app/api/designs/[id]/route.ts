@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
 import pako from "pako";
 
 export async function GET(
@@ -111,10 +111,9 @@ export async function PUT(
         for (const count of stitchCounts.values()) {
           totalStitches += count;
         }
-        // 14 mesh only in internal app
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          14,
+          (meshCount || 14) as MeshCount,
           (stitchType || "continental") as "continental" | "basketweave",
           bufferPercent ?? 20
         );

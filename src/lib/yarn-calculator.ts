@@ -2,16 +2,28 @@
 // Uses yards-per-square-inch method: convert stitches to canvas area, then
 // multiply by thread consumption rate per square inch.
 
+export type MeshCount = 13 | 14 | 16;
+
 export interface YarnCalculationSettings {
-  // Yards of thread needed to cover one square inch of canvas
-  // Size 5 thread on 14 mesh (~76 inches / sq in for continental)
+  // Yards of thread needed to cover one square inch of canvas (Size 5 thread)
+  mesh13ContinentalYardsPerSqIn: number;
+  mesh13BasketwaveYardsPerSqIn: number;
   mesh14ContinentalYardsPerSqIn: number;
   mesh14BasketwaveYardsPerSqIn: number;
+  mesh16ContinentalYardsPerSqIn: number;
+  mesh16BasketwaveYardsPerSqIn: number;
 }
 
 export const DEFAULT_SETTINGS: YarnCalculationSettings = {
-  mesh14ContinentalYardsPerSqIn: 2.1,  // ~76 inches per sq in
-  mesh14BasketwaveYardsPerSqIn: 2.4,   // ~15% more than continental
+  // 13 mesh: 169 stitches/sq in, Size 5 thread
+  mesh13ContinentalYardsPerSqIn: 1.8,
+  mesh13BasketwaveYardsPerSqIn: 2.07,
+  // 14 mesh: 196 stitches/sq in, Size 5 thread
+  mesh14ContinentalYardsPerSqIn: 2.1,
+  mesh14BasketwaveYardsPerSqIn: 2.4,
+  // 16 mesh: 256 stitches/sq in, Size 5 thread
+  mesh16ContinentalYardsPerSqIn: 2.74,
+  mesh16BasketwaveYardsPerSqIn: 3.14,
 };
 
 export type StitchType = "continental" | "basketweave";
@@ -55,19 +67,26 @@ function calculateSmartBuffer(yarnYards: number, bufferPercent: number): number 
   return yarnYards + bufferYards;
 }
 
+// Get yards per square inch for a given mesh count and stitch type
+function getYardsPerSqIn(
+  meshCount: MeshCount,
+  stitchType: StitchType,
+  settings: YarnCalculationSettings
+): number {
+  const key = `mesh${meshCount}${stitchType === "continental" ? "Continental" : "Basketwave"}YardsPerSqIn` as keyof YarnCalculationSettings;
+  return settings[key];
+}
+
 export function calculateYarnUsage(
   stitchCounts: Map<string, number>,
-  meshCount: 14,
+  meshCount: MeshCount,
   stitchType: StitchType,
   bufferPercent: number,
   settings: YarnCalculationSettings = DEFAULT_SETTINGS
 ): YarnUsage[] {
-  // Get yards per square inch based on stitch type (14 mesh only)
-  const yardsPerSqIn = stitchType === "continental"
-    ? settings.mesh14ContinentalYardsPerSqIn
-    : settings.mesh14BasketwaveYardsPerSqIn;
+  const yardsPerSqIn = getYardsPerSqIn(meshCount, stitchType, settings);
 
-  // Stitches per square inch = meshCount² (14² = 196)
+  // Stitches per square inch = meshCount²
   const stitchesPerSqIn = meshCount * meshCount;
 
   const results: YarnUsage[] = [];

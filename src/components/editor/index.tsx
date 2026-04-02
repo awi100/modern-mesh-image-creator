@@ -17,6 +17,7 @@ import AddShapeDialog from "./AddShapeDialog";
 import PatternRepeatDialog from "./PatternRepeatDialog";
 import DesignPreview from "./DesignPreview";
 import SessionExpiredModal, { useSessionMonitor } from "@/components/SessionExpiredModal";
+import type { MeshCount } from "@/lib/yarn-calculator";
 
 interface EditorProps {
   designId?: string;
@@ -26,7 +27,7 @@ interface EditorProps {
     isDraft?: boolean;
     widthInches: number;
     heightInches: number;
-    meshCount: 14;
+    meshCount: MeshCount;
     gridWidth: number;
     gridHeight: number;
     grid: (string | null)[][];

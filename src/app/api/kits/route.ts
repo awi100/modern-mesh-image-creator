@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 
@@ -77,16 +77,16 @@ export async function GET() {
         const stitchCounts = countStitchesByColor(grid);
         if (stitchCounts.size === 0) continue;
 
-        // Calculate yarn usage (14 mesh / Size 5 only in internal app)
+        // Calculate yarn usage
         const stitchType = design.stitchType as "continental" | "basketweave";
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          14,
+          (design.meshCount || 14) as MeshCount,
           stitchType,
           design.bufferPercent
         );
 
-        // Get inventory for Size 5 thread (14 mesh only)
+        // Get inventory for Size 5 thread
         const inventoryMap = inventoryBySize[5];
 
         // Parse design-specific backup colors

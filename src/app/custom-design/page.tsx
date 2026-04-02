@@ -7,19 +7,20 @@ import pako from "pako";
 import { processImageToGrid, PixelGrid, ProcessingOptions } from "@/lib/color-utils";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 import { useToast } from "@/components/Toast";
+import type { MeshCount } from "@/lib/yarn-calculator";
 
 // File validation constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
-// Canvas size presets
-const CANVAS_PRESETS = [
-  { name: "Small (4×4\")", width: 56, height: 56, inches: "4×4" },
-  { name: "Medium (6×6\")", width: 84, height: 84, inches: "6×6" },
-  { name: "Large (8×8\")", width: 112, height: 112, inches: "8×8" },
-  { name: "Wide (8×6\")", width: 112, height: 84, inches: "8×6" },
-  { name: "Tall (6×8\")", width: 84, height: 112, inches: "6×8" },
-  { name: "Square (10×10\")", width: 140, height: 140, inches: "10×10" },
+// Canvas size presets (inches - grid dimensions computed from mesh count)
+const CANVAS_PRESETS_INCHES = [
+  { name: "Small (4×4\")", widthIn: 4, heightIn: 4, inches: "4×4" },
+  { name: "Medium (6×6\")", widthIn: 6, heightIn: 6, inches: "6×6" },
+  { name: "Large (8×8\")", widthIn: 8, heightIn: 8, inches: "8×8" },
+  { name: "Wide (8×6\")", widthIn: 8, heightIn: 6, inches: "8×6" },
+  { name: "Tall (6×8\")", widthIn: 6, heightIn: 8, inches: "6×8" },
+  { name: "Square (10×10\")", widthIn: 10, heightIn: 10, inches: "10×10" },
 ];
 
 interface CropRegion {
@@ -67,7 +68,7 @@ export default function CustomDesignPage() {
   const [customWidth, setCustomWidth] = useState(84);
   const [customHeight, setCustomHeight] = useState(84);
   const [useCustomSize, setUseCustomSize] = useState(false);
-  const meshCount = 14 as const;
+  const [meshCount, setMeshCount] = useState<MeshCount>(14);
   const [lockAspectRatio, setLockAspectRatio] = useState(true);
 
   // Preview state
@@ -116,6 +117,13 @@ export default function CustomDesignPage() {
   const [designName, setDesignName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Compute canvas presets from mesh count
+  const CANVAS_PRESETS = useMemo(() => CANVAS_PRESETS_INCHES.map((p) => ({
+    ...p,
+    width: Math.round(p.widthIn * meshCount),
+    height: Math.round(p.heightIn * meshCount),
+  })), [meshCount]);
 
   // Get canvas dimensions
   const canvasWidth = useCustomSize ? customWidth : CANVAS_PRESETS[selectedPreset].width;
@@ -863,12 +871,24 @@ export default function CustomDesignPage() {
             </div>
 
             <div className="bg-slate-800 rounded-xl p-6 mb-6">
-              {/* Mesh count (fixed to 14 for internal app) */}
+              {/* Mesh count selector */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-slate-300 mb-3">Mesh Count</label>
-                <div className="px-4 py-3 rounded-lg border-2 border-rose-800 bg-rose-900/30 text-white">
-                  <span className="block text-lg font-bold">14 Mesh</span>
-                  <span className="text-xs opacity-75">Size 5 Pearl Cotton</span>
+                <div className="flex gap-2">
+                  {([13, 14, 16] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setMeshCount(m)}
+                      className={`flex-1 px-4 py-3 rounded-lg border-2 transition-colors text-left ${
+                        meshCount === m
+                          ? "border-rose-800 bg-rose-900/30 text-white"
+                          : "border-slate-600 bg-slate-700 text-slate-300 hover:border-slate-500"
+                      }`}
+                    >
+                      <span className="block text-lg font-bold">{m} Mesh</span>
+                      <span className="text-xs opacity-75">Size 5 Pearl Cotton</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import pako from "pako";
 import Editor from "@/components/editor";
+import type { MeshCount } from "@/lib/yarn-calculator";
 
 // Force dynamic rendering - never cache this page
 export const dynamic = 'force-dynamic';
@@ -57,7 +58,7 @@ export default async function DesignPage({ params }: Props) {
     isDraft: design.isDraft,
     widthInches: design.widthInches,
     heightInches: design.heightInches,
-    meshCount: design.meshCount as 14,
+    meshCount: (design.meshCount || 14) as MeshCount,
     gridWidth: design.gridWidth,
     gridHeight: design.gridHeight,
     grid,

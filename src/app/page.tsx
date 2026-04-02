@@ -7,6 +7,7 @@ import useSWR, { mutate } from "swr";
 import NewDesignDialog from "@/components/NewDesignDialog";
 import BatchActionBar from "@/components/BatchActionBar";
 import ColorSwapDialog from "@/components/ColorSwapDialog";
+import MeshConvertDialog from "@/components/MeshConvertDialog";
 import { exportStitchGuideImage } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { useToast } from "@/components/Toast";
@@ -72,7 +73,8 @@ function buildDesignsUrl(
   selectedTag: string | null,
   searchQuery: string,
   skillLevel: string | null,
-  sizeCategory: string | null
+  sizeCategory: string | null,
+  meshCount: number | null
 ): string {
   const params = new URLSearchParams();
   if (showTrash) {
@@ -82,6 +84,7 @@ function buildDesignsUrl(
     if (selectedTag) params.set("tagId", selectedTag);
     if (skillLevel) params.set("skillLevel", skillLevel);
     if (sizeCategory) params.set("sizeCategory", sizeCategory);
+    if (meshCount) params.set("meshCount", meshCount.toString());
   }
   if (searchQuery) params.set("search", searchQuery);
   return `/api/designs?${params.toString()}`;
@@ -98,6 +101,7 @@ export default function HomePage() {
   const [showTrash, setShowTrash] = useState(false);
   const [selectedSkillLevel, setSelectedSkillLevel] = useState<string | null>(null);
   const [selectedSizeCategory, setSelectedSizeCategory] = useState<string | null>(null);
+  const [selectedMeshCount, setSelectedMeshCount] = useState<number | null>(null);
 
   // UI state
   const [showFilters, setShowFilters] = useState(false);
@@ -109,6 +113,7 @@ export default function HomePage() {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState("");
   const [colorSwapDesign, setColorSwapDesign] = useState<{ id: string; name: string } | null>(null);
+  const [meshConvertDesign, setMeshConvertDesign] = useState<{id: string, name: string, meshCount: number} | null>(null);
 
   // Selection mode state
   const [selectedDesigns, setSelectedDesigns] = useState<Set<string>>(new Set());
@@ -144,7 +149,7 @@ export default function HomePage() {
   );
 
   // SWR for designs (refetches when filters change via key)
-  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory);
+  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory, selectedMeshCount);
   const { data: designs = [], isLoading: loading, mutate: mutateDesigns } = useSWR<Design[]>(
     designsUrl,
     {
@@ -952,6 +957,28 @@ export default function HomePage() {
                   ))}
                 </div>
               </div>
+
+              {/* Mesh Count */}
+              <div>
+                <h3 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                  Mesh Count
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {[13, 14, 16].map((mesh) => (
+                    <button
+                      key={mesh}
+                      onClick={() => setSelectedMeshCount(selectedMeshCount === mesh ? null : mesh)}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                        selectedMeshCount === mesh
+                          ? "bg-rose-900 text-white"
+                          : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                      }`}
+                    >
+                      {mesh}ct
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1171,6 +1198,28 @@ export default function HomePage() {
                 ))}
               </div>
             </div>
+
+            {/* Mesh Count */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">
+                Mesh Count
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {[13, 14, 16].map((mesh) => (
+                  <button
+                    key={mesh}
+                    onClick={() => setSelectedMeshCount(selectedMeshCount === mesh ? null : mesh)}
+                    className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                      selectedMeshCount === mesh
+                        ? "bg-rose-900 text-white"
+                        : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-600"
+                    }`}
+                  >
+                    {mesh}ct
+                  </button>
+                ))}
+              </div>
+            </div>
           </aside>
 
           {/* Main content */}
@@ -1334,6 +1383,16 @@ export default function HomePage() {
                               </span>
                             </div>
                           )}
+                          {/* Mesh count badge */}
+                          <div className="absolute bottom-2 left-2 pointer-events-none">
+                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                              design.meshCount === 13 ? "bg-amber-900/80 text-amber-300" :
+                              design.meshCount === 16 ? "bg-teal-900/80 text-teal-300" :
+                              "bg-slate-700/80 text-slate-300"
+                            }`}>
+                              {design.meshCount}ct
+                            </span>
+                          </div>
                           {/* Needs order badge - only show for non-draft designs with missing colors */}
                           {!design.isDraft && getMissingColors(design).length > 0 && (
                             <div className="absolute top-2 right-2 pointer-events-none">
@@ -1570,6 +1629,16 @@ export default function HomePage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                                 </svg>
                               </button>
+                              {/* Convert Mesh */}
+                              <button
+                                onClick={() => setMeshConvertDesign({ id: design.id, name: design.name, meshCount: design.meshCount })}
+                                className="p-1.5 text-slate-500 hover:text-amber-400 transition-colors"
+                                title="Convert Mesh"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                              </button>
                               {/* Delete */}
                               <button
                                 onClick={() => handleDelete(design.id)}
@@ -1625,6 +1694,21 @@ export default function HomePage() {
           designName={colorSwapDesign.name}
           onClose={() => setColorSwapDesign(null)}
           onSuccess={() => mutateDesigns()}
+        />
+      )}
+
+      {/* Mesh Convert Dialog */}
+      {meshConvertDesign && (
+        <MeshConvertDialog
+          designId={meshConvertDesign.id}
+          designName={meshConvertDesign.name}
+          currentMeshCount={meshConvertDesign.meshCount}
+          open={true}
+          onClose={() => setMeshConvertDesign(null)}
+          onSuccess={(newDesignId) => {
+            setMeshConvertDesign(null);
+            mutateDesigns();
+          }}
         />
       )}
     </div>

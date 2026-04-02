@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 
@@ -104,11 +104,11 @@ export async function POST(request: NextRequest) {
       // Count stitches per color
       const stitchCounts = countStitchesByColor(grid);
 
-      // Calculate yarn usage (14 mesh / Size 5 only in internal app)
+      // Calculate yarn usage
       const stitchType = design.stitchType as "continental" | "basketweave";
       const yarnUsage = calculateYarnUsage(
         stitchCounts,
-        14,
+        (design.meshCount || 14) as MeshCount,
         stitchType,
         design.bufferPercent
       );
@@ -121,13 +121,13 @@ export async function POST(request: NextRequest) {
           existing.stitchCount += usage.stitchCount;
           existing.yardsWithBuffer += usage.withBuffer;
           existing.usedInDesigns.push(design.name);
-          existing.meshCounts.add(14);
+          existing.meshCounts.add(design.meshCount);
         } else {
           aggregatedColors.set(usage.dmcNumber, {
             stitchCount: usage.stitchCount,
             yardsWithBuffer: usage.withBuffer,
             usedInDesigns: [design.name],
-            meshCounts: new Set([14]),
+            meshCounts: new Set([design.meshCount]),
           });
         }
         designTotalSkeins += usage.usesFullSkein ? usage.skeinsNeeded : 0;
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       const dmcColor = getDmcColorByNumber(dmcNumber);
       const yardsWithBuffer = Math.round(data.yardsWithBuffer * 10) / 10;
 
-      // Get inventory for Size 5 (14 mesh only in internal app)
+      // Get inventory for Size 5
       const inventorySkeins = inventoryMap5.get(dmcNumber) ?? 0;
 
       let fullSkeins = 0;

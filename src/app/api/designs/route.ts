@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
 import pako from "pako";
 
 export async function GET(request: NextRequest) {
@@ -48,6 +48,11 @@ export async function GET(request: NextRequest) {
 
     if (sizeCategory) {
       where.sizeCategory = sizeCategory;
+    }
+
+    const meshCount = searchParams.get("meshCount");
+    if (meshCount) {
+      where.meshCount = parseInt(meshCount, 10);
     }
 
     const designs = await prisma.design.findMany({
@@ -119,10 +124,9 @@ export async function POST(request: NextRequest) {
       for (const count of stitchCounts.values()) {
         totalStitches += count;
       }
-      // 14 mesh only in internal app
       const yarnUsage = calculateYarnUsage(
         stitchCounts,
-        14,
+        (meshCount || 14) as MeshCount,
         ((stitchType || "continental") as "continental" | "basketweave"),
         bufferPercent ?? 20
       );

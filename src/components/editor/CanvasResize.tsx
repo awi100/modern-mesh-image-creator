@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useEditorStore } from "@/lib/store";
 import { scalePixelGrid, createEmptyGrid, PixelGrid } from "@/lib/color-utils";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import type { MeshCount } from "@/lib/yarn-calculator";
 
 // Built-in preset canvas sizes
 const BUILTIN_PRESETS = [
@@ -49,7 +50,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
 
   const [newWidthInches, setNewWidthInches] = useState(widthInches);
   const [newHeightInches, setNewHeightInches] = useState(heightInches);
-  const newMeshCount = 14; // Fixed at 14 mesh
+  const newMeshCount = meshCount; // Use design's current mesh count
   const [resizeMode, setResizeMode] = useState<ResizeMode>("crop");
   const [anchorPosition, setAnchorPosition] = useState<AnchorPosition>("mc"); // middle-center default
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
@@ -301,7 +302,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
       setDesignInfo({
         widthInches: cropWidth / meshCount,
         heightInches: cropHeight / meshCount,
-        meshCount: meshCount as 14,
+        meshCount: meshCount as MeshCount,
       });
 
       initializeGrid(cropWidth, cropHeight, newGrid);
@@ -328,7 +329,7 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
     setDesignInfo({
       widthInches: newWidthInches,
       heightInches: newHeightInches,
-      meshCount: 14,
+      meshCount: meshCount as MeshCount,
     });
 
     initializeGrid(newGridWidth, newGridHeight, newGrid);

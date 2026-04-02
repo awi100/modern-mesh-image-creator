@@ -928,9 +928,9 @@ export default function InventoryPage() {
                 placeholder="Search by DMC number or name..."
                 className="flex-1 px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
-              {/* Size 5 only in internal app (14 mesh) */}
+              {/* Size 5 only in internal app */}
               <div className="px-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-sm">
-                Size 5 (14 mesh)
+                Size 5
               </div>
             </div>
 
@@ -1246,9 +1246,11 @@ export default function InventoryPage() {
                                         )}
                                         <span className="text-sm text-white">{design.name}</span>
                                         <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                          design.meshCount === 14 ? "bg-blue-900/50 text-blue-300" : "bg-purple-900/50 text-purple-300"
+                                          design.meshCount === 13 ? "bg-amber-500/20 text-amber-400" :
+                                          design.meshCount === 16 ? "bg-teal-500/20 text-teal-400" :
+                                          "bg-zinc-500/20 text-zinc-400"
                                         }`}>
-                                          {design.meshCount}
+                                          {design.meshCount}ct
                                         </span>
                                         {/* Yarn usage */}
                                         <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-300">
@@ -1771,11 +1773,20 @@ export default function InventoryPage() {
 
                           {/* Info */}
                           <div className="flex-1 min-w-0">
-                            <Link href={`/design/${design.id}/info`} className="text-white font-medium hover:text-rose-400 truncate block text-sm md:text-base">
-                              {design.name}
-                            </Link>
+                            <div className="flex items-center gap-2">
+                              <Link href={`/design/${design.id}/info`} className="text-white font-medium hover:text-rose-400 truncate text-sm md:text-base">
+                                {design.name}
+                              </Link>
+                              <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
+                                design.meshCount === 13 ? "bg-amber-500/20 text-amber-400" :
+                                design.meshCount === 16 ? "bg-teal-500/20 text-teal-400" :
+                                "bg-zinc-500/20 text-zinc-400"
+                              }`}>
+                                {design.meshCount}ct
+                              </span>
+                            </div>
                             <p className="text-slate-400 text-xs md:text-sm">
-                              {design.widthInches}&quot; × {design.heightInches}&quot; @ {design.meshCount} mesh
+                              {design.widthInches}&quot; × {design.heightInches}&quot;
                             </p>
                           </div>
 
@@ -2369,7 +2380,7 @@ export default function InventoryPage() {
                 <label className="block text-sm font-medium text-slate-300 mb-2">Thread Size</label>
                 <div className="py-2 px-4 rounded-lg border border-slate-600 bg-slate-700/50 text-slate-300 text-center">
                   <span className="text-sm font-medium">Size 5</span>
-                  <span className="text-xs text-slate-400 ml-2">(14 mesh)</span>
+                  <span className="text-xs text-slate-400 ml-2">(all mesh counts)</span>
                 </div>
               </div>
 

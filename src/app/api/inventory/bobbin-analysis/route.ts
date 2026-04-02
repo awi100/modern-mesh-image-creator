@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 
@@ -94,16 +94,16 @@ export async function GET() {
         const grid: (string | null)[][] = JSON.parse(decompressed);
         const stitchCounts = countStitchesByColor(grid);
 
-        // Calculate yarn usage (14 mesh / Size 5 only in internal app)
+        // Calculate yarn usage
         const stitchType = (design.stitchType || "continental") as "continental" | "basketweave";
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          14,
+          (design.meshCount || 14) as MeshCount,
           stitchType,
           design.bufferPercent || 20
         );
 
-        // Size 5 thread only in internal app
+        // Size 5 thread
         const threadSize: 5 | 8 = 5;
 
         // Find colors that need bobbins (under threshold)

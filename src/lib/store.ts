@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { DmcColor, DMC_PEARL_COTTON, getDmcColorByNumber } from "./dmc-pearl-cotton";
 import { PixelGrid, floodFill, replaceColor, createEmptyGrid, copySelection, pasteData, getSelectionBounds, mirrorHorizontal, mirrorVertical, rotate90Clockwise, countStitchesByColor, getUsedColors, moveSelectionByOffset, movePixelsByOffset, compositeLayers } from "./color-utils";
-import { calculateYarnUsage, YarnUsage, StitchType } from "./yarn-calculator";
+import { calculateYarnUsage, YarnUsage, StitchType, MeshCount } from "./yarn-calculator";
 
 export type Tool = "pencil" | "brush" | "eraser" | "fill" | "rectangle" | "select" | "magicWand" | "eyedropper" | "move" | "pan";
 
@@ -35,7 +35,7 @@ interface EditorState {
   isDraft: boolean;
   widthInches: number;
   heightInches: number;
-  meshCount: 14;
+  meshCount: MeshCount;
   gridWidth: number;
   gridHeight: number;
 
@@ -97,7 +97,7 @@ interface EditorState {
     isDraft?: boolean;
     widthInches?: number;
     heightInches?: number;
-    meshCount?: 14;
+    meshCount?: MeshCount;
   }, skipDirty?: boolean) => void;
 
   initializeGrid: (width: number, height: number, existingGrid?: PixelGrid) => void;
@@ -224,7 +224,7 @@ const createInitialState = () => {
     isDraft: true, // New designs start as draft
     widthInches: 8,
     heightInches: 8,
-    meshCount: 14 as const,
+    meshCount: 14 as MeshCount,
     gridWidth: 112,
     gridHeight: 112,
     layers: [initialLayer] as Layer[],
