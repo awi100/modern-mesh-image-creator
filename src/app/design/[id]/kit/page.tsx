@@ -148,16 +148,15 @@ export default function KitPage() {
   const [editingBackup, setEditingBackup] = useState<string | null>(null);
   const [pendingBackup, setPendingBackup] = useState<string>("");
 
-  // Finishing orders for this design
-  const [finishingOrders, setFinishingOrders] = useState<Array<{
+  // Finishing projects for this design
+  const [finishingProjects, setFinishingProjects] = useState<Array<{
     id: string;
+    person: string;
     status: string;
     productType: string | null;
-    sentAt: string;
-    receivedAt: string | null;
-    cost: number | null;
+    startedAt: string;
+    finishedAt: string | null;
     notes: string | null;
-    finisher: { id: string; name: string };
   }>>([]);
   const [loadingFinishing, setLoadingFinishing] = useState(false);
 
@@ -247,17 +246,16 @@ export default function KitPage() {
     }
   };
 
-  const fetchFinishingOrders = async () => {
+  const fetchFinishingProjects = async () => {
     setLoadingFinishing(true);
     try {
-      const res = await fetch("/api/finishing/orders");
+      const res = await fetch("/api/finishing");
       if (res.ok) {
         const data = await res.json();
-        // Filter to only this design's orders
-        setFinishingOrders(data.filter((o: { designId: string | null }) => o.designId === designId));
+        setFinishingProjects(data.filter((p: { designId: string }) => p.designId === designId));
       }
     } catch (error) {
-      console.error("Error fetching finishing orders:", error);
+      console.error("Error fetching finishing projects:", error);
     }
     setLoadingFinishing(false);
   };
@@ -329,7 +327,7 @@ export default function KitPage() {
     fetchKit();
     fetchSales();
     fetchColorUsage();
-    fetchFinishingOrders();
+    fetchFinishingProjects();
   }, [designId]);
 
   const handleAssembleKit = async () => {
@@ -1221,7 +1219,7 @@ export default function KitPage() {
         </div>
       </div>
 
-      {/* Finishing Orders Section */}
+      {/* Finishing Projects Section */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-900 dark:text-white">Finishing</h2>
@@ -1234,30 +1232,27 @@ export default function KitPage() {
         </div>
         {loadingFinishing ? (
           <div className="p-4 text-center text-slate-500 text-sm">Loading...</div>
-        ) : finishingOrders.length > 0 ? (
+        ) : finishingProjects.length > 0 ? (
           <div className="divide-y divide-slate-200 dark:divide-slate-700">
-            {finishingOrders.map((order) => (
-              <div key={order.id} className="px-4 py-3 flex items-center justify-between">
+            {finishingProjects.map((project) => (
+              <div key={project.id} className="px-4 py-3 flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-white">{order.finisher.name}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                      order.status === "sent" ? "bg-amber-500/20 text-amber-400" :
-                      order.status === "in_progress" ? "bg-blue-500/20 text-blue-400" :
-                      "bg-emerald-500/20 text-emerald-400"
-                    }`}>
-                      {order.status === "sent" ? "Sent" : order.status === "in_progress" ? "In Progress" : "Finished"}
-                    </span>
-                    {order.productType && (
+                    <span className="text-sm text-white">{project.person}</span>
+                    {project.status === "finished" ? (
+                      <span className="text-xs px-2 py-0.5 rounded font-medium bg-emerald-500/20 text-emerald-400">Finished</span>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded font-medium bg-amber-500/20 text-amber-400">WIP</span>
+                    )}
+                    {project.productType && (
                       <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
-                        {order.productType}
+                        {project.productType}
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Sent {new Date(order.sentAt).toLocaleDateString()}
-                    {order.receivedAt && ` · Received ${new Date(order.receivedAt).toLocaleDateString()}`}
-                    {order.cost != null && ` · $${order.cost.toFixed(2)}`}
+                    Started {new Date(project.startedAt).toLocaleDateString()}
+                    {project.finishedAt && ` · Finished ${new Date(project.finishedAt).toLocaleDateString()}`}
                   </p>
                 </div>
               </div>
@@ -1265,9 +1260,9 @@ export default function KitPage() {
           </div>
         ) : (
           <div className="p-8 text-center text-slate-500 text-sm">
-            No finishing orders for this design.{" "}
+            No one is stitching this design yet.{" "}
             <Link href="/finishing" className="text-rose-400 hover:text-rose-300">
-              Create one
+              Start a project
             </Link>
           </div>
         )}

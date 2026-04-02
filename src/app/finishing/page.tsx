@@ -16,32 +16,16 @@ const PRODUCT_TYPES = [
   "Eyeglass Case",
 ];
 
-interface FinisherOrder {
+interface FinishingProject {
   id: string;
-  designId: string | null;
-  design: { id: string; name: string; previewImageUrl: string | null } | null;
-  finisher?: { id: string; name: string };
-  sentAt: string;
-  receivedAt: string | null;
-  cost: number | null;
+  designId: string;
+  design: { id: string; name: string; previewImageUrl: string | null; meshCount: number };
+  person: string;
   status: string;
   productType: string | null;
+  startedAt: string;
+  finishedAt: string | null;
   notes: string | null;
-}
-
-interface Finisher {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  website: string | null;
-  turnaroundDays: number | null;
-  rating: number | null;
-  notes: string | null;
-  avgTurnaround: number | null;
-  totalSpent: number;
-  activeOrders: number;
-  orderCount: number;
 }
 
 interface Design {
@@ -49,215 +33,143 @@ interface Design {
   name: string;
 }
 
-type Tab = "orders" | "finishers";
-type StatusFilter = "all" | "sent" | "in_progress" | "finished";
-
-function Stars({ rating }: { rating: number | null }) {
-  if (!rating) return <span className="text-xs text-slate-500">No rating</span>;
-  return (
-    <span className="text-amber-400">
-      {"★".repeat(rating)}
-      {"☆".repeat(5 - rating)}
-    </span>
-  );
-}
+type StatusFilter = "all" | "wip" | "finished";
 
 function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    sent: "bg-amber-500/20 text-amber-400",
-    in_progress: "bg-blue-500/20 text-blue-400",
-    finished: "bg-emerald-500/20 text-emerald-400",
-  };
-  const labels: Record<string, string> = {
-    sent: "Sent",
-    in_progress: "In Progress",
-    finished: "Finished",
-  };
-  return (
-    <span className={`text-xs px-2 py-0.5 rounded font-medium ${styles[status] || "bg-slate-500/20 text-slate-400"}`}>
-      {labels[status] || status}
-    </span>
+  return status === "finished" ? (
+    <span className="text-xs px-2 py-0.5 rounded font-medium bg-emerald-500/20 text-emerald-400">Finished</span>
+  ) : (
+    <span className="text-xs px-2 py-0.5 rounded font-medium bg-amber-500/20 text-amber-400">WIP</span>
   );
 }
 
-function elapsedMonths(sentAt: string, receivedAt: string | null): string {
-  const start = new Date(sentAt);
-  const end = receivedAt ? new Date(receivedAt) : new Date();
+function elapsedTime(startedAt: string, finishedAt: string | null): string {
+  const start = new Date(startedAt);
+  const end = finishedAt ? new Date(finishedAt) : new Date();
   const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
   if (months < 1) {
-    const days = Math.round((end.getTime() - start.getTime()) / 86400000);
-    return `${days}d`;
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000));
+    return `${days} day${days !== 1 ? "s" : ""}`;
   }
-  return `${months}mo`;
+  return `${months} month${months !== 1 ? "s" : ""}`;
 }
 
 export default function FinishingPage() {
-  const [tab, setTab] = useState<Tab>("orders");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
-  // Data
-  const { data: finishers = [], isLoading: loadingFinishers } = useSWR<Finisher[]>("/api/finishing");
-  const { data: allOrders = [], isLoading: loadingOrders } = useSWR<FinisherOrder[]>("/api/finishing/orders");
+  const { data: projects = [], isLoading } = useSWR<FinishingProject[]>("/api/finishing");
   const [designs, setDesigns] = useState<Design[]>([]);
 
-  // Finisher form
-  const [showFinisherForm, setShowFinisherForm] = useState(false);
-  const [editingFinisher, setEditingFinisher] = useState<Finisher | null>(null);
-  const [finisherForm, setFinisherForm] = useState({
-    name: "", email: "", phone: "", website: "", turnaroundDays: "", rating: "", notes: "",
+  // Form state
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    designId: "",
+    person: "",
+    status: "wip",
+    productType: "",
+    customProductType: "",
+    startedAt: new Date().toISOString().split("T")[0],
+    finishedAt: "",
+    notes: "",
   });
-
-  // Order form
-  const [showOrderForm, setShowOrderForm] = useState(false);
-  const [orderForm, setOrderForm] = useState({
-    finisherId: "", designId: "", sentAt: new Date().toISOString().split("T")[0],
-    cost: "", productType: "", customProductType: "", notes: "",
-  });
-
-  // Finisher detail expansion
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [expandedOrders, setExpandedOrders] = useState<FinisherOrder[]>([]);
 
   useEffect(() => {
-    fetch("/api/designs").then((r) => r.json()).then(setDesigns).catch(() => {});
+    fetch("/api/designs")
+      .then((r) => r.json())
+      .then(setDesigns)
+      .catch(() => {});
   }, []);
 
-  // Finisher CRUD
-  const handleFinisherSubmit = async () => {
-    if (!finisherForm.name) return;
-    if (editingFinisher) {
-      await fetch("/api/finishing", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editingFinisher.id, ...finisherForm }),
-      });
-    } else {
-      await fetch("/api/finishing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finisherForm),
-      });
-    }
-    setShowFinisherForm(false);
-    setEditingFinisher(null);
-    setFinisherForm({ name: "", email: "", phone: "", website: "", turnaroundDays: "", rating: "", notes: "" });
+  const resetForm = () => {
+    setForm({
+      designId: "",
+      person: "",
+      status: "wip",
+      productType: "",
+      customProductType: "",
+      startedAt: new Date().toISOString().split("T")[0],
+      finishedAt: "",
+      notes: "",
+    });
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const handleSubmit = async () => {
+    if (!form.designId || !form.person) return;
+    const productType =
+      form.productType === "__custom__" ? form.customProductType : form.productType;
+
+    const payload = {
+      ...(editingId ? { id: editingId } : {}),
+      designId: form.designId,
+      person: form.person,
+      status: form.status,
+      productType: productType || null,
+      startedAt: form.startedAt,
+      finishedAt: form.status === "finished" && form.finishedAt ? form.finishedAt : null,
+      notes: form.notes || null,
+    };
+
+    await fetch("/api/finishing", {
+      method: editingId ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    resetForm();
     mutate("/api/finishing");
   };
 
-  const editFinisher = (f: Finisher) => {
-    setEditingFinisher(f);
-    setFinisherForm({
-      name: f.name,
-      email: f.email || "",
-      phone: f.phone || "",
-      website: f.website || "",
-      turnaroundDays: f.turnaroundDays?.toString() || "",
-      rating: f.rating?.toString() || "",
-      notes: f.notes || "",
+  const editProject = (p: FinishingProject) => {
+    const isPreset = PRODUCT_TYPES.includes(p.productType || "");
+    setEditingId(p.id);
+    setForm({
+      designId: p.designId,
+      person: p.person,
+      status: p.status,
+      productType: isPreset ? (p.productType || "") : (p.productType ? "__custom__" : ""),
+      customProductType: isPreset ? "" : (p.productType || ""),
+      startedAt: p.startedAt.split("T")[0],
+      finishedAt: p.finishedAt ? p.finishedAt.split("T")[0] : "",
+      notes: p.notes || "",
     });
-    setShowFinisherForm(true);
+    setShowForm(true);
   };
 
-  const deleteFinisher = async (id: string) => {
-    if (!confirm("Delete this finisher and all their orders?")) return;
+  const markFinished = async (p: FinishingProject) => {
+    await fetch("/api/finishing", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: p.id,
+        status: "finished",
+        finishedAt: new Date().toISOString(),
+      }),
+    });
+    mutate("/api/finishing");
+  };
+
+  const deleteProject = async (id: string) => {
+    if (!confirm("Delete this finishing project?")) return;
     await fetch("/api/finishing", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
     mutate("/api/finishing");
-    mutate("/api/finishing/orders");
   };
 
-  // Load orders for expanded finisher
-  const toggleFinisher = async (id: string) => {
-    if (expandedId === id) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(id);
-    const res = await fetch(`/api/finishing/${id}/orders`);
-    setExpandedOrders(await res.json());
-  };
+  // Get unique people for quick filter
+  const people = [...new Set(projects.map((p) => p.person))].sort();
 
-  // Order CRUD
-  const handleOrderSubmit = async () => {
-    if (!orderForm.finisherId) return;
-    const productType = orderForm.productType === "__custom__"
-      ? orderForm.customProductType
-      : orderForm.productType;
-    await fetch(`/api/finishing/${orderForm.finisherId}/orders`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        designId: orderForm.designId || null,
-        sentAt: orderForm.sentAt,
-        cost: orderForm.cost || null,
-        productType: productType || null,
-        notes: orderForm.notes || null,
-      }),
-    });
-    setShowOrderForm(false);
-    setOrderForm({
-      finisherId: "", designId: "", sentAt: new Date().toISOString().split("T")[0],
-      cost: "", productType: "", customProductType: "", notes: "",
-    });
-    mutate("/api/finishing");
-    mutate("/api/finishing/orders");
-    // Refresh expanded finisher orders if open
-    if (expandedId === orderForm.finisherId) {
-      const res = await fetch(`/api/finishing/${orderForm.finisherId}/orders`);
-      setExpandedOrders(await res.json());
-    }
-  };
+  // Filter
+  const filtered =
+    statusFilter === "all" ? projects : projects.filter((p) => p.status === statusFilter);
 
-  const updateOrderStatus = async (order: FinisherOrder, newStatus: string) => {
-    const finisherId = order.finisher?.id || expandedId;
-    if (!finisherId) return;
-    const updates: Record<string, unknown> = { id: order.id, status: newStatus };
-    if (newStatus === "finished") {
-      updates.receivedAt = new Date().toISOString();
-    }
-    await fetch(`/api/finishing/${finisherId}/orders`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
-    });
-    mutate("/api/finishing");
-    mutate("/api/finishing/orders");
-    if (expandedId) {
-      const res = await fetch(`/api/finishing/${expandedId}/orders`);
-      setExpandedOrders(await res.json());
-    }
-  };
-
-  const deleteOrder = async (order: FinisherOrder) => {
-    const finisherId = order.finisher?.id || expandedId;
-    if (!finisherId) return;
-    await fetch(`/api/finishing/${finisherId}/orders`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: order.id }),
-    });
-    mutate("/api/finishing");
-    mutate("/api/finishing/orders");
-    if (expandedId) {
-      const res = await fetch(`/api/finishing/${expandedId}/orders`);
-      setExpandedOrders(await res.json());
-    }
-  };
-
-  // Stats
-  const totalSpent = finishers.reduce((sum, f) => sum + f.totalSpent, 0);
-  const totalActive = finishers.reduce((sum, f) => sum + f.activeOrders, 0);
-  const totalFinished = allOrders.filter((o) => o.status === "finished").length;
-
-  // Filtered orders
-  const filteredOrders = statusFilter === "all"
-    ? allOrders
-    : allOrders.filter((o) => o.status === statusFilter);
-
-  const isLoading = loadingFinishers || loadingOrders;
+  const wipCount = projects.filter((p) => p.status === "wip").length;
+  const finishedCount = projects.filter((p) => p.status === "finished").length;
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -272,122 +184,131 @@ export default function FinishingPage() {
             </Link>
             <h1 className="text-xl font-bold text-white">Finishing</h1>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => { setShowOrderForm(true); setShowFinisherForm(false); }}
-              className="px-4 py-2 bg-rose-900 text-white rounded-lg hover:bg-rose-950 text-sm"
-            >
-              New Order
-            </button>
-            <button
-              onClick={() => {
-                setShowFinisherForm(true);
-                setShowOrderForm(false);
-                setEditingFinisher(null);
-                setFinisherForm({ name: "", email: "", phone: "", website: "", turnaroundDays: "", rating: "", notes: "" });
-              }}
-              className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
-            >
-              Add Finisher
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+            }}
+            className="px-4 py-2 bg-rose-900 text-white rounded-lg hover:bg-rose-950 text-sm"
+          >
+            New Project
+          </button>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto p-4 md:p-6">
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-slate-800 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-white">{totalActive}</p>
+            <p className="text-2xl font-bold text-amber-400">{wipCount}</p>
             <p className="text-xs text-slate-400">In Progress</p>
           </div>
           <div className="bg-slate-800 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-emerald-400">{totalFinished}</p>
+            <p className="text-2xl font-bold text-emerald-400">{finishedCount}</p>
             <p className="text-xs text-slate-400">Finished</p>
-          </div>
-          <div className="bg-slate-800 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-white">{totalSpent > 0 ? `$${totalSpent.toFixed(0)}` : "$0"}</p>
-            <p className="text-xs text-slate-400">Total Spent</p>
           </div>
         </div>
 
-        {/* New Order Form */}
-        {showOrderForm && (
+        {/* Form */}
+        {showForm && (
           <div className="mb-6 p-4 bg-slate-800 rounded-xl border border-slate-700 space-y-3">
-            <h3 className="font-medium text-white">New Finishing Order</h3>
+            <h3 className="font-medium text-white">
+              {editingId ? "Edit Project" : "New Finishing Project"}
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <select
-                value={orderForm.finisherId}
-                onChange={(e) => setOrderForm({ ...orderForm, finisherId: e.target.value })}
+                value={form.designId}
+                onChange={(e) => setForm({ ...form, designId: e.target.value })}
                 className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
               >
-                <option value="">Select finisher *</option>
-                {finishers.map((f) => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-              </select>
-              <select
-                value={orderForm.designId}
-                onChange={(e) => setOrderForm({ ...orderForm, designId: e.target.value })}
-                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
-              >
-                <option value="">Select design (optional)</option>
+                <option value="">Select design *</option>
                 {designs.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
                 ))}
               </select>
+              <input
+                type="text"
+                placeholder="Who is stitching this? *"
+                value={form.person}
+                onChange={(e) => setForm({ ...form, person: e.target.value })}
+                list="people-list"
+                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
+              />
+              <datalist id="people-list">
+                {people.map((p) => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
               <select
-                value={orderForm.productType}
-                onChange={(e) => setOrderForm({ ...orderForm, productType: e.target.value })}
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
                 className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
               >
-                <option value="">Product type (optional)</option>
+                <option value="wip">WIP</option>
+                <option value="finished">Finished</option>
+              </select>
+              <select
+                value={form.productType}
+                onChange={(e) => setForm({ ...form, productType: e.target.value })}
+                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
+              >
+                <option value="">Made into... (optional)</option>
                 {PRODUCT_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
                 <option value="__custom__">Other...</option>
               </select>
-              {orderForm.productType === "__custom__" && (
+              {form.productType === "__custom__" && (
                 <input
                   type="text"
                   placeholder="Custom product type"
-                  value={orderForm.customProductType}
-                  onChange={(e) => setOrderForm({ ...orderForm, customProductType: e.target.value })}
+                  value={form.customProductType}
+                  onChange={(e) => setForm({ ...form, customProductType: e.target.value })}
                   className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
                 />
               )}
-              <input
-                type="date"
-                value={orderForm.sentAt}
-                onChange={(e) => setOrderForm({ ...orderForm, sentAt: e.target.value })}
-                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Cost ($)"
-                value={orderForm.cost}
-                onChange={(e) => setOrderForm({ ...orderForm, cost: e.target.value })}
-                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
-              />
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Started</label>
+                <input
+                  type="date"
+                  value={form.startedAt}
+                  onChange={(e) => setForm({ ...form, startedAt: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
+                />
+              </div>
+              {form.status === "finished" && (
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Finished</label>
+                  <input
+                    type="date"
+                    value={form.finishedAt}
+                    onChange={(e) => setForm({ ...form, finishedAt: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
+                  />
+                </div>
+              )}
             </div>
             <input
               type="text"
               placeholder="Notes (optional)"
-              value={orderForm.notes}
-              onChange={(e) => setOrderForm({ ...orderForm, notes: e.target.value })}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
               className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
             />
             <div className="flex gap-2">
               <button
-                onClick={handleOrderSubmit}
-                disabled={!orderForm.finisherId}
+                onClick={handleSubmit}
+                disabled={!form.designId || !form.person}
                 className="px-4 py-2 bg-rose-900 text-white rounded-lg text-sm hover:bg-rose-950 disabled:opacity-50"
               >
-                Create Order
+                {editingId ? "Save" : "Add Project"}
               </button>
               <button
-                onClick={() => setShowOrderForm(false)}
+                onClick={resetForm}
                 className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600"
               >
                 Cancel
@@ -396,329 +317,107 @@ export default function FinishingPage() {
           </div>
         )}
 
-        {/* Add Finisher Form */}
-        {showFinisherForm && (
-          <div className="mb-6 p-4 bg-slate-800 rounded-xl border border-slate-700 space-y-3">
-            <h3 className="font-medium text-white">{editingFinisher ? "Edit Finisher" : "Add Finisher"}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input
-                type="text"
-                placeholder="Name *"
-                value={finisherForm.name}
-                onChange={(e) => setFinisherForm({ ...finisherForm, name: e.target.value })}
-                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={finisherForm.email}
-                onChange={(e) => setFinisherForm({ ...finisherForm, email: e.target.value })}
-                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
-              />
-              <input
-                type="tel"
-                placeholder="Phone"
-                value={finisherForm.phone}
-                onChange={(e) => setFinisherForm({ ...finisherForm, phone: e.target.value })}
-                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
-              />
-              <input
-                type="url"
-                placeholder="Website"
-                value={finisherForm.website}
-                onChange={(e) => setFinisherForm({ ...finisherForm, website: e.target.value })}
-                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
-              />
-              <input
-                type="number"
-                placeholder="Expected turnaround (days)"
-                value={finisherForm.turnaroundDays}
-                onChange={(e) => setFinisherForm({ ...finisherForm, turnaroundDays: e.target.value })}
-                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
-              />
-              <select
-                value={finisherForm.rating}
-                onChange={(e) => setFinisherForm({ ...finisherForm, rating: e.target.value })}
-                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
-              >
-                <option value="">Rating</option>
-                {[1, 2, 3, 4, 5].map((r) => (
-                  <option key={r} value={r}>{"★".repeat(r)} ({r}/5)</option>
-                ))}
-              </select>
-            </div>
-            <textarea
-              placeholder="Notes"
-              value={finisherForm.notes}
-              onChange={(e) => setFinisherForm({ ...finisherForm, notes: e.target.value })}
-              rows={2}
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={handleFinisherSubmit}
-                disabled={!finisherForm.name}
-                className="px-4 py-2 bg-rose-900 text-white rounded-lg text-sm hover:bg-rose-950 disabled:opacity-50"
-              >
-                {editingFinisher ? "Save" : "Add Finisher"}
-              </button>
-              <button
-                onClick={() => { setShowFinisherForm(false); setEditingFinisher(null); }}
-                className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-slate-800 p-1 rounded-lg">
-          <button
-            onClick={() => setTab("orders")}
-            className={`flex-1 py-2 text-sm rounded-md transition-colors ${
-              tab === "orders" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            All Orders ({allOrders.length})
-          </button>
-          <button
-            onClick={() => setTab("finishers")}
-            className={`flex-1 py-2 text-sm rounded-md transition-colors ${
-              tab === "finishers" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            Finishers ({finishers.length})
-          </button>
+        {/* Status filters */}
+        <div className="flex gap-2 mb-4">
+          {(["all", "wip", "finished"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                statusFilter === s
+                  ? "bg-rose-900 text-white"
+                  : "bg-slate-800 text-slate-400 hover:text-white"
+              }`}
+            >
+              {s === "all" ? `All (${projects.length})` : s === "wip" ? `WIP (${wipCount})` : `Finished (${finishedCount})`}
+            </button>
+          ))}
         </div>
 
+        {/* Projects list */}
         {isLoading ? (
           <div className="text-center py-12 text-slate-500">Loading...</div>
-        ) : tab === "orders" ? (
-          <>
-            {/* Status filters */}
-            <div className="flex gap-2 mb-4">
-              {(["all", "sent", "in_progress", "finished"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                    statusFilter === s
-                      ? "bg-rose-900 text-white"
-                      : "bg-slate-800 text-slate-400 hover:text-white"
-                  }`}
-                >
-                  {s === "all" ? "All" : s === "sent" ? "Sent" : s === "in_progress" ? "In Progress" : "Finished"}
-                </button>
-              ))}
-            </div>
-
-            {filteredOrders.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
-                {allOrders.length === 0 ? "No finishing orders yet. Create one above!" : "No orders match this filter."}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredOrders.map((order) => (
-                  <div key={order.id} className="bg-slate-800 rounded-lg border border-slate-700 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {/* Design thumbnail */}
-                        {order.design?.previewImageUrl ? (
-                          <img
-                            src={order.design.previewImageUrl}
-                            alt=""
-                            className="w-10 h-10 rounded object-cover flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded bg-slate-700 flex-shrink-0" />
-                        )}
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {order.design ? (
-                              <Link href={`/design/${order.design.id}/kit`} className="text-sm font-medium text-white hover:text-rose-400">
-                                {order.design.name}
-                              </Link>
-                            ) : (
-                              <span className="text-sm text-slate-400">No design</span>
-                            )}
-                            <StatusBadge status={order.status} />
-                            {order.productType && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-400">
-                                {order.productType}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {order.finisher?.name || "Unknown"} &middot;
-                            Sent {new Date(order.sentAt).toLocaleDateString()} &middot;
-                            {order.status === "finished" && order.receivedAt
-                              ? ` Done ${new Date(order.receivedAt).toLocaleDateString()} · `
-                              : " "}
-                            {elapsedMonths(order.sentAt, order.receivedAt)}
-                            {order.cost != null && ` · $${order.cost.toFixed(2)}`}
-                          </p>
-                          {order.notes && (
-                            <p className="text-xs text-slate-500 mt-0.5 italic">{order.notes}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                        {order.status === "sent" && (
-                          <button
-                            onClick={() => updateOrderStatus(order, "in_progress")}
-                            className="text-xs px-2 py-1 bg-blue-900/30 text-blue-400 rounded hover:bg-blue-900/50"
-                          >
-                            Start
-                          </button>
-                        )}
-                        {order.status === "in_progress" && (
-                          <button
-                            onClick={() => updateOrderStatus(order, "finished")}
-                            className="text-xs px-2 py-1 bg-emerald-900/30 text-emerald-400 rounded hover:bg-emerald-900/50"
-                          >
-                            Complete
-                          </button>
-                        )}
-                        <button
-                          onClick={() => deleteOrder(order)}
-                          className="text-xs text-red-500 hover:text-red-400"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12 text-slate-500">
+            {projects.length === 0
+              ? "No finishing projects yet. Start one above!"
+              : "No projects match this filter."}
+          </div>
         ) : (
-          /* Finishers tab */
-          <>
-            {finishers.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
-                No finishers added yet. Add one above!
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {finishers.map((f) => (
-                  <div key={f.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                    <div
-                      className="p-4 cursor-pointer hover:bg-slate-750"
-                      onClick={() => toggleFinisher(f.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-white">{f.name}</h3>
-                          <div className="flex items-center gap-3 mt-1 flex-wrap">
-                            <Stars rating={f.rating} />
-                            {f.avgTurnaround != null && (
-                              <span className="text-xs text-slate-500">~{f.avgTurnaround} day avg</span>
-                            )}
-                            <span className="text-xs text-slate-500">
-                              {f.orderCount} order{f.orderCount !== 1 ? "s" : ""}
-                              {f.activeOrders > 0 && ` (${f.activeOrders} active)`}
-                            </span>
-                            {f.totalSpent > 0 && (
-                              <span className="text-xs text-slate-500">${f.totalSpent.toFixed(2)} spent</span>
-                            )}
-                          </div>
-                          {(f.email || f.phone) && (
-                            <p className="text-xs text-slate-500 mt-1">
-                              {[f.email, f.phone].filter(Boolean).join(" · ")}
-                            </p>
-                          )}
-                          {f.notes && (
-                            <p className="text-xs text-slate-500 mt-1 italic">{f.notes}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); editFinisher(f); }}
-                            className="text-xs text-slate-400 hover:text-white"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); deleteFinisher(f.id); }}
-                            className="text-xs text-red-500 hover:text-red-400"
-                          >
-                            Delete
-                          </button>
-                          <svg
-                            className={`w-4 h-4 text-slate-400 transition-transform ${expandedId === f.id ? "rotate-180" : ""}`}
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Expanded orders */}
-                    {expandedId === f.id && (
-                      <div className="border-t border-slate-700 p-4 space-y-2">
-                        {expandedOrders.length === 0 ? (
-                          <p className="text-sm text-slate-500">No orders for this finisher yet.</p>
-                        ) : (
-                          expandedOrders.map((o) => (
-                            <div key={o.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <p className="text-sm text-white">
-                                    {o.design?.name || "No design"}
-                                  </p>
-                                  <StatusBadge status={o.status} />
-                                  {o.productType && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
-                                      {o.productType}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                  Sent {new Date(o.sentAt).toLocaleDateString()}
-                                  {o.receivedAt && ` · Received ${new Date(o.receivedAt).toLocaleDateString()}`}
-                                  {" · "}{elapsedMonths(o.sentAt, o.receivedAt)}
-                                  {o.cost != null && ` · $${o.cost.toFixed(2)}`}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {o.status === "sent" && (
-                                  <button
-                                    onClick={() => updateOrderStatus(o, "in_progress")}
-                                    className="text-xs text-blue-400 hover:text-blue-300"
-                                  >
-                                    Start
-                                  </button>
-                                )}
-                                {o.status === "in_progress" && (
-                                  <button
-                                    onClick={() => updateOrderStatus(o, "finished")}
-                                    className="text-xs text-emerald-400 hover:text-emerald-300"
-                                  >
-                                    Complete
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => deleteOrder(o)}
-                                  className="text-xs text-red-500 hover:text-red-400"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          ))
+          <div className="space-y-2">
+            {filtered.map((project) => (
+              <div
+                key={project.id}
+                className="bg-slate-800 rounded-lg border border-slate-700 p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Design thumbnail */}
+                    {project.design.previewImageUrl ? (
+                      <img
+                        src={project.design.previewImageUrl}
+                        alt=""
+                        className="w-12 h-12 rounded object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded bg-slate-700 flex-shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link
+                          href={`/design/${project.design.id}/kit`}
+                          className="text-sm font-medium text-white hover:text-rose-400"
+                        >
+                          {project.design.name}
+                        </Link>
+                        <StatusBadge status={project.status} />
+                        {project.productType && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-400">
+                            {project.productType}
+                          </span>
                         )}
                       </div>
-                    )}
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {project.person} &middot;{" "}
+                        {project.status === "finished"
+                          ? `${elapsedTime(project.startedAt, project.finishedAt)} to complete`
+                          : `${elapsedTime(project.startedAt, null)} so far`}
+                        {" "}&middot; Started{" "}
+                        {new Date(project.startedAt).toLocaleDateString()}
+                        {project.finishedAt &&
+                          ` · Finished ${new Date(project.finishedAt).toLocaleDateString()}`}
+                      </p>
+                      {project.notes && (
+                        <p className="text-xs text-slate-500 mt-0.5 italic">{project.notes}</p>
+                      )}
+                    </div>
                   </div>
-                ))}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {project.status === "wip" && (
+                      <button
+                        onClick={() => markFinished(project)}
+                        className="text-xs px-2 py-1 bg-emerald-900/30 text-emerald-400 rounded hover:bg-emerald-900/50"
+                      >
+                        Mark Finished
+                      </button>
+                    )}
+                    <button
+                      onClick={() => editProject(project)}
+                      className="text-xs text-slate-400 hover:text-white"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deleteProject(project.id)}
+                      className="text-xs text-red-500 hover:text-red-400"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-          </>
+            ))}
+          </div>
         )}
       </main>
     </div>

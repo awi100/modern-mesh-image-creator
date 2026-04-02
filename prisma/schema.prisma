@@ -143,7 +143,7 @@ model Design {
   tags      DesignTag[]
   kitSales  KitSale[]
   shopifyOrderItems ShopifyOrderItem[]
-  finisherOrders FinisherOrder[]
+  finishingProjects FinishingProject[]
 
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -268,41 +268,22 @@ model Supply {
   @@map("supplies")
 }
 
-// Finishers who turn stitched canvases into final products
-model Finisher {
-  id             String          @id @default(cuid())
-  name           String
-  email          String?
-  phone          String?
-  website        String?
-  turnaroundDays Int?            // expected turnaround in days
-  rating         Int?            // 1-5 stars
-  notes          String?
-  orders         FinisherOrder[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-
-  @@map("finishers")
-}
-
-// Finishing orders - tracks a design being finished into a product
-model FinisherOrder {
+// Tracks owners stitching their own canvases (for marketing, personal use, etc.)
+model FinishingProject {
   id          String    @id @default(cuid())
-  finisherId  String
-  finisher    Finisher  @relation(fields: [finisherId], references: [id], onDelete: Cascade)
-  designId    String?
-  design      Design?   @relation(fields: [designId], references: [id], onDelete: SetNull)
-  sentAt      DateTime
-  receivedAt  DateTime?
-  cost        Float?
-  status      String    @default("sent") // "sent", "in_progress", "finished"
-  productType String?   // "Pillow", "Ornament", "Frame", etc.
+  designId    String
+  design      Design    @relation(fields: [designId], references: [id], onDelete: Cascade)
+  person      String    // who is working on it (e.g., "Andrew", "Maddie")
+  status      String    @default("wip") // "wip" or "finished"
+  productType String?   // what it was made into: "Pillow", "Ornament", "Frame", etc.
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
   notes       String?
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  @@index([finisherId])
   @@index([designId])
-  @@map("finisher_orders")
+  @@map("finishing_projects")
 }
 
 // Global color backup pairs (bidirectional)
