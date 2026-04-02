@@ -148,6 +148,19 @@ export default function KitPage() {
   const [editingBackup, setEditingBackup] = useState<string | null>(null);
   const [pendingBackup, setPendingBackup] = useState<string>("");
 
+  // Finishing orders for this design
+  const [finishingOrders, setFinishingOrders] = useState<Array<{
+    id: string;
+    status: string;
+    productType: string | null;
+    sentAt: string;
+    receivedAt: string | null;
+    cost: number | null;
+    notes: string | null;
+    finisher: { id: string; name: string };
+  }>>([]);
+  const [loadingFinishing, setLoadingFinishing] = useState(false);
+
   // Search for backup color suggestions
   const backupColorSuggestions = useMemo(() => {
     if (!pendingBackup.trim()) return [];
@@ -234,6 +247,21 @@ export default function KitPage() {
     }
   };
 
+  const fetchFinishingOrders = async () => {
+    setLoadingFinishing(true);
+    try {
+      const res = await fetch("/api/finishing/orders");
+      if (res.ok) {
+        const data = await res.json();
+        // Filter to only this design's orders
+        setFinishingOrders(data.filter((o: { designId: string | null }) => o.designId === designId));
+      }
+    } catch (error) {
+      console.error("Error fetching finishing orders:", error);
+    }
+    setLoadingFinishing(false);
+  };
+
   const handleUpdateInventory = useCallback(async (dmcNumber: string, delta: number) => {
     if (updatingInventory === dmcNumber || !design) return;
 
@@ -301,6 +329,7 @@ export default function KitPage() {
     fetchKit();
     fetchSales();
     fetchColorUsage();
+    fetchFinishingOrders();
   }, [designId]);
 
   const handleAssembleKit = async () => {
@@ -1190,6 +1219,58 @@ export default function KitPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Finishing Orders Section */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">Finishing</h2>
+          <Link
+            href="/finishing"
+            className="text-xs text-rose-400 hover:text-rose-300"
+          >
+            View All
+          </Link>
+        </div>
+        {loadingFinishing ? (
+          <div className="p-4 text-center text-slate-500 text-sm">Loading...</div>
+        ) : finishingOrders.length > 0 ? (
+          <div className="divide-y divide-slate-200 dark:divide-slate-700">
+            {finishingOrders.map((order) => (
+              <div key={order.id} className="px-4 py-3 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-white">{order.finisher.name}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                      order.status === "sent" ? "bg-amber-500/20 text-amber-400" :
+                      order.status === "in_progress" ? "bg-blue-500/20 text-blue-400" :
+                      "bg-emerald-500/20 text-emerald-400"
+                    }`}>
+                      {order.status === "sent" ? "Sent" : order.status === "in_progress" ? "In Progress" : "Finished"}
+                    </span>
+                    {order.productType && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
+                        {order.productType}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Sent {new Date(order.sentAt).toLocaleDateString()}
+                    {order.receivedAt && ` · Received ${new Date(order.receivedAt).toLocaleDateString()}`}
+                    {order.cost != null && ` · $${order.cost.toFixed(2)}`}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center text-slate-500 text-sm">
+            No finishing orders for this design.{" "}
+            <Link href="/finishing" className="text-rose-400 hover:text-rose-300">
+              Create one
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Assemble Kit Dialog */}
