@@ -186,7 +186,6 @@ export default function KitsPage() {
 
       // Revalidate all inventory-related data
       mutate("/api/inventory?size=5");
-      mutate("/api/inventory?size=8");
     } catch (error) {
       console.error("Error updating inventory:", error);
       // Revert by refetching

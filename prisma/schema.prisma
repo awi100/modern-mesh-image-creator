@@ -74,7 +74,7 @@ model Design {
   name         String
   widthInches  Float
   heightInches Float
-  meshCount    Int      // 14 or 18
+  meshCount    Int      // 14, 16, or 18
   gridWidth    Int      // Computed: round(widthInches * meshCount)
   gridHeight   Int      // Computed: round(heightInches * meshCount)
 
@@ -176,7 +176,7 @@ model UserSettings {
 model InventoryItem {
   id        String   @id @default(cuid())
   dmcNumber String
-  size      Int      // 5 (for 14 mesh) or 8 (for 18 mesh)
+  size      Int      // 5 (Size 5 Pearl Cotton for all mesh counts)
   skeins    Int      @default(1) // 1 skein = 27 yards
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

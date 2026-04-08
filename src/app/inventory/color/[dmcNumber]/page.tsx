@@ -56,7 +56,7 @@ export default function ColorDetailPage() {
     { revalidateOnFocus: false }
   );
 
-  // Fetch inventory data (Size 5 only - internal app uses 14 mesh)
+  // Fetch inventory data (Size 5 only - all mesh counts use Size 5)
   const { data: inventory5, mutate: mutateInventory5 } = useSWR<InventoryItem[]>(
     "/api/inventory?size=5",
     { revalidateOnFocus: false }

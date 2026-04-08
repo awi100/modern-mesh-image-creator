@@ -148,8 +148,8 @@ export async function GET() {
       totalStitches: number;
       totalYards: number;
       designs: ColorDesignUsage[];
-      skeinsNeededBySize: { 5: number; 8: number };
-      skeinsReservedInKits: { 5: number; 8: number }; // Skeins already used in assembled kits
+      skeinsNeeded: number;
+      skeinsReservedInKits: number; // Skeins already used in assembled kits
     }>();
 
     for (const design of designs) {
@@ -201,21 +201,15 @@ export async function GET() {
             existing.totalStitches += stitchCount;
             existing.totalYards += yardsNeeded;
             existing.designs.push(designUsage);
-            existing.skeinsNeededBySize[5] += fullSkeinsCount;
-            existing.skeinsReservedInKits[5] += skeinsReserved;
+            existing.skeinsNeeded += fullSkeinsCount;
+            existing.skeinsReservedInKits += skeinsReserved;
           } else {
             colorUsageMap.set(dmcNumber, {
               totalStitches: stitchCount,
               totalYards: yardsNeeded,
               designs: [designUsage],
-              skeinsNeededBySize: {
-                5: fullSkeinsCount,
-                8: 0,
-              },
-              skeinsReservedInKits: {
-                5: skeinsReserved,
-                8: 0,
-              },
+              skeinsNeeded: fullSkeinsCount,
+              skeinsReservedInKits: skeinsReserved,
             });
           }
         }
@@ -329,8 +323,6 @@ export async function GET() {
     const mostUsedColors: MostUsedColor[] = [];
     for (const [dmcNumber, data] of colorUsageMap.entries()) {
       const dmcColor = getDmcColorByNumber(dmcNumber);
-      // Determine primary thread size (the one with more yards needed)
-      const primarySize: 5 | 8 = data.skeinsNeededBySize[5] >= data.skeinsNeededBySize[8] ? 5 : 8;
       const totalYardsNeeded = Math.round(data.totalYards * 10) / 10;
       // Calculate skeins from yards, respecting the 5-yard threshold:
       // Under 5 yards total = bobbin only (0 full skeins needed)
@@ -338,10 +330,8 @@ export async function GET() {
       const totalSkeinsNeeded = data.totalYards <= FULL_SKEIN_THRESHOLD
         ? 0
         : Math.ceil(data.totalYards / EFFECTIVE_YARDS_PER_SKEIN);
-      const inventorySkeins = (inventoryBySize[5].get(dmcNumber) ?? 0) + (inventoryBySize[8].get(dmcNumber) ?? 0);
-      // Note: skeinsReservedInKits is tracked for display purposes only
-      // The inventory already reflects deductions from kit assembly, so we don't subtract again
-      const skeinsReservedInKits = data.skeinsReservedInKits[5] + data.skeinsReservedInKits[8];
+      const inventorySkeins = inventoryBySize[5].get(dmcNumber) ?? 0;
+      const skeinsReservedInKits = data.skeinsReservedInKits;
       // effectiveInventory = current inventory (already accounts for assembled kits)
       const effectiveInventory = inventorySkeins;
 
@@ -376,7 +366,7 @@ export async function GET() {
         inventorySkeins,
         skeinsReservedInKits,
         effectiveInventory,
-        threadSize: primarySize,
+        threadSize: 5 as const,
         designs: sortedDesigns,
         coverageRounds: coverageRounds === Infinity ? 999 : coverageRounds,
         skeinsToNextRound,

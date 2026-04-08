@@ -26,7 +26,7 @@ export default function ColorPicker() {
     deltaE: number;
   } | null>(null);
 
-  // Inventory: fetch stock for Size 5 thread (14 mesh only in internal app)
+  // Inventory: fetch stock for Size 5 thread (all mesh counts use Size 5)
   const [inStockSet, setInStockSet] = useState<Set<string>>(new Set());
 
   useEffect(() => {

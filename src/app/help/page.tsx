@@ -627,7 +627,7 @@ export default function HelpPage() {
               <h3 className="text-lg font-semibold text-white">Thread Inventory</h3>
               <p>Track your DMC Pearl Cotton thread inventory from the <strong className="text-white">Inventory</strong> page (accessible from the sidebar).</p>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li>Add thread by DMC number and size (5 or 8)</li>
+                <li>Add thread by DMC number (Size 5 Pearl Cotton)</li>
                 <li>Track skein quantities</li>
                 <li>See which designs use each color</li>
                 <li>Get low stock alerts</li>
