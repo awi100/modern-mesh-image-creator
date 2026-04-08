@@ -1193,7 +1193,8 @@ export default function PixelCanvas({
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-800 relative"
+      className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-800 relative touch-none"
+      style={{ overscrollBehavior: 'none' }}
     >
       {/* Inner wrapper that handles pan/zoom transform */}
       <div

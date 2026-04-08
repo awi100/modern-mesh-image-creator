@@ -60,6 +60,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const [showDesignPreview, setShowDesignPreview] = useState(false);
   const [colorPanelCollapsed, setColorPanelCollapsed] = useState(false);
   const [layersPanelCollapsed, setLayersPanelCollapsed] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
 
   // Session expiration monitoring
   const { isSessionExpired, handleSessionRestored, setIsSessionExpired } = useSessionMonitor();
@@ -398,7 +399,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
   }, [enterPastePlacementMode]);
 
   return (
-    <div className="h-screen flex flex-col bg-slate-100 dark:bg-slate-900">
+    <div className="h-screen flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden" style={{ overscrollBehavior: 'none' }}>
       <Header
         onShowImageImport={() => setShowImageImport(true)}
         onShowCanvasResize={() => setShowCanvasResize(true)}
@@ -458,39 +459,69 @@ export default function Editor({ designId, initialData }: EditorProps) {
 
         {/* Right side panels */}
         <div className="hidden lg:flex lg:flex-row">
-          {/* Layers panel */}
-          {layersPanelCollapsed ? (
+          {rightPanelCollapsed ? (
             <div className="bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col items-center py-2">
               <button
-                onClick={() => setLayersPanelCollapsed(false)}
+                onClick={() => setRightPanelCollapsed(false)}
                 className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                title="Show layers panel"
+                title="Show panels"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
               <div className="mt-2 text-xs text-slate-500 writing-mode-vertical rotate-180" style={{ writingMode: 'vertical-rl' }}>
-                Layers
+                Panels
               </div>
             </div>
           ) : (
-            <div className="relative">
-              <button
-                onClick={() => setLayersPanelCollapsed(true)}
-                className="absolute top-2 right-2 z-10 p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                title="Collapse layers panel"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-              <LayersPanel />
-            </div>
-          )}
+            <>
+              {/* Layers panel */}
+              {layersPanelCollapsed ? (
+                <div className="bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col items-center py-2">
+                  <button
+                    onClick={() => setLayersPanelCollapsed(false)}
+                    className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                    title="Show layers panel"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <div className="mt-2 text-xs text-slate-500 writing-mode-vertical rotate-180" style={{ writingMode: 'vertical-rl' }}>
+                    Layers
+                  </div>
+                </div>
+              ) : (
+                <div className="relative">
+                  <button
+                    onClick={() => setLayersPanelCollapsed(true)}
+                    className="absolute top-2 right-2 z-10 p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                    title="Collapse layers panel"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  <LayersPanel />
+                </div>
+              )}
 
-          {/* Metrics panel */}
-          <MetricsPanel />
+              {/* Metrics panel with collapse button */}
+              <div className="relative">
+                <button
+                  onClick={() => setRightPanelCollapsed(true)}
+                  className="absolute top-2 right-2 z-10 p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                  title="Collapse all right panels"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <MetricsPanel />
+              </div>
+            </>
+          )}
         </div>
       </div>
 

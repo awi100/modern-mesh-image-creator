@@ -328,7 +328,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const activeLayer = layers[activeLayerIndex];
     if (!activeLayer || activeLayer.locked) return;
 
-    const newGrid = activeLayer.grid.map(row => [...row]);
+    // Only copy the affected row for performance
+    const newGrid = [...activeLayer.grid];
+    newGrid[y] = [...newGrid[y]];
     newGrid[y][x] = color;
 
     const newLayers = [...layers];
@@ -343,14 +345,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!activeLayer || activeLayer.locked) return;
 
     const size = sizeOverride ?? brushSize;
-    const newGrid = activeLayer.grid.map(row => [...row]);
     const radius = Math.floor(size / 2);
+
+    // Only copy affected rows for performance
+    const newGrid = [...activeLayer.grid];
+    const copiedRows = new Set<number>();
 
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         const px = x + dx;
         const py = y + dy;
         if (px >= 0 && px < gridWidth && py >= 0 && py < gridHeight) {
+          if (!copiedRows.has(py)) {
+            newGrid[py] = [...newGrid[py]];
+            copiedRows.add(py);
+          }
           newGrid[py][px] = color;
         }
       }
