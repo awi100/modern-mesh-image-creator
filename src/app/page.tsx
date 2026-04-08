@@ -113,7 +113,7 @@ export default function HomePage() {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState("");
   const [colorSwapDesign, setColorSwapDesign] = useState<{ id: string; name: string } | null>(null);
-  const [meshConvertDesign, setMeshConvertDesign] = useState<{id: string, name: string, meshCount: number} | null>(null);
+  const [meshConvertDesign, setMeshConvertDesign] = useState<{id: string, name: string, meshCount: number, widthInches: number, heightInches: number} | null>(null);
 
   // Selection mode state
   const [selectedDesigns, setSelectedDesigns] = useState<Set<string>>(new Set());
@@ -1640,7 +1640,7 @@ export default function HomePage() {
                               </button>
                               {/* Convert Mesh */}
                               <button
-                                onClick={() => setMeshConvertDesign({ id: design.id, name: design.name, meshCount: design.meshCount })}
+                                onClick={() => setMeshConvertDesign({ id: design.id, name: design.name, meshCount: design.meshCount, widthInches: design.widthInches, heightInches: design.heightInches })}
                                 className="p-1.5 text-slate-500 hover:text-amber-400 transition-colors"
                                 title="Convert Mesh"
                               >
@@ -1712,6 +1712,8 @@ export default function HomePage() {
           designId={meshConvertDesign.id}
           designName={meshConvertDesign.name}
           currentMeshCount={meshConvertDesign.meshCount}
+          widthInches={meshConvertDesign.widthInches}
+          heightInches={meshConvertDesign.heightInches}
           open={true}
           onClose={() => setMeshConvertDesign(null)}
           onSuccess={(newDesignId) => {

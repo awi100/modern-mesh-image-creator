@@ -11,6 +11,7 @@ import {
   openPrintableWindow,
 } from "@/lib/shopping-list-export";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import MeshConvertDialog from "@/components/MeshConvertDialog";
 import { searchDmcColors, getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
 interface BackupColorInfo {
@@ -159,6 +160,7 @@ export default function KitPage() {
     notes: string | null;
   }>>([]);
   const [loadingFinishing, setLoadingFinishing] = useState(false);
+  const [showMeshConvert, setShowMeshConvert] = useState(false);
 
   // Search for backup color suggestions
   const backupColorSuggestions = useMemo(() => {
@@ -509,6 +511,15 @@ export default function KitPage() {
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setShowMeshConvert(true)}
+              className="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded-lg transition-colors"
+              title="Convert to different mesh count"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
             <div className="w-px h-6 bg-slate-700 mx-1" />
@@ -1365,6 +1376,20 @@ export default function KitPage() {
           </div>
         );
       })()}
+
+      {/* Mesh Convert Dialog */}
+      {design && showMeshConvert && (
+        <MeshConvertDialog
+          designId={design.id}
+          designName={design.name}
+          currentMeshCount={design.meshCount}
+          widthInches={design.widthInches}
+          heightInches={design.heightInches}
+          open={true}
+          onClose={() => setShowMeshConvert(false)}
+          onSuccess={() => setShowMeshConvert(false)}
+        />
+      )}
     </div>
   );
 }

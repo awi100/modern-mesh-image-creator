@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { exportArtworkPdf, exportStitchGuideImage, generatePreviewImage, generateFullResImage, generateOneToOneImage } from "@/lib/pdf-export";
+import { exportArtworkPdf, exportImagePdf, exportStitchGuideImage, generatePreviewImage, generateFullResImage, generateOneToOneImage } from "@/lib/pdf-export";
 import { useToast } from "@/components/Toast";
 
 interface ExportPanelProps {
@@ -42,6 +42,23 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
       });
 
       doc.save(`${designName.replace(/\s+/g, "_")}_artwork.pdf`);
+    } catch (error) {
+      console.error("Export error:", error);
+      showToast("Failed to export PDF. Please try again.", "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportImagePdf = async () => {
+    setExporting(true);
+    try {
+      exportImagePdf({
+        grid,
+        widthInches,
+        heightInches,
+        designName,
+      });
     } catch (error) {
       console.error("Export error:", error);
       showToast("Failed to export PDF. Please try again.", "error");
@@ -153,6 +170,23 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
                 <p className="text-slate-900 dark:text-white font-medium">Print Artwork (PDF)</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   Exact size, no grid - for printing/framing
+                </p>
+              </div>
+            </div>
+          </button>
+
+          {/* High-Res Image PDF */}
+          <button
+            onClick={handleExportImagePdf}
+            disabled={exporting}
+            className="w-full p-4 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-left disabled:opacity-50"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📄</span>
+              <div>
+                <p className="text-slate-900 dark:text-white font-medium">Image PDF (300 DPI)</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  High-res print PDF, image only
                 </p>
               </div>
             </div>

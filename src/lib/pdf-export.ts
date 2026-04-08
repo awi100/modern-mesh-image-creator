@@ -381,6 +381,70 @@ export function generateFullResImage(
 }
 
 /**
+ * Export a high-res PDF containing only the design image (no grid, no legend, no text).
+ * Renders at 300 DPI for print quality.
+ */
+export function exportImagePdf(options: {
+  grid: PixelGrid;
+  widthInches: number;
+  heightInches: number;
+  designName: string;
+}): void {
+  const { grid, widthInches, heightInches, designName } = options;
+
+  const gridHeight = grid.length;
+  const gridWidth = grid[0]?.length || 0;
+  if (gridWidth === 0 || gridHeight === 0) return;
+
+  const pdfDpi = 300;
+  const pxWidth = Math.round(widthInches * pdfDpi);
+  const pxHeight = Math.round(heightInches * pdfDpi);
+
+  const cellW = pxWidth / gridWidth;
+  const cellH = pxHeight / gridHeight;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = pxWidth;
+  canvas.height = pxHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  // White background
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, pxWidth, pxHeight);
+
+  // Draw each stitch
+  for (let y = 0; y < gridHeight; y++) {
+    for (let x = 0; x < gridWidth; x++) {
+      const dmcNumber = grid[y][x];
+      if (dmcNumber === null) continue;
+
+      const color = getDmcColorByNumber(dmcNumber);
+      if (!color) continue;
+
+      ctx.fillStyle = color.hex;
+      ctx.fillRect(
+        Math.floor(x * cellW),
+        Math.floor(y * cellH),
+        Math.ceil(cellW),
+        Math.ceil(cellH)
+      );
+    }
+  }
+
+  const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+  const doc = new jsPDF({
+    orientation: widthInches > heightInches ? "landscape" : "portrait",
+    unit: "in",
+    format: [widthInches, heightInches],
+  });
+
+  doc.addImage(imgData, "JPEG", 0, 0, widthInches, heightInches);
+  doc.save(`${designName.replace(/\s+/g, "_")}_print.pdf`);
+}
+
+/**
  * Generate a 1:1 pixel image where each grid cell = 1 pixel
  * For an 8.5" × 11" design at 14 mesh, this produces a 119 × 154 pixel image
  * @param grid - The pixel grid

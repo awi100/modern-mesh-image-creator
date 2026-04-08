@@ -1,11 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface MeshConvertDialogProps {
   designId: string;
   designName: string;
   currentMeshCount: number;
+  widthInches: number;
+  heightInches: number;
   open: boolean;
   onClose: () => void;
   onSuccess?: (newDesignId: string) => void;
@@ -17,15 +20,19 @@ export default function MeshConvertDialog({
   designId,
   designName,
   currentMeshCount,
+  widthInches,
+  heightInches,
   open,
   onClose,
   onSuccess,
 }: MeshConvertDialogProps) {
+  const router = useRouter();
   const availableOptions = MESH_OPTIONS.filter((m) => m !== currentMeshCount);
   const [targetMeshCount, setTargetMeshCount] = useState<number>(availableOptions[0]);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openAfterConvert, setOpenAfterConvert] = useState(true);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -35,12 +42,18 @@ export default function MeshConvertDialog({
       setName("");
       setLoading(false);
       setError(null);
+      setOpenAfterConvert(true);
     }
   }, [open, currentMeshCount]);
 
   if (!open) return null;
 
   const defaultName = `${designName} (${targetMeshCount}ct)`;
+
+  const currentGridW = Math.round(widthInches * currentMeshCount);
+  const currentGridH = Math.round(heightInches * currentMeshCount);
+  const targetGridW = Math.round(widthInches * targetMeshCount);
+  const targetGridH = Math.round(heightInches * targetMeshCount);
 
   const handleConvert = async () => {
     setLoading(true);
@@ -64,6 +77,10 @@ export default function MeshConvertDialog({
       const data = await response.json();
       onSuccess?.(data.id);
       onClose();
+
+      if (openAfterConvert) {
+        router.push(`/design/${data.id}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -120,6 +137,20 @@ export default function MeshConvertDialog({
           </div>
         </div>
 
+        {/* Dimension preview */}
+        <div className="mb-6 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            <span className="font-medium">{currentMeshCount}ct</span>{" "}
+            {currentGridW}×{currentGridH}{" "}
+            <span className="text-slate-400 mx-1">→</span>{" "}
+            <span className="font-medium">{targetMeshCount}ct</span>{" "}
+            {targetGridW}×{targetGridH}
+          </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+            Same {widthInches}&quot; × {heightInches}&quot; canvas
+          </p>
+        </div>
+
         {/* Name override */}
         <div className="mb-6">
           <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">
@@ -134,6 +165,20 @@ export default function MeshConvertDialog({
             className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800 placeholder:text-slate-400 dark:placeholder:text-slate-500 disabled:opacity-50"
           />
         </div>
+
+        {/* Open in editor checkbox */}
+        <label className="mb-6 flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={openAfterConvert}
+            onChange={(e) => setOpenAfterConvert(e.target.checked)}
+            disabled={loading}
+            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-rose-900 focus:ring-rose-800"
+          />
+          <span className="text-sm text-slate-600 dark:text-slate-300">
+            Open in editor after conversion
+          </span>
+        </label>
 
         {/* Preview info */}
         <div className="mb-6 p-3 bg-rose-900/20 border border-rose-800/30 rounded-lg">
