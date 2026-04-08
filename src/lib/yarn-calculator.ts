@@ -2,28 +2,28 @@
 // Uses yards-per-square-inch method: convert stitches to canvas area, then
 // multiply by thread consumption rate per square inch.
 
-export type MeshCount = 13 | 14 | 16;
+export type MeshCount = 14 | 16 | 18;
 
 export interface YarnCalculationSettings {
   // Yards of thread needed to cover one square inch of canvas (Size 5 thread)
-  mesh13ContinentalYardsPerSqIn: number;
-  mesh13BasketwaveYardsPerSqIn: number;
   mesh14ContinentalYardsPerSqIn: number;
   mesh14BasketwaveYardsPerSqIn: number;
   mesh16ContinentalYardsPerSqIn: number;
   mesh16BasketwaveYardsPerSqIn: number;
+  mesh18ContinentalYardsPerSqIn: number;
+  mesh18BasketwaveYardsPerSqIn: number;
 }
 
 export const DEFAULT_SETTINGS: YarnCalculationSettings = {
-  // 13 mesh: 169 stitches/sq in, Size 5 thread
-  mesh13ContinentalYardsPerSqIn: 1.8,
-  mesh13BasketwaveYardsPerSqIn: 2.07,
   // 14 mesh: 196 stitches/sq in, Size 5 thread
   mesh14ContinentalYardsPerSqIn: 2.1,
   mesh14BasketwaveYardsPerSqIn: 2.4,
   // 16 mesh: 256 stitches/sq in, Size 5 thread
   mesh16ContinentalYardsPerSqIn: 2.74,
   mesh16BasketwaveYardsPerSqIn: 3.14,
+  // 18 mesh: 324 stitches/sq in, Size 5 thread
+  mesh18ContinentalYardsPerSqIn: 3.46,
+  mesh18BasketwaveYardsPerSqIn: 3.98,
 };
 
 export type StitchType = "continental" | "basketweave";

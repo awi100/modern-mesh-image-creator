@@ -5,7 +5,7 @@ import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
 import pako from "pako";
 
-const VALID_MESH_COUNTS: MeshCount[] = [13, 14, 16];
+const VALID_MESH_COUNTS: MeshCount[] = [14, 16, 18];
 
 // POST /api/designs/[id]/mesh-variant - Create a new design resampled to a different mesh count
 export async function POST(
@@ -22,7 +22,7 @@ export async function POST(
 
     if (!targetMeshCount || !VALID_MESH_COUNTS.includes(targetMeshCount)) {
       return NextResponse.json(
-        { error: "targetMeshCount must be 13, 14, or 16" },
+        { error: "targetMeshCount must be 14, 16, or 18" },
         { status: 400 }
       );
     }

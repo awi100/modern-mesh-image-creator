@@ -875,7 +875,7 @@ export default function CustomDesignPage() {
               <div className="mb-6">
                 <label className="block text-sm font-medium text-slate-300 mb-3">Mesh Count</label>
                 <div className="flex gap-2">
-                  {([13, 14, 16] as const).map((m) => (
+                  {([14, 16, 18] as const).map((m) => (
                     <button
                       key={m}
                       onClick={() => setMeshCount(m)}

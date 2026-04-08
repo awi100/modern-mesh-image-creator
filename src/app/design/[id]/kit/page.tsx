@@ -455,7 +455,7 @@ export default function KitPage() {
     );
   }
 
-  const threadSize = 5; // All supported mesh counts (13, 14, 16) use Size 5 thread
+  const threadSize = 5; // All supported mesh counts (14, 16, 18) use Size 5 thread
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -476,7 +476,7 @@ export default function KitPage() {
               <h1 className="text-lg md:text-xl font-bold text-white truncate flex items-center gap-2">
                 Kit: {design.name}
                 <span className={`text-xs font-medium px-2 py-0.5 rounded flex-shrink-0 ${
-                  design.meshCount === 13 ? "bg-amber-500/20 text-amber-400" :
+                  design.meshCount === 18 ? "bg-amber-500/20 text-amber-400" :
                   design.meshCount === 16 ? "bg-teal-500/20 text-teal-400" :
                   "bg-zinc-500/20 text-zinc-400"
                 }`}>

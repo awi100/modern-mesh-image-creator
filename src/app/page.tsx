@@ -973,7 +973,7 @@ export default function HomePage() {
                   Mesh Count
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {[13, 14, 16].map((mesh) => (
+                  {[14, 16, 18].map((mesh) => (
                     <button
                       key={mesh}
                       onClick={() => setSelectedMeshCount(selectedMeshCount === mesh ? null : mesh)}
@@ -1214,7 +1214,7 @@ export default function HomePage() {
                 Mesh Count
               </h3>
               <div className="flex flex-wrap gap-2">
-                {[13, 14, 16].map((mesh) => (
+                {[14, 16, 18].map((mesh) => (
                   <button
                     key={mesh}
                     onClick={() => setSelectedMeshCount(selectedMeshCount === mesh ? null : mesh)}
@@ -1395,7 +1395,7 @@ export default function HomePage() {
                           {/* Mesh count badge */}
                           <div className="absolute bottom-2 left-2 pointer-events-none">
                             <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                              design.meshCount === 13 ? "bg-amber-900/80 text-amber-300" :
+                              design.meshCount === 18 ? "bg-amber-900/80 text-amber-300" :
                               design.meshCount === 16 ? "bg-teal-900/80 text-teal-300" :
                               "bg-slate-700/80 text-slate-300"
                             }`}>

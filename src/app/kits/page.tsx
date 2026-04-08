@@ -170,7 +170,7 @@ export default function KitsPage() {
     processingRef.current.add(key);
     pendingDeltasRef.current.delete(key);
 
-    const size = 5; // All supported mesh counts (13, 14, 16) use Size 5 thread
+    const size = 5; // All supported mesh counts (14, 16, 18) use Size 5 thread
     setUpdatingInventory(key);
 
     try {
@@ -598,7 +598,7 @@ export default function KitsPage() {
                                 {kit.designName}
                               </Link>
                               <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
-                                kit.meshCount === 13 ? "bg-amber-500/20 text-amber-400" :
+                                kit.meshCount === 18 ? "bg-amber-500/20 text-amber-400" :
                                 kit.meshCount === 16 ? "bg-teal-500/20 text-teal-400" :
                                 "bg-zinc-500/20 text-zinc-400"
                               }`}>

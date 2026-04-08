@@ -1246,7 +1246,7 @@ export default function InventoryPage() {
                                         )}
                                         <span className="text-sm text-white">{design.name}</span>
                                         <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                          design.meshCount === 13 ? "bg-amber-500/20 text-amber-400" :
+                                          design.meshCount === 18 ? "bg-amber-500/20 text-amber-400" :
                                           design.meshCount === 16 ? "bg-teal-500/20 text-teal-400" :
                                           "bg-zinc-500/20 text-zinc-400"
                                         }`}>
@@ -1778,7 +1778,7 @@ export default function InventoryPage() {
                                 {design.name}
                               </Link>
                               <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
-                                design.meshCount === 13 ? "bg-amber-500/20 text-amber-400" :
+                                design.meshCount === 18 ? "bg-amber-500/20 text-amber-400" :
                                 design.meshCount === 16 ? "bg-teal-500/20 text-teal-400" :
                                 "bg-zinc-500/20 text-zinc-400"
                               }`}>

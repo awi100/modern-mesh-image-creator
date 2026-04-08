@@ -158,12 +158,12 @@ model Design {
 model UserSettings {
   id                               String   @id @default(cuid())
   // Yards of thread per square inch of canvas coverage (all Size 5 thread)
-  mesh13ContinentalYardsPerSqIn    Float    @default(1.8)   // 13ct, 169 stitches/sq in
-  mesh13BasketwaveYardsPerSqIn     Float    @default(2.07)  // 13ct, ~15% more
   mesh14ContinentalYardsPerSqIn    Float    @default(2.1)   // 14ct, 196 stitches/sq in
   mesh14BasketwaveYardsPerSqIn     Float    @default(2.4)   // 14ct, ~15% more
   mesh16ContinentalYardsPerSqIn    Float    @default(2.74)  // 16ct, 256 stitches/sq in
   mesh16BasketwaveYardsPerSqIn     Float    @default(3.14)  // 16ct, ~15% more
+  mesh18ContinentalYardsPerSqIn    Float    @default(3.46)  // 18ct, 324 stitches/sq in
+  mesh18BasketwaveYardsPerSqIn     Float    @default(3.98)  // 18ct, ~15% more
   // Default export DPI
   defaultExportDpi                 Int      @default(600)
   createdAt                        DateTime @default(now())
