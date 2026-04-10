@@ -5,6 +5,7 @@ import React, { useState } from "react";
 interface Folder {
   id: string;
   name: string;
+  parentId: string | null;
 }
 
 interface Tag {
@@ -41,6 +42,37 @@ export default function BatchActionBar({
   const [tagAction, setTagAction] = useState<"add" | "remove">("add");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Build children map for hierarchy
+  const childFoldersMap = React.useMemo(() => {
+    const map = new Map<string, Folder[]>();
+    for (const f of folders) {
+      if (f.parentId) {
+        const children = map.get(f.parentId) || [];
+        children.push(f);
+        map.set(f.parentId, children);
+      }
+    }
+    return map;
+  }, [folders]);
+
+  const renderBatchFolderOptions = (folderList: Folder[], depth: number): React.ReactNode => {
+    return folderList.map((folder) => {
+      const children = childFoldersMap.get(folder.id) || [];
+      return (
+        <React.Fragment key={folder.id}>
+          <button
+            onClick={() => handleMoveToFolder(folder.id)}
+            className="w-full py-2 text-left text-sm text-slate-200 hover:bg-slate-600"
+            style={{ paddingLeft: `${12 + depth * 12}px`, paddingRight: '12px' }}
+          >
+            {depth > 0 ? "📂" : "📁"} {folder.name}
+          </button>
+          {children.length > 0 && renderBatchFolderOptions(children, depth + 1)}
+        </React.Fragment>
+      );
+    });
+  };
 
   const handleMoveToFolder = async (folderId: string | null) => {
     setLoading(true);
@@ -122,15 +154,7 @@ export default function BatchActionBar({
                 >
                   Unfiled
                 </button>
-                {folders.map((folder) => (
-                  <button
-                    key={folder.id}
-                    onClick={() => handleMoveToFolder(folder.id)}
-                    className="w-full px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-600"
-                  >
-                    {folder.name}
-                  </button>
-                ))}
+                {renderBatchFolderOptions(folders.filter(f => !f.parentId), 0)}
               </div>
             )}
           </div>

@@ -5,6 +5,19 @@ import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
 import pako from "pako";
 
+// Recursively get all descendant folder IDs
+async function getDescendantFolderIds(folderId: string): Promise<string[]> {
+  const children = await prisma.folder.findMany({
+    where: { parentId: folderId },
+    select: { id: true },
+  });
+  const ids = children.map(c => c.id);
+  for (const child of children) {
+    ids.push(...await getDescendantFolderIds(child.id));
+  }
+  return ids;
+}
+
 export async function GET(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +44,9 @@ export async function GET(request: NextRequest) {
     if (folderId === "null") {
       where.folderId = null;
     } else if (folderId) {
-      where.folderId = folderId;
+      // Include designs in this folder and all descendant subfolders
+      const descendantIds = await getDescendantFolderIds(folderId);
+      where.folderId = { in: [folderId, ...descendantIds] };
     }
 
     if (tagId) {

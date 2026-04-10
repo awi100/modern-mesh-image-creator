@@ -13,6 +13,18 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    // Get the folder to find its parentId
+    const folder = await prisma.folder.findUnique({
+      where: { id },
+      select: { parentId: true },
+    });
+
+    // Move child folders up to this folder's parent (or root)
+    await prisma.folder.updateMany({
+      where: { parentId: id },
+      data: { parentId: folder?.parentId ?? null },
+    });
+
     // Move all designs in this folder to unfiled
     await prisma.design.updateMany({
       where: { folderId: id },

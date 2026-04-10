@@ -23,6 +23,7 @@ interface Tag {
 interface Folder {
   id: string;
   name: string;
+  parentId: string | null;
 }
 
 interface Design {
@@ -107,6 +108,8 @@ export default function HomePage() {
   const [showFilters, setShowFilters] = useState(false);
   const [showNewFolderInput, setShowNewFolderInput] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [movingDesignId, setMovingDesignId] = useState<string | null>(null);
   const [showNewDesignDialog, setShowNewDesignDialog] = useState(false);
   const [exportingDesignId, setExportingDesignId] = useState<string | null>(null);
@@ -147,6 +150,40 @@ export default function HomePage() {
     new Set(inventory5.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
     [inventory5]
   );
+
+  // Build folder tree structure
+  const rootFolders = useMemo(() => folders.filter(f => !f.parentId), [folders]);
+  const childFoldersMap = useMemo(() => {
+    const map = new Map<string, Folder[]>();
+    for (const f of folders) {
+      if (f.parentId) {
+        const children = map.get(f.parentId) || [];
+        children.push(f);
+        map.set(f.parentId, children);
+      }
+    }
+    return map;
+  }, [folders]);
+
+  const toggleFolderExpanded = useCallback((folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
+      return next;
+    });
+  }, []);
+
+  // Get all descendant folder IDs for a folder (for filtering)
+  const getDescendantIds = useCallback((folderId: string): string[] => {
+    const ids: string[] = [];
+    const children = childFoldersMap.get(folderId) || [];
+    for (const child of children) {
+      ids.push(child.id);
+      ids.push(...getDescendantIds(child.id));
+    }
+    return ids;
+  }, [childFoldersMap]);
 
   // SWR for designs (refetches when filters change via key)
   const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory, selectedMeshCount);
@@ -250,14 +287,18 @@ export default function HomePage() {
       const response = await fetch("/api/folders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newFolderName.trim() }),
+        body: JSON.stringify({ name: newFolderName.trim(), parentId: newFolderParentId }),
       });
 
       if (response.ok) {
-        // Revalidate folders cache
         mutate("/api/folders");
         setNewFolderName("");
         setShowNewFolderInput(false);
+        setNewFolderParentId(null);
+        // Auto-expand parent so user sees the new subfolder
+        if (newFolderParentId) {
+          setExpandedFolders(prev => new Set([...prev, newFolderParentId!]));
+        }
       }
     } catch (error) {
       console.error("Error creating folder:", error);
@@ -330,6 +371,151 @@ export default function HomePage() {
     }
     setEditingFolderId(null);
     setEditingFolderName("");
+  };
+
+  // Recursive folder tree renderer for desktop sidebar
+  const renderDesktopFolderTree = (folderList: Folder[], depth: number): React.ReactNode => {
+    return folderList.map((folder) => {
+      const children = childFoldersMap.get(folder.id) || [];
+      const hasChildren = children.length > 0;
+      const isExpanded = expandedFolders.has(folder.id);
+
+      return (
+        <div key={folder.id}>
+          <div className="group flex items-center" style={{ paddingLeft: depth * 16 }}>
+            {editingFolderId === folder.id ? (
+              <div className="flex-1 flex gap-1">
+                <input
+                  type="text"
+                  value={editingFolderName}
+                  onChange={(e) => setEditingFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleRenameFolder(folder.id);
+                    if (e.key === "Escape") { setEditingFolderId(null); setEditingFolderName(""); }
+                  }}
+                  onBlur={() => handleRenameFolder(folder.id)}
+                  className="flex-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <>
+                {/* Expand/collapse toggle */}
+                <button
+                  onClick={() => hasChildren && toggleFolderExpanded(folder.id)}
+                  className={`w-5 h-5 flex items-center justify-center flex-shrink-0 ${hasChildren ? "text-slate-400 hover:text-slate-200" : "text-transparent"}`}
+                >
+                  {hasChildren && (
+                    <svg className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); }}
+                  className={`flex-1 text-left px-2 py-2 rounded-lg transition-colors ${
+                    selectedFolder === folder.id && !showTrash
+                      ? "bg-rose-900/20 text-rose-400"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {depth > 0 ? "📂" : "📁"} {folder.name}
+                </button>
+                {/* Add subfolder */}
+                <button
+                  onClick={() => { setNewFolderParentId(folder.id); setShowNewFolderInput(true); setNewFolderName(""); }}
+                  className="p-1 text-slate-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Add subfolder"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => startEditingFolder(folder)}
+                  className="p-1 text-slate-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Rename folder"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => handleDeleteFolder(folder.id)}
+                  className="p-1 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Delete folder"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </>
+            )}
+          </div>
+          {/* Render children if expanded */}
+          {hasChildren && isExpanded && renderDesktopFolderTree(children, depth + 1)}
+        </div>
+      );
+    });
+  };
+
+  // Mobile folder chips renderer - shows parent/child hierarchy as indented chips
+  const renderMobileFolderChips = (folderList: Folder[], depth: number): React.ReactNode => {
+    return folderList.map((folder) => {
+      const children = childFoldersMap.get(folder.id) || [];
+      const hasChildren = children.length > 0;
+      const isExpanded = expandedFolders.has(folder.id);
+      const prefix = depth > 0 ? "↳ " : "";
+
+      return (
+        <React.Fragment key={folder.id}>
+          <div className="relative group">
+            <button
+              onClick={() => {
+                setSelectedFolder(folder.id);
+                if (hasChildren) toggleFolderExpanded(folder.id);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-sm transition-colors pr-7 ${
+                selectedFolder === folder.id
+                  ? "bg-rose-900 text-white"
+                  : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+              }`}
+            >
+              {prefix}{folder.name}{hasChildren ? (isExpanded ? " ▾" : " ▸") : ""}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }}
+              className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-400"
+              title="Delete folder"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          {hasChildren && isExpanded && renderMobileFolderChips(children, depth + 1)}
+        </React.Fragment>
+      );
+    });
+  };
+
+  // Recursive folder dropdown for move-to-folder menus
+  const renderFolderDropdown = (folderList: Folder[], design: Design, depth: number): React.ReactNode => {
+    return folderList.map((folder) => {
+      const children = childFoldersMap.get(folder.id) || [];
+      return (
+        <React.Fragment key={folder.id}>
+          <button
+            onClick={() => handleMoveToFolder(design.id, folder.id)}
+            className={`w-full text-left py-1.5 text-sm hover:bg-slate-600 ${design.folder?.id === folder.id ? 'text-rose-400' : 'text-slate-300'}`}
+            style={{ paddingLeft: `${12 + depth * 12}px`, paddingRight: '12px' }}
+          >
+            {depth > 0 ? "📂" : "📁"} {folder.name}
+          </button>
+          {children.length > 0 && renderFolderDropdown(children, design, depth + 1)}
+        </React.Fragment>
+      );
+    });
   };
 
   const startEditingFolder = (folder: Folder) => {
@@ -835,22 +1021,32 @@ export default function HomePage() {
                 </div>
                 {/* New folder input - mobile */}
                 {showNewFolderInput && (
-                  <div className="mb-2 flex gap-2">
-                    <input
-                      type="text"
-                      value={newFolderName}
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
-                      placeholder="Folder name..."
-                      className="flex-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
-                      autoFocus
-                    />
-                    <button
-                      onClick={handleCreateFolder}
-                      className="px-3 py-1.5 bg-rose-900 text-white text-sm rounded hover:bg-rose-950"
-                    >
-                      Add
-                    </button>
+                  <div className="mb-2">
+                    {newFolderParentId && (
+                      <p className="text-xs text-slate-400 mb-1">
+                        Subfolder of: {folders.find(f => f.id === newFolderParentId)?.name}
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newFolderName}
+                        onChange={(e) => setNewFolderName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleCreateFolder();
+                          if (e.key === "Escape") { setShowNewFolderInput(false); setNewFolderParentId(null); setNewFolderName(""); }
+                        }}
+                        placeholder={newFolderParentId ? "Subfolder name..." : "Folder name..."}
+                        className="flex-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleCreateFolder}
+                        className="px-3 py-1.5 bg-rose-900 text-white text-sm rounded hover:bg-rose-950"
+                      >
+                        Add
+                      </button>
+                    </div>
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2">
@@ -874,29 +1070,7 @@ export default function HomePage() {
                   >
                     Unfiled
                   </button>
-                  {folders.map((folder) => (
-                    <div key={folder.id} className="relative group">
-                      <button
-                        onClick={() => setSelectedFolder(folder.id)}
-                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors pr-7 ${
-                          selectedFolder === folder.id
-                            ? "bg-rose-900 text-white"
-                            : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                        }`}
-                      >
-                        {folder.name}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-400"
-                        title="Delete folder"
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
+                  {renderMobileFolderChips(rootFolders, 0)}
                 </div>
               </div>
 
@@ -1025,22 +1199,32 @@ export default function HomePage() {
 
               {/* New folder input */}
               {showNewFolderInput && (
-                <div className="mb-2 flex gap-2">
-                  <input
-                    type="text"
-                    value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
-                    placeholder="Folder name..."
-                    className="flex-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
-                    autoFocus
-                  />
-                  <button
-                    onClick={handleCreateFolder}
-                    className="px-3 py-1.5 bg-rose-900 text-white text-sm rounded hover:bg-rose-950"
-                  >
-                    Add
-                  </button>
+                <div className="mb-2">
+                  {newFolderParentId && (
+                    <p className="text-xs text-slate-400 mb-1">
+                      Subfolder of: {folders.find(f => f.id === newFolderParentId)?.name}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCreateFolder();
+                        if (e.key === "Escape") { setShowNewFolderInput(false); setNewFolderParentId(null); setNewFolderName(""); }
+                      }}
+                      placeholder={newFolderParentId ? "Subfolder name..." : "Folder name..."}
+                      className="flex-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleCreateFolder}
+                      className="px-3 py-1.5 bg-rose-900 text-white text-sm rounded hover:bg-rose-950"
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1065,57 +1249,7 @@ export default function HomePage() {
                 >
                   Unfiled
                 </button>
-                {folders.map((folder) => (
-                  <div key={folder.id} className="group flex items-center">
-                    {editingFolderId === folder.id ? (
-                      <div className="flex-1 flex gap-1">
-                        <input
-                          type="text"
-                          value={editingFolderName}
-                          onChange={(e) => setEditingFolderName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleRenameFolder(folder.id);
-                            if (e.key === "Escape") { setEditingFolderId(null); setEditingFolderName(""); }
-                          }}
-                          onBlur={() => handleRenameFolder(folder.id)}
-                          className="flex-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
-                          autoFocus
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); }}
-                          className={`flex-1 text-left px-3 py-2 rounded-lg transition-colors ${
-                            selectedFolder === folder.id && !showTrash
-                              ? "bg-rose-900/20 text-rose-400"
-                              : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                          }`}
-                        >
-                          📁 {folder.name}
-                        </button>
-                        <button
-                          onClick={() => startEditingFolder(folder)}
-                          className="p-1 text-slate-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Rename folder"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteFolder(folder.id)}
-                          className="p-1 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Delete folder"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </>
-                    )}
-                  </div>
-                ))}
+                {renderDesktopFolderTree(rootFolders, 0)}
 
                 {/* Trash */}
                 <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700">
@@ -1578,15 +1712,7 @@ export default function HomePage() {
                                     >
                                       Unfiled
                                     </button>
-                                    {folders.map((folder) => (
-                                      <button
-                                        key={folder.id}
-                                        onClick={() => handleMoveToFolder(design.id, folder.id)}
-                                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-600 ${design.folder?.id === folder.id ? 'text-rose-400' : 'text-slate-300'}`}
-                                      >
-                                        📁 {folder.name}
-                                      </button>
-                                    ))}
+                                    {renderFolderDropdown(rootFolders, design, 0)}
                                   </div>
                                 )}
                               </div>
