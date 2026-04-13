@@ -117,6 +117,8 @@ export default function HomePage() {
   const [editingFolderName, setEditingFolderName] = useState("");
   const [colorSwapDesign, setColorSwapDesign] = useState<{ id: string; name: string } | null>(null);
   const [meshConvertDesign, setMeshConvertDesign] = useState<{id: string, name: string, meshCount: number, widthInches: number, heightInches: number} | null>(null);
+  const [draggingDesignId, setDraggingDesignId] = useState<string | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
   // Selection mode state
   const [selectedDesigns, setSelectedDesigns] = useState<Set<string>>(new Set());
@@ -413,10 +415,26 @@ export default function HomePage() {
                 </button>
                 <button
                   onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); }}
+                  onDragOver={(e) => {
+                    if (!draggingDesignId) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverFolderId(folder.id);
+                  }}
+                  onDragLeave={() => setDragOverFolderId((prev) => prev === folder.id ? null : prev)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const designId = e.dataTransfer.getData("text/plain");
+                    if (designId) handleMoveToFolder(designId, folder.id);
+                    setDragOverFolderId(null);
+                    setDraggingDesignId(null);
+                  }}
                   className={`flex-1 text-left px-2 py-2 rounded-lg transition-colors ${
-                    selectedFolder === folder.id && !showTrash
-                      ? "bg-rose-900/20 text-rose-400"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    dragOverFolderId === folder.id
+                      ? "bg-rose-900/30 text-rose-300 ring-2 ring-rose-500/50"
+                      : selectedFolder === folder.id && !showTrash
+                        ? "bg-rose-900/20 text-rose-400"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   }`}
                 >
                   {depth > 0 ? "📂" : "📁"} {folder.name}
@@ -1241,10 +1259,26 @@ export default function HomePage() {
                 </button>
                 <button
                   onClick={() => { setSelectedFolder(""); setShowTrash(false); }}
+                  onDragOver={(e) => {
+                    if (!draggingDesignId) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverFolderId("unfiled");
+                  }}
+                  onDragLeave={() => setDragOverFolderId((prev) => prev === "unfiled" ? null : prev)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const designId = e.dataTransfer.getData("text/plain");
+                    if (designId) handleMoveToFolder(designId, null);
+                    setDragOverFolderId(null);
+                    setDraggingDesignId(null);
+                  }}
                   className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                    selectedFolder === "" && !showTrash
-                      ? "bg-rose-900/20 text-rose-400"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    dragOverFolderId === "unfiled"
+                      ? "bg-rose-900/30 text-rose-300 ring-2 ring-rose-500/50"
+                      : selectedFolder === "" && !showTrash
+                        ? "bg-rose-900/20 text-rose-400"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   }`}
                 >
                   Unfiled
@@ -1446,10 +1480,22 @@ export default function HomePage() {
                     return (
                       <div
                         key={design.id}
+                        draggable={!isSelectionMode}
+                        onDragStart={(e) => {
+                          setDraggingDesignId(design.id);
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", design.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingDesignId(null);
+                          setDragOverFolderId(null);
+                        }}
                         className={`bg-white dark:bg-slate-800 rounded-xl overflow-hidden border transition-colors group ${
                           isSelected
                             ? "border-rose-500 ring-2 ring-rose-500/50"
-                            : "border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-800/50"
+                            : draggingDesignId === design.id
+                              ? "border-slate-400 dark:border-slate-500 opacity-50"
+                              : "border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-800/50"
                         }`}
                         onClick={(e) => {
                           if (isSelectionMode) {
