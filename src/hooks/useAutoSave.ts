@@ -26,8 +26,8 @@ function generatePreviewImage(
   gridWidth: number,
   gridHeight: number
 ): string {
-  const maxSize = 200;
-  const cellSize = Math.max(1, Math.min(
+  const maxSize = 400;
+  const cellSize = Math.max(2, Math.min(
     Math.floor(maxSize / gridWidth),
     Math.floor(maxSize / gridHeight)
   ));

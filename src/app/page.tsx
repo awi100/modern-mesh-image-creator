@@ -8,7 +8,7 @@ import NewDesignDialog from "@/components/NewDesignDialog";
 import BatchActionBar from "@/components/BatchActionBar";
 import ColorSwapDialog from "@/components/ColorSwapDialog";
 import MeshConvertDialog from "@/components/MeshConvertDialog";
-import { exportStitchGuideImage } from "@/lib/pdf-export";
+import { exportStitchGuideImage, generateImagePdfBlob } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { useToast } from "@/components/Toast";
 import { DesignGridSkeleton } from "@/components/DesignCardSkeleton";
@@ -119,6 +119,7 @@ export default function HomePage() {
   const [meshConvertDesign, setMeshConvertDesign] = useState<{id: string, name: string, meshCount: number, widthInches: number, heightInches: number} | null>(null);
   const [draggingDesignId, setDraggingDesignId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const [downloadingFolderId, setDownloadingFolderId] = useState<string | null>(null);
 
   // Selection mode state
   const [selectedDesigns, setSelectedDesigns] = useState<Set<string>>(new Set());
@@ -332,6 +333,59 @@ export default function HomePage() {
     }
   };
 
+  const handleDownloadFolderPdfs = async (folderId: string, folderName: string) => {
+    setDownloadingFolderId(folderId);
+    try {
+      // Fetch designs in this folder (includes subfolders via API)
+      const listRes = await fetch(`/api/designs?folderId=${folderId}`);
+      if (!listRes.ok) throw new Error("Failed to fetch designs");
+      const designList: Design[] = await listRes.json();
+
+      if (designList.length === 0) {
+        showToast("No designs in this folder", "error");
+        return;
+      }
+
+      showToast(`Generating ${designList.length} PDF${designList.length > 1 ? "s" : ""}...`, "success");
+
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      for (const design of designList) {
+        // Fetch full design with grid data
+        const res = await fetch(`/api/designs/${design.id}`);
+        if (!res.ok) continue;
+        const fullDesign = await res.json();
+
+        const pdfData = generateImagePdfBlob({
+          grid: fullDesign.grid,
+          widthInches: fullDesign.widthInches,
+          heightInches: fullDesign.heightInches,
+          designName: fullDesign.name,
+        });
+
+        if (pdfData) {
+          zip.file(`${fullDesign.name.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`, pdfData);
+        }
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${folderName.replace(/[/\\?%*:|"<>]/g, "_")}_pdfs.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showToast(`Downloaded ${designList.length} PDF${designList.length > 1 ? "s" : ""}`, "success");
+    } catch (error) {
+      console.error("Error downloading folder PDFs:", error);
+      showToast("Failed to download PDFs", "error");
+    } finally {
+      setDownloadingFolderId(null);
+    }
+  };
+
   const handleDeleteFolder = async (folderId: string) => {
     if (!confirm("Delete this folder? Designs will be moved to Unfiled.")) return;
 
@@ -447,6 +501,17 @@ export default function HomePage() {
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+                {/* Download all PDFs */}
+                <button
+                  onClick={() => handleDownloadFolderPdfs(folder.id, folder.name)}
+                  disabled={downloadingFolderId === folder.id}
+                  className={`p-1 text-slate-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity ${downloadingFolderId === folder.id ? "!opacity-100 animate-pulse" : ""}`}
+                  title="Download all PDFs"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </button>
                 <button
@@ -1536,7 +1601,7 @@ export default function HomePage() {
                                 <img
                                   src={design.previewImageUrl}
                                   alt={design.name}
-                                  className="w-full h-full object-contain cursor-pointer"
+                                  className="w-full h-full object-contain cursor-pointer" style={{ imageRendering: "pixelated" }}
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-slate-600 cursor-pointer">
@@ -1552,7 +1617,7 @@ export default function HomePage() {
                                 <img
                                   src={design.previewImageUrl}
                                   alt={design.name}
-                                  className="w-full h-full object-contain"
+                                  className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }}
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-slate-600">
