@@ -536,7 +536,7 @@ function createPrintOrderDoc(options: PrintOrderOptions): jsPDF | null {
     ["Grid Size", `${gridWidth} × ${gridHeight} stitches`],
     ["Vertical Grid Lines", `${gridWidth + 1}`],
     ["Horizontal Grid Lines", `${gridHeight + 1}`],
-    ["Canvas Size", `${widthInches}" × ${heightInches}"`],
+    ["Canvas Size", `${widthInches + 4}" × ${heightInches + 4}"`],
     ["Colors", `${colorCount}`],
     ["Total Stitches", totalStitches.toLocaleString()],
   ];
