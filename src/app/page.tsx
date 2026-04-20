@@ -1053,6 +1053,18 @@ export default function HomePage() {
               )}
             </div>
 
+            {/* Refresh */}
+            <Tooltip label="Refresh" position="bottom">
+              <button
+                onClick={() => { mutateDesigns(); mutate("/api/folders"); }}
+                className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all flex-shrink-0"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </Tooltip>
+
             {/* Select button */}
             {!showTrash && designs.length > 0 && (
               <Tooltip label={isSelectionMode ? "Cancel selection" : "Select designs"} position="bottom">
