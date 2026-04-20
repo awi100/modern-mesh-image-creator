@@ -1607,7 +1607,7 @@ export default function HomePage() {
                           setDraggingDesignId(null);
                           setDragOverFolderId(null);
                         }}
-                        className={`bg-white dark:bg-slate-800 rounded-xl overflow-hidden border transition-colors group ${
+                        className={`bg-white dark:bg-slate-800 rounded-xl overflow-visible border transition-colors group ${
                           isSelected
                             ? "border-rose-500 ring-2 ring-rose-500/50"
                             : draggingDesignId === design.id
@@ -1622,7 +1622,7 @@ export default function HomePage() {
                         }}
                       >
                         {/* Preview */}
-                        <div className="block aspect-square relative bg-slate-900">
+                        <div className="block aspect-square relative bg-slate-900 overflow-hidden rounded-t-xl">
                           {/* Selection checkbox */}
                           {isSelectionMode && (
                             <div className="absolute top-2 left-2 z-10">
