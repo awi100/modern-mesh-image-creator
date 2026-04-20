@@ -887,6 +887,52 @@ export default function HomePage() {
     }
   };
 
+  const handleBatchExportPdfs = async () => {
+    const designIds = Array.from(selectedDesigns);
+    if (designIds.length === 0) return;
+
+    showToast(`Generating ${designIds.length} PDF${designIds.length > 1 ? "s" : ""}...`, "success");
+
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      for (const id of designIds) {
+        const res = await fetch(`/api/designs/${id}`);
+        if (!res.ok) continue;
+        const fullDesign = await res.json();
+
+        const pdfData = generatePrintOrderPdfBlob({
+          grid: fullDesign.grid,
+          widthInches: fullDesign.widthInches,
+          heightInches: fullDesign.heightInches,
+          meshCount: fullDesign.meshCount,
+          gridWidth: fullDesign.gridWidth,
+          gridHeight: fullDesign.gridHeight,
+          designName: fullDesign.name,
+          colorsUsed: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed) : null,
+        });
+
+        if (pdfData) {
+          zip.file(`${fullDesign.name.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`, pdfData);
+        }
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `print_orders_${designIds.length}_designs.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showToast(`Downloaded ${designIds.length} print order PDF${designIds.length > 1 ? "s" : ""}`, "success");
+    } catch (error) {
+      console.error("Error exporting PDFs:", error);
+      showToast("Failed to export PDFs", "error");
+    }
+  };
+
   const handleBatchExportKits = async () => {
     try {
       const response = await fetch("/api/designs/batch/kits", {
@@ -1936,6 +1982,7 @@ export default function HomePage() {
           onRemoveTags={handleBatchRemoveTags}
           onDelete={handleBatchDelete}
           onExportKits={handleBatchExportKits}
+          onExportPdfs={handleBatchExportPdfs}
           onCancel={clearSelection}
           folders={folders}
           tags={tags}
