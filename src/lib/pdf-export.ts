@@ -381,79 +381,14 @@ export function generateFullResImage(
 }
 
 /**
- * Export a high-res PDF containing only the design image (no grid, no legend, no text).
- * Renders at 300 DPI for print quality.
+ * Shared helper: render a high-res image PDF page (300 DPI, no grid).
+ * Returns the jsPDF doc without saving.
  */
-export function exportImagePdf(options: {
+function createImagePdfDoc(options: {
   grid: PixelGrid;
   widthInches: number;
   heightInches: number;
-  designName: string;
-}): void {
-  const { grid, widthInches, heightInches, designName } = options;
-
-  const gridHeight = grid.length;
-  const gridWidth = grid[0]?.length || 0;
-  if (gridWidth === 0 || gridHeight === 0) return;
-
-  const pdfDpi = 300;
-  const pxWidth = Math.round(widthInches * pdfDpi);
-  const pxHeight = Math.round(heightInches * pdfDpi);
-
-  const cellW = pxWidth / gridWidth;
-  const cellH = pxHeight / gridHeight;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = pxWidth;
-  canvas.height = pxHeight;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
-  // White background
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillRect(0, 0, pxWidth, pxHeight);
-
-  // Draw each stitch
-  for (let y = 0; y < gridHeight; y++) {
-    for (let x = 0; x < gridWidth; x++) {
-      const dmcNumber = grid[y][x];
-      if (dmcNumber === null) continue;
-
-      const color = getDmcColorByNumber(dmcNumber);
-      if (!color) continue;
-
-      ctx.fillStyle = color.hex;
-      ctx.fillRect(
-        Math.floor(x * cellW),
-        Math.floor(y * cellH),
-        Math.ceil(cellW),
-        Math.ceil(cellH)
-      );
-    }
-  }
-
-  const imgData = canvas.toDataURL("image/jpeg", 0.95);
-
-  const doc = new jsPDF({
-    orientation: widthInches > heightInches ? "landscape" : "portrait",
-    unit: "in",
-    format: [widthInches, heightInches],
-  });
-
-  doc.addImage(imgData, "JPEG", 0, 0, widthInches, heightInches);
-  doc.save(`${designName.replace(/\s+/g, "_")}_print.pdf`);
-}
-
-/**
- * Generate a high-res image PDF as an ArrayBuffer (for zipping multiple PDFs).
- * Same rendering as exportImagePdf but returns data instead of downloading.
- */
-export function generateImagePdfBlob(options: {
-  grid: PixelGrid;
-  widthInches: number;
-  heightInches: number;
-  designName: string;
-}): ArrayBuffer | null {
+}): jsPDF | null {
   const { grid, widthInches, heightInches } = options;
 
   const gridHeight = grid.length;
@@ -503,6 +438,159 @@ export function generateImagePdfBlob(options: {
   });
 
   doc.addImage(imgData, "JPEG", 0, 0, widthInches, heightInches);
+  return doc;
+}
+
+/**
+ * Export a high-res PDF containing only the design image (no grid, no legend, no text).
+ * Renders at 300 DPI for print quality.
+ */
+export function exportImagePdf(options: {
+  grid: PixelGrid;
+  widthInches: number;
+  heightInches: number;
+  designName: string;
+}): void {
+  const doc = createImagePdfDoc(options);
+  if (!doc) return;
+  doc.save(`${options.designName.replace(/\s+/g, "_")}_print.pdf`);
+}
+
+/**
+ * Generate a high-res image PDF as an ArrayBuffer (for zipping multiple PDFs).
+ */
+export function generateImagePdfBlob(options: {
+  grid: PixelGrid;
+  widthInches: number;
+  heightInches: number;
+  designName: string;
+}): ArrayBuffer | null {
+  const doc = createImagePdfDoc(options);
+  if (!doc) return null;
+  return doc.output("arraybuffer");
+}
+
+/**
+ * Options for print order PDF (image + spec sheet).
+ */
+interface PrintOrderOptions {
+  grid: PixelGrid;
+  widthInches: number;
+  heightInches: number;
+  meshCount: number;
+  gridWidth: number;
+  gridHeight: number;
+  designName: string;
+  colorsUsed?: string[] | null;
+}
+
+/**
+ * Shared helper: create a 2-page print order PDF.
+ * Page 1: high-res image at 300 DPI (no grid).
+ * Page 2: spec sheet with all printer-required info.
+ */
+function createPrintOrderDoc(options: PrintOrderOptions): jsPDF | null {
+  const { grid, widthInches, heightInches, meshCount, gridWidth, gridHeight, designName, colorsUsed } = options;
+
+  const doc = createImagePdfDoc({ grid, widthInches, heightInches });
+  if (!doc) return null;
+
+  // Count colors and stitches from grid
+  const colorSet = new Set<string>();
+  let totalStitches = 0;
+  for (let y = 0; y < grid.length; y++) {
+    for (let x = 0; x < (grid[0]?.length || 0); x++) {
+      const c = grid[y][x];
+      if (c !== null) {
+        colorSet.add(c);
+        totalStitches++;
+      }
+    }
+  }
+  const colorCount = colorsUsed ? colorsUsed.length : colorSet.size;
+
+  // Page 2: spec sheet on US Letter
+  doc.addPage("letter", "portrait");
+
+  // Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(24);
+  doc.setTextColor(30, 30, 30);
+  doc.text(designName, 0.75, 1);
+
+  // Subtitle
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(120, 120, 120);
+  doc.text("Canvas Print Specification Sheet", 0.75, 1.35);
+
+  // Horizontal rule
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.01);
+  doc.line(0.75, 1.5, 7.75, 1.5);
+
+  // Spec rows
+  const specs: [string, string][] = [
+    ["Pattern Dimensions", `${widthInches}" × ${heightInches}"`],
+    ["Mesh Count", `${meshCount} CT`],
+    ["Grid Size", `${gridWidth} × ${gridHeight} stitches`],
+    ["Vertical Grid Lines", `${gridWidth + 1}`],
+    ["Horizontal Grid Lines", `${gridHeight + 1}`],
+    ["Canvas Size", `${widthInches}" × ${heightInches}"`],
+    ["Colors", `${colorCount}`],
+    ["Total Stitches", totalStitches.toLocaleString()],
+  ];
+
+  let y = 2.0;
+  for (const [label, value] of specs) {
+    // Label
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(120, 120, 120);
+    doc.text(label, 0.75, y);
+
+    // Value
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(30, 30, 30);
+    doc.text(value, 3.25, y);
+
+    // Light separator
+    doc.setDrawColor(230, 230, 230);
+    doc.line(0.75, y + 0.12, 7.75, y + 0.12);
+
+    y += 0.45;
+  }
+
+  // Footer
+  const date = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(160, 160, 160);
+  doc.text(`Generated ${date}`, 0.75, 10.25);
+
+  return doc;
+}
+
+/**
+ * Export a 2-page print order PDF (image + spec sheet) and download it.
+ */
+export function exportPrintOrderPdf(options: PrintOrderOptions): void {
+  const doc = createPrintOrderDoc(options);
+  if (!doc) return;
+  doc.save(`${options.designName.replace(/\s+/g, "_")}_print_order.pdf`);
+}
+
+/**
+ * Generate a 2-page print order PDF as an ArrayBuffer (for zipping).
+ */
+export function generatePrintOrderPdfBlob(options: PrintOrderOptions): ArrayBuffer | null {
+  const doc = createPrintOrderDoc(options);
+  if (!doc) return null;
   return doc.output("arraybuffer");
 }
 

@@ -8,7 +8,7 @@ import NewDesignDialog from "@/components/NewDesignDialog";
 import BatchActionBar from "@/components/BatchActionBar";
 import ColorSwapDialog from "@/components/ColorSwapDialog";
 import MeshConvertDialog from "@/components/MeshConvertDialog";
-import { exportStitchGuideImage, generateImagePdfBlob } from "@/lib/pdf-export";
+import { exportStitchGuideImage, generatePrintOrderPdfBlob } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { useToast } from "@/components/Toast";
 import { DesignGridSkeleton } from "@/components/DesignCardSkeleton";
@@ -357,11 +357,15 @@ export default function HomePage() {
         if (!res.ok) continue;
         const fullDesign = await res.json();
 
-        const pdfData = generateImagePdfBlob({
+        const pdfData = generatePrintOrderPdfBlob({
           grid: fullDesign.grid,
           widthInches: fullDesign.widthInches,
           heightInches: fullDesign.heightInches,
+          meshCount: fullDesign.meshCount,
+          gridWidth: fullDesign.gridWidth,
+          gridHeight: fullDesign.gridHeight,
           designName: fullDesign.name,
+          colorsUsed: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed) : null,
         });
 
         if (pdfData) {

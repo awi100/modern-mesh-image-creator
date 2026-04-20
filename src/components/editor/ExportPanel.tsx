@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { exportArtworkPdf, exportImagePdf, exportStitchGuideImage, generatePreviewImage, generateFullResImage, generateOneToOneImage } from "@/lib/pdf-export";
+import { exportArtworkPdf, exportImagePdf, exportPrintOrderPdf, exportStitchGuideImage, generatePreviewImage, generateFullResImage, generateOneToOneImage } from "@/lib/pdf-export";
 import { useToast } from "@/components/Toast";
 
 interface ExportPanelProps {
@@ -62,6 +62,26 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
     } catch (error) {
       console.error("Export error:", error);
       showToast("Failed to export PDF. Please try again.", "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPrintOrder = async () => {
+    setExporting(true);
+    try {
+      exportPrintOrderPdf({
+        grid,
+        widthInches,
+        heightInches,
+        meshCount,
+        gridWidth,
+        gridHeight,
+        designName,
+      });
+    } catch (error) {
+      console.error("Export error:", error);
+      showToast("Failed to export Print Order PDF. Please try again.", "error");
     } finally {
       setExporting(false);
     }
@@ -187,6 +207,23 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
                 <p className="text-slate-900 dark:text-white font-medium">Image PDF (300 DPI)</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   High-res print PDF, image only
+                </p>
+              </div>
+            </div>
+          </button>
+
+          {/* Print Order PDF */}
+          <button
+            onClick={handleExportPrintOrder}
+            disabled={exporting}
+            className="w-full p-4 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-800/30 transition-colors text-left disabled:opacity-50 border border-emerald-200 dark:border-emerald-700"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🖨️</span>
+              <div>
+                <p className="text-slate-900 dark:text-white font-medium">Print Order PDF</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  2-page PDF: image + spec sheet for canvas printer
                 </p>
               </div>
             </div>

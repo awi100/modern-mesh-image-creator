@@ -13,6 +13,7 @@ import {
 import { Breadcrumb } from "@/components/Breadcrumb";
 import MeshConvertDialog from "@/components/MeshConvertDialog";
 import { searchDmcColors, getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { exportPrintOrderPdf } from "@/lib/pdf-export";
 
 interface BackupColorInfo {
   dmcNumber: string;
@@ -161,6 +162,7 @@ export default function KitPage() {
   }>>([]);
   const [loadingFinishing, setLoadingFinishing] = useState(false);
   const [showMeshConvert, setShowMeshConvert] = useState(false);
+  const [exportingPrintOrder, setExportingPrintOrder] = useState(false);
 
   // Search for backup color suggestions
   const backupColorSuggestions = useMemo(() => {
@@ -245,6 +247,31 @@ export default function KitPage() {
       }
     } catch (error) {
       console.error("Error fetching color usage:", error);
+    }
+  };
+
+  const handleExportPrintOrder = async () => {
+    if (!designId) return;
+    setExportingPrintOrder(true);
+    try {
+      const res = await fetch(`/api/designs/${designId}`);
+      if (!res.ok) throw new Error("Failed to fetch design");
+      const fullDesign = await res.json();
+
+      exportPrintOrderPdf({
+        grid: fullDesign.grid,
+        widthInches: fullDesign.widthInches,
+        heightInches: fullDesign.heightInches,
+        meshCount: fullDesign.meshCount,
+        gridWidth: fullDesign.gridWidth,
+        gridHeight: fullDesign.gridHeight,
+        designName: fullDesign.name,
+        colorsUsed: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed) : null,
+      });
+    } catch (error) {
+      console.error("Export error:", error);
+    } finally {
+      setExportingPrintOrder(false);
     }
   };
 
@@ -511,6 +538,16 @@ export default function KitPage() {
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </button>
+            <button
+              onClick={handleExportPrintOrder}
+              disabled={exportingPrintOrder}
+              className={`p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-700 rounded-lg transition-colors ${exportingPrintOrder ? "animate-pulse" : ""}`}
+              title="Print Order PDF"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
             </button>
             <button
