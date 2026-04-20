@@ -101,7 +101,7 @@ export function kMeansClusterLab(
   k: number,
   options: { maxIterations?: number; seed?: number } = {}
 ): { r: number; g: number; b: number }[] {
-  const { maxIterations = 30, seed } = options;
+  const { maxIterations = 50, seed } = options;
   const rng = seed !== undefined ? seededRandom(seed) : Math.random;
 
   if (colors.length === 0 || k <= 0) return [];

@@ -129,76 +129,48 @@ export default function CustomDesignPage() {
   const canvasWidth = useCustomSize ? customWidth : CANVAS_PRESETS[selectedPreset].width;
   const canvasHeight = useCustomSize ? customHeight : CANVAS_PRESETS[selectedPreset].height;
 
-  // Handle file upload
+  // Shared file validation and loading
+  const loadImageFile = useCallback((file: File): boolean => {
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showToast("Please select a valid image file (JPEG, PNG, GIF, or WebP)", "error");
+      return false;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      showToast(`File is too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`, "error");
+      return false;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const url = event.target?.result as string;
+      setImageUrl(url);
+
+      const img = new Image();
+      img.onload = () => {
+        setOriginalImage(img);
+        setCropRegion({ x: 0, y: 0, width: 1, height: 1 });
+        setBgColor(null);
+        setCurrentStep("prepare");
+      };
+      img.src = url;
+    };
+    reader.readAsDataURL(file);
+    return true;
+  }, [showToast]);
+
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Validate file type
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      showToast("Please select a valid image file (JPEG, PNG, GIF, or WebP)", "error");
+    if (!loadImageFile(file)) {
       e.target.value = "";
-      return;
     }
+  }, [loadImageFile]);
 
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      showToast(`File is too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`, "error");
-      e.target.value = "";
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const url = event.target?.result as string;
-      setImageUrl(url);
-
-      const img = new Image();
-      img.onload = () => {
-        setOriginalImage(img);
-        setCropRegion({ x: 0, y: 0, width: 1, height: 1 });
-        setBgColor(null);
-        setCurrentStep("prepare");
-      };
-      img.src = url;
-    };
-    reader.readAsDataURL(file);
-  }, [showToast]);
-
-  // Handle drop
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      showToast("Please select a valid image file (JPEG, PNG, GIF, or WebP)", "error");
-      return;
-    }
-
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      showToast(`File is too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`, "error");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const url = event.target?.result as string;
-      setImageUrl(url);
-
-      const img = new Image();
-      img.onload = () => {
-        setOriginalImage(img);
-        setCropRegion({ x: 0, y: 0, width: 1, height: 1 });
-        setBgColor(null);
-        setCurrentStep("prepare");
-      };
-      img.src = url;
-    };
-    reader.readAsDataURL(file);
-  }, [showToast]);
+    if (file) loadImageFile(file);
+  }, [loadImageFile]);
 
   // Crop interaction handlers
   const handleCropMouseDown = useCallback((e: React.MouseEvent, type: "move" | "resize", handle?: string) => {
@@ -1250,7 +1222,7 @@ export default function CustomDesignPage() {
             {/* Navigation - full width */}
             <div className="lg:col-span-2 flex gap-3">
               <button
-                onClick={() => setCurrentStep("settings")}
+                onClick={() => { setColorMappings(new Map()); setCurrentStep("settings"); }}
                 className="flex-1 px-4 py-3 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600"
               >
                 Back
