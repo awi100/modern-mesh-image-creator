@@ -996,7 +996,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900 overflow-x-hidden">
       {/* Header */}
-      <header className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-40">
+      <header className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-40 safe-area-top">
         <div className="max-w-7xl mx-auto px-3 md:px-4 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-shrink-0">
             <div className="w-9 h-9 md:w-10 md:h-10 bg-gradient-to-br from-rose-900 to-rose-800 rounded-xl flex items-center justify-center flex-shrink-0">

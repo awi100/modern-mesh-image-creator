@@ -753,7 +753,7 @@ export default function InventoryPage() {
   return (
     <div className="min-h-screen bg-slate-900 overflow-x-hidden">
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40">
+      <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40 safe-area-top">
         <div className="max-w-7xl mx-auto px-3 md:px-4 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <Link
