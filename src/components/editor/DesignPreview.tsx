@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useEditorStore } from "@/lib/store";
+import Tooltip from "@/components/Tooltip";
 import {
   generateStitchPreviewDataUrl,
   generateCanvasPreviewDataUrl,
@@ -239,31 +240,34 @@ export default function DesignPreview({ onClose }: DesignPreviewProps) {
 
           {/* Zoom Controls */}
           <div className="flex items-center gap-1 ml-auto">
-            <button
-              onClick={handleZoomOut}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded"
-              title="Zoom out"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-              </svg>
-            </button>
-            <button
-              onClick={handleResetZoom}
-              className="px-2 py-1 text-xs text-slate-300 hover:bg-slate-700 rounded"
-              title="Reset zoom"
-            >
-              {Math.round(zoom * 100)}%
-            </button>
-            <button
-              onClick={handleZoomIn}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded"
-              title="Zoom in"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
+            <Tooltip label="Zoom out" position="bottom">
+              <button
+                onClick={handleZoomOut}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
+              </button>
+            </Tooltip>
+            <Tooltip label="Reset zoom" position="bottom">
+              <button
+                onClick={handleResetZoom}
+                className="px-2 py-1 text-xs text-slate-300 hover:bg-slate-700 rounded"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+            </Tooltip>
+            <Tooltip label="Zoom in" position="bottom">
+              <button
+                onClick={handleZoomIn}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </Tooltip>
           </div>
         </div>
 

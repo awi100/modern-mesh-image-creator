@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useEditorStore, Tool } from "@/lib/store";
+import Tooltip from "@/components/Tooltip";
 
 interface ToolbarProps {
   onEnterPasteMode?: () => void;
@@ -199,22 +200,24 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
 
         {/* Undo/Redo - hidden on mobile (shown in bottom bar) */}
         <div className="hidden md:flex items-center gap-1">
-          <button
-            onClick={undo}
-            disabled={!canUndo()}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Undo (Ctrl+Z)"
-          >
-            ↩️
-          </button>
-          <button
-            onClick={redo}
-            disabled={!canRedo()}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Redo (Ctrl+Y)"
-          >
-            ↪️
-          </button>
+          <Tooltip label="Undo" position="bottom">
+            <button
+              onClick={undo}
+              disabled={!canUndo()}
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ↩️
+            </button>
+          </Tooltip>
+          <Tooltip label="Redo" position="bottom">
+            <button
+              onClick={redo}
+              disabled={!canRedo()}
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ↪️
+            </button>
+          </Tooltip>
         </div>
 
         <div className="w-px h-8 bg-slate-300 dark:bg-slate-600 hidden md:block" />
@@ -224,106 +227,115 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
           <span className="text-slate-600 dark:text-slate-300 text-xs md:text-sm w-12 md:w-16 text-center">
             {Math.round(zoom * 100)}%
           </span>
-          <button
-            onClick={resetView}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 touch-manipulation"
-            title="Reset View"
-          >
-            🔄
-          </button>
+          <Tooltip label="Reset View" position="bottom">
+            <button
+              onClick={resetView}
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 touch-manipulation"
+            >
+              🔄
+            </button>
+          </Tooltip>
         </div>
 
         <div className="w-px h-8 bg-slate-300 dark:bg-slate-600" />
 
         {/* Grid toggle */}
-        <button
-          onClick={() => setShowGrid(!showGrid)}
-          className={`p-2 rounded-lg transition-colors touch-manipulation ${
-            showGrid
-              ? "bg-rose-900 text-white"
-              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
-          }`}
-          title="Toggle Grid"
-        >
-          #️⃣
-        </button>
+        <Tooltip label="Toggle Grid" position="bottom">
+          <button
+            onClick={() => setShowGrid(!showGrid)}
+            className={`p-2 rounded-lg transition-colors touch-manipulation ${
+              showGrid
+                ? "bg-rose-900 text-white"
+                : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+            }`}
+          >
+            #️⃣
+          </button>
+        </Tooltip>
 
         {/* Symbols toggle */}
-        <button
-          onClick={() => setShowSymbols(!showSymbols)}
-          className={`p-2 rounded-lg transition-colors touch-manipulation ${
-            showSymbols
-              ? "bg-rose-900 text-white"
-              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
-          }`}
-          title="Toggle Symbols"
-        >
-          <span className="text-base">Aa</span>
-        </button>
+        <Tooltip label="Toggle Symbols" position="bottom">
+          <button
+            onClick={() => setShowSymbols(!showSymbols)}
+            className={`p-2 rounded-lg transition-colors touch-manipulation ${
+              showSymbols
+                ? "bg-rose-900 text-white"
+                : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+            }`}
+          >
+            <span className="text-base">Aa</span>
+          </button>
+        </Tooltip>
 
         <div className="w-px h-8 bg-slate-300 dark:bg-slate-600 hidden sm:block" />
 
         {/* Transform - hidden on very small screens */}
         <div className="hidden sm:flex items-center gap-1">
-          <button
-            onClick={mirrorHorizontal}
-            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
-            title="Mirror Horizontal"
-          >
-            <span>↔️</span>
-            <span className="text-xs hidden lg:inline">Flip H</span>
-          </button>
-          <button
-            onClick={mirrorVertical}
-            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
-            title="Mirror Vertical"
-          >
-            <span>↕️</span>
-            <span className="text-xs hidden lg:inline">Flip V</span>
-          </button>
-          <button
-            onClick={() => rotate90(true)}
-            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
-            title="Rotate 90° Clockwise"
-          >
-            <span>↻</span>
-            <span className="text-xs hidden lg:inline">Rotate</span>
-          </button>
+          <Tooltip label="Flip Horizontal" position="bottom">
+            <button
+              onClick={mirrorHorizontal}
+              className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
+            >
+              <span>↔️</span>
+              <span className="text-xs hidden lg:inline">Flip H</span>
+            </button>
+          </Tooltip>
+          <Tooltip label="Flip Vertical" position="bottom">
+            <button
+              onClick={mirrorVertical}
+              className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
+            >
+              <span>↕️</span>
+              <span className="text-xs hidden lg:inline">Flip V</span>
+            </button>
+          </Tooltip>
+          <Tooltip label="Rotate 90°" position="bottom">
+            <button
+              onClick={() => rotate90(true)}
+              className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1 touch-manipulation"
+            >
+              <span>↻</span>
+              <span className="text-xs hidden lg:inline">Rotate</span>
+            </button>
+          </Tooltip>
         </div>
 
         {/* Clipboard actions - always visible */}
         <div className="w-px h-8 bg-slate-300 dark:bg-slate-600 hidden sm:block" />
         <div className="hidden sm:flex items-center gap-1">
-          <button
-            onClick={copySelectionToClipboard}
-            disabled={!selection}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
-            title="Copy (Ctrl+C)"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-          </button>
-          <button
-            onClick={cutSelectionToClipboard}
-            disabled={!selection}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
-            title="Cut (Ctrl+X)"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
-            </svg>
-          </button>
-          <button
-            onClick={onEnterPasteMode}
-            disabled={!clipboard}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
-            title="Paste (Ctrl+V) - Click to place"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          </button>
+          <Tooltip label="Copy" position="bottom">
+            <button
+              onClick={copySelectionToClipboard}
+              disabled={!selection}
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
+          </Tooltip>
+          <Tooltip label="Cut" position="bottom">
+            <button
+              onClick={cutSelectionToClipboard}
+              disabled={!selection}
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+              </svg>
+            </button>
+          </Tooltip>
+          <Tooltip label="Paste" position="bottom">
+            <button
+              onClick={onEnterPasteMode}
+              disabled={!clipboard}
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </button>
+          </Tooltip>
         </div>
 
         {/* Selection actions - contextual when selection exists */}
