@@ -8,6 +8,7 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 import { triggerSessionExpired } from "@/components/SessionExpiredModal";
+import Tooltip from "@/components/Tooltip";
 import { OfflineStatusIndicator } from "@/components/OfflineStatusIndicator";
 import { useToast } from "@/components/Toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -275,71 +276,78 @@ export default function Header({
         <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
           {/* Show icons on mobile, text on desktop */}
           {designId && (
-            <Link
-              href={`/design/${designId}/kit`}
-              className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation flex items-center"
-              title="Kit"
+            <Tooltip label="Kit" position="bottom">
+              <Link
+                href={`/design/${designId}/kit`}
+                className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation flex items-center"
+              >
+                <span className="md:hidden">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                </span>
+                <span className="hidden md:inline">Kit</span>
+              </Link>
+            </Tooltip>
+          )}
+          <Tooltip label="Text" position="bottom">
+            <button
+              onClick={onShowTextDialog}
+              className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
+            >
+              <span className="md:hidden">Aa</span>
+              <span className="hidden md:inline">Text</span>
+            </button>
+          </Tooltip>
+          <Tooltip label="Shapes" position="bottom">
+            <button
+              onClick={onShowShapeDialog}
+              className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
             >
               <span className="md:hidden">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                 </svg>
               </span>
-              <span className="hidden md:inline">Kit</span>
-            </Link>
-          )}
-          <button
-            onClick={onShowTextDialog}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
-            title="Add Text"
-          >
-            <span className="md:hidden">Aa</span>
-            <span className="hidden md:inline">Text</span>
-          </button>
-          <button
-            onClick={onShowShapeDialog}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
-            title="Add Shape"
-          >
-            <span className="md:hidden">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
-            </span>
-            <span className="hidden md:inline">Shapes</span>
-          </button>
-          <button
-            onClick={onShowImageImport}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
-            title="Import Image"
-          >
-            <span className="md:hidden">📷</span>
-            <span className="hidden md:inline">Import</span>
-          </button>
-          <button
-            onClick={onShowCanvasResize}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
-            title="Resize Canvas"
-          >
-            <span className="md:hidden">📐</span>
-            <span className="hidden md:inline">Resize</span>
-          </button>
-          <button
-            onClick={onShowExport}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
-            title="Export"
-          >
-            <span className="md:hidden">📤</span>
-            <span className="hidden md:inline">Export</span>
-          </button>
-          <button
-            onClick={onShowDesignPreview}
-            className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
-            title="Preview Design"
-          >
-            <span className="md:hidden">👁️</span>
-            <span className="hidden md:inline">Preview</span>
-          </button>
+              <span className="hidden md:inline">Shapes</span>
+            </button>
+          </Tooltip>
+          <Tooltip label="Import" position="bottom">
+            <button
+              onClick={onShowImageImport}
+              className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
+            >
+              <span className="md:hidden">📷</span>
+              <span className="hidden md:inline">Import</span>
+            </button>
+          </Tooltip>
+          <Tooltip label="Resize" position="bottom">
+            <button
+              onClick={onShowCanvasResize}
+              className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
+            >
+              <span className="md:hidden">📐</span>
+              <span className="hidden md:inline">Resize</span>
+            </button>
+          </Tooltip>
+          <Tooltip label="Export" position="bottom">
+            <button
+              onClick={onShowExport}
+              className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
+            >
+              <span className="md:hidden">📤</span>
+              <span className="hidden md:inline">Export</span>
+            </button>
+          </Tooltip>
+          <Tooltip label="Preview" position="bottom">
+            <button
+              onClick={onShowDesignPreview}
+              className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 text-sm touch-manipulation"
+            >
+              <span className="md:hidden">👁️</span>
+              <span className="hidden md:inline">Preview</span>
+            </button>
+          </Tooltip>
 
           {/* Offline status indicator */}
           <div className="hidden sm:block">
