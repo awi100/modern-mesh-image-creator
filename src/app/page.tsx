@@ -52,6 +52,9 @@ interface Design {
   totalStitches: number;
   totalSold: number;
   totalKitsSold: number;
+  printVersionOf: string | null;
+  hasPrintVersion: boolean;
+  printVersionId: string | null;
 }
 
 // Calculate days remaining before permanent deletion
@@ -637,6 +640,27 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error("Error updating canvas count:", error);
+    }
+  };
+
+  const handleCreatePrintVersion = async (designId: string) => {
+    try {
+      const response = await fetch(`/api/designs/${designId}/print-version`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        mutateDesigns();
+        showToast("Print version created", "success");
+        router.push(`/design/${data.id}/colors`);
+      } else if (response.status === 409) {
+        const data = await response.json();
+        router.push(`/design/${data.id}/colors`);
+      }
+    } catch (error) {
+      console.error("Error creating print version:", error);
+      showToast("Failed to create print version", "error");
     }
   };
 
@@ -1701,8 +1725,8 @@ export default function HomePage() {
                               </span>
                             </div>
                           )}
-                          {/* Mesh count badge */}
-                          <div className="absolute bottom-2 left-2 pointer-events-none">
+                          {/* Mesh count + print version badges */}
+                          <div className="absolute bottom-2 left-2 pointer-events-none flex gap-1">
                             <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
                               design.meshCount === 18 ? "bg-amber-900/80 text-amber-300" :
                               design.meshCount === 16 ? "bg-teal-900/80 text-teal-300" :
@@ -1710,6 +1734,11 @@ export default function HomePage() {
                             }`}>
                               {design.meshCount}ct
                             </span>
+                            {design.printVersionOf && (
+                              <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-300">
+                                Print
+                              </span>
+                            )}
                           </div>
                           {/* Needs order badge - only show for non-draft designs with missing colors */}
                           {!design.isDraft && getMissingColors(design).length > 0 && (
@@ -1967,6 +1996,33 @@ export default function HomePage() {
                                     >
                                       Convert Mesh
                                     </button>
+                                    {!design.printVersionOf && (
+                                      design.hasPrintVersion ? (
+                                        <Link
+                                          href={`/design/${design.printVersionId}/colors`}
+                                          onClick={() => setCardMenuDesignId(null)}
+                                          className="block px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-600"
+                                        >
+                                          Edit Print Version
+                                        </Link>
+                                      ) : (
+                                        <button
+                                          onClick={() => { handleCreatePrintVersion(design.id); setCardMenuDesignId(null); }}
+                                          className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600"
+                                        >
+                                          Create Print Version
+                                        </button>
+                                      )
+                                    )}
+                                    {design.printVersionOf && (
+                                      <Link
+                                        href={`/design/${design.id}/colors`}
+                                        onClick={() => setCardMenuDesignId(null)}
+                                        className="block px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-600"
+                                      >
+                                        Edit Colors
+                                      </Link>
+                                    )}
                                   </div>
                                 )}
                               </div>

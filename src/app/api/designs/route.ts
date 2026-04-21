@@ -79,6 +79,9 @@ export async function GET(request: NextRequest) {
             tag: true,
           },
         },
+        printVersion: {
+          select: { id: true },
+        },
       },
       orderBy: { updatedAt: "desc" },
     });
@@ -88,6 +91,8 @@ export async function GET(request: NextRequest) {
       ...design,
       pixelData: undefined, // Don't send pixel data in list
       tags: design.tags.map((dt) => dt.tag),
+      hasPrintVersion: !!design.printVersion,
+      printVersionId: design.printVersion?.id || null,
     }));
 
     return NextResponse.json(result);

@@ -137,6 +137,13 @@ model Design {
   // Offline sync version (incremented on each save)
   version               Int       @default(1)
 
+  // Print version relationship
+  // A print version is a color-adjusted copy of a design for sending to the printer.
+  // The original design drives kit/inventory. The print version is for export files only.
+  printVersionOf       String?   @unique
+  printVersionOfDesign Design?   @relation("PrintVersion", fields: [printVersionOf], references: [id], onDelete: SetNull)
+  printVersion         Design?   @relation("PrintVersion")
+
   // Organization
   folderId  String?
   folder    Folder?     @relation(fields: [folderId], references: [id])

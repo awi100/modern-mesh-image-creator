@@ -18,6 +18,7 @@ import PatternRepeatDialog from "./PatternRepeatDialog";
 import DesignPreview from "./DesignPreview";
 import SessionExpiredModal, { useSessionMonitor } from "@/components/SessionExpiredModal";
 import type { MeshCount } from "@/lib/yarn-calculator";
+import Tooltip from "@/components/Tooltip";
 
 interface EditorProps {
   designId?: string;

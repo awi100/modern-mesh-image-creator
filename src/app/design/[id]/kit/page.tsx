@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ShoppingListItem,
   generateShoppingListCSV,
@@ -130,6 +130,7 @@ function calculateSkeinsForQuantity(kitContents: KitItem[], quantity: number): {
 
 export default function KitPage() {
   const params = useParams();
+  const router = useRouter();
   const designId = params.id as string;
 
   const [design, setDesign] = useState<DesignInfo | null>(null);
@@ -164,6 +165,8 @@ export default function KitPage() {
   const [loadingFinishing, setLoadingFinishing] = useState(false);
   const [showMeshConvert, setShowMeshConvert] = useState(false);
   const [exportingPrintOrder, setExportingPrintOrder] = useState(false);
+  const [printVersion, setPrintVersion] = useState<{ id: string; name: string; updatedAt: string } | null>(null);
+  const [creatingPrintVersion, setCreatingPrintVersion] = useState(false);
 
   // Search for backup color suggestions
   const backupColorSuggestions = useMemo(() => {
@@ -353,11 +356,38 @@ export default function KitPage() {
     setPendingInventory((prev) => { const next = { ...prev }; delete next[dmcNumber]; return next; });
   }, [kitContents, handleUpdateInventory]);
 
+  const fetchPrintVersion = async () => {
+    try {
+      const res = await fetch(`/api/designs/${designId}/print-version`);
+      if (res.ok) {
+        const data = await res.json();
+        setPrintVersion(data.printVersion);
+      }
+    } catch (error) {
+      console.error("Error fetching print version:", error);
+    }
+  };
+
+  const handleCreatePrintVersion = async () => {
+    setCreatingPrintVersion(true);
+    try {
+      const res = await fetch(`/api/designs/${designId}/print-version`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/design/${data.id}/colors`);
+      }
+    } catch (error) {
+      console.error("Error creating print version:", error);
+    }
+    setCreatingPrintVersion(false);
+  };
+
   useEffect(() => {
     fetchKit();
     fetchSales();
     fetchColorUsage();
     fetchFinishingProjects();
+    fetchPrintVersion();
   }, [designId]);
 
   const handleAssembleKit = async () => {
@@ -639,6 +669,34 @@ export default function KitPage() {
             </div>
           </div>
         )}
+
+        {/* Print Version */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-white">Print Version</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {printVersion
+                ? `Last edited ${new Date(printVersion.updatedAt).toLocaleDateString()}`
+                : "Color-adjusted copy for sending to the printer"}
+            </p>
+          </div>
+          {printVersion ? (
+            <Link
+              href={`/design/${printVersion.id}/colors`}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium"
+            >
+              Edit Print Version
+            </Link>
+          ) : (
+            <button
+              onClick={handleCreatePrintVersion}
+              disabled={creatingPrintVersion}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+            >
+              {creatingPrintVersion ? "Creating..." : "Create Print Version"}
+            </button>
+          )}
+        </div>
 
         {/* Kit contents table */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
