@@ -7,13 +7,20 @@ import { DmcColor, getDmcColorByNumber } from "./dmc-pearl-cotton";
 const DPI = 72; // jsPDF uses 72 DPI
 
 // ---- Print color compensation ----
-// Lifts dark colors to compensate for 3rd-party printer darkening.
-// PRINT_DARK_BOOST: max lightness added to the darkest colors (0-50 scale).
-// PRINT_DARK_THRESHOLD: colors below this HSL lightness get boosted.
-// Contrast is preserved — darker colors get more boost, lighter ones taper off.
+// Compensates for 3rd-party printer darkening saturated and dark colors.
+// Printers darken based on ink density, which depends on BOTH lightness and
+// saturation. A saturated mid-tone purple (L=52, S=36) prints much darker
+// than it appears on screen.
+//
+// PRINT_BOOST_MAX: max lightness points added to the highest-ink-density colors.
+// PRINT_LIGHTNESS_THRESHOLD: pure-lightness cutoff — above this, no boost at all.
+// PRINT_SATURATION_WEIGHT: how much saturation contributes to ink density (0-1).
+//   0 = ignore saturation, 1 = fully saturated mid-tones get same boost as darks.
+//
 // Change these values based on test prints.
-const PRINT_DARK_BOOST = 15;
-const PRINT_DARK_THRESHOLD = 45;
+const PRINT_BOOST_MAX = 12;
+const PRINT_LIGHTNESS_THRESHOLD = 65;
+const PRINT_SATURATION_WEIGHT = 0.4;
 
 function hexToHsl(hex: string): { h: number; s: number; l: number } {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -47,14 +54,28 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
 }
 
-/** Lighten dark colors for print compensation. Preserves contrast between similar colors. */
+/**
+ * Lighten colors for print compensation based on ink density.
+ * Ink density is estimated from both darkness (low lightness) and saturation.
+ * A saturated purple at L=52 gets a meaningful boost. A pale pink at L=86 doesn't.
+ * Contrast is preserved — the boost is proportional to each color's ink density,
+ * so two similar colors maintain their relative difference.
+ */
 function adjustColorForPrint(hex: string): string {
   const hsl = hexToHsl(hex);
-  if (hsl.l >= PRINT_DARK_THRESHOLD) return hex;
+  if (hsl.l >= PRINT_LIGHTNESS_THRESHOLD) return hex;
 
-  // Proportional boost: darkest colors get full boost, tapering to zero at threshold
-  const boost = PRINT_DARK_BOOST * (1 - hsl.l / PRINT_DARK_THRESHOLD);
-  return hslToHex(hsl.h, hsl.s, Math.min(hsl.l + boost, PRINT_DARK_THRESHOLD));
+  // Darkness factor: 1.0 at L=0, tapering to 0 at threshold
+  const darknessFactor = 1 - hsl.l / PRINT_LIGHTNESS_THRESHOLD;
+
+  // Saturation factor: saturated colors use more ink, even at moderate lightness
+  const saturationFactor = (hsl.s / 100) * PRINT_SATURATION_WEIGHT;
+
+  // Combined ink density: darkness is primary, saturation adds to it
+  const inkDensity = Math.min(1, darknessFactor + saturationFactor * darknessFactor);
+
+  const boost = PRINT_BOOST_MAX * inkDensity;
+  return hslToHex(hsl.h, hsl.s, hsl.l + boost);
 }
 
 interface ExportOptions {
