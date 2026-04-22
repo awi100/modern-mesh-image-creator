@@ -99,8 +99,20 @@ export default function HomePage() {
   const router = useRouter();
   const { showToast } = useToast();
 
-  // Filter state
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  // Filter state — restore folder from sessionStorage so back navigation preserves it
+  const [selectedFolder, setSelectedFolderRaw] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("selectedFolder");
+    }
+    return null;
+  });
+  const setSelectedFolder = useCallback((v: string | null) => {
+    setSelectedFolderRaw(v);
+    if (typeof window !== "undefined") {
+      if (v === null) sessionStorage.removeItem("selectedFolder");
+      else sessionStorage.setItem("selectedFolder", v);
+    }
+  }, []);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showTrash, setShowTrash] = useState(false);
