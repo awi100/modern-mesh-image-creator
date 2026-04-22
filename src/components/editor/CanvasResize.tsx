@@ -526,7 +526,17 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
                 max="36"
                 step="0.5"
                 value={newWidthInches}
-                onChange={(e) => setNewWidthInches(Number(e.target.value))}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setNewWidthInches(val);
+                  // In crop mode, update crop offsets to center content at this size
+                  if (resizeMode === "crop" && val > 0 && val <= widthInches) {
+                    const targetGridW = Math.round(val * meshCount);
+                    const trimLeft = Math.max(0, Math.floor((gridWidth - targetGridW) / 2));
+                    const trimRight = Math.max(0, gridWidth - targetGridW - trimLeft);
+                    setCropOffsets(prev => ({ ...prev, left: trimLeft, right: trimRight }));
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
             </div>
@@ -538,14 +548,24 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
                 max="36"
                 step="0.5"
                 value={newHeightInches}
-                onChange={(e) => setNewHeightInches(Number(e.target.value))}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setNewHeightInches(val);
+                  // In crop mode, update crop offsets to center content at this size
+                  if (resizeMode === "crop" && val > 0 && val <= heightInches) {
+                    const targetGridH = Math.round(val * meshCount);
+                    const trimTop = Math.max(0, Math.floor((gridHeight - targetGridH) / 2));
+                    const trimBottom = Math.max(0, gridHeight - targetGridH - trimTop);
+                    setCropOffsets(prev => ({ ...prev, top: trimTop, bottom: trimBottom }));
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
             </div>
             <div>
               <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Mesh</label>
               <div className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white">
-                14
+                {meshCount}
               </div>
             </div>
           </div>
