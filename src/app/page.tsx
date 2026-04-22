@@ -339,6 +339,29 @@ export default function HomePage() {
     }
   };
 
+  // Build order spreadsheet CSV from design specs
+  const buildOrderCsv = (rows: { name: string; widthInches: number; heightInches: number; meshCount: number; gridWidth: number; gridHeight: number; colors: number; totalStitches: number; filename: string }[]): string => {
+    const escCsv = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const header = ["Design Name", "Dimensions (in)", "Mesh Count", "Grid Size (stitches)", "Vertical Grid Lines", "Horizontal Grid Lines", "Canvas Size (in)", "Colors", "Total Stitches", "PDF Filename", "Order Qty"];
+    const lines = [header.join(",")];
+    for (const r of rows) {
+      lines.push([
+        escCsv(r.name),
+        escCsv(`${r.widthInches}" x ${r.heightInches}"`),
+        `${r.meshCount}`,
+        escCsv(`${r.gridWidth} x ${r.gridHeight}`),
+        `${r.gridWidth + 1}`,
+        `${r.gridHeight + 1}`,
+        escCsv(`${r.widthInches + 4}" x ${r.heightInches + 4}"`),
+        `${r.colors}`,
+        `${r.totalStitches}`,
+        escCsv(r.filename),
+        "",
+      ].join(","));
+    }
+    return lines.join("\n");
+  };
+
   const handleDownloadFolderPdfs = async (folderId: string, folderName: string) => {
     setDownloadingFolderId(folderId);
     try {
@@ -356,9 +379,9 @@ export default function HomePage() {
 
       const JSZip = (await import("jszip")).default;
       const zip = new JSZip();
+      const csvRows: { name: string; widthInches: number; heightInches: number; meshCount: number; gridWidth: number; gridHeight: number; colors: number; totalStitches: number; filename: string }[] = [];
 
       for (const design of designList) {
-        // Use print version's grid for export
         const pvRes = await fetch(`/api/designs/${design.id}/print-version`);
         const pvData = await pvRes.json();
         const exportId = pvData.printVersion?.id || design.id;
@@ -367,8 +390,8 @@ export default function HomePage() {
         if (!res.ok) continue;
         const fullDesign = await res.json();
 
-        // Use original design name
         const exportName = design.name;
+        const filename = `${exportName.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`;
 
         const pdfData = generatePrintOrderPdfBlob({
           grid: fullDesign.grid,
@@ -383,19 +406,32 @@ export default function HomePage() {
         });
 
         if (pdfData) {
-          zip.file(`${exportName.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`, pdfData);
+          zip.file(filename, pdfData);
+          csvRows.push({
+            name: exportName,
+            widthInches: fullDesign.widthInches,
+            heightInches: fullDesign.heightInches,
+            meshCount: fullDesign.meshCount,
+            gridWidth: fullDesign.gridWidth,
+            gridHeight: fullDesign.gridHeight,
+            colors: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed).length : 0,
+            totalStitches: fullDesign.totalStitches || 0,
+            filename,
+          });
         }
       }
+
+      zip.file("order_sheet.csv", buildOrderCsv(csvRows));
 
       const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${folderName.replace(/[/\\?%*:|"<>]/g, "_")}_pdfs.zip`;
+      a.download = `${folderName.replace(/[/\\?%*:|"<>]/g, "_")}_print_order.zip`;
       a.click();
       URL.revokeObjectURL(url);
 
-      showToast(`Downloaded ${designList.length} PDF${designList.length > 1 ? "s" : ""}`, "success");
+      showToast(`Downloaded ${designList.length} PDF${designList.length > 1 ? "s" : ""} + order sheet`, "success");
     } catch (error) {
       console.error("Error downloading folder PDFs:", error);
       showToast("Failed to download PDFs", "error");
@@ -907,9 +943,9 @@ export default function HomePage() {
     try {
       const JSZip = (await import("jszip")).default;
       const zip = new JSZip();
+      const csvRows: { name: string; widthInches: number; heightInches: number; meshCount: number; gridWidth: number; gridHeight: number; colors: number; totalStitches: number; filename: string }[] = [];
 
       for (const id of designIds) {
-        // Use print version's grid for export
         const pvRes = await fetch(`/api/designs/${id}/print-version`);
         const pvData = await pvRes.json();
         const exportId = pvData.printVersion?.id || id;
@@ -918,9 +954,9 @@ export default function HomePage() {
         if (!res.ok) continue;
         const fullDesign = await res.json();
 
-        // Use original design name
         const originalRes = exportId !== id ? await fetch(`/api/designs/${id}`) : null;
         const exportName = originalRes ? (await originalRes.json()).name : fullDesign.name.replace(/ \(Print\)$/, "");
+        const filename = `${exportName.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`;
 
         const pdfData = generatePrintOrderPdfBlob({
           grid: fullDesign.grid,
@@ -935,19 +971,32 @@ export default function HomePage() {
         });
 
         if (pdfData) {
-          zip.file(`${exportName.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`, pdfData);
+          zip.file(filename, pdfData);
+          csvRows.push({
+            name: exportName,
+            widthInches: fullDesign.widthInches,
+            heightInches: fullDesign.heightInches,
+            meshCount: fullDesign.meshCount,
+            gridWidth: fullDesign.gridWidth,
+            gridHeight: fullDesign.gridHeight,
+            colors: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed).length : 0,
+            totalStitches: fullDesign.totalStitches || 0,
+            filename,
+          });
         }
       }
+
+      zip.file("order_sheet.csv", buildOrderCsv(csvRows));
 
       const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `print_orders_${designIds.length}_designs.zip`;
+      a.download = `print_order_${designIds.length}_designs.zip`;
       a.click();
       URL.revokeObjectURL(url);
 
-      showToast(`Downloaded ${designIds.length} print order PDF${designIds.length > 1 ? "s" : ""}`, "success");
+      showToast(`Downloaded ${designIds.length} PDF${designIds.length > 1 ? "s" : ""} + order sheet`, "success");
     } catch (error) {
       console.error("Error exporting PDFs:", error);
       showToast("Failed to export PDFs", "error");
