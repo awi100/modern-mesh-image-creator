@@ -102,7 +102,16 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
   // Get current grid for preview
   const currentGrid = useMemo(() => flattenLayers(), [flattenLayers]);
 
-  // Trim to content — find bounding box of non-empty pixels and set crop offsets
+  // Common canvas sizes in inches (both orientations checked)
+  const TRIM_SIZES = [
+    { w: 4, h: 4 }, { w: 5, h: 5 }, { w: 6, h: 6 },
+    { w: 4, h: 6 }, { w: 5, h: 7 }, { w: 6, h: 8 },
+    { w: 8, h: 8 }, { w: 8, h: 10 }, { w: 9, h: 12 },
+    { w: 10, h: 10 }, { w: 12, h: 12 }, { w: 12, h: 16 },
+    { w: 14, h: 14 },
+  ];
+
+  // Trim to content — find bounding box, snap to smallest common size that fits
   const handleTrimToContent = () => {
     const grid = currentGrid;
     let minX = gridWidth, minY = gridHeight, maxX = -1, maxY = -1;
@@ -120,17 +129,54 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
 
     if (maxX < 0) return; // No content found
 
-    // Add 1 pixel padding around content
-    minX = Math.max(0, minX - 1);
-    minY = Math.max(0, minY - 1);
-    maxX = Math.min(gridWidth - 1, maxX + 1);
-    maxY = Math.min(gridHeight - 1, maxY + 1);
+    const contentW = maxX - minX + 1;
+    const contentH = maxY - minY + 1;
+    const contentWInches = contentW / meshCount;
+    const contentHInches = contentH / meshCount;
+
+    // Find smallest common size that fits the content (try both orientations)
+    let bestW = contentWInches;
+    let bestH = contentHInches;
+    let bestArea = Infinity;
+
+    for (const size of TRIM_SIZES) {
+      // Try normal orientation
+      if (size.w >= contentWInches && size.h >= contentHInches) {
+        const area = size.w * size.h;
+        if (area < bestArea) {
+          bestW = size.w;
+          bestH = size.h;
+          bestArea = area;
+        }
+      }
+      // Try flipped orientation
+      if (size.h >= contentWInches && size.w >= contentHInches) {
+        const area = size.w * size.h;
+        if (area < bestArea) {
+          bestW = size.h;
+          bestH = size.w;
+          bestArea = area;
+        }
+      }
+    }
+
+    // Convert to grid pixels and center the content
+    const targetGridW = Math.round(bestW * meshCount);
+    const targetGridH = Math.round(bestH * meshCount);
+
+    // Center the content within the target size
+    const centerX = Math.floor(minX + contentW / 2);
+    const centerY = Math.floor(minY + contentH / 2);
+    const cropLeft = Math.max(0, centerX - Math.floor(targetGridW / 2));
+    const cropTop = Math.max(0, centerY - Math.floor(targetGridH / 2));
+    const cropRight = Math.max(0, gridWidth - cropLeft - targetGridW);
+    const cropBottom = Math.max(0, gridHeight - cropTop - targetGridH);
 
     setCropOffsets({
-      top: minY,
-      bottom: gridHeight - 1 - maxY,
-      left: minX,
-      right: gridWidth - 1 - maxX,
+      top: Math.max(0, cropTop),
+      bottom: Math.max(0, cropBottom),
+      left: Math.max(0, cropLeft),
+      right: Math.max(0, cropRight),
     });
     setResizeMode("crop");
   };
