@@ -279,6 +279,7 @@ export default function KitPage() {
         gridHeight: fullDesign.gridHeight,
         designName: exportName,
         colorsUsed: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed) : null,
+        colorOverrides: fullDesign.printColorOverrides ? JSON.parse(fullDesign.printColorOverrides) : null,
       });
     } catch (error) {
       console.error("Export error:", error);

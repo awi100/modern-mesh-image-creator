@@ -5,6 +5,39 @@ import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
 import pako from "pako";
 
+// PUT /api/designs/[id]/color-swap - Save print color hex overrides
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { id } = await params;
+    const { overrides } = await request.json();
+
+    const design = await prisma.design.findUnique({ where: { id }, select: { printVersionOf: true } });
+    if (!design) {
+      return NextResponse.json({ error: "Design not found" }, { status: 404 });
+    }
+    if (!design.printVersionOf) {
+      return NextResponse.json({ error: "Can only set overrides on print versions" }, { status: 400 });
+    }
+
+    await prisma.design.update({
+      where: { id },
+      data: { printColorOverrides: JSON.stringify(overrides) },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[PUT color-swap] Error:", error);
+    return NextResponse.json({ error: "Failed to save overrides" }, { status: 500 });
+  }
+}
+
 // POST /api/designs/[id]/color-swap - Swap a color across the entire grid
 export async function POST(
   request: NextRequest,

@@ -379,6 +379,7 @@ export default function HomePage() {
           gridHeight: fullDesign.gridHeight,
           designName: exportName,
           colorsUsed: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed) : null,
+          colorOverrides: fullDesign.printColorOverrides ? JSON.parse(fullDesign.printColorOverrides) : null,
         });
 
         if (pdfData) {
@@ -930,6 +931,7 @@ export default function HomePage() {
           gridHeight: fullDesign.gridHeight,
           designName: exportName,
           colorsUsed: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed) : null,
+          colorOverrides: fullDesign.printColorOverrides ? JSON.parse(fullDesign.printColorOverrides) : null,
         });
 
         if (pdfData) {

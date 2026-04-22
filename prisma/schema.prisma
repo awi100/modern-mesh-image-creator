@@ -120,6 +120,11 @@ model Design {
   // Format: JSON object { "503": "504", "310": "3371" }
   backupColors          String? // JSON map of primary DMC # to backup DMC #
 
+  // Print color hex overrides (for print versions only)
+  // Format: JSON object { "209": "#9070C8", "310": "#333333" }
+  // Maps DMC numbers to adjusted hex values for printer compensation
+  printColorOverrides   String?
+
   // Stock alert exclusion
   excludeFromStockAlerts Boolean @default(false)
 

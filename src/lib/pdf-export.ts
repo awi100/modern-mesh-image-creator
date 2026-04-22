@@ -22,7 +22,7 @@ const PRINT_BOOST_MAX = 12;
 const PRINT_LIGHTNESS_THRESHOLD = 65;
 const PRINT_SATURATION_WEIGHT = 0.4;
 
-function hexToHsl(hex: string): { h: number; s: number; l: number } {
+export function hexToHsl(hex: string): { h: number; s: number; l: number } {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
   const g = parseInt(hex.slice(3, 5), 16) / 255;
   const b = parseInt(hex.slice(5, 7), 16) / 255;
@@ -44,7 +44,7 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } {
   return { h: h * 360, s: s * 100, l: l * 100 };
 }
 
-function hslToHex(h: number, s: number, l: number): string {
+export function hslToHex(h: number, s: number, l: number): string {
   s /= 100;
   l /= 100;
   const k = (n: number) => (n + h / 30) % 12;
@@ -61,7 +61,7 @@ function hslToHex(h: number, s: number, l: number): string {
  * Contrast is preserved — the boost is proportional to each color's ink density,
  * so two similar colors maintain their relative difference.
  */
-function adjustColorForPrint(hex: string): string {
+export function adjustColorForPrint(hex: string): string {
   const hsl = hexToHsl(hex);
   if (hsl.l >= PRINT_LIGHTNESS_THRESHOLD) return hex;
 
@@ -460,8 +460,9 @@ function createImagePdfDoc(options: {
   grid: PixelGrid;
   widthInches: number;
   heightInches: number;
+  colorOverrides?: Record<string, string> | null;
 }): jsPDF | null {
-  const { grid, widthInches, heightInches } = options;
+  const { grid, widthInches, heightInches, colorOverrides } = options;
 
   const gridHeight = grid.length;
   const gridWidth = grid[0]?.length || 0;
@@ -491,7 +492,8 @@ function createImagePdfDoc(options: {
       const color = getDmcColorByNumber(dmcNumber);
       if (!color) continue;
 
-      ctx.fillStyle = adjustColorForPrint(color.hex);
+      // Use hex override if available, otherwise apply formula
+      ctx.fillStyle = colorOverrides?.[dmcNumber] || adjustColorForPrint(color.hex);
       ctx.fillRect(
         Math.floor(x * cellW),
         Math.floor(y * cellH),
@@ -554,6 +556,7 @@ interface PrintOrderOptions {
   gridHeight: number;
   designName: string;
   colorsUsed?: string[] | null;
+  colorOverrides?: Record<string, string> | null;
 }
 
 /**
@@ -562,9 +565,9 @@ interface PrintOrderOptions {
  * Page 2: spec sheet with all printer-required info.
  */
 function createPrintOrderDoc(options: PrintOrderOptions): jsPDF | null {
-  const { grid, widthInches, heightInches, meshCount, gridWidth, gridHeight, designName, colorsUsed } = options;
+  const { grid, widthInches, heightInches, meshCount, gridWidth, gridHeight, designName, colorsUsed, colorOverrides } = options;
 
-  const doc = createImagePdfDoc({ grid, widthInches, heightInches });
+  const doc = createImagePdfDoc({ grid, widthInches, heightInches, colorOverrides });
   if (!doc) return null;
 
   // Count colors and stitches from grid

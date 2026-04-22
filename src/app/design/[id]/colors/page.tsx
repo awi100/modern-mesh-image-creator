@@ -1,16 +1,16 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import Link from "next/link";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getDmcColorByNumber, searchDmcColors, DmcColor } from "@/lib/dmc-pearl-cotton";
-import { exportPrintOrderPdf } from "@/lib/pdf-export";
+import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { adjustColorForPrint, hexToHsl, hslToHex, exportPrintOrderPdf } from "@/lib/pdf-export";
 import { Breadcrumb } from "@/components/Breadcrumb";
 
 interface ColorInfo {
   dmcNumber: string;
   stitchCount: number;
-  color: DmcColor | undefined;
+  hex: string;
+  name: string;
 }
 
 interface DesignData {
@@ -22,171 +22,231 @@ interface DesignData {
   gridWidth: number;
   gridHeight: number;
   printVersionOf: string | null;
-  colorsUsed: string | null;
+  printColorOverrides: string | null;
+  grid: (string | null)[][];
 }
 
 export default function ColorSwapPage() {
   const params = useParams();
   const router = useRouter();
   const designId = params.id as string;
+  const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [design, setDesign] = useState<DesignData | null>(null);
   const [colors, setColors] = useState<ColorInfo[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [swapping, setSwapping] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [swapTarget, setSwapTarget] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
-  const [originalColors, setOriginalColors] = useState<ColorInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchDesignColors = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/designs/${designId}/color-variant`);
-      if (!res.ok) throw new Error("Failed to fetch colors");
-      const data = await res.json();
-
-      setColors(
-        data.colors.map((c: { dmcNumber: string; stitchCount: number }) => ({
-          ...c,
-          color: getDmcColorByNumber(c.dmcNumber),
-        }))
-      );
-    } catch (err) {
-      console.error("Error fetching colors:", err);
-      setError("Failed to load design colors. Please try refreshing.");
-    }
-    setLoading(false);
-  }, [designId]);
-
-  const fetchDesign = useCallback(async () => {
-    try {
+      // Fetch full design with grid
       const res = await fetch(`/api/designs/${designId}`);
-      if (!res.ok) throw new Error("Failed to fetch");
+      if (!res.ok) throw new Error("Failed to fetch design");
       const data = await res.json();
       setDesign(data);
-      if (data.previewImageUrl) setPreviewUrl(data.previewImageUrl);
 
-      // Fetch original design for comparison
+      // Parse existing overrides or generate defaults
+      let currentOverrides: Record<string, string> = {};
+      if (data.printColorOverrides) {
+        currentOverrides = JSON.parse(data.printColorOverrides);
+      }
+
+      // Get colors from grid
+      const colorCounts = new Map<string, number>();
+      for (const row of data.grid) {
+        for (const cell of row) {
+          if (cell) colorCounts.set(cell, (colorCounts.get(cell) || 0) + 1);
+        }
+      }
+
+      const colorList: ColorInfo[] = [];
+      for (const [dmcNumber, stitchCount] of colorCounts) {
+        const color = getDmcColorByNumber(dmcNumber);
+        colorList.push({
+          dmcNumber,
+          stitchCount,
+          hex: color?.hex || "#666666",
+          name: color?.name || "Unknown",
+        });
+
+        // Generate default override from compensation formula if not set
+        if (!currentOverrides[dmcNumber] && color) {
+          const adjusted = adjustColorForPrint(color.hex);
+          if (adjusted !== color.hex) {
+            currentOverrides[dmcNumber] = adjusted;
+          }
+        }
+      }
+
+      colorList.sort((a, b) => b.stitchCount - a.stitchCount);
+      setColors(colorList);
+      setOverrides(currentOverrides);
+
+      // Save defaults if they were just generated and none existed before
+      if (!data.printColorOverrides && Object.keys(currentOverrides).length > 0) {
+        await fetch(`/api/designs/${designId}/color-swap`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ overrides: currentOverrides }),
+        });
+      }
+
+      // Fetch original preview for comparison
       if (data.printVersionOf) {
         const origRes = await fetch(`/api/designs/${data.printVersionOf}`);
         if (origRes.ok) {
           const origData = await origRes.json();
           if (origData.previewImageUrl) setOriginalPreviewUrl(origData.previewImageUrl);
         }
-        // Fetch original colors
-        const origColorsRes = await fetch(`/api/designs/${data.printVersionOf}/color-variant`);
-        if (origColorsRes.ok) {
-          const origColorsData = await origColorsRes.json();
-          setOriginalColors(
-            origColorsData.colors.map((c: { dmcNumber: string; stitchCount: number }) => ({
-              ...c,
-              color: getDmcColorByNumber(c.dmcNumber),
-            }))
-          );
-        }
       }
     } catch (err) {
-      console.error("Error fetching design:", err);
+      console.error("Error:", err);
+      setError("Failed to load. Please try refreshing.");
     }
+    setLoading(false);
   }, [designId]);
 
-  useEffect(() => {
-    fetchDesignColors();
-    fetchDesign();
-  }, [fetchDesignColors, fetchDesign]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Build a map of original DMC numbers by position (stitch count) for comparison
-  const originalColorMap = useMemo(() => {
-    const map = new Map<string, ColorInfo>();
-    for (const c of originalColors) {
-      map.set(c.dmcNumber, c);
-    }
-    return map;
-  }, [originalColors]);
-
-  // Detect which colors differ from original
-  const printColorSet = useMemo(() => new Set(colors.map(c => c.dmcNumber)), [colors]);
-  const originalColorSet = useMemo(() => new Set(originalColors.map(c => c.dmcNumber)), [originalColors]);
-  const changedCount = useMemo(() => {
-    let count = 0;
-    for (const dmc of printColorSet) {
-      if (!originalColorSet.has(dmc)) count++;
-    }
-    return count;
-  }, [printColorSet, originalColorSet]);
-
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    return searchDmcColors(searchQuery).slice(0, 20);
-  }, [searchQuery]);
-
-  const handleSwap = async (fromDmc: string, toDmc: string) => {
-    setSwapping(fromDmc);
-    try {
-      const res = await fetch(`/api/designs/${designId}/color-swap`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fromDmc, toDmc }),
-      });
-
-      if (res.ok) {
-        setSwapTarget(null);
-        setSearchQuery("");
-        await fetchDesignColors();
-        await fetchDesign();
+  // Auto-save overrides after slider changes (debounced)
+  const saveOverrides = useCallback((newOverrides: Record<string, string>) => {
+    if (saveTimeout.current) clearTimeout(saveTimeout.current);
+    saveTimeout.current = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await fetch(`/api/designs/${designId}/color-swap`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ overrides: newOverrides }),
+        });
+      } catch (err) {
+        console.error("Error saving:", err);
       }
-    } catch (error) {
-      console.error("Error swapping color:", error);
+      setSaving(false);
+    }, 500);
+  }, [designId]);
+
+  const handleLightnessChange = (dmcNumber: string, newLightness: number) => {
+    const color = colors.find(c => c.dmcNumber === dmcNumber);
+    if (!color) return;
+
+    const hsl = hexToHsl(color.hex);
+    const newHex = hslToHex(hsl.h, hsl.s, newLightness);
+
+    const newOverrides = { ...overrides, [dmcNumber]: newHex };
+    // If the override matches the original, remove it
+    if (newHex === color.hex) {
+      delete newOverrides[dmcNumber];
     }
-    setSwapping(null);
+    setOverrides(newOverrides);
+    saveOverrides(newOverrides);
   };
 
-  const handleResetToOriginal = async () => {
-    if (!design?.printVersionOf) return;
-    if (!confirm("Reset all colors to match the original design? This will undo all swaps.")) return;
+  const handleResetColor = (dmcNumber: string) => {
+    const newOverrides = { ...overrides };
+    delete newOverrides[dmcNumber];
+    setOverrides(newOverrides);
+    saveOverrides(newOverrides);
+  };
 
+  const handleResetAll = async () => {
+    if (!confirm("Reset all colors to original? This removes all adjustments.")) return;
+    setOverrides({});
+    setSaving(true);
     try {
-      const delRes = await fetch(`/api/designs/${design.printVersionOf}/print-version`, { method: "DELETE" });
-      if (!delRes.ok) throw new Error("Failed to delete");
-
-      const res = await fetch(`/api/designs/${design.printVersionOf}/print-version`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed to recreate");
-
-      const data = await res.json();
-      router.replace(`/design/${data.id}/colors`);
+      await fetch(`/api/designs/${designId}/color-swap`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overrides: {} }),
+      });
     } catch (err) {
       console.error("Error resetting:", err);
-      setError("Failed to reset. The original design may have been deleted.");
     }
+    setSaving(false);
+  };
+
+  const handleAutoAdjust = async () => {
+    const newOverrides: Record<string, string> = {};
+    for (const c of colors) {
+      const adjusted = adjustColorForPrint(c.hex);
+      if (adjusted !== c.hex) {
+        newOverrides[c.dmcNumber] = adjusted;
+      }
+    }
+    setOverrides(newOverrides);
+    setSaving(true);
+    try {
+      await fetch(`/api/designs/${designId}/color-swap`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overrides: newOverrides }),
+      });
+    } catch (err) {
+      console.error("Error:", err);
+    }
+    setSaving(false);
   };
 
   const handleExportPrintOrder = async () => {
+    if (!design) return;
     setExportingPdf(true);
     try {
-      const res = await fetch(`/api/designs/${designId}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      const fullDesign = await res.json();
-
       exportPrintOrderPdf({
-        grid: fullDesign.grid,
-        widthInches: fullDesign.widthInches,
-        heightInches: fullDesign.heightInches,
-        meshCount: fullDesign.meshCount,
-        gridWidth: fullDesign.gridWidth,
-        gridHeight: fullDesign.gridHeight,
-        designName: fullDesign.name,
-        colorsUsed: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed) : null,
+        grid: design.grid,
+        widthInches: design.widthInches,
+        heightInches: design.heightInches,
+        meshCount: design.meshCount,
+        gridWidth: design.gridWidth,
+        gridHeight: design.gridHeight,
+        designName: design.name.replace(/ \(Print\)$/, ""),
+        colorOverrides: Object.keys(overrides).length > 0 ? overrides : null,
       });
-    } catch (error) {
-      console.error("Export error:", error);
+    } catch (err) {
+      console.error("Export error:", err);
     }
     setExportingPdf(false);
   };
+
+  // Count adjustments
+  const adjustedCount = Object.keys(overrides).length;
+
+  // Render a small preview canvas from the grid with overrides
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (!design?.grid || !previewCanvasRef.current) return;
+    const canvas = previewCanvasRef.current;
+    const grid = design.grid;
+    const h = grid.length;
+    const w = grid[0]?.length || 0;
+    if (w === 0 || h === 0) return;
+
+    const maxSize = 400;
+    const cellSize = Math.max(1, Math.min(Math.floor(maxSize / w), Math.floor(maxSize / h)));
+    canvas.width = w * cellSize;
+    canvas.height = h * cellSize;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const dmc = grid[y][x];
+        if (!dmc) continue;
+        const color = getDmcColorByNumber(dmc);
+        if (!color) continue;
+        ctx.fillStyle = overrides[dmc] || color.hex;
+        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+      }
+    }
+  }, [design?.grid, overrides]);
 
   if (loading) {
     return (
@@ -201,10 +261,7 @@ export default function ColorSwapPage() {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 mb-4">{error}</p>
-          <button
-            onClick={() => { fetchDesignColors(); fetchDesign(); }}
-            className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600"
-          >
+          <button onClick={fetchData} className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600">
             Retry
           </button>
         </div>
@@ -220,18 +277,11 @@ export default function ColorSwapPage() {
             <Breadcrumb items={[
               { label: "Designs", href: "/" },
               ...(design?.printVersionOf ? [{ label: "Kit", href: `/design/${design.printVersionOf}/kit` }] : []),
-              { label: design?.name || "Colors" },
+              { label: "Print Colors" },
             ]} />
           </div>
           <div className="flex items-center gap-2">
-            {design?.printVersionOf && (
-              <button
-                onClick={handleResetToOriginal}
-                className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
-              >
-                Reset to Original
-              </button>
-            )}
+            {saving && <span className="text-xs text-slate-500">Saving...</span>}
             <button
               onClick={handleExportPrintOrder}
               disabled={exportingPdf}
@@ -253,12 +303,7 @@ export default function ColorSwapPage() {
                   <p className="text-[10px] text-slate-500 text-center py-1 bg-slate-800">Original</p>
                   <div className="aspect-square flex items-center justify-center">
                     {originalPreviewUrl ? (
-                      <img
-                        src={originalPreviewUrl}
-                        alt="Original"
-                        className="w-full h-full object-contain"
-                        style={{ imageRendering: "pixelated" }}
-                      />
+                      <img src={originalPreviewUrl} alt="Original" className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
                     ) : (
                       <span className="text-slate-600 text-xs">No preview</span>
                     )}
@@ -267,139 +312,111 @@ export default function ColorSwapPage() {
                 <div className="bg-slate-900">
                   <p className="text-[10px] text-emerald-400 text-center py-1 bg-slate-800">Print Version</p>
                   <div className="aspect-square flex items-center justify-center">
-                    {previewUrl ? (
-                      <img
-                        src={previewUrl}
-                        alt="Print Version"
-                        className="w-full h-full object-contain"
-                        style={{ imageRendering: "pixelated" }}
-                      />
-                    ) : (
-                      <span className="text-slate-600 text-xs">No preview</span>
-                    )}
+                    <canvas ref={previewCanvasRef} className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
                   </div>
                 </div>
               </div>
-              {design && (
-                <div className="p-3 text-xs text-slate-400 flex justify-between">
-                  <span>{design.widthInches}&quot; x {design.heightInches}&quot; @ {design.meshCount} mesh</span>
-                  {changedCount > 0 && (
-                    <span className="text-amber-400">{changedCount} color{changedCount !== 1 ? "s" : ""} changed</span>
-                  )}
-                </div>
-              )}
+              <div className="p-3 text-xs text-slate-400 flex justify-between">
+                <span>{design?.widthInches}&quot; x {design?.heightInches}&quot; @ {design?.meshCount} mesh</span>
+                {adjustedCount > 0 && (
+                  <span className="text-amber-400">{adjustedCount} adjusted</span>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Color list */}
+          {/* Color list with sliders */}
           <div className="lg:col-span-2">
             <div className="bg-slate-800 rounded-xl border border-slate-700">
-              <div className="p-4 border-b border-slate-700">
-                <h2 className="text-lg font-semibold text-white">
-                  Colors ({colors.length})
-                </h2>
-                <p className="text-sm text-slate-400 mt-1">
-                  Click &quot;Swap&quot; on a color to replace it across the entire design.
-                </p>
+              <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Print Colors ({colors.length})</h2>
+                  <p className="text-sm text-slate-400 mt-1">Adjust lightness for each color. Changes preview in real-time.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAutoAdjust}
+                    className="px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600"
+                  >
+                    Auto Adjust
+                  </button>
+                  <button
+                    onClick={handleResetAll}
+                    className="px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600"
+                  >
+                    Reset All
+                  </button>
+                </div>
               </div>
 
               <div className="divide-y divide-slate-700">
                 {colors.map((c) => {
-                  const isNew = !originalColorSet.has(c.dmcNumber);
-                  // Find the original color this replaced (same stitch count = likely swap)
-                  const replacedOriginal = isNew
-                    ? originalColors.find(oc => !printColorSet.has(oc.dmcNumber) && Math.abs(oc.stitchCount - c.stitchCount) < 5)
-                    : null;
+                  const originalHsl = hexToHsl(c.hex);
+                  const overrideHex = overrides[c.dmcNumber];
+                  const currentHsl = overrideHex ? hexToHsl(overrideHex) : originalHsl;
+                  const isAdjusted = !!overrideHex;
 
                   return (
-                  <div key={c.dmcNumber} className={`p-4 ${isNew ? "bg-amber-900/10" : ""}`}>
-                    <div className="flex items-center gap-3">
-                      {/* Color swatch - show original → new if changed */}
-                      {replacedOriginal ? (
+                    <div key={c.dmcNumber} className={`p-4 ${isAdjusted ? "bg-amber-900/10" : ""}`}>
+                      <div className="flex items-center gap-3 mb-2">
+                        {/* Original → Adjusted swatches */}
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <div
-                            className="w-8 h-8 rounded-lg border border-slate-600 opacity-50"
-                            style={{ backgroundColor: replacedOriginal.color?.hex || "#666" }}
-                            title={`Original: DMC ${replacedOriginal.dmcNumber}`}
+                            className="w-8 h-8 rounded border border-slate-600"
+                            style={{ backgroundColor: c.hex }}
+                            title="Original"
                           />
-                          <span className="text-slate-500 text-xs">→</span>
-                          <div
-                            className="w-10 h-10 rounded-lg border-2 border-amber-500/50"
-                            style={{ backgroundColor: c.color?.hex || "#666" }}
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          className="w-10 h-10 rounded-lg border border-slate-600 flex-shrink-0"
-                          style={{ backgroundColor: c.color?.hex || "#666" }}
-                        />
-                      )}
-                      {/* Color info */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium">
-                          DMC {c.dmcNumber}
-                          {replacedOriginal && (
-                            <span className="ml-2 text-xs text-amber-400 font-normal">
-                              was DMC {replacedOriginal.dmcNumber} ({replacedOriginal.color?.name})
-                            </span>
+                          {isAdjusted && (
+                            <>
+                              <span className="text-slate-500 text-xs">→</span>
+                              <div
+                                className="w-8 h-8 rounded border-2 border-amber-500/50"
+                                style={{ backgroundColor: overrideHex }}
+                                title="Print adjusted"
+                              />
+                            </>
                           )}
-                        </p>
-                        <p className="text-slate-400 text-xs truncate">
-                          {c.color?.name || "Unknown"} — {c.stitchCount.toLocaleString()} stitches
-                        </p>
-                      </div>
-                      {/* Swap button */}
-                      {swapTarget === c.dmcNumber ? (
-                        <button
-                          onClick={() => { setSwapTarget(null); setSearchQuery(""); }}
-                          className="px-3 py-1.5 bg-slate-600 text-slate-300 rounded-lg text-sm"
-                        >
-                          Cancel
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => { setSwapTarget(c.dmcNumber); setSearchQuery(""); }}
-                          disabled={!!swapping}
-                          className="px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600 disabled:opacity-50"
-                        >
-                          {swapping === c.dmcNumber ? "Swapping..." : "Swap"}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Swap picker */}
-                    {swapTarget === c.dmcNumber && (
-                      <div className="mt-3 p-3 bg-slate-700/50 rounded-lg">
-                        <input
-                          type="text"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder="Search DMC number or color name..."
-                          className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                          autoFocus
-                        />
-                        {searchResults.length > 0 && (
-                          <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
-                            {searchResults.map((result) => (
-                              <button
-                                key={result.dmcNumber}
-                                onClick={() => handleSwap(c.dmcNumber, result.dmcNumber)}
-                                disabled={!!swapping}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-600 text-left disabled:opacity-50"
-                              >
-                                <div
-                                  className="w-6 h-6 rounded border border-slate-500 flex-shrink-0"
-                                  style={{ backgroundColor: result.hex }}
-                                />
-                                <span className="text-sm text-white">DMC {result.dmcNumber}</span>
-                                <span className="text-xs text-slate-400 truncate">{result.name}</span>
-                              </button>
-                            ))}
-                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm font-medium">
+                            DMC {c.dmcNumber}
+                            {isAdjusted && (
+                              <span className="ml-2 text-xs text-amber-400 font-normal">
+                                L: {originalHsl.l.toFixed(0)} → {currentHsl.l.toFixed(0)}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-slate-400 text-xs truncate">
+                            {c.name} — {c.stitchCount.toLocaleString()} stitches
+                          </p>
+                        </div>
+                        {isAdjusted && (
+                          <button
+                            onClick={() => handleResetColor(c.dmcNumber)}
+                            className="px-2 py-1 text-xs text-slate-400 hover:text-white bg-slate-700 rounded hover:bg-slate-600"
+                          >
+                            Reset
+                          </button>
                         )}
                       </div>
-                    )}
-                  </div>
+                      {/* Lightness slider */}
+                      <div className="flex items-center gap-3 pl-11">
+                        <span className="text-[10px] text-slate-500 w-6">Dark</span>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={Math.round(currentHsl.l)}
+                          onChange={(e) => handleLightnessChange(c.dmcNumber, parseInt(e.target.value))}
+                          className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                          style={{
+                            background: `linear-gradient(to right, ${hslToHex(currentHsl.h, currentHsl.s, 0)}, ${hslToHex(currentHsl.h, currentHsl.s, 50)}, ${hslToHex(currentHsl.h, currentHsl.s, 100)})`,
+                          }}
+                        />
+                        <span className="text-[10px] text-slate-500 w-6">Light</span>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
