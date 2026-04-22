@@ -258,9 +258,17 @@ export default function KitPage() {
     if (!designId) return;
     setExportingPrintOrder(true);
     try {
-      const res = await fetch(`/api/designs/${designId}`);
+      // Use print version's grid for export
+      const pvRes = await fetch(`/api/designs/${designId}/print-version`);
+      const pvData = await pvRes.json();
+      const exportId = pvData.printVersion?.id || designId;
+
+      const res = await fetch(`/api/designs/${exportId}`);
       if (!res.ok) throw new Error("Failed to fetch design");
       const fullDesign = await res.json();
+
+      // Use original design name (without " (Print)" suffix)
+      const exportName = design?.name || fullDesign.name.replace(/ \(Print\)$/, "");
 
       exportPrintOrderPdf({
         grid: fullDesign.grid,
@@ -269,7 +277,7 @@ export default function KitPage() {
         meshCount: fullDesign.meshCount,
         gridWidth: fullDesign.gridWidth,
         gridHeight: fullDesign.gridHeight,
-        designName: fullDesign.name,
+        designName: exportName,
         colorsUsed: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed) : null,
       });
     } catch (error) {

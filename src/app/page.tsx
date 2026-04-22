@@ -358,10 +358,17 @@ export default function HomePage() {
       const zip = new JSZip();
 
       for (const design of designList) {
-        // Fetch full design with grid data
-        const res = await fetch(`/api/designs/${design.id}`);
+        // Use print version's grid for export
+        const pvRes = await fetch(`/api/designs/${design.id}/print-version`);
+        const pvData = await pvRes.json();
+        const exportId = pvData.printVersion?.id || design.id;
+
+        const res = await fetch(`/api/designs/${exportId}`);
         if (!res.ok) continue;
         const fullDesign = await res.json();
+
+        // Use original design name
+        const exportName = design.name;
 
         const pdfData = generatePrintOrderPdfBlob({
           grid: fullDesign.grid,
@@ -370,12 +377,12 @@ export default function HomePage() {
           meshCount: fullDesign.meshCount,
           gridWidth: fullDesign.gridWidth,
           gridHeight: fullDesign.gridHeight,
-          designName: fullDesign.name,
+          designName: exportName,
           colorsUsed: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed) : null,
         });
 
         if (pdfData) {
-          zip.file(`${fullDesign.name.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`, pdfData);
+          zip.file(`${exportName.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`, pdfData);
         }
       }
 
@@ -643,27 +650,6 @@ export default function HomePage() {
     }
   };
 
-  const handleCreatePrintVersion = async (designId: string) => {
-    try {
-      const response = await fetch(`/api/designs/${designId}/print-version`, {
-        method: "POST",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        mutateDesigns();
-        showToast("Print version created", "success");
-        router.push(`/design/${data.id}/colors`);
-      } else if (response.status === 409) {
-        const data = await response.json();
-        router.push(`/design/${data.id}/colors`);
-      }
-    } catch (error) {
-      console.error("Error creating print version:", error);
-      showToast("Failed to create print version", "error");
-    }
-  };
-
   const handleDuplicate = async (designId: string) => {
     try {
       const response = await fetch(`/api/designs/${designId}/duplicate`, {
@@ -922,9 +908,18 @@ export default function HomePage() {
       const zip = new JSZip();
 
       for (const id of designIds) {
-        const res = await fetch(`/api/designs/${id}`);
+        // Use print version's grid for export
+        const pvRes = await fetch(`/api/designs/${id}/print-version`);
+        const pvData = await pvRes.json();
+        const exportId = pvData.printVersion?.id || id;
+
+        const res = await fetch(`/api/designs/${exportId}`);
         if (!res.ok) continue;
         const fullDesign = await res.json();
+
+        // Use original design name
+        const originalRes = exportId !== id ? await fetch(`/api/designs/${id}`) : null;
+        const exportName = originalRes ? (await originalRes.json()).name : fullDesign.name.replace(/ \(Print\)$/, "");
 
         const pdfData = generatePrintOrderPdfBlob({
           grid: fullDesign.grid,
@@ -933,12 +928,12 @@ export default function HomePage() {
           meshCount: fullDesign.meshCount,
           gridWidth: fullDesign.gridWidth,
           gridHeight: fullDesign.gridHeight,
-          designName: fullDesign.name,
+          designName: exportName,
           colorsUsed: fullDesign.colorsUsed ? JSON.parse(fullDesign.colorsUsed) : null,
         });
 
         if (pdfData) {
-          zip.file(`${fullDesign.name.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`, pdfData);
+          zip.file(`${exportName.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`, pdfData);
         }
       }
 
@@ -1725,8 +1720,8 @@ export default function HomePage() {
                               </span>
                             </div>
                           )}
-                          {/* Mesh count + print version badges */}
-                          <div className="absolute bottom-2 left-2 pointer-events-none flex gap-1">
+                          {/* Mesh count badge */}
+                          <div className="absolute bottom-2 left-2 pointer-events-none">
                             <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
                               design.meshCount === 18 ? "bg-amber-900/80 text-amber-300" :
                               design.meshCount === 16 ? "bg-teal-900/80 text-teal-300" :
@@ -1734,11 +1729,6 @@ export default function HomePage() {
                             }`}>
                               {design.meshCount}ct
                             </span>
-                            {design.printVersionOf && (
-                              <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-300">
-                                Print
-                              </span>
-                            )}
                           </div>
                           {/* Needs order badge - only show for non-draft designs with missing colors */}
                           {!design.isDraft && getMissingColors(design).length > 0 && (
@@ -1996,33 +1986,20 @@ export default function HomePage() {
                                     >
                                       Convert Mesh
                                     </button>
-                                    {!design.printVersionOf && (
-                                      design.hasPrintVersion ? (
-                                        <Link
-                                          href={`/design/${design.printVersionId}/colors`}
-                                          onClick={() => setCardMenuDesignId(null)}
-                                          className="block px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-600"
-                                        >
-                                          Edit Print Version
-                                        </Link>
-                                      ) : (
-                                        <button
-                                          onClick={() => { handleCreatePrintVersion(design.id); setCardMenuDesignId(null); }}
-                                          className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600"
-                                        >
-                                          Create Print Version
-                                        </button>
-                                      )
-                                    )}
-                                    {design.printVersionOf && (
-                                      <Link
-                                        href={`/design/${design.id}/colors`}
-                                        onClick={() => setCardMenuDesignId(null)}
-                                        className="block px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-600"
-                                      >
-                                        Edit Colors
-                                      </Link>
-                                    )}
+                                    <button
+                                      onClick={async () => {
+                                        setCardMenuDesignId(null);
+                                        // Fetch/auto-create print version, then navigate
+                                        const pvRes = await fetch(`/api/designs/${design.id}/print-version`);
+                                        const pvData = await pvRes.json();
+                                        if (pvData.printVersion) {
+                                          router.push(`/design/${pvData.printVersion.id}/colors`);
+                                        }
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-600"
+                                    >
+                                      Edit Print Version
+                                    </button>
                                   </div>
                                 )}
                               </div>

@@ -17,7 +17,7 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const printVersion = await prisma.design.findUnique({
+    let printVersion = await prisma.design.findUnique({
       where: { printVersionOf: id },
       select: {
         id: true,
@@ -26,6 +26,39 @@ export async function GET(
         updatedAt: true,
       },
     });
+
+    // Auto-create if it doesn't exist yet (backfill for older designs)
+    if (!printVersion) {
+      const original = await prisma.design.findUnique({ where: { id } });
+      if (original && !original.printVersionOf) {
+        const created = await prisma.design.create({
+          data: {
+            name: `${original.name} (Print)`,
+            widthInches: original.widthInches,
+            heightInches: original.heightInches,
+            meshCount: original.meshCount,
+            gridWidth: original.gridWidth,
+            gridHeight: original.gridHeight,
+            pixelData: original.pixelData,
+            stitchType: original.stitchType,
+            bufferPercent: original.bufferPercent,
+            kitColorCount: original.kitColorCount,
+            kitSkeinCount: original.kitSkeinCount,
+            colorsUsed: original.colorsUsed,
+            totalStitches: original.totalStitches,
+            folderId: original.folderId,
+            isDraft: original.isDraft,
+            printVersionOf: id,
+          },
+        });
+        printVersion = {
+          id: created.id,
+          name: created.name,
+          colorsUsed: created.colorsUsed,
+          updatedAt: created.updatedAt,
+        };
+      }
+    }
 
     return NextResponse.json({ printVersion });
   } catch (error) {

@@ -41,6 +41,9 @@ export async function GET(request: NextRequest) {
       where.deletedAt = null;
     }
 
+    // Hide print versions from the main list — they're accessed via the original design
+    where.printVersionOf = null;
+
     if (folderId === "null") {
       where.folderId = null;
     } else if (folderId) {
@@ -188,6 +191,30 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Auto-create print version
+    try {
+      await prisma.design.create({
+        data: {
+          name: `${name} (Print)`,
+          widthInches,
+          heightInches,
+          meshCount,
+          gridWidth,
+          gridHeight,
+          pixelData: pixelDataBuffer,
+          stitchType: stitchType || "continental",
+          bufferPercent: bufferPercent || 20,
+          kitColorCount,
+          kitSkeinCount,
+          totalStitches,
+          folderId,
+          printVersionOf: design.id,
+        },
+      });
+    } catch (e) {
+      console.error("Error auto-creating print version:", e);
+    }
 
     return NextResponse.json({
       ...design,
