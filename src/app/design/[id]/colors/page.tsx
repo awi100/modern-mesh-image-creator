@@ -38,8 +38,9 @@ export default function ColorSwapPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
-  const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
+  const [originalGrid, setOriginalGrid] = useState<(string | null)[][] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -97,12 +98,12 @@ export default function ColorSwapPage() {
         });
       }
 
-      // Fetch original preview for comparison
+      // Fetch original design grid for comparison preview
       if (data.printVersionOf) {
         const origRes = await fetch(`/api/designs/${data.printVersionOf}`);
         if (origRes.ok) {
           const origData = await origRes.json();
-          if (origData.previewImageUrl) setOriginalPreviewUrl(origData.previewImageUrl);
+          setOriginalGrid(origData.grid);
         }
       }
     } catch (err) {
@@ -125,6 +126,7 @@ export default function ColorSwapPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ overrides: newOverrides }),
         });
+        setLastSaved(new Date().toLocaleTimeString());
       } catch (err) {
         console.error("Error saving:", err);
       }
@@ -216,18 +218,18 @@ export default function ColorSwapPage() {
   // Count adjustments
   const adjustedCount = Object.keys(overrides).length;
 
-  // Render a small preview canvas from the grid with overrides
+  // Render preview canvases from grid data
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    if (!design?.grid || !previewCanvasRef.current) return;
-    const canvas = previewCanvasRef.current;
-    const grid = design.grid;
+  const originalCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Helper to render a grid to a canvas
+  const renderGridToCanvas = useCallback((canvas: HTMLCanvasElement, grid: (string | null)[][], colorMap?: Record<string, string>) => {
     const h = grid.length;
     const w = grid[0]?.length || 0;
     if (w === 0 || h === 0) return;
 
     const maxSize = 400;
-    const cellSize = Math.max(1, Math.min(Math.floor(maxSize / w), Math.floor(maxSize / h)));
+    const cellSize = Math.max(2, Math.min(Math.floor(maxSize / w), Math.floor(maxSize / h)));
     canvas.width = w * cellSize;
     canvas.height = h * cellSize;
     const ctx = canvas.getContext("2d");
@@ -242,11 +244,23 @@ export default function ColorSwapPage() {
         if (!dmc) continue;
         const color = getDmcColorByNumber(dmc);
         if (!color) continue;
-        ctx.fillStyle = overrides[dmc] || color.hex;
+        ctx.fillStyle = colorMap?.[dmc] || color.hex;
         ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
       }
     }
-  }, [design?.grid, overrides]);
+  }, []);
+
+  // Render original preview
+  useEffect(() => {
+    if (!originalGrid || !originalCanvasRef.current) return;
+    renderGridToCanvas(originalCanvasRef.current, originalGrid);
+  }, [originalGrid, renderGridToCanvas]);
+
+  // Render print version preview (updates on override changes)
+  useEffect(() => {
+    if (!design?.grid || !previewCanvasRef.current) return;
+    renderGridToCanvas(previewCanvasRef.current, design.grid, overrides);
+  }, [design?.grid, overrides, renderGridToCanvas]);
 
   if (loading) {
     return (
@@ -281,7 +295,11 @@ export default function ColorSwapPage() {
             ]} />
           </div>
           <div className="flex items-center gap-2">
-            {saving && <span className="text-xs text-slate-500">Saving...</span>}
+            {saving ? (
+              <span className="text-xs text-amber-400">Saving...</span>
+            ) : lastSaved ? (
+              <span className="text-xs text-slate-500">Saved {lastSaved}</span>
+            ) : null}
             <button
               onClick={handleExportPrintOrder}
               disabled={exportingPdf}
@@ -302,11 +320,7 @@ export default function ColorSwapPage() {
                 <div className="bg-slate-900">
                   <p className="text-[10px] text-slate-500 text-center py-1 bg-slate-800">Original</p>
                   <div className="aspect-square flex items-center justify-center">
-                    {originalPreviewUrl ? (
-                      <img src={originalPreviewUrl} alt="Original" className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
-                    ) : (
-                      <span className="text-slate-600 text-xs">No preview</span>
-                    )}
+                    <canvas ref={originalCanvasRef} className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
                   </div>
                 </div>
                 <div className="bg-slate-900">
