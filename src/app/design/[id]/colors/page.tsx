@@ -250,17 +250,17 @@ export default function ColorSwapPage() {
     }
   }, []);
 
-  // Render original preview
+  // Render original preview (re-run after loading clears so canvas ref is mounted)
   useEffect(() => {
-    if (!originalGrid || !originalCanvasRef.current) return;
+    if (loading || !originalGrid || !originalCanvasRef.current) return;
     renderGridToCanvas(originalCanvasRef.current, originalGrid);
-  }, [originalGrid, renderGridToCanvas]);
+  }, [originalGrid, loading, renderGridToCanvas]);
 
-  // Render print version preview (updates on override changes)
+  // Render print version preview (re-run after loading clears and on override changes)
   useEffect(() => {
-    if (!design?.grid || !previewCanvasRef.current) return;
+    if (loading || !design?.grid || !previewCanvasRef.current) return;
     renderGridToCanvas(previewCanvasRef.current, design.grid, overrides);
-  }, [design?.grid, overrides, renderGridToCanvas]);
+  }, [design?.grid, overrides, loading, renderGridToCanvas]);
 
   if (loading) {
     return (
