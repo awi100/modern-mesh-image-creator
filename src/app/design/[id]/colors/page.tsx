@@ -38,6 +38,8 @@ export default function ColorSwapPage() {
   const [swapTarget, setSwapTarget] = useState<string | null>(null);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
+  const [originalColors, setOriginalColors] = useState<ColorInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const fetchDesignColors = useCallback(async () => {
@@ -68,6 +70,26 @@ export default function ColorSwapPage() {
       const data = await res.json();
       setDesign(data);
       if (data.previewImageUrl) setPreviewUrl(data.previewImageUrl);
+
+      // Fetch original design for comparison
+      if (data.printVersionOf) {
+        const origRes = await fetch(`/api/designs/${data.printVersionOf}`);
+        if (origRes.ok) {
+          const origData = await origRes.json();
+          if (origData.previewImageUrl) setOriginalPreviewUrl(origData.previewImageUrl);
+        }
+        // Fetch original colors
+        const origColorsRes = await fetch(`/api/designs/${data.printVersionOf}/color-variant`);
+        if (origColorsRes.ok) {
+          const origColorsData = await origColorsRes.json();
+          setOriginalColors(
+            origColorsData.colors.map((c: { dmcNumber: string; stitchCount: number }) => ({
+              ...c,
+              color: getDmcColorByNumber(c.dmcNumber),
+            }))
+          );
+        }
+      }
     } catch (err) {
       console.error("Error fetching design:", err);
     }
@@ -77,6 +99,26 @@ export default function ColorSwapPage() {
     fetchDesignColors();
     fetchDesign();
   }, [fetchDesignColors, fetchDesign]);
+
+  // Build a map of original DMC numbers by position (stitch count) for comparison
+  const originalColorMap = useMemo(() => {
+    const map = new Map<string, ColorInfo>();
+    for (const c of originalColors) {
+      map.set(c.dmcNumber, c);
+    }
+    return map;
+  }, [originalColors]);
+
+  // Detect which colors differ from original
+  const printColorSet = useMemo(() => new Set(colors.map(c => c.dmcNumber)), [colors]);
+  const originalColorSet = useMemo(() => new Set(originalColors.map(c => c.dmcNumber)), [originalColors]);
+  const changedCount = useMemo(() => {
+    let count = 0;
+    for (const dmc of printColorSet) {
+      if (!originalColorSet.has(dmc)) count++;
+    }
+    return count;
+  }, [printColorSet, originalColorSet]);
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -203,26 +245,46 @@ export default function ColorSwapPage() {
 
       <div className="max-w-5xl mx-auto px-3 md:px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Preview */}
+          {/* Preview comparison */}
           <div className="lg:col-span-1">
             <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden sticky top-24">
-              <div className="aspect-square bg-slate-900 flex items-center justify-center">
-                {previewUrl ? (
-                  <img
-                    src={previewUrl}
-                    alt={design?.name || "Preview"}
-                    className="w-full h-full object-contain"
-                    style={{ imageRendering: "pixelated" }}
-                  />
-                ) : (
-                  <span className="text-slate-600 text-sm">No preview</span>
-                )}
+              <div className="grid grid-cols-2 gap-px bg-slate-700">
+                <div className="bg-slate-900">
+                  <p className="text-[10px] text-slate-500 text-center py-1 bg-slate-800">Original</p>
+                  <div className="aspect-square flex items-center justify-center">
+                    {originalPreviewUrl ? (
+                      <img
+                        src={originalPreviewUrl}
+                        alt="Original"
+                        className="w-full h-full object-contain"
+                        style={{ imageRendering: "pixelated" }}
+                      />
+                    ) : (
+                      <span className="text-slate-600 text-xs">No preview</span>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-slate-900">
+                  <p className="text-[10px] text-emerald-400 text-center py-1 bg-slate-800">Print Version</p>
+                  <div className="aspect-square flex items-center justify-center">
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt="Print Version"
+                        className="w-full h-full object-contain"
+                        style={{ imageRendering: "pixelated" }}
+                      />
+                    ) : (
+                      <span className="text-slate-600 text-xs">No preview</span>
+                    )}
+                  </div>
+                </div>
               </div>
               {design && (
-                <div className="p-3 text-xs text-slate-400">
-                  {design.widthInches}&quot; x {design.heightInches}&quot; @ {design.meshCount} mesh
-                  {design.printVersionOf && (
-                    <span className="ml-2 text-emerald-400 font-medium">Print Version</span>
+                <div className="p-3 text-xs text-slate-400 flex justify-between">
+                  <span>{design.widthInches}&quot; x {design.heightInches}&quot; @ {design.meshCount} mesh</span>
+                  {changedCount > 0 && (
+                    <span className="text-amber-400">{changedCount} color{changedCount !== 1 ? "s" : ""} changed</span>
                   )}
                 </div>
               )}
@@ -242,18 +304,45 @@ export default function ColorSwapPage() {
               </div>
 
               <div className="divide-y divide-slate-700">
-                {colors.map((c) => (
-                  <div key={c.dmcNumber} className="p-4">
+                {colors.map((c) => {
+                  const isNew = !originalColorSet.has(c.dmcNumber);
+                  // Find the original color this replaced (same stitch count = likely swap)
+                  const replacedOriginal = isNew
+                    ? originalColors.find(oc => !printColorSet.has(oc.dmcNumber) && Math.abs(oc.stitchCount - c.stitchCount) < 5)
+                    : null;
+
+                  return (
+                  <div key={c.dmcNumber} className={`p-4 ${isNew ? "bg-amber-900/10" : ""}`}>
                     <div className="flex items-center gap-3">
-                      {/* Color swatch */}
-                      <div
-                        className="w-10 h-10 rounded-lg border border-slate-600 flex-shrink-0"
-                        style={{ backgroundColor: c.color?.hex || "#666" }}
-                      />
+                      {/* Color swatch - show original → new if changed */}
+                      {replacedOriginal ? (
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <div
+                            className="w-8 h-8 rounded-lg border border-slate-600 opacity-50"
+                            style={{ backgroundColor: replacedOriginal.color?.hex || "#666" }}
+                            title={`Original: DMC ${replacedOriginal.dmcNumber}`}
+                          />
+                          <span className="text-slate-500 text-xs">→</span>
+                          <div
+                            className="w-10 h-10 rounded-lg border-2 border-amber-500/50"
+                            style={{ backgroundColor: c.color?.hex || "#666" }}
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="w-10 h-10 rounded-lg border border-slate-600 flex-shrink-0"
+                          style={{ backgroundColor: c.color?.hex || "#666" }}
+                        />
+                      )}
                       {/* Color info */}
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium">
                           DMC {c.dmcNumber}
+                          {replacedOriginal && (
+                            <span className="ml-2 text-xs text-amber-400 font-normal">
+                              was DMC {replacedOriginal.dmcNumber} ({replacedOriginal.color?.name})
+                            </span>
+                          )}
                         </p>
                         <p className="text-slate-400 text-xs truncate">
                           {c.color?.name || "Unknown"} — {c.stitchCount.toLocaleString()} stitches
@@ -311,7 +400,8 @@ export default function ColorSwapPage() {
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
