@@ -54,6 +54,27 @@ export async function POST(
       });
     }
 
+    // Auto-create print version for the duplicate
+    try {
+      await prisma.design.create({
+        data: {
+          name: `${duplicate.name} (Print)`,
+          widthInches: original.widthInches,
+          heightInches: original.heightInches,
+          meshCount: original.meshCount,
+          gridWidth: original.gridWidth,
+          gridHeight: original.gridHeight,
+          pixelData: original.pixelData,
+          stitchType: original.stitchType,
+          bufferPercent: original.bufferPercent,
+          folderId: original.folderId,
+          printVersionOf: duplicate.id,
+        },
+      });
+    } catch (e) {
+      console.error("Error auto-creating print version for duplicate:", e);
+    }
+
     return NextResponse.json(duplicate);
   } catch (error) {
     console.error("Error duplicating design:", error);

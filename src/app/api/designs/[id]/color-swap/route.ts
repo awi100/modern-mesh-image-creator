@@ -27,6 +27,11 @@ export async function POST(
       return NextResponse.json({ error: "Design not found" }, { status: 404 });
     }
 
+    // Only allow color swaps on print versions to protect original kit colors
+    if (!design.printVersionOf) {
+      return NextResponse.json({ error: "Color swaps can only be made on print versions" }, { status: 400 });
+    }
+
     // Decompress grid
     const compressed = Buffer.from(design.pixelData);
     const decompressed = pako.inflate(compressed, { to: "string" });

@@ -38,23 +38,25 @@ export default function ColorSwapPage() {
   const [swapTarget, setSwapTarget] = useState<string | null>(null);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchDesignColors = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`/api/designs/${designId}/color-variant`);
-      if (!res.ok) throw new Error("Failed to fetch");
+      if (!res.ok) throw new Error("Failed to fetch colors");
       const data = await res.json();
 
-      setDesign(null); // Will be set from detail fetch
       setColors(
         data.colors.map((c: { dmcNumber: string; stitchCount: number }) => ({
           ...c,
           color: getDmcColorByNumber(c.dmcNumber),
         }))
       );
-    } catch (error) {
-      console.error("Error fetching colors:", error);
+    } catch (err) {
+      console.error("Error fetching colors:", err);
+      setError("Failed to load design colors. Please try refreshing.");
     }
     setLoading(false);
   }, [designId]);
@@ -66,8 +68,8 @@ export default function ColorSwapPage() {
       const data = await res.json();
       setDesign(data);
       if (data.previewImageUrl) setPreviewUrl(data.previewImageUrl);
-    } catch (error) {
-      console.error("Error fetching design:", error);
+    } catch (err) {
+      console.error("Error fetching design:", err);
     }
   }, [designId]);
 
@@ -107,15 +109,17 @@ export default function ColorSwapPage() {
     if (!confirm("Reset all colors to match the original design? This will undo all swaps.")) return;
 
     try {
-      // Delete and recreate
-      await fetch(`/api/designs/${design.printVersionOf}/print-version`, { method: "DELETE" });
+      const delRes = await fetch(`/api/designs/${design.printVersionOf}/print-version`, { method: "DELETE" });
+      if (!delRes.ok) throw new Error("Failed to delete");
+
       const res = await fetch(`/api/designs/${design.printVersionOf}/print-version`, { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        router.replace(`/design/${data.id}/colors`);
-      }
-    } catch (error) {
-      console.error("Error resetting:", error);
+      if (!res.ok) throw new Error("Failed to recreate");
+
+      const data = await res.json();
+      router.replace(`/design/${data.id}/colors`);
+    } catch (err) {
+      console.error("Error resetting:", err);
+      setError("Failed to reset. The original design may have been deleted.");
     }
   };
 
@@ -146,6 +150,22 @@ export default function ColorSwapPage() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-slate-400">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 mb-4">{error}</p>
+          <button
+            onClick={() => { fetchDesignColors(); fetchDesign(); }}
+            className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }

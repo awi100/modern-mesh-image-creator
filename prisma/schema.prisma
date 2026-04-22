@@ -141,7 +141,7 @@ model Design {
   // A print version is a color-adjusted copy of a design for sending to the printer.
   // The original design drives kit/inventory. The print version is for export files only.
   printVersionOf       String?   @unique
-  printVersionOfDesign Design?   @relation("PrintVersion", fields: [printVersionOf], references: [id], onDelete: SetNull)
+  printVersionOfDesign Design?   @relation("PrintVersion", fields: [printVersionOf], references: [id], onDelete: Cascade)
   printVersion         Design?   @relation("PrintVersion")
 
   // Organization

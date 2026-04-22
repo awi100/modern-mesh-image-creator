@@ -172,6 +172,36 @@ export async function PUT(
       },
     });
 
+    // Sync print version if grid data changed
+    if (pixelDataBuffer) {
+      try {
+        const printVersion = await prisma.design.findUnique({
+          where: { printVersionOf: id },
+          select: { id: true },
+        });
+        if (printVersion) {
+          await prisma.design.update({
+            where: { id: printVersion.id },
+            data: {
+              pixelData: pixelDataBuffer,
+              widthInches,
+              heightInches,
+              meshCount,
+              gridWidth,
+              gridHeight,
+              kitColorCount,
+              kitSkeinCount,
+              colorsUsed,
+              totalStitches,
+              previewImageUrl: null, // Clear so it regenerates
+            },
+          });
+        }
+      } catch (e) {
+        console.error("Error syncing print version:", e);
+      }
+    }
+
     // Update tags if provided
     if (tagIds !== undefined) {
       // Remove existing tags
@@ -238,9 +268,13 @@ export async function DELETE(
         where: { id },
       });
     } else {
-      // Soft delete - move to trash
+      // Soft delete - move to trash (also soft-delete print version)
       await prisma.design.update({
         where: { id },
+        data: { deletedAt: new Date() },
+      });
+      await prisma.design.updateMany({
+        where: { printVersionOf: id },
         data: { deletedAt: new Date() },
       });
     }
@@ -270,9 +304,13 @@ export async function PATCH(
 
     const data: Record<string, unknown> = {};
 
-    // Restore from trash
+    // Restore from trash (also restore print version)
     if (body.restore === true) {
       data.deletedAt = null;
+      await prisma.design.updateMany({
+        where: { printVersionOf: id },
+        data: { deletedAt: null },
+      });
     }
 
     if (body.folderId !== undefined) {

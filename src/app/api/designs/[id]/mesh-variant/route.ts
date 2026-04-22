@@ -132,6 +132,31 @@ export async function POST(
       });
     }
 
+    // Auto-create print version for the mesh variant
+    try {
+      await prisma.design.create({
+        data: {
+          name: `${variantName} (Print)`,
+          widthInches: original.widthInches,
+          heightInches: original.heightInches,
+          meshCount: targetMeshCount,
+          gridWidth: newGridWidth,
+          gridHeight: newGridHeight,
+          pixelData: newPixelData,
+          stitchType: original.stitchType,
+          bufferPercent: original.bufferPercent,
+          folderId: original.folderId,
+          kitColorCount,
+          kitSkeinCount,
+          colorsUsed,
+          totalStitches,
+          printVersionOf: variant.id,
+        },
+      });
+    } catch (e) {
+      console.error("Error auto-creating print version for mesh variant:", e);
+    }
+
     return NextResponse.json({
       id: variant.id,
       name: variant.name,
