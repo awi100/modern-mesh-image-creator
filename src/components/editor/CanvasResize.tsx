@@ -102,6 +102,39 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
   // Get current grid for preview
   const currentGrid = useMemo(() => flattenLayers(), [flattenLayers]);
 
+  // Trim to content — find bounding box of non-empty pixels and set crop offsets
+  const handleTrimToContent = () => {
+    const grid = currentGrid;
+    let minX = gridWidth, minY = gridHeight, maxX = -1, maxY = -1;
+
+    for (let y = 0; y < gridHeight; y++) {
+      for (let x = 0; x < gridWidth; x++) {
+        if (grid[y]?.[x] !== null) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+
+    if (maxX < 0) return; // No content found
+
+    // Add 1 pixel padding around content
+    minX = Math.max(0, minX - 1);
+    minY = Math.max(0, minY - 1);
+    maxX = Math.min(gridWidth - 1, maxX + 1);
+    maxY = Math.min(gridHeight - 1, maxY + 1);
+
+    setCropOffsets({
+      top: minY,
+      bottom: gridHeight - 1 - maxY,
+      left: minX,
+      right: gridWidth - 1 - maxX,
+    });
+    setResizeMode("crop");
+  };
+
   // Calculate effective crop dimensions based on drag offsets
   const effectiveCrop = useMemo(() => {
     const keepWidth = gridWidth - cropOffsets.left - cropOffsets.right;
@@ -522,6 +555,17 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
               </label>
             </div>
           </div>
+
+          {/* Trim to Content */}
+          <button
+            onClick={handleTrimToContent}
+            className="w-full px-4 py-3 bg-emerald-900/30 border border-emerald-700 rounded-lg text-emerald-300 hover:bg-emerald-800/30 transition-colors text-sm font-medium"
+          >
+            Trim to Content
+            <span className="block text-xs text-emerald-400/70 font-normal mt-0.5">
+              Auto-crop empty space around the design
+            </span>
+          </button>
 
           {/* Interactive Crop Preview (only for crop mode) */}
           {resizeMode === "crop" && (
