@@ -2044,7 +2044,7 @@ export default function HomePage() {
                                         const pvRes = await fetch(`/api/designs/${design.id}/print-version`);
                                         const pvData = await pvRes.json();
                                         if (pvData.printVersion) {
-                                          router.push(`/design/${pvData.printVersion.id}/colors`);
+                                          window.open(`/design/${pvData.printVersion.id}/colors`, "_blank");
                                         }
                                       }}
                                       className="w-full text-left px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-600"

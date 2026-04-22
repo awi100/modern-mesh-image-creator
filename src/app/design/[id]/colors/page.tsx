@@ -311,36 +311,33 @@ export default function ColorSwapPage() {
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-3 md:px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Preview comparison */}
-          <div className="lg:col-span-1">
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden sticky top-24">
-              <div className="grid grid-cols-2 gap-px bg-slate-700">
-                <div className="bg-slate-900">
-                  <p className="text-[10px] text-slate-500 text-center py-1 bg-slate-800">Original</p>
-                  <div className="aspect-square flex items-center justify-center">
-                    <canvas ref={originalCanvasRef} className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
-                  </div>
-                </div>
-                <div className="bg-slate-900">
-                  <p className="text-[10px] text-emerald-400 text-center py-1 bg-slate-800">Print Version</p>
-                  <div className="aspect-square flex items-center justify-center">
-                    <canvas ref={previewCanvasRef} className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
-                  </div>
-                </div>
+      <div className="max-w-5xl mx-auto px-3 md:px-4 py-6 space-y-6">
+        {/* Preview comparison — full width, large */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="grid grid-cols-2 gap-px bg-slate-700">
+            <div className="bg-slate-900">
+              <p className="text-xs text-slate-500 text-center py-2 bg-slate-800 font-medium">Original</p>
+              <div className="aspect-square flex items-center justify-center p-2">
+                <canvas ref={originalCanvasRef} className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
               </div>
-              <div className="p-3 text-xs text-slate-400 flex justify-between">
-                <span>{design?.widthInches}&quot; x {design?.heightInches}&quot; @ {design?.meshCount} mesh</span>
-                {adjustedCount > 0 && (
-                  <span className="text-amber-400">{adjustedCount} adjusted</span>
-                )}
+            </div>
+            <div className="bg-slate-900">
+              <p className="text-xs text-emerald-400 text-center py-2 bg-slate-800 font-medium">Print Version</p>
+              <div className="aspect-square flex items-center justify-center p-2">
+                <canvas ref={previewCanvasRef} className="w-full h-full object-contain" style={{ imageRendering: "pixelated" }} />
               </div>
             </div>
           </div>
+          <div className="px-4 py-3 text-sm text-slate-400 flex justify-between border-t border-slate-700">
+            <span>{design?.widthInches}&quot; x {design?.heightInches}&quot; @ {design?.meshCount} mesh</span>
+            {adjustedCount > 0 && (
+              <span className="text-amber-400">{adjustedCount} color{adjustedCount !== 1 ? "s" : ""} adjusted</span>
+            )}
+          </div>
+        </div>
 
-          {/* Color list with sliders */}
-          <div className="lg:col-span-2">
+        {/* Color list with sliders */}
+        <div>
             <div className="bg-slate-800 rounded-xl border border-slate-700">
               <div className="p-4 border-b border-slate-700 flex items-center justify-between">
                 <div>
@@ -438,6 +435,5 @@ export default function ColorSwapPage() {
           </div>
         </div>
       </div>
-    </div>
   );
 }
