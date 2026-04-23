@@ -57,11 +57,15 @@ export async function PATCH(
   const { id } = await params;
 
   try {
-    const { name } = await request.json();
+    const body = await request.json();
+
+    const data: { name?: string; parentId?: string | null } = {};
+    if (body.name !== undefined) data.name = body.name;
+    if (body.parentId !== undefined) data.parentId = body.parentId;
 
     const folder = await prisma.folder.update({
       where: { id },
-      data: { name },
+      data,
     });
 
     return NextResponse.json(folder);

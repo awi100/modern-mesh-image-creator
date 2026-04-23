@@ -134,6 +134,7 @@ export default function HomePage() {
   const [colorSwapDesign, setColorSwapDesign] = useState<{ id: string; name: string } | null>(null);
   const [meshConvertDesign, setMeshConvertDesign] = useState<{id: string, name: string, meshCount: number, widthInches: number, heightInches: number} | null>(null);
   const [draggingDesignId, setDraggingDesignId] = useState<string | null>(null);
+  const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [downloadingFolderId, setDownloadingFolderId] = useState<string | null>(null);
   const [showMobileNav, setShowMobileNav] = useState(false);
@@ -452,6 +453,28 @@ export default function HomePage() {
     }
   };
 
+  const handleMoveFolderInto = async (folderId: string, newParentId: string | null) => {
+    // Prevent moving a folder into itself or its own descendant
+    if (folderId === newParentId) return;
+    if (newParentId && getDescendantIds(folderId).includes(newParentId)) return;
+
+    try {
+      const response = await fetch(`/api/folders/${folderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parentId: newParentId }),
+      });
+      if (response.ok) {
+        mutate("/api/folders");
+        if (newParentId) {
+          setExpandedFolders(prev => new Set([...prev, newParentId]));
+        }
+      }
+    } catch (error) {
+      console.error("Error moving folder:", error);
+    }
+  };
+
   const handleDeleteFolder = async (folderId: string) => {
     if (!confirm("Delete this folder? Designs will be moved to Unfiled.")) return;
 
@@ -504,7 +527,20 @@ export default function HomePage() {
 
       return (
         <div key={folder.id}>
-          <div className="group flex items-center" style={{ paddingLeft: depth * 16 }}>
+          <div
+            className={`group flex items-center ${draggingFolderId === folder.id ? "opacity-50" : ""}`}
+            style={{ paddingLeft: depth * 16 }}
+            draggable
+            onDragStart={(e) => {
+              setDraggingFolderId(folder.id);
+              e.dataTransfer.setData("application/folder-id", folder.id);
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            onDragEnd={() => {
+              setDraggingFolderId(null);
+              setDragOverFolderId(null);
+            }}
+          >
             {editingFolderId === folder.id ? (
               <div className="flex-1 flex gap-1">
                 <input
@@ -536,7 +572,8 @@ export default function HomePage() {
                 <button
                   onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); }}
                   onDragOver={(e) => {
-                    if (!draggingDesignId) return;
+                    if (!draggingDesignId && !draggingFolderId) return;
+                    if (draggingFolderId === folder.id) return; // Can't drop on self
                     e.preventDefault();
                     e.dataTransfer.dropEffect = "move";
                     setDragOverFolderId(folder.id);
@@ -544,10 +581,16 @@ export default function HomePage() {
                   onDragLeave={() => setDragOverFolderId((prev) => prev === folder.id ? null : prev)}
                   onDrop={(e) => {
                     e.preventDefault();
-                    const designId = e.dataTransfer.getData("text/plain");
-                    if (designId) handleMoveToFolder(designId, folder.id);
+                    const droppedFolderId = e.dataTransfer.getData("application/folder-id");
+                    if (droppedFolderId) {
+                      handleMoveFolderInto(droppedFolderId, folder.id);
+                    } else {
+                      const designId = e.dataTransfer.getData("text/plain");
+                      if (designId) handleMoveToFolder(designId, folder.id);
+                    }
                     setDragOverFolderId(null);
                     setDraggingDesignId(null);
+                    setDraggingFolderId(null);
                   }}
                   className={`flex-1 text-left px-2 py-2 rounded-lg transition-colors ${
                     dragOverFolderId === folder.id
@@ -1460,10 +1503,26 @@ export default function HomePage() {
               <div className="space-y-1">
                 <button
                   onClick={() => { setSelectedFolder(null); setShowTrash(false); }}
+                  onDragOver={(e) => {
+                    if (!draggingFolderId) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverFolderId("root");
+                  }}
+                  onDragLeave={() => setDragOverFolderId((prev) => prev === "root" ? null : prev)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const droppedFolderId = e.dataTransfer.getData("application/folder-id");
+                    if (droppedFolderId) handleMoveFolderInto(droppedFolderId, null);
+                    setDragOverFolderId(null);
+                    setDraggingFolderId(null);
+                  }}
                   className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                    selectedFolder === null && !showTrash
-                      ? "bg-rose-900/20 text-rose-400"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    dragOverFolderId === "root"
+                      ? "bg-rose-900/30 text-rose-300 ring-2 ring-rose-500/50"
+                      : selectedFolder === null && !showTrash
+                        ? "bg-rose-900/20 text-rose-400"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   }`}
                 >
                   All Designs
