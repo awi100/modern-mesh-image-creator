@@ -19,6 +19,11 @@ interface HistoryEntry {
   layers: Layer[];
   activeLayerIndex: number;
   timestamp: number;
+  // Optional dimension snapshot for undo of resize/crop operations
+  gridWidth?: number;
+  gridHeight?: number;
+  widthInches?: number;
+  heightInches?: number;
 }
 
 interface Clipboard {
@@ -1041,12 +1046,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const newIndex = historyIndex - 1;
     const entry = history[newIndex];
 
-    set({
+    const updates: Partial<EditorState> = {
       layers: entry.layers.map(l => ({ ...l, grid: l.grid.map(row => [...row]) })),
       activeLayerIndex: entry.activeLayerIndex,
       historyIndex: newIndex,
       isDirty: true,
-    });
+    };
+
+    // Restore dimensions if this was a resize/crop undo
+    if (entry.gridWidth !== undefined) {
+      updates.gridWidth = entry.gridWidth;
+      updates.gridHeight = entry.gridHeight;
+      updates.widthInches = entry.widthInches;
+      updates.heightInches = entry.heightInches;
+    }
+
+    set(updates);
   },
 
   redo: () => {
@@ -1056,12 +1071,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const newIndex = historyIndex + 1;
     const entry = history[newIndex];
 
-    set({
+    const updates: Partial<EditorState> = {
       layers: entry.layers.map(l => ({ ...l, grid: l.grid.map(row => [...row]) })),
       activeLayerIndex: entry.activeLayerIndex,
       historyIndex: newIndex,
       isDirty: true,
-    });
+    };
+
+    if (entry.gridWidth !== undefined) {
+      updates.gridWidth = entry.gridWidth;
+      updates.gridHeight = entry.gridHeight;
+      updates.widthInches = entry.widthInches;
+      updates.heightInches = entry.heightInches;
+    }
+
+    set(updates);
   },
 
   canUndo: () => {

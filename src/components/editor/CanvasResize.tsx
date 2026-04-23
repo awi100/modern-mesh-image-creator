@@ -354,7 +354,18 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
       return;
     }
 
-    saveToHistory();
+    // Capture pre-crop state so undo can restore it
+    const { layers: preCropLayers, activeLayerIndex: preCropActiveLayer, gridWidth: preCropW, gridHeight: preCropH, widthInches: preCropWIn, heightInches: preCropHIn } = useEditorStore.getState();
+    const preCropSnapshot = {
+      layers: preCropLayers.map(l => ({ ...l, grid: l.grid.map(row => [...row]) })),
+      activeLayerIndex: preCropActiveLayer,
+      timestamp: Date.now(),
+      // Store dimensions so undo can restore them
+      gridWidth: preCropW,
+      gridHeight: preCropH,
+      widthInches: preCropWIn,
+      heightInches: preCropHIn,
+    };
 
     // Get flattened grid
     const sourceGrid = flattenLayers();
@@ -385,6 +396,18 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
       });
 
       initializeGrid(cropWidth, cropHeight, newGrid);
+
+      // Inject pre-crop state into history so undo restores the original canvas
+      const state = useEditorStore.getState();
+      useEditorStore.setState({
+        history: [preCropSnapshot, {
+          layers: state.layers.map(l => ({ ...l, grid: l.grid.map(row => [...row]) })),
+          activeLayerIndex: state.activeLayerIndex,
+          timestamp: Date.now(),
+        }],
+        historyIndex: 1,
+      });
+
       onClose();
       return;
     } else {
@@ -412,6 +435,21 @@ export default function CanvasResize({ onClose }: CanvasResizeProps) {
     });
 
     initializeGrid(newGridWidth, newGridHeight, newGrid);
+
+    // Inject pre-crop state into history so undo restores the original canvas
+    const state = useEditorStore.getState();
+    useEditorStore.setState({
+      history: [preCropSnapshot, {
+        layers: state.layers.map(l => ({ ...l, grid: l.grid.map(row => [...row]) })),
+        activeLayerIndex: state.activeLayerIndex,
+        timestamp: Date.now(),
+        gridWidth: newGridWidth,
+        gridHeight: newGridHeight,
+        widthInches: newWidthInches,
+        heightInches: newHeightInches,
+      }],
+      historyIndex: 1,
+    });
 
     onClose();
   };
