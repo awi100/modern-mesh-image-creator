@@ -177,7 +177,7 @@ export default function OrdersPage() {
   const [filter, setFilter] = useState<FilterType>("all");
   const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
     if (typeof window !== "undefined") {
-      return (sessionStorage.getItem("ordersMeshFilter") as MeshFilter) || "all";
+      return (sessionStorage.getItem("ordersMeshFilter") as MeshFilter) || "order";
     }
     return "all";
   });
