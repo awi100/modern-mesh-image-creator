@@ -142,7 +142,7 @@ export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<TabType>("threads");
   const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
     if (typeof window !== "undefined") {
-      return (sessionStorage.getItem("inventoryMeshFilter") as MeshFilter) || "all";
+      return (sessionStorage.getItem("inventoryMeshFilter") as MeshFilter) || "order";
     }
     return "all";
   });
