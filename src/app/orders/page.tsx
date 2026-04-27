@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import Link from "next/link";
 import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/route";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 
 // Kit content types
@@ -174,6 +175,18 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
+  const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
+    if (typeof window !== "undefined") {
+      return (sessionStorage.getItem("ordersMeshFilter") as MeshFilter) || "all";
+    }
+    return "all";
+  });
+  const handleMeshFilterChange = (f: MeshFilter) => {
+    setMeshFilter(f);
+    if (typeof window !== "undefined") sessionStorage.setItem("ordersMeshFilter", f);
+    // Reset kit data so it refetches with new filter
+    setKitData(new Map());
+  };
   const [updating, setUpdating] = useState<string | null>(null); // Track which design is being updated
   const [fulfilling, setFulfilling] = useState<string | null>(null); // Track which order is being fulfilled
 
@@ -331,7 +344,8 @@ export default function OrdersPage() {
     if (kitData.size > 0) return; // Already loaded
     setLoadingKits(true);
     try {
-      const res = await fetch("/api/kits");
+      const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
+      const res = await fetch(`/api/kits${meshParam}`);
       if (res.ok) {
         const kits = await res.json();
         const kitMap = new Map<string, KitData>();
@@ -791,6 +805,10 @@ export default function OrdersPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         <Breadcrumb items={[{ label: "Orders" }]} className="mb-2" />
+
+        <div className="mb-4">
+          <MeshFilterChips value={meshFilter} onChange={handleMeshFilterChange} />
+        </div>
 
         {/* Error */}
         {error && (

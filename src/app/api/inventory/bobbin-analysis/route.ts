@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 
 const BOBBIN_ONLY_MAX = 5; // Yards threshold - below this we use bobbins only
@@ -54,17 +55,22 @@ interface BobbinSuggestion {
 }
 
 // GET - Analyze bobbin requirements across all designs
-export async function GET() {
+export async function GET(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // Fetch all non-draft designs
+    const meshFilter = new URL(request.url).searchParams.get("meshCount");
+    const meshWhere = meshCountWhere(meshFilter);
+
+    // Fetch non-draft designs (filtered by mesh count if specified)
     const designs = await prisma.design.findMany({
       where: {
         isDraft: false,
         deletedAt: null,
+        printVersionOf: null,
+        ...meshWhere,
       },
       select: {
         id: true,

@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 
 interface ColorRequirement {
@@ -88,22 +89,25 @@ interface OrderSuggestion {
 }
 
 // GET - Calculate stock alerts for all non-draft designs
-export async function GET() {
+export async function GET(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    const meshFilter = new URL(request.url).searchParams.get("meshCount");
+    const meshWhere = meshCountWhere(meshFilter);
+
     // Fetch excluded designs (to show in UI for toggling)
     const excludedDesigns = await prisma.design.findMany({
-      where: { isDraft: false, deletedAt: null, excludeFromStockAlerts: true },
+      where: { isDraft: false, deletedAt: null, excludeFromStockAlerts: true, printVersionOf: null, ...meshWhere },
       select: { id: true, name: true, previewImageUrl: true },
       orderBy: { name: "asc" },
     });
 
     // Fetch all non-draft designs with pixel data and velocity info (excluding ones marked for exclusion)
     const designs = await prisma.design.findMany({
-      where: { isDraft: false, deletedAt: null, excludeFromStockAlerts: false },
+      where: { isDraft: false, deletedAt: null, excludeFromStockAlerts: false, printVersionOf: null, ...meshWhere },
       select: {
         id: true,
         name: true,

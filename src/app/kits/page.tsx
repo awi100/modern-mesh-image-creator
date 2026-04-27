@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import useSWR, { mutate } from "swr";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
 
 const SKEIN_YARDS = 27;
 
@@ -128,14 +129,27 @@ export default function KitsPage() {
   // Track which colors are currently being processed
   const processingRef = useRef<Set<string>>(new Set());
 
+  const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
+    if (typeof window !== "undefined") {
+      return (sessionStorage.getItem("kitsMeshFilter") as MeshFilter) || "all";
+    }
+    return "all";
+  });
+  const handleMeshFilterChange = (f: MeshFilter) => {
+    setMeshFilter(f);
+    if (typeof window !== "undefined") sessionStorage.setItem("kitsMeshFilter", f);
+  };
+
+  const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
+
   // Use SWR for caching - data persists across navigations
-  const { data: kits, isLoading: loading, mutate: mutateKits } = useSWR<KitSummary[]>("/api/kits", {
+  const { data: kits, isLoading: loading, mutate: mutateKits } = useSWR<KitSummary[]>(`/api/kits${meshParam}`, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
 
   // Fetch color usage data to show which designs use each color
-  const { data: colorUsage } = useSWR<ColorUsage[]>("/api/colors/usage", {
+  const { data: colorUsage } = useSWR<ColorUsage[]>(`/api/colors/usage${meshParam}`, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
@@ -511,6 +525,10 @@ export default function KitsPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         <Breadcrumb items={[{ label: "Kits" }]} className="mb-2" />
+
+        <div className="mb-4">
+          <MeshFilterChips value={meshFilter} onChange={handleMeshFilterChange} />
+        </div>
 
         {filteredKits.length === 0 ? (
           <div className="text-center py-12 text-slate-500">

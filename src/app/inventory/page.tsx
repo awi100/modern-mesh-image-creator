@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DmcColor, searchDmcColors, getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
 
 interface InventoryItem {
   id: string;
@@ -139,6 +140,16 @@ function getContrastTextColor(hex: string): string {
 export default function InventoryPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("threads");
+  const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
+    if (typeof window !== "undefined") {
+      return (sessionStorage.getItem("inventoryMeshFilter") as MeshFilter) || "all";
+    }
+    return "all";
+  });
+  const handleMeshFilterChange = (f: MeshFilter) => {
+    setMeshFilter(f);
+    if (typeof window !== "undefined") sessionStorage.setItem("inventoryMeshFilter", f);
+  };
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [designs, setDesigns] = useState<Design[]>([]);
   const [transferringCanvas, setTransferringCanvas] = useState<string | null>(null);
@@ -189,7 +200,7 @@ export default function InventoryPage() {
     fetchInventory();
     fetchDesigns();
     fetchColorUsage();
-  }, []);
+  }, [meshFilter]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -199,7 +210,7 @@ export default function InventoryPage() {
 
   const fetchColorUsage = async () => {
     try {
-      const response = await fetch("/api/colors/usage");
+      const response = await fetch(`/api/colors/usage${meshFilter !== "all" ? `?meshCount=${meshFilter}` : ""}`);
       if (response.ok) {
         const data: ColorUsage[] = await response.json();
         const usageMap = new Map<string, ColorUsageDesign[]>();
@@ -389,7 +400,7 @@ export default function InventoryPage() {
   const fetchBobbins = async () => {
     setBobbinsLoading(true);
     try {
-      const response = await fetch("/api/inventory/bobbin-analysis");
+      const response = await fetch(`/api/inventory/bobbin-analysis${meshFilter !== "all" ? `?meshCount=${meshFilter}` : ""}`);
       if (response.ok) {
         const data = await response.json();
         setBobbinData(data);
@@ -400,12 +411,12 @@ export default function InventoryPage() {
     setBobbinsLoading(false);
   };
 
-  // Fetch bobbins when tab changes to bobbins
+  // Fetch bobbins when tab changes to bobbins or mesh filter changes
   useEffect(() => {
-    if (activeTab === "bobbins" && !bobbinData) {
+    if (activeTab === "bobbins") {
       fetchBobbins();
     }
-  }, [activeTab, bobbinData]);
+  }, [activeTab, meshFilter]);
 
   const handleSaveSupply = async () => {
     if (!supplyForm.name.trim()) return;
@@ -818,6 +829,11 @@ export default function InventoryPage() {
 
       <div className="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6">
         <Breadcrumb items={[{ label: "Inventory" }]} className="mb-4" />
+
+        {/* Mesh filter */}
+        <div className="mb-4">
+          <MeshFilterChips value={meshFilter} onChange={handleMeshFilterChange} />
+        </div>
 
         {/* Tabs */}
         <div className="overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0 mb-6">
