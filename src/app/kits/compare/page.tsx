@@ -221,13 +221,8 @@ export default function KitComparePage() {
                           </button>
 
                           {/* Expanded comparison table */}
-                          {isDesignExpanded && hasBoth && (
-                            <ComparisonTable kit14={pair.kit14!} kit18={pair.kit18!} />
-                          )}
-                          {isDesignExpanded && !hasBoth && (
-                            <div className="px-8 py-3 text-sm text-slate-500">
-                              {pair.kit14 ? "No matching 18ct version found" : "No matching 14ct version found"}
-                            </div>
+                          {isDesignExpanded && (pair.kit14 || pair.kit18) && (
+                            <ComparisonTable kit14={pair.kit14} kit18={pair.kit18} />
                           )}
                         </div>
                       );
@@ -243,10 +238,12 @@ export default function KitComparePage() {
   );
 }
 
-function ComparisonTable({ kit14, kit18 }: { kit14: KitSummary; kit18: KitSummary }) {
+function ComparisonTable({ kit14, kit18 }: { kit14: KitSummary | null; kit18: KitSummary | null }) {
+  const hasBoth = !!kit14 && !!kit18;
+
   const comparison = useMemo(() => {
-    const colors14 = new Map(kit14.kitContents.map(c => [c.dmcNumber, c]));
-    const colors18 = new Map(kit18.kitContents.map(c => [c.dmcNumber, c]));
+    const colors14 = new Map((kit14?.kitContents || []).map(c => [c.dmcNumber, c]));
+    const colors18 = new Map((kit18?.kitContents || []).map(c => [c.dmcNumber, c]));
 
     const allDmcNumbers = new Set([...colors14.keys(), ...colors18.keys()]);
     const sorted = Array.from(allDmcNumbers).sort((a, b) => {
@@ -282,8 +279,16 @@ function ComparisonTable({ kit14, kit18 }: { kit14: KitSummary; kit18: KitSummar
   return (
     <div className="px-4 pb-3">
       <div className="text-xs text-slate-400 mb-2 pl-4">
-        {comparison.shared} shared colors, {comparison.identical} identical quantities
-        {comparison.identical > 0 && <span className="text-emerald-400"> — those threads are reusable</span>}
+        {hasBoth ? (
+          <>
+            {comparison.shared} shared colors, {comparison.identical} identical quantities
+            {comparison.identical > 0 && <span className="text-emerald-400"> — those threads are reusable</span>}
+          </>
+        ) : (
+          <span className="text-amber-400">
+            {kit14 ? "No matching 18ct version yet — showing 14ct details" : "No matching 14ct version yet — showing 18ct details"}
+          </span>
+        )}
       </div>
       <div className="overflow-x-auto rounded-lg border border-slate-700">
         <table className="w-full text-sm">
