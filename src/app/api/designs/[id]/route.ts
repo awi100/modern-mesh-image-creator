@@ -313,6 +313,10 @@ export async function PATCH(
       });
     }
 
+    if (body.name !== undefined) {
+      data.name = body.name;
+    }
+
     if (body.folderId !== undefined) {
       data.folderId = body.folderId;
     }

@@ -485,6 +485,12 @@ export default function KitsPage() {
               </svg>
             </button>
             <span className="text-slate-400 text-sm">({filteredKits.length} designs)</span>
+            <Link
+              href="/kits/compare"
+              className="px-3 py-1.5 bg-amber-900/50 text-amber-200 rounded-lg hover:bg-amber-800/50 text-sm font-medium"
+            >
+              Compare 14ct vs 18ct
+            </Link>
           </div>
 
           {/* Filter */}

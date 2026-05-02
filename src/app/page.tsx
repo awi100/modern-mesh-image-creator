@@ -139,6 +139,8 @@ export default function HomePage() {
   const [downloadingFolderId, setDownloadingFolderId] = useState<string | null>(null);
   const [showMobileNav, setShowMobileNav] = useState(false);
   const [cardMenuDesignId, setCardMenuDesignId] = useState<string | null>(null);
+  const [editingDesignNameId, setEditingDesignNameId] = useState<string | null>(null);
+  const [editingDesignNameValue, setEditingDesignNameValue] = useState("");
 
   // Selection mode state
   const [selectedDesigns, setSelectedDesigns] = useState<Set<string>>(new Set());
@@ -510,6 +512,28 @@ export default function HomePage() {
     } catch (error) {
       console.error("Error deleting folder:", error);
     }
+  };
+
+  const handleRenameDesign = async (designId: string) => {
+    if (!editingDesignNameValue.trim()) {
+      setEditingDesignNameId(null);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editingDesignNameValue.trim() }),
+      });
+      if (response.ok) {
+        mutateDesigns();
+        mutate("/api/designs"); // Also refresh sidebar design list
+      }
+    } catch (error) {
+      console.error("Error renaming design:", error);
+    }
+    setEditingDesignNameId(null);
+    setEditingDesignNameValue("");
   };
 
   const handleRenameFolder = async (folderId: string) => {
@@ -1913,16 +1937,37 @@ export default function HomePage() {
 
                         {/* Info */}
                         <div className="p-3 md:p-4">
-                          {isSelectionMode ? (
+                          {editingDesignNameId === design.id ? (
+                            <input
+                              type="text"
+                              value={editingDesignNameValue}
+                              onChange={(e) => setEditingDesignNameValue(e.target.value)}
+                              onBlur={() => handleRenameDesign(design.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleRenameDesign(design.id);
+                                if (e.key === "Escape") { setEditingDesignNameId(null); setEditingDesignNameValue(""); }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full px-2 py-1 mb-1 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-rose-800"
+                              autoFocus
+                            />
+                          ) : isSelectionMode ? (
                             <h3 className="font-semibold text-white mb-1 text-sm md:text-base truncate cursor-pointer">
                               {design.name}
                             </h3>
                           ) : (
-                            <Link href={`/design/${design.id}`}>
-                              <h3 className="font-semibold text-slate-900 dark:text-white mb-1 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors text-sm md:text-base truncate">
+                            <h3
+                              className="font-semibold text-slate-900 dark:text-white mb-1 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors text-sm md:text-base truncate cursor-text"
+                              onDoubleClick={(e) => {
+                                e.preventDefault();
+                                setEditingDesignNameId(design.id);
+                                setEditingDesignNameValue(design.name);
+                              }}
+                            >
+                              <Link href={`/design/${design.id}`} onClick={(e) => { if (editingDesignNameId) e.preventDefault(); }}>
                                 {design.name}
-                              </h3>
-                            </Link>
+                              </Link>
+                            </h3>
                           )}
                           <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mb-2 md:mb-3">
                             {design.widthInches}&quot; x {design.heightInches}&quot; @ {design.meshCount} mesh
