@@ -161,6 +161,24 @@ export default function HomePage() {
     revalidateOnReconnect: false,
   });
 
+  // All designs for sidebar (lightweight, always full list regardless of folder filter)
+  const { data: allDesigns = [] } = useSWR<Design[]>("/api/designs", {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
+
+  // Map of folderId → designs for sidebar display
+  const designsByFolder = useMemo(() => {
+    const map = new Map<string, Design[]>();
+    for (const d of allDesigns) {
+      const fid = d.folder?.id || "";
+      const list = map.get(fid) || [];
+      list.push(d);
+      map.set(fid, list);
+    }
+    return map;
+  }, [allDesigns]);
+
   const { data: trashData = [] } = useSWR<Design[]>("/api/designs?deleted=true", {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
@@ -570,7 +588,7 @@ export default function HomePage() {
                   )}
                 </button>
                 <button
-                  onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); }}
+                  onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); if (!expandedFolders.has(folder.id)) toggleFolderExpanded(folder.id); }}
                   onDragOver={(e) => {
                     if (!draggingDesignId && !draggingFolderId) return;
                     if (draggingFolderId === folder.id) return; // Can't drop on self
@@ -648,8 +666,33 @@ export default function HomePage() {
               </>
             )}
           </div>
-          {/* Render children if expanded */}
-          {hasChildren && isExpanded && renderDesktopFolderTree(children, depth + 1)}
+          {/* Render children and designs if expanded */}
+          {isExpanded && (
+            <>
+              {hasChildren && renderDesktopFolderTree(children, depth + 1)}
+              {/* Designs in this folder */}
+              {(designsByFolder.get(folder.id) || []).map((d) => (
+                <div
+                  key={d.id}
+                  className="flex items-center gap-2 py-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-300 cursor-grab"
+                  style={{ paddingLeft: (depth + 1) * 16 + 20 }}
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggingDesignId(d.id);
+                    e.dataTransfer.setData("text/plain", d.id);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragEnd={() => {
+                    setDraggingDesignId(null);
+                    setDragOverFolderId(null);
+                  }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-600 flex-shrink-0" />
+                  <span className="truncate">{d.name}</span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       );
     });
