@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
 
 interface ColorDesignUsage {
   id: string;
@@ -84,12 +85,23 @@ export default function StockAlertsPage() {
   const [excludedDesigns, setExcludedDesigns] = useState<ExcludedDesign[]>([]);
   const [showExcluded, setShowExcluded] = useState(false);
   const [togglingExclusion, setTogglingExclusion] = useState<string | null>(null);
+  const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
+    if (typeof window !== "undefined") {
+      return (sessionStorage.getItem("orderBuilderMeshFilter") as MeshFilter) || "order";
+    }
+    return "order";
+  });
+  const handleMeshFilterChange = (f: MeshFilter) => {
+    setMeshFilter(f);
+    if (typeof window !== "undefined") sessionStorage.setItem("orderBuilderMeshFilter", f);
+  };
 
   useEffect(() => {
     const fetchAlerts = async () => {
       setLoading(true);
       try {
-        const response = await fetch("/api/inventory/alerts");
+        const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
+        const response = await fetch(`/api/inventory/alerts${meshParam}`);
         if (response.ok) {
           const data = await response.json();
           setColors(data.mostUsedColors || []);
@@ -103,7 +115,7 @@ export default function StockAlertsPage() {
       setLoading(false);
     };
     fetchAlerts();
-  }, []);
+  }, [meshFilter]);
 
   const toggleExpand = (dmcNumber: string) => {
     setExpandedColors((prev) => {
@@ -172,7 +184,8 @@ export default function StockAlertsPage() {
       });
       if (res.ok) {
         // Refetch alerts data
-        const response = await fetch("/api/inventory/alerts");
+        const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
+        const response = await fetch(`/api/inventory/alerts${meshParam}`);
         if (response.ok) {
           const data = await response.json();
           setColors(data.mostUsedColors || []);
@@ -226,6 +239,11 @@ export default function StockAlertsPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
+        {/* Mesh filter */}
+        <div className="mb-4">
+          <MeshFilterChips value={meshFilter} onChange={handleMeshFilterChange} />
+        </div>
+
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
