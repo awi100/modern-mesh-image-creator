@@ -23,6 +23,7 @@ interface KitSummary {
   meshCount: number;
   totalColors: number;
   totalSkeins: number;
+  kitsReady: number;
   kitContents: KitContent[];
   folder: { id: string; name: string } | null;
 }
@@ -128,6 +129,8 @@ export default function KitComparePage() {
           collections.map(([folderName, pairs]) => {
             const isCollectionExpanded = expandedCollections.has(folderName);
             const pairedInCollection = pairs.filter(p => p.kit14 && p.kit18).length;
+            const ready14InCollection = pairs.reduce((sum, p) => sum + (p.kit14?.kitsReady || 0), 0);
+            const ready18InCollection = pairs.reduce((sum, p) => sum + (p.kit18?.kitsReady || 0), 0);
 
             return (
               <div key={folderName} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
@@ -149,6 +152,14 @@ export default function KitComparePage() {
                     <span className="text-xs text-slate-400">
                       {pairs.length} design{pairs.length !== 1 ? "s" : ""}
                       {pairedInCollection > 0 && `, ${pairedInCollection} matched`}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 text-xs">
+                    <span className="px-2 py-0.5 rounded bg-zinc-700 text-zinc-300">
+                      14ct: {ready14InCollection} ready
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-amber-900/60 text-amber-300">
+                      18ct: {ready18InCollection} ready
                     </span>
                   </div>
                 </button>
@@ -185,16 +196,26 @@ export default function KitComparePage() {
                                 </span>
                               )}
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 items-center">
                               {pair.kit14 && (
-                                <span className="px-2 py-0.5 rounded text-xs bg-zinc-700 text-zinc-300">
-                                  14ct: {pair.kit14.totalColors}c / {pair.kit14.totalSkeins}sk
-                                </span>
+                                <>
+                                  <span className="px-2 py-0.5 rounded text-xs bg-zinc-700 text-zinc-300">
+                                    14ct: {pair.kit14.totalColors}c / {pair.kit14.totalSkeins}sk
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${pair.kit14.kitsReady > 0 ? "bg-emerald-900/60 text-emerald-300" : "bg-slate-700 text-slate-400"}`} title="Kits in stock">
+                                    {pair.kit14.kitsReady} ready
+                                  </span>
+                                </>
                               )}
                               {pair.kit18 && (
-                                <span className="px-2 py-0.5 rounded text-xs bg-amber-900/60 text-amber-300">
-                                  18ct: {pair.kit18.totalColors}c / {pair.kit18.totalSkeins}sk
-                                </span>
+                                <>
+                                  <span className="px-2 py-0.5 rounded text-xs bg-amber-900/60 text-amber-300">
+                                    18ct: {pair.kit18.totalColors}c / {pair.kit18.totalSkeins}sk
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${pair.kit18.kitsReady > 0 ? "bg-emerald-900/60 text-emerald-300" : "bg-slate-700 text-slate-400"}`} title="Kits in stock">
+                                    {pair.kit18.kitsReady} ready
+                                  </span>
+                                </>
                               )}
                             </div>
                           </button>
