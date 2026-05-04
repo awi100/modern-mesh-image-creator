@@ -7,7 +7,8 @@ import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 
-const BOBBIN_ONLY_MAX = 5; // Yards threshold - below this we use bobbins only
+const BOBBIN_ONLY_MAX = 5; // Yards threshold - above this, use full skein
+const BOBBIN_MIN_YARDS = 2.4; // Below this, just finger-wrap (no pre-made bobbin)
 
 // Round up to whole number yards (2.1, 2.7, 2.9 all become 3)
 function roundUpToWholeYard(yards: number): number {
@@ -37,6 +38,9 @@ interface ColorBobbinAnalysis {
   // Summary
   totalBobbins: number;
   uniqueLengths: number;
+  // Inventory
+  onHand: number;
+  gap: number; // totalBobbins - onHand (positive = need to make more)
 }
 
 interface BobbinSuggestion {
@@ -112,9 +116,11 @@ export async function GET(request: NextRequest) {
         // Size 5 thread
         const threadSize: 5 | 8 = 5;
 
-        // Find colors that need bobbins (under threshold)
+        // Find colors that need pre-made 3-yard bobbins.
+        // Skip < 2.4 yards (finger wrap from skein at assembly time, no bobbin).
+        // Skip > 5 yards (uses a full skein, no bobbin).
         for (const usage of yarnUsage) {
-          if (usage.withBuffer <= BOBBIN_ONLY_MAX && usage.withBuffer > 0) {
+          if (usage.withBuffer >= BOBBIN_MIN_YARDS && usage.withBuffer <= BOBBIN_ONLY_MAX) {
             const key = `${usage.dmcNumber}-${threadSize}`;
 
             if (!colorBobbinsMap.has(key)) {
@@ -138,14 +144,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Build analysis results - only include colors with 2+ bobbin requirements
+    // Fetch current bobbin inventory
+    const bobbinInventory = await prisma.bobbinInventory.findMany();
+    const bobbinInventoryMap = new Map(bobbinInventory.map(b => [b.dmcNumber, b.count]));
+
+    // Build analysis results
     const colorAnalysis: ColorBobbinAnalysis[] = [];
     const suggestions: BobbinSuggestion[] = [];
 
     for (const [key, data] of colorBobbinsMap.entries()) {
-      // Skip colors with only 1 bobbin needed
-      if (data.bobbins.length < 2) continue;
-
       const dmcNumber = key.split("-")[0];
       const color = getDmcColorByNumber(dmcNumber);
       if (!color) continue;
@@ -167,6 +174,8 @@ export async function GET(request: NextRequest) {
         }))
         .sort((a, b) => a.length - b.length);
 
+      const onHand = bobbinInventoryMap.get(dmcNumber) || 0;
+      const totalBobbins = data.bobbins.length;
       colorAnalysis.push({
         dmcNumber,
         colorName: color.name,
@@ -174,8 +183,10 @@ export async function GET(request: NextRequest) {
         threadSize: data.threadSize,
         bobbins: data.bobbins.sort((a, b) => a.roundedYards - b.roundedYards),
         groupedByLength,
-        totalBobbins: data.bobbins.length,
+        totalBobbins,
         uniqueLengths: groupedByLength.length,
+        onHand,
+        gap: totalBobbins - onHand,
       });
 
       // Add to suggestions list

@@ -197,6 +197,18 @@ model InventoryItem {
   @@map("inventory_items")
 }
 
+// Pre-made 3-yard bobbin inventory (Size 5 thread)
+// Track how many ready-to-go bobbins we have for each DMC color
+model BobbinInventory {
+  id        String   @id @default(cuid())
+  dmcNumber String   @unique
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bobbin_inventory")
+}
+
 // Kit sale tracking
 model KitSale {
   id        String        @id @default(cuid())

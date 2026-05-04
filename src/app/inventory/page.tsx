@@ -118,6 +118,17 @@ interface BobbinSuggestion {
   designs: BobbinDesign[];
 }
 
+interface BobbinColorAnalysis {
+  dmcNumber: string;
+  colorName: string;
+  hex: string;
+  threadSize: 5 | 8;
+  totalBobbins: number;
+  onHand: number;
+  gap: number;
+  bobbins: { designId: string; designName: string; previewImageUrl: string | null; exactYards: number; roundedYards: number }[];
+}
+
 interface BobbinAnalysisSummary {
   totalColors: number;
   totalBobbins: number;
@@ -125,6 +136,7 @@ interface BobbinAnalysisSummary {
 }
 
 interface BobbinAnalysisData {
+  colorAnalysis: BobbinColorAnalysis[];
   suggestions: BobbinSuggestion[];
   summary: BobbinAnalysisSummary;
 }
@@ -417,6 +429,54 @@ export default function InventoryPage() {
       fetchBobbins();
     }
   }, [activeTab, meshFilter]);
+
+  // Adjust bobbin inventory count for a DMC color
+  const handleBobbinDelta = async (dmcNumber: string, delta: number) => {
+    // Optimistic UI update
+    setBobbinData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        colorAnalysis: prev.colorAnalysis.map((c) =>
+          c.dmcNumber === dmcNumber
+            ? { ...c, onHand: Math.max(0, c.onHand + delta), gap: c.totalBobbins - Math.max(0, c.onHand + delta) }
+            : c
+        ),
+      };
+    });
+    try {
+      await fetch("/api/inventory/bobbins", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dmcNumber, delta }),
+      });
+    } catch (error) {
+      console.error("Error updating bobbin count:", error);
+      fetchBobbins(); // Revert on error
+    }
+  };
+
+  const handleBobbinSet = async (dmcNumber: string, count: number) => {
+    setBobbinData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        colorAnalysis: prev.colorAnalysis.map((c) =>
+          c.dmcNumber === dmcNumber ? { ...c, onHand: count, gap: c.totalBobbins - count } : c
+        ),
+      };
+    });
+    try {
+      await fetch("/api/inventory/bobbins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dmcNumber, count }),
+      });
+    } catch (error) {
+      console.error("Error saving bobbin count:", error);
+      fetchBobbins();
+    }
+  };
 
   const handleSaveSupply = async () => {
     if (!supplyForm.name.trim()) return;
@@ -2075,34 +2135,38 @@ export default function InventoryPage() {
         {activeTab === "bobbins" && (
           <div className="space-y-4">
             {/* Summary stats */}
-            {bobbinData && (
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
-                  <p className="text-xs text-slate-400 uppercase tracking-wider">Total Colors</p>
-                  <p className="text-xl font-bold text-white">{bobbinData.summary.totalColors}</p>
-                </div>
-                <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
-                  <p className="text-xs text-slate-400 uppercase tracking-wider">Total Bobbins</p>
-                  <p className="text-xl font-bold text-white">{bobbinData.summary.totalBobbins}</p>
-                </div>
-                <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
-                  <p className="text-xs text-slate-400 uppercase tracking-wider">Common Lengths</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {bobbinData.summary.mostCommonLengths.map((item) => (
-                      <span key={item.length} className="px-2 py-0.5 bg-amber-900/50 text-amber-400 text-xs rounded">
-                        {item.length}yd ({item.count})
-                      </span>
-                    ))}
+            {bobbinData && (() => {
+              const totalNeeded = bobbinData.colorAnalysis.reduce((sum, c) => sum + c.totalBobbins, 0);
+              const totalOnHand = bobbinData.colorAnalysis.reduce((sum, c) => sum + c.onHand, 0);
+              const totalGap = bobbinData.colorAnalysis.reduce((sum, c) => sum + Math.max(0, c.gap), 0);
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider">Colors</p>
+                    <p className="text-xl font-bold text-white">{bobbinData.summary.totalColors}</p>
+                  </div>
+                  <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider">Need</p>
+                    <p className="text-xl font-bold text-white">{totalNeeded}</p>
+                  </div>
+                  <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider">On Hand</p>
+                    <p className="text-xl font-bold text-emerald-400">{totalOnHand}</p>
+                  </div>
+                  <div className={`rounded-lg border p-4 ${totalGap > 0 ? "bg-amber-900/30 border-amber-700" : "bg-emerald-900/30 border-emerald-700"}`}>
+                    <p className={`text-xs uppercase tracking-wider ${totalGap > 0 ? "text-amber-400" : "text-emerald-400"}`}>To Make</p>
+                    <p className={`text-xl font-bold ${totalGap > 0 ? "text-amber-300" : "text-emerald-300"}`}>{totalGap}</p>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Info box */}
             <div className="p-4 bg-amber-900/20 border border-amber-800/50 rounded-lg mb-4">
               <p className="text-sm text-slate-300">
-                <strong className="text-white">Pre-make Bobbins</strong> shows thread amounts under 5 yards that are used across multiple designs.
-                Pre-making common bobbins saves time when assembling kits.
+                <strong className="text-white">Bobbin Inventory.</strong> All bobbins are 3 yards (Size 5 thread).
+                Track how many you have on hand vs how many your designs need.
+                Colors needing 2.4–5 yards use a bobbin; under 2.4 yards is finger-wrapped at kit assembly; over 5 yards uses a full skein.
               </p>
             </div>
 
@@ -2116,68 +2180,105 @@ export default function InventoryPage() {
                   Analyzing bobbin requirements...
                 </div>
               </div>
-            ) : !bobbinData || bobbinData.suggestions.length === 0 ? (
+            ) : !bobbinData || bobbinData.colorAnalysis.length === 0 ? (
               <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-700 flex items-center justify-center">
                   <svg className="w-8 h-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h2 className="text-lg font-semibold text-white mb-2">No common bobbins found</h2>
+                <h2 className="text-lg font-semibold text-white mb-2">No bobbins needed</h2>
                 <p className="text-slate-400 text-sm">
-                  There are no thread colors that require bobbin-sized amounts (under 5 yards) in multiple designs.
+                  No thread colors fall in the bobbin range (2.4 – 5 yards). Anything below 2.4 yards is finger-wrapped at kit assembly.
                 </p>
               </div>
             ) : (
               <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                <div className="p-3 border-b border-slate-700 text-xs text-slate-400">
+                  All bobbins are 3 yards (Size 5 thread). Anything below 2.4 yards is finger-wrapped at assembly.
+                </div>
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-slate-700 text-left">
                       <th className="p-3 text-xs text-slate-400 font-medium">Color</th>
-                      <th className="p-3 text-xs text-slate-400 font-medium text-center">Length</th>
-                      <th className="p-3 text-xs text-slate-400 font-medium text-center">Quantity</th>
+                      <th className="p-3 text-xs text-slate-400 font-medium text-center">Need</th>
+                      <th className="p-3 text-xs text-slate-400 font-medium text-center">On Hand</th>
+                      <th className="p-3 text-xs text-slate-400 font-medium text-center">Make</th>
                       <th className="p-3 text-xs text-slate-400 font-medium">Used In</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/50">
-                    {bobbinData.suggestions.map((suggestion, index) => (
-                      <tr key={`${suggestion.dmcNumber}-${suggestion.length}-${index}`} className="hover:bg-slate-700/30">
+                    {bobbinData.colorAnalysis.map((c) => (
+                      <tr key={c.dmcNumber} className="hover:bg-slate-700/30">
                         <td className="p-3">
                           <Link
-                            href={`/inventory/color/${suggestion.dmcNumber}`}
+                            href={`/inventory/color/${c.dmcNumber}`}
                             className="flex items-center gap-2 hover:text-rose-400"
                           >
                             <div
                               className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
-                              style={{ backgroundColor: suggestion.hex }}
+                              style={{ backgroundColor: c.hex }}
                             >
                               <span
                                 className="text-[8px] font-bold"
-                                style={{ color: getContrastTextColor(suggestion.hex) }}
+                                style={{ color: getContrastTextColor(c.hex) }}
                               >
-                                {suggestion.dmcNumber}
+                                {c.dmcNumber}
                               </span>
                             </div>
                             <div>
-                              <p className="text-white text-sm font-medium">{suggestion.dmcNumber}</p>
-                              <p className="text-slate-400 text-xs truncate max-w-[100px]">{suggestion.colorName}</p>
+                              <p className="text-white text-sm font-medium">{c.dmcNumber}</p>
+                              <p className="text-slate-400 text-xs truncate max-w-[100px]">{c.colorName}</p>
                             </div>
                           </Link>
                         </td>
                         <td className="p-3 text-center">
-                          <span className="px-2 py-1 bg-amber-900/50 text-amber-400 rounded text-sm font-medium">
-                            {suggestion.length} yd
-                          </span>
+                          <span className="text-xl font-bold text-white">{c.totalBobbins}</span>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleBobbinDelta(c.dmcNumber, -1)}
+                              disabled={c.onHand === 0}
+                              className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white flex items-center justify-center text-lg leading-none"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={c.onHand}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value, 10);
+                                if (!isNaN(v) && v >= 0) handleBobbinSet(c.dmcNumber, v);
+                              }}
+                              className="w-14 px-2 py-1 bg-slate-900 border border-slate-600 rounded text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-rose-800"
+                            />
+                            <button
+                              onClick={() => handleBobbinDelta(c.dmcNumber, 1)}
+                              className="w-7 h-7 rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center text-lg leading-none"
+                            >
+                              +
+                            </button>
+                          </div>
                         </td>
                         <td className="p-3 text-center">
-                          <span className="text-xl font-bold text-white">{suggestion.quantity}</span>
+                          {c.gap > 0 ? (
+                            <span className="px-2 py-1 bg-amber-900/50 text-amber-300 rounded text-sm font-bold">
+                              +{c.gap}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 bg-emerald-900/50 text-emerald-300 rounded text-sm font-medium">
+                              ✓ covered
+                            </span>
+                          )}
                         </td>
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
-                            {suggestion.designs.slice(0, 3).map((design) => (
+                            {c.bobbins.slice(0, 3).map((design) => (
                               <Link
-                                key={design.id}
-                                href={`/design/${design.id}/kit`}
+                                key={design.designId}
+                                href={`/design/${design.designId}/kit`}
                                 className="flex items-center gap-1 px-2 py-1 bg-slate-700 rounded text-xs hover:bg-slate-600 transition-colors"
                               >
                                 {design.previewImageUrl ? (
@@ -2185,13 +2286,13 @@ export default function InventoryPage() {
                                 ) : (
                                   <div className="w-4 h-4 bg-slate-600 rounded" />
                                 )}
-                                <span className="text-slate-300 truncate max-w-[80px]">{design.name}</span>
+                                <span className="text-slate-300 truncate max-w-[80px]">{design.designName}</span>
                                 <span className="text-slate-500">({design.exactYards}yd)</span>
                               </Link>
                             ))}
-                            {suggestion.designs.length > 3 && (
+                            {c.bobbins.length > 3 && (
                               <span className="px-2 py-1 bg-slate-700 rounded text-xs text-slate-400">
-                                +{suggestion.designs.length - 3} more
+                                +{c.bobbins.length - 3} more
                               </span>
                             )}
                           </div>
