@@ -116,6 +116,7 @@ interface BobbinSuggestion {
   length: number;
   quantity: number;
   onHand: number;
+  make: number;
   designs: BobbinDesign[];
 }
 
@@ -419,7 +420,9 @@ export default function InventoryPage() {
     }
   }, [activeTab, meshFilter]);
 
-  // Adjust bobbin inventory count for a (DMC color, length)
+  // Adjust bobbin inventory count for a (DMC color, length).
+  // Updates onHand optimistically; refetches afterwards so trickle-down
+  // make values stay accurate (a larger bobbin covers smaller needs).
   const handleBobbinDelta = async (dmcNumber: string, length: number, delta: number) => {
     setBobbinData((prev) => {
       if (!prev) return prev;
@@ -438,6 +441,7 @@ export default function InventoryPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dmcNumber, length, delta }),
       });
+      fetchBobbins();
     } catch (error) {
       console.error("Error updating bobbin count:", error);
       fetchBobbins();
@@ -460,6 +464,7 @@ export default function InventoryPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dmcNumber, length, count }),
       });
+      fetchBobbins();
     } catch (error) {
       console.error("Error saving bobbin count:", error);
       fetchBobbins();
@@ -2125,7 +2130,7 @@ export default function InventoryPage() {
             {/* Summary stats */}
             {bobbinData && (() => {
               const totalOnHand = bobbinData.suggestions.reduce((sum, s) => sum + s.onHand, 0);
-              const totalToMake = bobbinData.suggestions.reduce((sum, s) => sum + Math.max(0, s.quantity - s.onHand), 0);
+              const totalToMake = bobbinData.suggestions.reduce((sum, s) => sum + s.make, 0);
               return (
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
@@ -2149,6 +2154,7 @@ export default function InventoryPage() {
               <p className="text-sm text-slate-300">
                 <strong className="text-white">Bobbin Inventory.</strong> Bobbins are sized per kit in whole yards (Size 5 thread).
                 A bobbin covers needs within ±0.2 yards of its size — a 3-yard bobbin works for 2.8–3.2 yards.
+                Larger bobbins can cover smaller needs in a pinch (a 4-yard bobbin works for a 3-yard design).
                 Anything under 2.4 yards is finger-wrapped at assembly; over 5 yards uses a full skein.
               </p>
             </div>
@@ -2189,7 +2195,7 @@ export default function InventoryPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-700/50">
                     {bobbinData.suggestions.map((s) => {
-                      const make = Math.max(0, s.quantity - s.onHand);
+                      const make = s.make;
                       return (
                       <tr key={`${s.dmcNumber}-${s.length}`} className="hover:bg-slate-700/30">
                         <td className="p-3">

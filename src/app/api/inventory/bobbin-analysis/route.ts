@@ -52,7 +52,8 @@ interface BobbinSuggestion {
   threadSize: 5 | 8;
   length: number;
   quantity: number; // designs that need this size of bobbin
-  onHand: number; // bobbins currently in inventory
+  onHand: number; // bobbins of this exact size in inventory
+  make: number; // shortfall after larger bobbins trickle down to cover smaller needs
   designs: {
     id: string;
     name: string;
@@ -168,6 +169,16 @@ export async function GET(request: NextRequest) {
     const colorAnalysis: ColorBobbinAnalysis[] = [];
     const suggestions: BobbinSuggestion[] = [];
 
+    // Track which inventory lengths exist per color so we can include
+    // larger sizes when computing trickle-down (even if no design currently needs them)
+    const inventoryLengthsByColor = new Map<string, Set<number>>();
+    for (const b of bobbinInventory) {
+      if (!inventoryLengthsByColor.has(b.dmcNumber)) {
+        inventoryLengthsByColor.set(b.dmcNumber, new Set());
+      }
+      inventoryLengthsByColor.get(b.dmcNumber)!.add(b.length);
+    }
+
     for (const [key, data] of colorBobbinsMap.entries()) {
       const dmcNumber = key.split("-")[0];
       const color = getDmcColorByNumber(dmcNumber);
@@ -180,6 +191,29 @@ export async function GET(request: NextRequest) {
           lengthGroups.set(bobbin.roundedYards, []);
         }
         lengthGroups.get(bobbin.roundedYards)!.push(bobbin);
+      }
+
+      // Trickle-down allocation: larger bobbins can cover smaller needs.
+      // Process lengths from largest to smallest. Leftover inventory at each
+      // size flows down to cover smaller needs.
+      const allLengths = new Set<number>(lengthGroups.keys());
+      for (const len of inventoryLengthsByColor.get(dmcNumber) || []) {
+        allLengths.add(len);
+      }
+      const sortedLengthsDesc = Array.from(allLengths).sort((a, b) => b - a);
+      const makeByLength = new Map<number, number>();
+      let leftoverFromLarger = 0;
+      for (const len of sortedLengthsDesc) {
+        const need = lengthGroups.get(len)?.length || 0;
+        const ownInv = bobbinInventoryMap.get(`${dmcNumber}-${len}`) || 0;
+        const totalAvailable = ownInv + leftoverFromLarger;
+        if (totalAvailable >= need) {
+          leftoverFromLarger = totalAvailable - need;
+          makeByLength.set(len, 0);
+        } else {
+          makeByLength.set(len, need - totalAvailable);
+          leftoverFromLarger = 0;
+        }
       }
 
       const groupedByLength = Array.from(lengthGroups.entries())
@@ -219,6 +253,7 @@ export async function GET(request: NextRequest) {
           length,
           quantity: bobbins.length,
           onHand: bobbinInventoryMap.get(`${dmcNumber}-${length}`) || 0,
+          make: makeByLength.get(length) || 0,
           designs: bobbins.map(b => ({
             id: b.designId,
             name: b.designName,
@@ -245,6 +280,7 @@ export async function GET(request: NextRequest) {
         length,
         quantity: 0,
         onHand,
+        make: 0,
         designs: [],
       });
     }
