@@ -13,20 +13,20 @@ export async function GET() {
   return NextResponse.json(items);
 }
 
-// POST - upsert a count for a DMC color
-// Body: { dmcNumber: string, count: number }
+// POST - upsert a count for a (DMC color, length) bobbin
+// Body: { dmcNumber: string, length: number, count: number }
 export async function POST(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const { dmcNumber, count } = await request.json();
-    if (!dmcNumber || typeof count !== "number" || count < 0) {
-      return NextResponse.json({ error: "dmcNumber and non-negative count required" }, { status: 400 });
+    const { dmcNumber, length, count } = await request.json();
+    if (!dmcNumber || typeof length !== "number" || length <= 0 || typeof count !== "number" || count < 0) {
+      return NextResponse.json({ error: "dmcNumber, positive length, and non-negative count required" }, { status: 400 });
     }
     const item = await prisma.bobbinInventory.upsert({
-      where: { dmcNumber },
-      create: { dmcNumber, count },
+      where: { dmcNumber_length: { dmcNumber, length } },
+      create: { dmcNumber, length, count },
       update: { count },
     });
     return NextResponse.json(item);
@@ -37,22 +37,21 @@ export async function POST(request: NextRequest) {
 }
 
 // PATCH - increment/decrement
-// Body: { dmcNumber: string, delta: number }
+// Body: { dmcNumber: string, length: number, delta: number }
 export async function PATCH(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const { dmcNumber, delta } = await request.json();
-    if (!dmcNumber || typeof delta !== "number") {
-      return NextResponse.json({ error: "dmcNumber and delta required" }, { status: 400 });
+    const { dmcNumber, length, delta } = await request.json();
+    if (!dmcNumber || typeof length !== "number" || length <= 0 || typeof delta !== "number") {
+      return NextResponse.json({ error: "dmcNumber, length, and delta required" }, { status: 400 });
     }
-    // Get current count, or 0 if no row
-    const existing = await prisma.bobbinInventory.findUnique({ where: { dmcNumber } });
+    const existing = await prisma.bobbinInventory.findUnique({ where: { dmcNumber_length: { dmcNumber, length } } });
     const newCount = Math.max(0, (existing?.count || 0) + delta);
     const item = await prisma.bobbinInventory.upsert({
-      where: { dmcNumber },
-      create: { dmcNumber, count: newCount },
+      where: { dmcNumber_length: { dmcNumber, length } },
+      create: { dmcNumber, length, count: newCount },
       update: { count: newCount },
     });
     return NextResponse.json(item);
