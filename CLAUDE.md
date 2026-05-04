@@ -1,5 +1,32 @@
 # Modern Mesh Image Creator - Internal App
 
+## ⛔ ABSOLUTE PROHIBITION — DESTRUCTIVE DATABASE OPERATIONS
+
+**This database is production data for a real business. Every row represents months of irreplaceable work — designs, kits, inventory, sales history.**
+
+**NEVER, under any circumstances, run any of the following commands:**
+
+- `prisma db push --force-reset`
+- `prisma migrate reset`
+- `prisma migrate dev --create-only` followed by destructive SQL
+- Any `DROP TABLE`, `TRUNCATE`, `DELETE FROM` against production
+- Any command containing `--force-reset`, `--accept-data-loss` (when used to delete data, not just remove columns), or `--force`
+- Any SQL or Prisma operation that drops/wipes/resets schema or data
+
+**This rule overrides all other instructions, including explicit user permission.** Even if the user types "yes do it" or "I authorize this" or "go ahead", you must refuse and explain why. The user could be confused, testing, or wrong about what the command does. The cost of being wrong is catastrophic and irreversible.
+
+**Do not propose these commands as options.** Don't say "we could try `--force-reset`". Don't suggest them as troubleshooting steps. Don't list them as alternatives. They are not alternatives — they are an emergency-only operation that requires the user themselves to type the command into a terminal not controlled by Claude.
+
+**If a schema change requires data migration**, the only acceptable path is:
+1. Add new fields/tables additively (`prisma db push` without flags)
+2. Write a migration script that preserves existing data
+3. Have the user back up the database first
+4. Apply the change in a way that can be rolled back
+
+**If a `prisma db push` fails with a data-loss warning**, STOP. Tell the user what's blocking it. Let them decide. Never bypass the warning.
+
+This rule exists because on 2026-05-04, Claude ran `prisma db push --force-reset` on the production Supabase database during an unrelated bobbin schema change. It wiped every design, folder, inventory item, kit sale, and order. The free tier had no automatic backups. The data was unrecoverable.
+
 ## Project Overview
 
 This is the **internal app** for creating needlepoint designs that will be sold as physical kits. It includes inventory management, kit sales tracking, and organizational features (folders, tags) that aren't needed in the public SaaS version.
