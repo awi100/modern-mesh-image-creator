@@ -15,6 +15,7 @@ import MobileBottomBar from "./MobileBottomBar";
 import AddTextDialog from "./AddTextDialog";
 import AddShapeDialog from "./AddShapeDialog";
 import PatternRepeatDialog from "./PatternRepeatDialog";
+import ReplaceColorDialog from "./ReplaceColorDialog";
 import DesignPreview from "./DesignPreview";
 import SessionExpiredModal, { useSessionMonitor } from "@/components/SessionExpiredModal";
 import type { MeshCount } from "@/lib/yarn-calculator";
@@ -58,6 +59,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
   const [showTextDialog, setShowTextDialog] = useState(false);
   const [showShapeDialog, setShowShapeDialog] = useState(false);
   const [showPatternRepeat, setShowPatternRepeat] = useState(false);
+  const [showReplaceColor, setShowReplaceColor] = useState(false);
   const [showDesignPreview, setShowDesignPreview] = useState(false);
   const [colorPanelCollapsed, setColorPanelCollapsed] = useState(false);
   const [layersPanelCollapsed, setLayersPanelCollapsed] = useState(false);
@@ -412,6 +414,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
       <Toolbar
         onEnterPasteMode={enterPastePlacementMode}
         onShowPatternRepeat={() => setShowPatternRepeat(true)}
+        onShowReplaceColor={() => setShowReplaceColor(true)}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -456,10 +459,11 @@ export default function Editor({ designId, initialData }: EditorProps) {
           onFlipPendingHorizontal={flipPendingHorizontal}
           onFlipPendingVertical={flipPendingVertical}
           onConfirmPlacement={handleConfirmPlacement}
+          onShowColors={() => setShowColorPicker(true)}
         />
 
-        {/* Right side panels */}
-        <div className="hidden lg:flex lg:flex-row">
+        {/* Right side panels — show on tablet (md) and up */}
+        <div className="hidden md:flex md:flex-row">
           {rightPanelCollapsed ? (
             <div className="bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col items-center py-2">
               <button
@@ -559,7 +563,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
 
       {/* Mobile Metrics Drawer */}
       {showMetrics && (
-        <div className="lg:hidden fixed inset-0 z-50">
+        <div className="md:hidden fixed inset-0 z-50">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowMetrics(false)}
@@ -583,7 +587,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
 
       {/* Mobile Layers Drawer */}
       {showLayers && (
-        <div className="lg:hidden fixed inset-0 z-50">
+        <div className="md:hidden fixed inset-0 z-50">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowLayers(false)}
@@ -629,6 +633,9 @@ export default function Editor({ designId, initialData }: EditorProps) {
       )}
       {showPatternRepeat && (
         <PatternRepeatDialog onClose={() => setShowPatternRepeat(false)} />
+      )}
+      {showReplaceColor && (
+        <ReplaceColorDialog onClose={() => setShowReplaceColor(false)} />
       )}
       {showDesignPreview && (
         <DesignPreview onClose={() => setShowDesignPreview(false)} />

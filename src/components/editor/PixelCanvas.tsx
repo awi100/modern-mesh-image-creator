@@ -36,6 +36,7 @@ interface PixelCanvasProps {
   onFlipPendingHorizontal?: () => void;
   onFlipPendingVertical?: () => void;
   onConfirmPlacement?: () => void;
+  onShowColors?: () => void; // Mobile: open color drawer when current color tapped
 }
 
 export default function PixelCanvas({
@@ -46,6 +47,7 @@ export default function PixelCanvas({
   onFlipPendingHorizontal,
   onFlipPendingVertical,
   onConfirmPlacement,
+  onShowColors,
 }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -112,6 +114,7 @@ export default function PixelCanvas({
     panY,
     showGrid,
     showSymbols,
+    brushSize,
     eraserSize,
     referenceImageUrl,
     referenceImageOpacity,
@@ -1196,6 +1199,62 @@ export default function PixelCanvas({
       className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-800 relative touch-none"
       style={{ overscrollBehavior: 'none' }}
     >
+      {/* Canvas hint bar — always visible, shows current tool/color/size/zoom */}
+      {!pendingText && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-slate-900/85 dark:bg-slate-800/90 backdrop-blur-sm rounded-full px-3 py-1.5 flex items-center gap-3 z-20 shadow-lg border border-slate-700">
+          {/* Current color swatch (tappable on mobile to open color picker) */}
+          <button
+            onClick={onShowColors}
+            className="flex items-center gap-1.5 hover:bg-slate-700/50 rounded-full px-1.5 py-0.5 transition-colors"
+            title={currentColor ? `${currentColor.dmcNumber} ${currentColor.name} — tap to change` : "Pick a color"}
+          >
+            <div
+              className="w-5 h-5 rounded-full border border-white/30 flex-shrink-0"
+              style={{ backgroundColor: currentColor?.hex || "#666" }}
+            />
+            <span className="text-xs font-medium text-white hidden sm:inline">
+              {currentColor?.dmcNumber || "—"}
+            </span>
+          </button>
+
+          <div className="w-px h-4 bg-slate-600" />
+
+          {/* Current tool */}
+          <span className="text-xs font-medium text-slate-200 capitalize">
+            {currentTool}
+          </span>
+
+          {/* Tool-specific size */}
+          {currentTool === "brush" && (
+            <span className="text-xs text-slate-400">size {brushSize}</span>
+          )}
+          {currentTool === "eraser" && (
+            <span className="text-xs text-slate-400">size {eraserSize}</span>
+          )}
+
+          <div className="w-px h-4 bg-slate-600" />
+
+          {/* Zoom indicator */}
+          <span className="text-xs text-slate-400 font-mono">
+            {Math.round(zoom * 100)}%
+          </span>
+
+          {/* Selection contextual action */}
+          {selection && (
+            <>
+              <div className="w-px h-4 bg-slate-600" />
+              <button
+                onClick={clearSelection}
+                className="text-xs text-rose-300 hover:text-rose-200"
+                title="Clear selection (Esc)"
+              >
+                ✕ selection
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Inner wrapper that handles pan/zoom transform */}
       <div
         className="w-full h-full flex items-center justify-center p-2 md:p-4"
@@ -1217,83 +1276,95 @@ export default function PixelCanvas({
 
       {/* Text/Shape/Paste placement mode indicator */}
       {pendingText && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 z-10">
-          {/* Resize buttons for shapes and text */}
-          {(pendingText.isShape || pendingText.isText) && onResizePendingShape && (
-            <div className="flex items-center gap-1 mr-2 border-r border-blue-400 pr-3">
-              <button
-                onClick={() => onResizePendingShape(-0.25)}
-                className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded-lg text-lg font-bold"
-                title="Make smaller"
-              >
-                −
-              </button>
-              <span className="text-xs w-12 text-center">
-                {pendingText.width}×{pendingText.height}
-              </span>
-              <button
-                onClick={() => onResizePendingShape(0.25)}
-                className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded-lg text-lg font-bold"
-                title="Make larger"
-              >
-                +
-              </button>
+        <>
+          {/* Sticky bottom action bar - always visible while placing */}
+          <div className="absolute bottom-0 left-0 right-0 bg-blue-600 text-white shadow-2xl border-t-2 border-blue-400 z-30 px-3 py-3">
+            <div className="flex items-center justify-between gap-3 max-w-5xl mx-auto flex-wrap">
+              {/* Status text */}
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="text-xl flex-shrink-0">
+                  {pendingText.placedPosition ? "✓" : "👆"}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold uppercase tracking-wide leading-tight">
+                    {pendingText.isPaste ? "Pasting" : pendingText.isShape ? "Placing Shape" : "Placing Text"}
+                  </p>
+                  <p className="text-xs text-blue-100 leading-tight">
+                    {pendingText.placedPosition
+                      ? "Click another spot to move, or press Done"
+                      : "Click on the canvas where you want it"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Resize buttons for shapes and text */}
+              {(pendingText.isShape || pendingText.isText) && onResizePendingShape && (
+                <div className="flex items-center gap-1 bg-blue-700/60 rounded-lg px-2 py-1">
+                  <button
+                    onClick={() => onResizePendingShape(-0.25)}
+                    className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded text-lg font-bold"
+                    title="Make smaller"
+                  >
+                    −
+                  </button>
+                  <span className="text-xs w-14 text-center font-mono">
+                    {pendingText.width}×{pendingText.height}
+                  </span>
+                  <button
+                    onClick={() => onResizePendingShape(0.25)}
+                    className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded text-lg font-bold"
+                    title="Make larger"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
+
+              {/* Flip buttons for paste mode */}
+              {pendingText.isPaste && (
+                <div className="flex items-center gap-1 bg-blue-700/60 rounded-lg px-2 py-1">
+                  <button
+                    onClick={onFlipPendingHorizontal}
+                    className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded text-sm"
+                    title="Flip Horizontal"
+                  >
+                    ↔️
+                  </button>
+                  <button
+                    onClick={onFlipPendingVertical}
+                    className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded text-sm"
+                    title="Flip Vertical"
+                  >
+                    ↕️
+                  </button>
+                  <span className="text-xs ml-1 font-mono">
+                    {pendingText.width}×{pendingText.height}
+                  </span>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={onCancelTextPlacement}
+                  className="px-3 py-2 bg-blue-700 hover:bg-blue-800 rounded text-sm font-medium"
+                  title="Cancel (Esc)"
+                >
+                  ✕ Cancel
+                </button>
+                {(pendingText.isShape || pendingText.isText) && pendingText.placedPosition && (
+                  <button
+                    onClick={onConfirmPlacement}
+                    className="px-5 py-2 bg-green-500 hover:bg-green-400 rounded text-sm font-bold shadow-lg ring-2 ring-green-300/50"
+                    title="Confirm (Enter)"
+                  >
+                    ✓ Done
+                  </button>
+                )}
+              </div>
             </div>
-          )}
-          {/* Flip buttons for paste mode */}
-          {pendingText.isPaste && (
-            <div className="flex items-center gap-1 mr-2 border-r border-blue-400 pr-3">
-              <button
-                onClick={onFlipPendingHorizontal}
-                className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded-lg text-sm"
-                title="Flip Horizontal"
-              >
-                ↔️
-              </button>
-              <button
-                onClick={onFlipPendingVertical}
-                className="w-8 h-8 flex items-center justify-center bg-blue-500 hover:bg-blue-400 rounded-lg text-sm"
-                title="Flip Vertical"
-              >
-                ↕️
-              </button>
-              <span className="text-xs ml-1">
-                {pendingText.width}×{pendingText.height}
-              </span>
-            </div>
-          )}
-          {(pendingText.isShape || pendingText.isText) && pendingText.placedPosition ? (
-            <>
-              <span className="text-sm font-medium">
-                Drag to move, +/- to resize
-              </span>
-              <button
-                onClick={onConfirmPlacement}
-                className="px-3 py-1 bg-green-500 hover:bg-green-400 rounded text-sm font-medium"
-              >
-                Confirm (Enter)
-              </button>
-              <button
-                onClick={onCancelTextPlacement}
-                className="text-blue-200 hover:text-white text-sm underline"
-              >
-                Cancel (Esc)
-              </button>
-            </>
-          ) : (
-            <>
-              <span className="text-sm font-medium">
-                Click to place {pendingText.isPaste ? "pasted content" : pendingText.isShape ? "shape" : "text"}
-              </span>
-              <button
-                onClick={onCancelTextPlacement}
-                className="text-blue-200 hover:text-white text-sm underline"
-              >
-                Cancel (Esc)
-              </button>
-            </>
-          )}
-        </div>
+          </div>
+        </>
       )}
 
       {/* Horizontal scrollbar */}

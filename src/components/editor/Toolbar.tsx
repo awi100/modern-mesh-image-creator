@@ -8,6 +8,7 @@ import Tooltip from "@/components/Tooltip";
 interface ToolbarProps {
   onEnterPasteMode?: () => void;
   onShowPatternRepeat?: () => void;
+  onShowReplaceColor?: () => void;
 }
 
 const tools: { id: Tool; label: string; icon: string; description: string }[] = [
@@ -22,7 +23,7 @@ const tools: { id: Tool; label: string; icon: string; description: string }[] = 
   { id: "eyedropper", label: "Eyedropper", icon: "💧", description: "Pick a color from the canvas." },
 ];
 
-export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: ToolbarProps) {
+export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat, onShowReplaceColor }: ToolbarProps) {
   const {
     currentTool,
     setTool,
@@ -55,9 +56,6 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
   } = useEditorStore();
 
   const [showHelp, setShowHelp] = useState(false);
-
-  // Get current tool info for the mobile label
-  const currentToolInfo = tools.find((t) => t.id === currentTool);
 
   return (
     <>
@@ -104,42 +102,48 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
     )}
     <div className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-2 overflow-x-auto">
       <div className="flex items-center gap-2 md:gap-4 min-w-max">
-        {/* Current tool indicator - visible on mobile/tablet */}
-        <div
-          className="lg:hidden flex items-center gap-1 px-2 py-1 bg-rose-900/50 rounded-lg border border-rose-800"
-          title={currentToolInfo?.description}
-        >
-          <span className="text-xs text-rose-200 font-medium">
-            {currentToolInfo?.label || currentTool}
-          </span>
-        </div>
-
-        {/* Tools - scrollable on mobile */}
+        {/* Tools - scrollable on mobile, labels show on all breakpoints */}
         <div className="flex items-center gap-1">
           {tools.map((tool) => (
             <button
               key={tool.id}
               onClick={() => setTool(tool.id)}
-              className={`p-2 md:px-2 md:py-1.5 rounded-lg transition-colors flex items-center gap-1 touch-manipulation ${
+              className={`px-2 py-1.5 rounded-lg transition-colors flex items-center gap-1 touch-manipulation ${
                 currentTool === tool.id
                   ? "bg-rose-900 text-white"
                   : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 active:bg-slate-500"
               }`}
               title={`${tool.label}: ${tool.description}`}
             >
-              <span className="text-lg md:text-base">{tool.icon}</span>
-              <span className="text-xs font-medium hidden lg:inline">{tool.label}</span>
+              <span className="text-base">{tool.icon}</span>
+              <span className="text-xs font-medium">{tool.label}</span>
             </button>
           ))}
+          {/* Replace Color button */}
+          {onShowReplaceColor && (
+            <Tooltip label="Replace Color">
+              <button
+                onClick={onShowReplaceColor}
+                className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 touch-manipulation flex items-center gap-1"
+                aria-label="Replace Color"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span className="text-xs font-medium hidden lg:inline">Replace</span>
+              </button>
+            </Tooltip>
+          )}
           {/* Help button */}
-          <button
-            onClick={() => setShowHelp(true)}
-            className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 touch-manipulation"
-            title="Tool Guide"
-            aria-label="Tool Guide"
-          >
-            <span className="text-lg md:text-base">❓</span>
-          </button>
+          <Tooltip label="Tool Guide">
+            <button
+              onClick={() => setShowHelp(true)}
+              className="p-2 md:px-2 md:py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 touch-manipulation"
+              aria-label="Tool Guide"
+            >
+              <span className="text-lg md:text-base">❓</span>
+            </button>
+          </Tooltip>
         </div>
 
         {/* Brush size (shown when brush tool is active) */}
@@ -200,7 +204,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
 
         {/* Undo/Redo - hidden on mobile (shown in bottom bar) */}
         <div className="hidden md:flex items-center gap-1">
-          <Tooltip label="Undo" position="bottom">
+          <Tooltip label="Undo" position="bottom" shortcut="⌘Z">
             <button
               onClick={undo}
               disabled={!canUndo()}
@@ -209,7 +213,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
               ↩️
             </button>
           </Tooltip>
-          <Tooltip label="Redo" position="bottom">
+          <Tooltip label="Redo" position="bottom" shortcut="⌘⇧Z">
             <button
               onClick={redo}
               disabled={!canRedo()}
@@ -303,7 +307,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
         {/* Clipboard actions - always visible */}
         <div className="w-px h-8 bg-slate-300 dark:bg-slate-600 hidden sm:block" />
         <div className="hidden sm:flex items-center gap-1">
-          <Tooltip label="Copy" position="bottom">
+          <Tooltip label="Copy" position="bottom" shortcut="⌘C">
             <button
               onClick={copySelectionToClipboard}
               disabled={!selection}
@@ -314,7 +318,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
               </svg>
             </button>
           </Tooltip>
-          <Tooltip label="Cut" position="bottom">
+          <Tooltip label="Cut" position="bottom" shortcut="⌘X">
             <button
               onClick={cutSelectionToClipboard}
               disabled={!selection}
@@ -325,7 +329,7 @@ export default function Toolbar({ onEnterPasteMode, onShowPatternRepeat }: Toolb
               </svg>
             </button>
           </Tooltip>
-          <Tooltip label="Paste" position="bottom">
+          <Tooltip label="Paste" position="bottom" shortcut="⌘V">
             <button
               onClick={onEnterPasteMode}
               disabled={!clipboard}
