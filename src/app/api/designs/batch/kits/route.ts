@@ -2,16 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, threadSizeForMesh, skeinYardsForThread, bobbinThresholdsForMesh, ThreadSize } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 
-const SKEIN_YARDS = 27;
-const BOBBIN_ONLY_MAX = 5;
 const LEFTOVER_THRESHOLD = 5;
 
 interface KitItem {
   dmcNumber: string;
+  threadSize: ThreadSize;
   colorName: string;
   hex: string;
   stitchCount: number;
@@ -67,20 +66,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get all inventory for both thread sizes
+    // Get all inventory keyed by thread size (3, 5, 8)
     const inventoryItems = await prisma.inventoryItem.findMany();
-    const inventoryMap5 = new Map<string, number>();
-    const inventoryMap8 = new Map<string, number>();
+    const inventoryByThreadSize: Record<number, Map<string, number>> = { 3: new Map(), 5: new Map(), 8: new Map() };
     for (const item of inventoryItems) {
-      if (item.size === 5) {
-        inventoryMap5.set(item.dmcNumber, item.skeins);
-      } else {
-        inventoryMap8.set(item.dmcNumber, item.skeins);
-      }
+      if (!inventoryByThreadSize[item.size]) inventoryByThreadSize[item.size] = new Map();
+      inventoryByThreadSize[item.size].set(item.dmcNumber, item.skeins);
     }
 
-    // Aggregate kit contents across all designs
+    // Aggregate kit contents across all designs, keyed by (dmcNumber, threadSize)
+    // 13ct uses Size 3, others use Size 5 — same DMC color is separate demand per thread size
     const aggregatedColors = new Map<string, {
+      dmcNumber: string;
+      threadSize: ThreadSize;
       stitchCount: number;
       yardsWithBuffer: number;
       usedInDesigns: string[];
@@ -105,10 +103,12 @@ export async function POST(request: NextRequest) {
       const stitchCounts = countStitchesByColor(grid);
 
       // Calculate yarn usage
+      const meshCount = (design.meshCount || 14) as MeshCount;
+      const threadSize = threadSizeForMesh(meshCount);
       const stitchType = design.stitchType as "continental" | "basketweave";
       const yarnUsage = calculateYarnUsage(
         stitchCounts,
-        (design.meshCount || 14) as MeshCount,
+        meshCount,
         stitchType,
         design.bufferPercent
       );
@@ -116,14 +116,17 @@ export async function POST(request: NextRequest) {
       let designTotalSkeins = 0;
 
       for (const usage of yarnUsage) {
-        const existing = aggregatedColors.get(usage.dmcNumber);
+        const aggKey = `${usage.dmcNumber}-${threadSize}`;
+        const existing = aggregatedColors.get(aggKey);
         if (existing) {
           existing.stitchCount += usage.stitchCount;
           existing.yardsWithBuffer += usage.withBuffer;
           existing.usedInDesigns.push(design.name);
           existing.meshCounts.add(design.meshCount);
         } else {
-          aggregatedColors.set(usage.dmcNumber, {
+          aggregatedColors.set(aggKey, {
+            dmcNumber: usage.dmcNumber,
+            threadSize,
             stitchCount: usage.stitchCount,
             yardsWithBuffer: usage.withBuffer,
             usedInDesigns: [design.name],
@@ -142,15 +145,22 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Build final kit contents
+    // Build final kit contents (one row per (dmcNumber, threadSize) pair)
     const kitContents: KitItem[] = [];
 
-    for (const [dmcNumber, data] of aggregatedColors.entries()) {
+    for (const [, data] of aggregatedColors.entries()) {
+      const { dmcNumber, threadSize } = data;
       const dmcColor = getDmcColorByNumber(dmcNumber);
       const yardsWithBuffer = Math.round(data.yardsWithBuffer * 10) / 10;
 
-      // Get inventory for Size 5
-      const inventorySkeins = inventoryMap5.get(dmcNumber) ?? 0;
+      // Get inventory for this row's thread size
+      const inventorySkeins = inventoryByThreadSize[threadSize]?.get(dmcNumber) ?? 0;
+
+      // Skein/bobbin thresholds depend on thread size
+      const SKEIN_YARDS = skeinYardsForThread(threadSize);
+      // For thread size determine a representative meshCount to derive bobbin threshold
+      const repMesh: MeshCount = threadSize === 3 ? 13 : 14;
+      const BOBBIN_ONLY_MAX = bobbinThresholdsForMesh(repMesh).max;
 
       let fullSkeins = 0;
       let bobbinYards = 0;
@@ -159,7 +169,7 @@ export async function POST(request: NextRequest) {
       if (yardsWithBuffer <= BOBBIN_ONLY_MAX) {
         fullSkeins = 0;
         bobbinYards = yardsWithBuffer;
-        skeinsNeeded = 0; // Bobbin only, no full skein needed
+        skeinsNeeded = 0;
       } else {
         const baseSkeins = Math.floor(yardsWithBuffer / SKEIN_YARDS);
         const remainder = yardsWithBuffer - baseSkeins * SKEIN_YARDS;
@@ -179,6 +189,7 @@ export async function POST(request: NextRequest) {
 
       kitContents.push({
         dmcNumber,
+        threadSize,
         colorName: dmcColor?.name ?? "Unknown",
         hex: dmcColor?.hex ?? "#888888",
         stitchCount: data.stitchCount,

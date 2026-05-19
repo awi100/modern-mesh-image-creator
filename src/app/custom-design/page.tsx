@@ -847,18 +847,20 @@ export default function CustomDesignPage() {
               <div className="mb-6">
                 <label className="block text-sm font-medium text-slate-300 mb-3">Mesh Count</label>
                 <div className="flex gap-2">
-                  {([14, 16, 18] as const).map((m) => (
+                  {([13, 14, 16, 18] as const).map((m) => (
                     <button
                       key={m}
                       onClick={() => setMeshCount(m)}
                       className={`flex-1 px-4 py-3 rounded-lg border-2 transition-colors text-left ${
                         meshCount === m
-                          ? "border-rose-800 bg-rose-900/30 text-white"
+                          ? m === 13
+                            ? "border-purple-700 bg-purple-900/30 text-white"
+                            : "border-rose-800 bg-rose-900/30 text-white"
                           : "border-slate-600 bg-slate-700 text-slate-300 hover:border-slate-500"
                       }`}
                     >
                       <span className="block text-lg font-bold">{m} Mesh</span>
-                      <span className="text-xs opacity-75">Size 5 Pearl Cotton</span>
+                      <span className="text-xs opacity-75">{m === 13 ? "Size 3 Pearl Cotton" : "Size 5 Pearl Cotton"}</span>
                     </button>
                   ))}
                 </div>

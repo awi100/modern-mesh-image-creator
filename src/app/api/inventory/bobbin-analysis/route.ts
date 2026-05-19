@@ -2,13 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, threadSizeForMesh, bobbinThresholdsForMesh, ThreadSize } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 
-const BOBBIN_ONLY_MAX = 5; // Yards threshold - above this, use full skein
-const BOBBIN_MIN_YARDS = 2.4; // Below this, just finger-wrap (no pre-made bobbin)
 const BOBBIN_TOLERANCE = 0.2; // A bobbin can cover needs within ±0.2 yards of its size
 
 // Snap yards to nearest whole-yard bobbin size, accounting for ±0.2 tolerance.
@@ -29,7 +27,7 @@ interface ColorBobbinAnalysis {
   dmcNumber: string;
   colorName: string;
   hex: string;
-  threadSize: 5 | 8;
+  threadSize: ThreadSize;
   bobbins: BobbinRequirement[];
   // Grouped by rounded length
   groupedByLength: {
@@ -49,7 +47,7 @@ interface BobbinSuggestion {
   dmcNumber: string;
   colorName: string;
   hex: string;
-  threadSize: 5 | 8;
+  threadSize: ThreadSize;
   length: number;
   quantity: number; // designs that need this size of bobbin
   onHand: number; // bobbins of this exact size in inventory
@@ -94,7 +92,7 @@ export async function GET(request: NextRequest) {
 
     // Map of DMC number -> bobbin requirements from each design
     const colorBobbinsMap = new Map<string, {
-      threadSize: 5 | 8;
+      threadSize: ThreadSize;
       bobbins: BobbinRequirement[];
     }>();
 
@@ -108,23 +106,23 @@ export async function GET(request: NextRequest) {
         const grid: (string | null)[][] = JSON.parse(decompressed);
         const stitchCounts = countStitchesByColor(grid);
 
+        const meshCount = (design.meshCount || 14) as MeshCount;
+        const threadSize = threadSizeForMesh(meshCount);
+        const { min: bobbinMin, max: bobbinMax } = bobbinThresholdsForMesh(meshCount);
+
         // Calculate yarn usage
         const stitchType = (design.stitchType || "continental") as "continental" | "basketweave";
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          (design.meshCount || 14) as MeshCount,
+          meshCount,
           stitchType,
           design.bufferPercent || 20
         );
 
-        // Size 5 thread
-        const threadSize: 5 | 8 = 5;
-
-        // Find colors that need pre-made 3-yard bobbins.
-        // Skip < 2.4 yards (finger wrap from skein at assembly time, no bobbin).
-        // Skip > 5 yards (uses a full skein, no bobbin).
+        // Find colors that need pre-made bobbins for THIS design's thread size.
+        // Skip < bobbinMin (finger wrap), > bobbinMax (full skein).
         for (const usage of yarnUsage) {
-          if (usage.withBuffer >= BOBBIN_MIN_YARDS && usage.withBuffer <= BOBBIN_ONLY_MAX) {
+          if (usage.withBuffer >= bobbinMin && usage.withBuffer <= bobbinMax) {
             const key = `${usage.dmcNumber}-${threadSize}`;
 
             if (!colorBobbinsMap.has(key)) {
@@ -148,18 +146,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fetch current bobbin inventory keyed by (dmcNumber, length)
+    // Fetch current bobbin inventory keyed by (dmcNumber, length, threadSize)
     const bobbinInventory = await prisma.bobbinInventory.findMany();
-    const bobbinInventoryMap = new Map(bobbinInventory.map(b => [`${b.dmcNumber}-${b.length}`, b.count]));
+    const bobbinInventoryMap = new Map(
+      bobbinInventory.map(b => [`${b.dmcNumber}-${b.length}-${b.threadSize}`, b.count])
+    );
 
     // Also include colors with inventory but no current need (so user can see what they have)
     const colorsInInventoryButNotNeeded = new Set(
       bobbinInventory
-        .map(b => `${b.dmcNumber}-${b.length}`)
+        .map(b => `${b.dmcNumber}-${b.length}-${b.threadSize}`)
         .filter(key => {
-          const [dmc, lenStr] = key.split("-");
+          const [dmc, lenStr, tsStr] = key.split("-");
           const len = parseInt(lenStr, 10);
-          const data = colorBobbinsMap.get(`${dmc}-5`);
+          const ts = parseInt(tsStr, 10);
+          const data = colorBobbinsMap.get(`${dmc}-${ts}`);
           if (!data) return true;
           return !data.bobbins.some(bb => bb.roundedYards === len);
         })
@@ -169,18 +170,20 @@ export async function GET(request: NextRequest) {
     const colorAnalysis: ColorBobbinAnalysis[] = [];
     const suggestions: BobbinSuggestion[] = [];
 
-    // Track which inventory lengths exist per color so we can include
-    // larger sizes when computing trickle-down (even if no design currently needs them)
-    const inventoryLengthsByColor = new Map<string, Set<number>>();
+    // Track which inventory lengths exist per (color, threadSize) so we can
+    // include larger sizes when computing trickle-down
+    const inventoryLengthsByColorThread = new Map<string, Set<number>>();
     for (const b of bobbinInventory) {
-      if (!inventoryLengthsByColor.has(b.dmcNumber)) {
-        inventoryLengthsByColor.set(b.dmcNumber, new Set());
+      const k = `${b.dmcNumber}-${b.threadSize}`;
+      if (!inventoryLengthsByColorThread.has(k)) {
+        inventoryLengthsByColorThread.set(k, new Set());
       }
-      inventoryLengthsByColor.get(b.dmcNumber)!.add(b.length);
+      inventoryLengthsByColorThread.get(k)!.add(b.length);
     }
 
     for (const [key, data] of colorBobbinsMap.entries()) {
-      const dmcNumber = key.split("-")[0];
+      const [dmcNumber, tsStr] = key.split("-");
+      const threadSize = parseInt(tsStr, 10) as ThreadSize;
       const color = getDmcColorByNumber(dmcNumber);
       if (!color) continue;
 
@@ -193,11 +196,9 @@ export async function GET(request: NextRequest) {
         lengthGroups.get(bobbin.roundedYards)!.push(bobbin);
       }
 
-      // Trickle-down allocation: larger bobbins can cover smaller needs.
-      // Process lengths from largest to smallest. Leftover inventory at each
-      // size flows down to cover smaller needs.
+      // Trickle-down allocation: larger bobbins can cover smaller needs (same threadSize only).
       const allLengths = new Set<number>(lengthGroups.keys());
-      for (const len of inventoryLengthsByColor.get(dmcNumber) || []) {
+      for (const len of inventoryLengthsByColorThread.get(`${dmcNumber}-${threadSize}`) || []) {
         allLengths.add(len);
       }
       const sortedLengthsDesc = Array.from(allLengths).sort((a, b) => b - a);
@@ -205,7 +206,7 @@ export async function GET(request: NextRequest) {
       let leftoverFromLarger = 0;
       for (const len of sortedLengthsDesc) {
         const need = lengthGroups.get(len)?.length || 0;
-        const ownInv = bobbinInventoryMap.get(`${dmcNumber}-${len}`) || 0;
+        const ownInv = bobbinInventoryMap.get(`${dmcNumber}-${len}-${threadSize}`) || 0;
         const totalAvailable = ownInv + leftoverFromLarger;
         if (totalAvailable >= need) {
           leftoverFromLarger = totalAvailable - need;
@@ -225,9 +226,8 @@ export async function GET(request: NextRequest) {
         .sort((a, b) => a.length - b.length);
 
       const totalBobbins = data.bobbins.length;
-      // Sum on-hand across all lengths for this color
       const onHand = Array.from(lengthGroups.keys()).reduce(
-        (sum, len) => sum + (bobbinInventoryMap.get(`${dmcNumber}-${len}`) || 0),
+        (sum, len) => sum + (bobbinInventoryMap.get(`${dmcNumber}-${len}-${threadSize}`) || 0),
         0
       );
       colorAnalysis.push({
@@ -243,7 +243,7 @@ export async function GET(request: NextRequest) {
         gap: totalBobbins - onHand,
       });
 
-      // Add to suggestions list (one row per (color, length))
+      // Add to suggestions list (one row per (color, length, threadSize))
       for (const [length, bobbins] of lengthGroups.entries()) {
         suggestions.push({
           dmcNumber,
@@ -252,7 +252,7 @@ export async function GET(request: NextRequest) {
           threadSize: data.threadSize,
           length,
           quantity: bobbins.length,
-          onHand: bobbinInventoryMap.get(`${dmcNumber}-${length}`) || 0,
+          onHand: bobbinInventoryMap.get(`${dmcNumber}-${length}-${threadSize}`) || 0,
           make: makeByLength.get(length) || 0,
           designs: bobbins.map(b => ({
             id: b.designId,
@@ -266,8 +266,9 @@ export async function GET(request: NextRequest) {
 
     // Also add inventory rows that aren't currently needed (so user sees what they have)
     for (const key of colorsInInventoryButNotNeeded) {
-      const [dmcNumber, lenStr] = key.split("-");
+      const [dmcNumber, lenStr, tsStr] = key.split("-");
       const length = parseInt(lenStr, 10);
+      const threadSize = parseInt(tsStr, 10) as ThreadSize;
       const onHand = bobbinInventoryMap.get(key) || 0;
       if (onHand === 0) continue;
       const color = getDmcColorByNumber(dmcNumber);
@@ -276,7 +277,7 @@ export async function GET(request: NextRequest) {
         dmcNumber,
         colorName: color.name,
         hex: color.hex,
-        threadSize: 5,
+        threadSize,
         length,
         quantity: 0,
         onHand,

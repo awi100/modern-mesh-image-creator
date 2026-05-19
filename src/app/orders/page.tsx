@@ -592,11 +592,11 @@ export default function OrdersPage() {
   }, [data, handleUpdateCount]);
 
   // Update thread inventory for a kit color
-  const handleUpdateInventory = useCallback(async (dmcNumber: string, delta: number) => {
+  const handleUpdateInventory = useCallback(async (dmcNumber: string, delta: number, threadSize: number = 5) => {
     if (updatingInventory === dmcNumber) return;
 
     setUpdatingInventory(dmcNumber);
-    const size = 5; // Size 5 only in internal app (14 mesh)
+    const size = threadSize;
 
     // Optimistic update in kitData
     setKitData(prevKitData => {
@@ -1236,7 +1236,7 @@ export default function OrdersPage() {
                                                       </div>
                                                       <div className="flex items-center gap-1 flex-shrink-0">
                                                         <button
-                                                          onClick={() => handleUpdateInventory(item.dmcNumber, -1)}
+                                                          onClick={() => handleUpdateInventory(item.dmcNumber, -1, (item as { threadSize?: number }).threadSize ?? 5)}
                                                           disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
                                                           className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
                                                           title="Remove 1"
@@ -1268,7 +1268,7 @@ export default function OrdersPage() {
                                                         className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
                                                       />
                                                       <button
-                                                        onClick={() => handleUpdateInventory(item.dmcNumber, 1)}
+                                                        onClick={() => handleUpdateInventory(item.dmcNumber, 1, (item as { threadSize?: number }).threadSize ?? 5)}
                                                         disabled={updatingInventory === item.dmcNumber}
                                                         className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
                                                         title="Add 1"

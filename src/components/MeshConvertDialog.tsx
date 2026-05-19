@@ -14,7 +14,7 @@ interface MeshConvertDialogProps {
   onSuccess?: (newDesignId: string) => void;
 }
 
-const MESH_OPTIONS = [14, 16, 18] as const;
+const MESH_OPTIONS = [13, 14, 16, 18] as const;
 
 export default function MeshConvertDialog({
   designId,

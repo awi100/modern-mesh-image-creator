@@ -27,6 +27,25 @@
 
 This rule exists because on 2026-05-04, Claude ran `prisma db push --force-reset` on the production Supabase database during an unrelated bobbin schema change. It wiped every design, folder, inventory item, kit sale, and order. The free tier had no automatic backups. The data was unrecoverable.
 
+## Mesh counts and thread sizes
+
+The app supports four canvas mesh counts. Each has a specific thread size:
+
+| Mesh | Thread Size | Skein Yards | Usage |
+|------|-------------|-------------|-------|
+| 13ct | Size 3 Pearl Cotton | 16 yards | All intro designs going forward |
+| 14ct | Size 5 Pearl Cotton | 27 yards | Original intro designs |
+| 16ct | Size 5 Pearl Cotton | 27 yards | Some designs |
+| 18ct | Size 5 Pearl Cotton | 27 yards | Main design line going forward |
+
+**Thread sizes never mix.** A 13ct design's DMC 209 demand is tracked separately from a 14ct/18ct DMC 209 demand because the inventory items are different (Size 3 vs Size 5 skeins). The app uses the helper `threadSizeForMesh(meshCount)` from `src/lib/yarn-calculator.ts` to derive thread size from mesh count.
+
+**Bobbin inventory** is keyed by `(dmcNumber, length, threadSize)`. A 3-yard Size 3 bobbin is a different SKU from a 3-yard Size 5 bobbin.
+
+**Mesh filter "Order View"** has two variants:
+- `order14`: 18ct + 14ct intro designs (Size 5 set)
+- `order13`: 18ct + 13ct designs (Size 5 + Size 3 set — note this set has mixed thread sizes)
+
 ## Project Overview
 
 This is the **internal app** for creating needlepoint designs that will be sold as physical kits. It includes inventory management, kit sales tracking, and organizational features (folders, tags) that aren't needed in the public SaaS version.
@@ -162,7 +181,7 @@ model Tag {
 model InventoryItem {
   id        String
   dmcNumber String
-  size      Int      // 5 or 8
+  size      Int      // 3 (for 13ct designs) or 5 (for 14/16/18ct designs)
   skeins    Int      // Stock count
 }
 

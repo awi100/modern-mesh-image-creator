@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { DmcColor, searchDmcColors, getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
+import { meshBadgeClassLight } from "@/lib/mesh-badge";
 
 interface InventoryItem {
   id: string;
@@ -1314,11 +1315,7 @@ export default function InventoryPage() {
                                           </div>
                                         )}
                                         <span className="text-sm text-white">{design.name}</span>
-                                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                          design.meshCount === 18 ? "bg-amber-500/20 text-amber-400" :
-                                          design.meshCount === 16 ? "bg-teal-500/20 text-teal-400" :
-                                          "bg-zinc-500/20 text-zinc-400"
-                                        }`}>
+                                        <span className={`text-xs px-1.5 py-0.5 rounded ${meshBadgeClassLight(design.meshCount)}`}>
                                           {design.meshCount}ct
                                         </span>
                                         {/* Yarn usage */}
@@ -1846,11 +1843,7 @@ export default function InventoryPage() {
                               <Link href={`/design/${design.id}/info`} className="text-white font-medium hover:text-rose-400 truncate text-sm md:text-base">
                                 {design.name}
                               </Link>
-                              <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
-                                design.meshCount === 18 ? "bg-amber-500/20 text-amber-400" :
-                                design.meshCount === 16 ? "bg-teal-500/20 text-teal-400" :
-                                "bg-zinc-500/20 text-zinc-400"
-                              }`}>
+                              <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${meshBadgeClassLight(design.meshCount)}`}>
                                 {design.meshCount}ct
                               </span>
                             </div>

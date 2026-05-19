@@ -2,13 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, threadSizeForMesh, skeinYardsForMesh, bobbinThresholdsForMesh } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 
-const SKEIN_YARDS = 27;
-const BOBBIN_ONLY_MAX = 5;
 const LEFTOVER_THRESHOLD = 5;
 
 // GET - Fetch all kits summary
@@ -47,13 +45,15 @@ export async function GET(request: NextRequest) {
       orderBy: [{ folder: { name: "asc" } }, { name: "asc" }],
     });
 
-    // Get inventory
+    // Get inventory keyed by thread size (Size 3 for 13ct, Size 5 for 14/16/18ct)
     const inventoryItems = await prisma.inventoryItem.findMany();
     const inventoryBySize: Record<number, Map<string, number>> = {
+      3: new Map(),
       5: new Map(),
       8: new Map(),
     };
     for (const item of inventoryItems) {
+      if (!inventoryBySize[item.size]) inventoryBySize[item.size] = new Map();
       inventoryBySize[item.size].set(item.dmcNumber, item.skeins);
     }
 
@@ -82,16 +82,21 @@ export async function GET(request: NextRequest) {
         if (stitchCounts.size === 0) continue;
 
         // Calculate yarn usage
+        const meshCount = (design.meshCount || 14) as MeshCount;
+        const threadSize = threadSizeForMesh(meshCount);
+        const SKEIN_YARDS = skeinYardsForMesh(meshCount);
+        const BOBBIN_ONLY_MAX = bobbinThresholdsForMesh(meshCount).max;
+
         const stitchType = design.stitchType as "continental" | "basketweave";
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          (design.meshCount || 14) as MeshCount,
+          meshCount,
           stitchType,
           design.bufferPercent
         );
 
-        // Get inventory for Size 5 thread
-        const inventoryMap = inventoryBySize[5];
+        // Get inventory for this design's thread size
+        const inventoryMap = inventoryBySize[threadSize];
 
         // Parse design-specific backup colors
         const designBackupColors: Record<string, string> = design.backupColors

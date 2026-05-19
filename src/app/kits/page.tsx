@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import useSWR, { mutate } from "swr";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { meshBadgeClassLight } from "@/lib/mesh-badge";
 import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
 
 const SKEIN_YARDS = 27;
@@ -184,7 +185,8 @@ export default function KitsPage() {
     processingRef.current.add(key);
     pendingDeltasRef.current.delete(key);
 
-    const size = 5; // All supported mesh counts (14, 16, 18) use Size 5 thread
+    // 13ct uses Size 3 thread; 14/16/18ct use Size 5
+    const size = meshCount === 13 ? 3 : 5;
     setUpdatingInventory(key);
 
     try {
@@ -620,11 +622,7 @@ export default function KitsPage() {
                               >
                                 {kit.designName}
                               </Link>
-                              <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
-                                kit.meshCount === 18 ? "bg-amber-500/20 text-amber-400" :
-                                kit.meshCount === 16 ? "bg-teal-500/20 text-teal-400" :
-                                "bg-zinc-500/20 text-zinc-400"
-                              }`}>
+                              <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${meshBadgeClassLight(kit.meshCount)}`}>
                                 {kit.meshCount}ct
                               </span>
                             </div>

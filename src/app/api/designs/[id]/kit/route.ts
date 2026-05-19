@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, threadSizeForMesh, skeinYardsForMesh, bobbinThresholdsForMesh } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
 
-const SKEIN_YARDS = 27;
-// If total yards <= this, use bobbin only (small amount, not worth a full skein)
-const BOBBIN_ONLY_MAX = 5;
-// When using skeins, if remainder after whole skeins is <= this, buffer covers it
-// If remainder > this, add another skein
+// When using skeins, if remainder after whole skeins is <= this, buffer covers it.
+// Same heuristic for both thread sizes.
 const LEFTOVER_THRESHOLD = 5;
 
 // GET - Compute kit contents for a design
@@ -56,11 +53,17 @@ export async function GET(
     // Count stitches per color
     const stitchCounts = countStitchesByColor(grid);
 
+    // Thread size, skein size, and bobbin thresholds depend on mesh count
+    const meshCount = (design.meshCount || 14) as MeshCount;
+    const threadSize = threadSizeForMesh(meshCount);
+    const SKEIN_YARDS = skeinYardsForMesh(meshCount);
+    const BOBBIN_ONLY_MAX = bobbinThresholdsForMesh(meshCount).max;
+
     // Calculate yarn usage
     const stitchType = design.stitchType as "continental" | "basketweave";
     const yarnUsage = calculateYarnUsage(
       stitchCounts,
-      (design.meshCount || 14) as MeshCount,
+      meshCount,
       stitchType,
       design.bufferPercent
     );
@@ -82,9 +85,9 @@ export async function GET(
     // Merge: design-specific backups override global backups
     const backupColors: Record<string, string> = { ...globalBackupMap, ...designBackupColors };
 
-    // Get inventory for Size 5 thread
+    // Get inventory for this design's thread size (Size 5 for 14/16/18ct, Size 3 for 13ct)
     const inventoryItems = await prisma.inventoryItem.findMany({
-      where: { size: 5 },
+      where: { size: threadSize },
     });
     const inventoryMap = new Map(
       inventoryItems.map((item) => [item.dmcNumber, item.skeins])

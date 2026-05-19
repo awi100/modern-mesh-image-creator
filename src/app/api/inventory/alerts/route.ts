@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, threadSizeForMesh } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
@@ -56,7 +56,7 @@ interface MostUsedColor {
   inventorySkeins: number;
   skeinsReservedInKits: number; // Skeins already used in assembled kits
   effectiveInventory: number; // inventorySkeins - skeinsReservedInKits
-  threadSize: 5 | 8;
+  threadSize: 3 | 5 | 8;
   designs: ColorDesignUsage[]; // Which designs use this color with usage details
   // Aggregate demand metrics
   coverageRounds: number; // How many complete rounds (1 kit of each design) can be made
@@ -79,7 +79,7 @@ interface OrderSuggestion {
   dmcNumber: string;
   colorName: string;
   hex: string;
-  threadSize: 5 | 8;
+  threadSize: 3 | 5 | 8;
   currentStock: number;
   demandPerRound: number;
   currentCoverage: number;
@@ -136,19 +136,25 @@ export async function GET(request: NextRequest) {
       backupMap.set(cb.backupDmcNumber, cb.dmcNumber); // Bidirectional
     }
 
-    // Build inventory maps by size
+    // Build inventory maps by thread size (3 for 13ct, 5 for 14/16/18ct)
     const inventoryBySize: Record<number, Map<string, number>> = {
+      3: new Map(),
       5: new Map(),
       8: new Map(),
     };
     for (const item of inventoryItems) {
+      if (!inventoryBySize[item.size]) inventoryBySize[item.size] = new Map();
       inventoryBySize[item.size].set(item.dmcNumber, item.skeins);
     }
 
     const alerts: DesignAlert[] = [];
 
     // Aggregate color usage tracking
+    // Keyed by "dmcNumber-threadSize" so 13ct (Size 3) and 14/16/18ct (Size 5)
+    // demand for the same DMC color stays separate.
     const colorUsageMap = new Map<string, {
+      dmcNumber: string;
+      threadSize: 3 | 5;
       totalStitches: number;
       totalYards: number;
       designs: ColorDesignUsage[];
@@ -170,23 +176,26 @@ export async function GET(request: NextRequest) {
         if (stitchCounts.size === 0) continue;
 
         // Calculate yarn usage
+        const meshCount = (design.meshCount || 14) as MeshCount;
+        const threadSize = threadSizeForMesh(meshCount);
         const stitchType = design.stitchType as "continental" | "basketweave";
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          (design.meshCount || 14) as MeshCount,
+          meshCount,
           stitchType,
           design.bufferPercent
         );
 
-        // Track aggregate color usage (Size 5 only)
+        // Track aggregate color usage keyed by (dmcNumber, threadSize)
+        // — 13ct + Size 3 demand is separate from 14/16/18ct + Size 5 demand
         const kitsReady = design.kitsReady || 0;
         for (const [dmcNumber, stitchCount] of stitchCounts.entries()) {
-          const existing = colorUsageMap.get(dmcNumber);
+          const aggKey = `${dmcNumber}-${threadSize}`;
+          const existing = colorUsageMap.get(aggKey);
           const usage = yarnUsage.find((u) => u.dmcNumber === dmcNumber);
           const skeinsNeeded = usage?.skeinsNeeded ?? 0;
           const usesFullSkein = usage?.usesFullSkein ?? false;
           const yardsNeeded = usage?.withBuffer ?? 0;
-          // Only reserve full skeins for colors that actually use them
           const skeinsReserved = usesFullSkein ? skeinsNeeded * kitsReady : 0;
 
           const designUsage: ColorDesignUsage = {
@@ -194,8 +203,8 @@ export async function GET(request: NextRequest) {
             name: design.name,
             previewImageUrl: design.previewImageUrl,
             stitchCount,
-            yardsNeeded: Math.round(yardsNeeded * 10) / 10, // Round to 1 decimal
-            skeinsNeeded: usesFullSkein ? skeinsNeeded : 0, // 0 for bobbin amounts
+            yardsNeeded: Math.round(yardsNeeded * 10) / 10,
+            skeinsNeeded: usesFullSkein ? skeinsNeeded : 0,
             usesFullSkein,
           };
 
@@ -208,7 +217,9 @@ export async function GET(request: NextRequest) {
             existing.skeinsNeeded += fullSkeinsCount;
             existing.skeinsReservedInKits += skeinsReserved;
           } else {
-            colorUsageMap.set(dmcNumber, {
+            colorUsageMap.set(aggKey, {
+              dmcNumber,
+              threadSize,
               totalStitches: stitchCount,
               totalYards: yardsNeeded,
               designs: [designUsage],
@@ -218,8 +229,8 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Get inventory for Size 5 thread
-        const inventoryMap = inventoryBySize[5];
+        // Get inventory for THIS design's thread size
+        const inventoryMap = inventoryBySize[threadSize];
 
         // Calculate fulfillment capacity for each color
         // Inventory already reflects deductions from assembled kits, so use it directly
@@ -325,22 +336,18 @@ export async function GET(request: NextRequest) {
     const FULL_SKEIN_THRESHOLD = 5;
 
     const mostUsedColors: MostUsedColor[] = [];
-    for (const [dmcNumber, data] of colorUsageMap.entries()) {
+    for (const [, data] of colorUsageMap.entries()) {
+      const dmcNumber = data.dmcNumber;
+      const threadSize = data.threadSize;
       const dmcColor = getDmcColorByNumber(dmcNumber);
       const totalYardsNeeded = Math.round(data.totalYards * 10) / 10;
-      // Calculate skeins from yards, respecting the 5-yard threshold:
-      // Under 5 yards total = bobbin only (0 full skeins needed)
-      // 5+ yards = calculate full skeins needed
       const totalSkeinsNeeded = data.totalYards <= FULL_SKEIN_THRESHOLD
         ? 0
         : Math.ceil(data.totalYards / EFFECTIVE_YARDS_PER_SKEIN);
-      const inventorySkeins = inventoryBySize[5].get(dmcNumber) ?? 0;
+      const inventorySkeins = inventoryBySize[threadSize]?.get(dmcNumber) ?? 0;
       const skeinsReservedInKits = data.skeinsReservedInKits;
-      // effectiveInventory = current inventory (already accounts for assembled kits)
       const effectiveInventory = inventorySkeins;
 
-      // Calculate aggregate demand metrics
-      // totalSkeinsNeeded = skeins needed to make 1 kit of EACH design using this color
       const coverageRounds = totalSkeinsNeeded > 0
         ? Math.floor(effectiveInventory / totalSkeinsNeeded)
         : Infinity;
@@ -352,10 +359,8 @@ export async function GET(request: NextRequest) {
         : 0;
       const isCritical = coverageRounds < 3;
 
-      // Sort designs by skeins needed (highest first)
       const sortedDesigns = [...data.designs].sort((a, b) => b.skeinsNeeded - a.skeinsNeeded);
 
-      // Look up backup color
       const backupDmcNum = backupMap.get(dmcNumber) ?? null;
       const backupColor = backupDmcNum ? getDmcColorByNumber(backupDmcNum) : null;
 
@@ -370,7 +375,7 @@ export async function GET(request: NextRequest) {
         inventorySkeins,
         skeinsReservedInKits,
         effectiveInventory,
-        threadSize: 5 as const,
+        threadSize,
         designs: sortedDesigns,
         coverageRounds: coverageRounds === Infinity ? 999 : coverageRounds,
         skeinsToNextRound,

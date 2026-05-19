@@ -14,6 +14,7 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import MeshConvertDialog from "@/components/MeshConvertDialog";
 import { searchDmcColors, getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { exportPrintOrderPdf } from "@/lib/pdf-export";
+import { meshBadgeClassLight } from "@/lib/mesh-badge";
 import Tooltip from "@/components/Tooltip";
 
 interface BackupColorInfo {
@@ -306,7 +307,8 @@ export default function KitPage() {
     if (updatingInventory === dmcNumber || !design) return;
 
     setUpdatingInventory(dmcNumber);
-    const size = 5; // Size 5 only in internal app (14 mesh)
+    // Use the design's thread size (Size 3 for 13ct, Size 5 for others)
+    const size = design.meshCount === 13 ? 3 : 5;
 
     // Optimistic update
     setKitContents(prev => prev.map(item => {
@@ -524,7 +526,8 @@ export default function KitPage() {
     );
   }
 
-  const threadSize = 5; // All supported mesh counts (14, 16, 18) use Size 5 thread
+  // 13ct uses Size 3 thread; 14/16/18ct use Size 5
+  const threadSize = design.meshCount === 13 ? 3 : 5;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -544,11 +547,7 @@ export default function KitPage() {
             <div className="min-w-0">
               <h1 className="text-lg md:text-xl font-bold text-white truncate flex items-center gap-2">
                 Kit: {design.name}
-                <span className={`text-xs font-medium px-2 py-0.5 rounded flex-shrink-0 ${
-                  design.meshCount === 18 ? "bg-amber-500/20 text-amber-400" :
-                  design.meshCount === 16 ? "bg-teal-500/20 text-teal-400" :
-                  "bg-zinc-500/20 text-zinc-400"
-                }`}>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded flex-shrink-0 ${meshBadgeClassLight(design.meshCount)}`}>
                   {design.meshCount}ct
                 </span>
               </h1>

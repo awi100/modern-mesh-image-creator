@@ -169,12 +169,15 @@ model Design {
 // User settings for yarn calculation calibration
 model UserSettings {
   id                               String   @id @default(cuid())
-  // Yards of thread per square inch of canvas coverage (all Size 5 thread)
-  mesh14ContinentalYardsPerSqIn    Float    @default(2.1)   // 14ct, 196 stitches/sq in
+  // Yards of thread per square inch of canvas coverage
+  // 13ct uses Size 3 Pearl Cotton (16-yard skeins); 14/16/18 use Size 5 (27-yard skeins)
+  mesh13ContinentalYardsPerSqIn    Float    @default(2.2)   // 13ct, 169 stitches/sq in, Size 3
+  mesh13BasketwaveYardsPerSqIn     Float    @default(2.5)   // 13ct, Size 3
+  mesh14ContinentalYardsPerSqIn    Float    @default(2.1)   // 14ct, 196 stitches/sq in, Size 5
   mesh14BasketwaveYardsPerSqIn     Float    @default(2.4)   // 14ct, ~15% more
-  mesh16ContinentalYardsPerSqIn    Float    @default(2.74)  // 16ct, 256 stitches/sq in
+  mesh16ContinentalYardsPerSqIn    Float    @default(2.74)  // 16ct, 256 stitches/sq in, Size 5
   mesh16BasketwaveYardsPerSqIn     Float    @default(3.14)  // 16ct, ~15% more
-  mesh18ContinentalYardsPerSqIn    Float    @default(3.46)  // 18ct, 324 stitches/sq in
+  mesh18ContinentalYardsPerSqIn    Float    @default(3.46)  // 18ct, 324 stitches/sq in, Size 5
   mesh18BasketwaveYardsPerSqIn     Float    @default(3.98)  // 18ct, ~15% more
   // Default export DPI
   defaultExportDpi                 Int      @default(600)
@@ -197,17 +200,19 @@ model InventoryItem {
   @@map("inventory_items")
 }
 
-// Pre-made bobbin inventory (Size 5 thread)
-// Bobbins are sized per kit (whole yards). Each (dmcNumber, length) is its own row.
+// Pre-made bobbin inventory
+// Bobbins are sized per kit (whole yards). Each (dmcNumber, length, threadSize) is its own row.
+// threadSize 5 = used by 14/16/18ct designs; threadSize 3 = used by 13ct designs.
 model BobbinInventory {
-  id        String   @id @default(cuid())
-  dmcNumber String
-  length    Int      // Whole yards (e.g., 3, 4, 5)
-  count     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  dmcNumber  String
+  length     Int      // Whole yards (e.g., 3, 4, 5)
+  threadSize Int      @default(5) // 3 or 5
+  count      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  @@unique([dmcNumber, length])
+  @@unique([dmcNumber, length, threadSize])
   @@map("bobbin_inventory")
 }
 

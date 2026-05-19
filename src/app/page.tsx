@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import NewDesignDialog from "@/components/NewDesignDialog";
+import { meshBadgeClassDark } from "@/lib/mesh-badge";
 import BatchActionBar from "@/components/BatchActionBar";
 import ColorSwapDialog from "@/components/ColorSwapDialog";
 import MeshConvertDialog from "@/components/MeshConvertDialog";
@@ -1911,11 +1912,7 @@ export default function HomePage() {
                           )}
                           {/* Mesh count badge */}
                           <div className="absolute bottom-2 left-2 pointer-events-none">
-                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                              design.meshCount === 18 ? "bg-amber-900/80 text-amber-300" :
-                              design.meshCount === 16 ? "bg-teal-900/80 text-teal-300" :
-                              "bg-slate-700/80 text-slate-300"
-                            }`}>
+                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${meshBadgeClassDark(design.meshCount)}`}>
                               {design.meshCount}ct
                             </span>
                           </div>

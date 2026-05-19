@@ -13,20 +13,26 @@ export async function GET() {
   return NextResponse.json(items);
 }
 
-// POST - upsert a count for a (DMC color, length) bobbin
-// Body: { dmcNumber: string, length: number, count: number }
+// POST - upsert a count for a (DMC color, length, threadSize) bobbin
+// Body: { dmcNumber: string, length: number, threadSize?: number, count: number }
+// threadSize defaults to 5 (used by 14/16/18ct designs). 13ct designs use threadSize 3.
 export async function POST(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const { dmcNumber, length, count } = await request.json();
-    if (!dmcNumber || typeof length !== "number" || length <= 0 || typeof count !== "number" || count < 0) {
-      return NextResponse.json({ error: "dmcNumber, positive length, and non-negative count required" }, { status: 400 });
+    const { dmcNumber, length, threadSize = 5, count } = await request.json();
+    if (!dmcNumber || typeof length !== "number" || length <= 0 ||
+        (threadSize !== 3 && threadSize !== 5) ||
+        typeof count !== "number" || count < 0) {
+      return NextResponse.json(
+        { error: "dmcNumber, positive length, threadSize (3 or 5), and non-negative count required" },
+        { status: 400 }
+      );
     }
     const item = await prisma.bobbinInventory.upsert({
-      where: { dmcNumber_length: { dmcNumber, length } },
-      create: { dmcNumber, length, count },
+      where: { dmcNumber_length_threadSize: { dmcNumber, length, threadSize } },
+      create: { dmcNumber, length, threadSize, count },
       update: { count },
     });
     return NextResponse.json(item);
@@ -37,21 +43,28 @@ export async function POST(request: NextRequest) {
 }
 
 // PATCH - increment/decrement
-// Body: { dmcNumber: string, length: number, delta: number }
+// Body: { dmcNumber: string, length: number, threadSize?: number, delta: number }
 export async function PATCH(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const { dmcNumber, length, delta } = await request.json();
-    if (!dmcNumber || typeof length !== "number" || length <= 0 || typeof delta !== "number") {
-      return NextResponse.json({ error: "dmcNumber, length, and delta required" }, { status: 400 });
+    const { dmcNumber, length, threadSize = 5, delta } = await request.json();
+    if (!dmcNumber || typeof length !== "number" || length <= 0 ||
+        (threadSize !== 3 && threadSize !== 5) ||
+        typeof delta !== "number") {
+      return NextResponse.json(
+        { error: "dmcNumber, length, threadSize (3 or 5), and delta required" },
+        { status: 400 }
+      );
     }
-    const existing = await prisma.bobbinInventory.findUnique({ where: { dmcNumber_length: { dmcNumber, length } } });
+    const existing = await prisma.bobbinInventory.findUnique({
+      where: { dmcNumber_length_threadSize: { dmcNumber, length, threadSize } },
+    });
     const newCount = Math.max(0, (existing?.count || 0) + delta);
     const item = await prisma.bobbinInventory.upsert({
-      where: { dmcNumber_length: { dmcNumber, length } },
-      create: { dmcNumber, length, count: newCount },
+      where: { dmcNumber_length_threadSize: { dmcNumber, length, threadSize } },
+      create: { dmcNumber, length, threadSize, count: newCount },
       update: { count: newCount },
     });
     return NextResponse.json(item);

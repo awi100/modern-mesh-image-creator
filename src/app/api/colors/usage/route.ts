@@ -2,16 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, threadSizeForMesh, skeinYardsForMesh, bobbinThresholdsForMesh } from "@/lib/yarn-calculator";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 
-const SKEIN_YARDS = 27;
-const BOBBIN_ONLY_MAX = 5;
 const LEFTOVER_THRESHOLD = 5;
 
-// Calculate full skeins and bobbin yards from total yards needed
-function calculateSkeinBreakdown(yardsWithBuffer: number): { fullSkeins: number; bobbinYards: number } {
+// Calculate full skeins and bobbin yards from total yards needed, given the mesh count's thread size
+function calculateSkeinBreakdown(yardsWithBuffer: number, meshCount: MeshCount): { fullSkeins: number; bobbinYards: number } {
+  const SKEIN_YARDS = skeinYardsForMesh(meshCount);
+  const BOBBIN_ONLY_MAX = bobbinThresholdsForMesh(meshCount).max;
+
   if (yardsWithBuffer <= BOBBIN_ONLY_MAX) {
     return { fullSkeins: 0, bobbinYards: yardsWithBuffer };
   }
@@ -19,7 +20,6 @@ function calculateSkeinBreakdown(yardsWithBuffer: number): { fullSkeins: number;
   const baseSkeins = Math.floor(yardsWithBuffer / SKEIN_YARDS);
   const remainder = yardsWithBuffer - baseSkeins * SKEIN_YARDS;
 
-  // If remainder is small enough, round up to an extra skein
   if (remainder > 0 && remainder <= LEFTOVER_THRESHOLD) {
     return { fullSkeins: baseSkeins + 1, bobbinYards: 0 };
   }
@@ -32,6 +32,7 @@ interface DesignUsage {
   name: string;
   previewImageUrl: string | null;
   meshCount: number;
+  threadSize: 3 | 5;
   stitchCount: number;
   skeinsNeeded: number;
   yardsWithBuffer: number;
@@ -88,11 +89,14 @@ export async function GET(request: NextRequest) {
         const grid: (string | null)[][] = JSON.parse(decompressed);
         const stitchCounts = countStitchesByColor(grid);
 
+        const meshCount = (design.meshCount || 14) as MeshCount;
+        const threadSize = threadSizeForMesh(meshCount);
+
         // Calculate yarn usage for all colors
         const stitchType = (design.stitchType || "continental") as "continental" | "basketweave";
         const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          (design.meshCount || 14) as MeshCount,
+          meshCount,
           stitchType,
           design.bufferPercent || 20
         );
@@ -112,13 +116,14 @@ export async function GET(request: NextRequest) {
 
           const usage = usageByColor.get(dmcNumber);
           const yardsWithBuffer = usage?.withBuffer || 0;
-          const { fullSkeins, bobbinYards } = calculateSkeinBreakdown(yardsWithBuffer);
+          const { fullSkeins, bobbinYards } = calculateSkeinBreakdown(yardsWithBuffer, meshCount);
 
           colorUsageMap.get(dmcNumber)!.push({
             id: design.id,
             name: design.name,
             previewImageUrl: design.previewImageUrl,
             meshCount: design.meshCount,
+            threadSize,
             stitchCount: usage?.stitchCount || stitchCounts.get(dmcNumber) || 0,
             skeinsNeeded: usage?.skeinsNeeded || 0,
             yardsWithBuffer,
