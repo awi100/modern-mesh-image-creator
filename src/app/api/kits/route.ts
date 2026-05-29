@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ folder: { name: "asc" } }, { name: "asc" }],
     });
 
-    // Get inventory keyed by thread size (Size 3 for 13ct, Size 5 for 14/16/18ct)
+    // Get inventory keyed by thread size (Size 3 for 13ct, Size 5 for 14/18ct)
     const inventoryItems = await prisma.inventoryItem.findMany();
     const inventoryBySize: Record<number, Map<string, number>> = {
       3: new Map(),

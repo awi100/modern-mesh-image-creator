@@ -203,7 +203,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
         <div className="mb-6">
           <label className="block text-sm text-slate-500 dark:text-slate-400 mb-2">Mesh Count</label>
           <div className="flex gap-2">
-            {([13, 14, 16, 18] as const).map((m) => (
+            {([13, 14, 18] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMeshCount(m)}

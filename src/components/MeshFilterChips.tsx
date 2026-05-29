@@ -2,7 +2,7 @@
 
 import React from "react";
 
-export type MeshFilter = "all" | "13" | "14" | "16" | "18" | "order14" | "order13" | "order";
+export type MeshFilter = "all" | "13" | "14" | "18" | "order14" | "order13" | "order";
 
 interface MeshFilterChipsProps {
   value: MeshFilter;
@@ -12,7 +12,6 @@ interface MeshFilterChipsProps {
 const OPTIONS: { value: MeshFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "18", label: "18ct" },
-  { value: "16", label: "16ct" },
   { value: "14", label: "14ct" },
   { value: "13", label: "13ct" },
   { value: "order14", label: "Order View 14" },

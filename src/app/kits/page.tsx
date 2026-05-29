@@ -185,7 +185,7 @@ export default function KitsPage() {
     processingRef.current.add(key);
     pendingDeltasRef.current.delete(key);
 
-    // 13ct uses Size 3 thread; 14/16/18ct use Size 5
+    // 13ct uses Size 3 thread; 14/18ct use Size 5
     const size = meshCount === 13 ? 3 : 5;
     setUpdatingInventory(key);
 

@@ -15,7 +15,7 @@ export async function GET() {
 
 // POST - upsert a count for a (DMC color, length, threadSize) bobbin
 // Body: { dmcNumber: string, length: number, threadSize?: number, count: number }
-// threadSize defaults to 5 (used by 14/16/18ct designs). 13ct designs use threadSize 3.
+// threadSize defaults to 5 (used by 14/18ct designs). 13ct designs use threadSize 3.
 export async function POST(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

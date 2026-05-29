@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
       backupMap.set(cb.backupDmcNumber, cb.dmcNumber); // Bidirectional
     }
 
-    // Build inventory maps by thread size (3 for 13ct, 5 for 14/16/18ct)
+    // Build inventory maps by thread size (3 for 13ct, 5 for 14/18ct)
     const inventoryBySize: Record<number, Map<string, number>> = {
       3: new Map(),
       5: new Map(),
@@ -150,7 +150,7 @@ export async function GET(request: NextRequest) {
     const alerts: DesignAlert[] = [];
 
     // Aggregate color usage tracking
-    // Keyed by "dmcNumber-threadSize" so 13ct (Size 3) and 14/16/18ct (Size 5)
+    // Keyed by "dmcNumber-threadSize" so 13ct (Size 3) and 14/18ct (Size 5)
     // demand for the same DMC color stays separate.
     const colorUsageMap = new Map<string, {
       dmcNumber: string;
@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
         );
 
         // Track aggregate color usage keyed by (dmcNumber, threadSize)
-        // — 13ct + Size 3 demand is separate from 14/16/18ct + Size 5 demand
+        // — 13ct + Size 3 demand is separate from 14/18ct + Size 5 demand
         const kitsReady = design.kitsReady || 0;
         for (const [dmcNumber, stitchCount] of stitchCounts.entries()) {
           const aggKey = `${dmcNumber}-${threadSize}`;

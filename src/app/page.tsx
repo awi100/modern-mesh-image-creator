@@ -1487,7 +1487,7 @@ export default function HomePage() {
                   Mesh Count
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {[14, 16, 18].map((mesh) => (
+                  {[13, 14, 18].map((mesh) => (
                     <button
                       key={mesh}
                       onClick={() => setSelectedMeshCount(selectedMeshCount === mesh ? null : mesh)}
@@ -1720,7 +1720,7 @@ export default function HomePage() {
                 Mesh Count
               </h3>
               <div className="flex flex-wrap gap-2">
-                {[14, 16, 18].map((mesh) => (
+                {[13, 14, 18].map((mesh) => (
                   <button
                     key={mesh}
                     onClick={() => setSelectedMeshCount(selectedMeshCount === mesh ? null : mesh)}

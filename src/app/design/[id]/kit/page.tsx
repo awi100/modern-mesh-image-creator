@@ -526,7 +526,7 @@ export default function KitPage() {
     );
   }
 
-  // 13ct uses Size 3 thread; 14/16/18ct use Size 5
+  // 13ct uses Size 3 thread; 14/18ct use Size 5
   const threadSize = design.meshCount === 13 ? 3 : 5;
 
   return (

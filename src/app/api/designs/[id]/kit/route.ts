@@ -85,7 +85,7 @@ export async function GET(
     // Merge: design-specific backups override global backups
     const backupColors: Record<string, string> = { ...globalBackupMap, ...designBackupColors };
 
-    // Get inventory for this design's thread size (Size 5 for 14/16/18ct, Size 3 for 13ct)
+    // Get inventory for this design's thread size (Size 5 for 14/18ct, Size 3 for 13ct)
     const inventoryItems = await prisma.inventoryItem.findMany({
       where: { size: threadSize },
     });

@@ -74,7 +74,7 @@ model Design {
   name         String
   widthInches  Float
   heightInches Float
-  meshCount    Int      // 14, 16, or 18
+  meshCount    Int      // 13, 14, or 18
   gridWidth    Int      // Computed: round(widthInches * meshCount)
   gridHeight   Int      // Computed: round(heightInches * meshCount)
 
@@ -170,13 +170,11 @@ model Design {
 model UserSettings {
   id                               String   @id @default(cuid())
   // Yards of thread per square inch of canvas coverage
-  // 13ct uses Size 3 Pearl Cotton (16-yard skeins); 14/16/18 use Size 5 (27-yard skeins)
+  // 13ct uses Size 3 Pearl Cotton (16-yard skeins); 14/18 use Size 5 (27-yard skeins)
   mesh13ContinentalYardsPerSqIn    Float    @default(2.2)   // 13ct, 169 stitches/sq in, Size 3
   mesh13BasketwaveYardsPerSqIn     Float    @default(2.5)   // 13ct, Size 3
   mesh14ContinentalYardsPerSqIn    Float    @default(2.1)   // 14ct, 196 stitches/sq in, Size 5
   mesh14BasketwaveYardsPerSqIn     Float    @default(2.4)   // 14ct, ~15% more
-  mesh16ContinentalYardsPerSqIn    Float    @default(2.74)  // 16ct, 256 stitches/sq in, Size 5
-  mesh16BasketwaveYardsPerSqIn     Float    @default(3.14)  // 16ct, ~15% more
   mesh18ContinentalYardsPerSqIn    Float    @default(3.46)  // 18ct, 324 stitches/sq in, Size 5
   mesh18BasketwaveYardsPerSqIn     Float    @default(3.98)  // 18ct, ~15% more
   // Default export DPI
@@ -191,7 +189,7 @@ model UserSettings {
 model InventoryItem {
   id        String   @id @default(cuid())
   dmcNumber String
-  size      Int      // 5 (Size 5 Pearl Cotton for all mesh counts)
+  size      Int      // 3 (13ct, Size 3 Pearl Cotton) or 5 (14/18ct, Size 5 Pearl Cotton)
   skeins    Int      @default(1) // 1 skein = 27 yards
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -202,7 +200,7 @@ model InventoryItem {
 
 // Pre-made bobbin inventory
 // Bobbins are sized per kit (whole yards). Each (dmcNumber, length, threadSize) is its own row.
-// threadSize 5 = used by 14/16/18ct designs; threadSize 3 = used by 13ct designs.
+// threadSize 5 = used by 14/18ct designs; threadSize 3 = used by 13ct designs.
 model BobbinInventory {
   id         String   @id @default(cuid())
   dmcNumber  String

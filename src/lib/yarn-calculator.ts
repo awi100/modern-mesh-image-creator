@@ -4,9 +4,9 @@
 //
 // Thread sizes used:
 //   13ct → Size 3 Pearl Cotton (16-yard skeins, thicker thread)
-//   14/16/18ct → Size 5 Pearl Cotton (27-yard skeins)
+//   14/18ct → Size 5 Pearl Cotton (27-yard skeins)
 
-export type MeshCount = 13 | 14 | 16 | 18;
+export type MeshCount = 13 | 14 | 18;
 export type ThreadSize = 3 | 5;
 
 export interface YarnCalculationSettings {
@@ -15,8 +15,6 @@ export interface YarnCalculationSettings {
   mesh13BasketwaveYardsPerSqIn: number;  // Size 3 thread
   mesh14ContinentalYardsPerSqIn: number; // Size 5 thread
   mesh14BasketwaveYardsPerSqIn: number;
-  mesh16ContinentalYardsPerSqIn: number;
-  mesh16BasketwaveYardsPerSqIn: number;
   mesh18ContinentalYardsPerSqIn: number;
   mesh18BasketwaveYardsPerSqIn: number;
 }
@@ -28,9 +26,6 @@ export const DEFAULT_SETTINGS: YarnCalculationSettings = {
   // 14 mesh: 196 stitches/sq in, Size 5 thread
   mesh14ContinentalYardsPerSqIn: 2.1,
   mesh14BasketwaveYardsPerSqIn: 2.4,
-  // 16 mesh: 256 stitches/sq in, Size 5 thread
-  mesh16ContinentalYardsPerSqIn: 2.74,
-  mesh16BasketwaveYardsPerSqIn: 3.14,
   // 18 mesh: 324 stitches/sq in, Size 5 thread
   mesh18ContinentalYardsPerSqIn: 3.46,
   mesh18BasketwaveYardsPerSqIn: 3.98,

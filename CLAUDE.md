@@ -29,13 +29,12 @@ This rule exists because on 2026-05-04, Claude ran `prisma db push --force-reset
 
 ## Mesh counts and thread sizes
 
-The app supports four canvas mesh counts. Each has a specific thread size:
+The app supports three canvas mesh counts. Each has a specific thread size:
 
 | Mesh | Thread Size | Skein Yards | Usage |
 |------|-------------|-------------|-------|
 | 13ct | Size 3 Pearl Cotton | 16 yards | All intro designs going forward |
 | 14ct | Size 5 Pearl Cotton | 27 yards | Original intro designs |
-| 16ct | Size 5 Pearl Cotton | 27 yards | Some designs |
 | 18ct | Size 5 Pearl Cotton | 27 yards | Main design line going forward |
 
 **Thread sizes never mix.** A 13ct design's DMC 209 demand is tracked separately from a 14ct/18ct DMC 209 demand because the inventory items are different (Size 3 vs Size 5 skeins). The app uses the helper `threadSizeForMesh(meshCount)` from `src/lib/yarn-calculator.ts` to derive thread size from mesh count.
@@ -181,7 +180,7 @@ model Tag {
 model InventoryItem {
   id        String
   dmcNumber String
-  size      Int      // 3 (for 13ct designs) or 5 (for 14/16/18ct designs)
+  size      Int      // 3 (for 13ct designs) or 5 (for 14/18ct designs)
   skeins    Int      // Stock count
 }
 
