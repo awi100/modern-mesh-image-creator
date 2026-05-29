@@ -170,13 +170,22 @@ function drawRealisticStitch(
   ctx.stroke();
 }
 
-// Draw realistic canvas mesh texture
+// Draw realistic canvas mesh texture.
+//
+// `threadsAtCenter` controls where the woven threads sit relative to the grid:
+//   false → threads run along the grid lines (cell edges). Used for the printed
+//           canvas preview, where each cell is a painted block.
+//   true  → thread intersections sit at the CENTER of each cell, with the needle
+//           holes at the cell corners. This matches how a tent stitch is actually
+//           worked: the diagonal passes over one thread intersection, anchored in
+//           the two diagonally-adjacent holes.
 function drawRealisticCanvasMesh(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,
   canvasHeight: number,
   cellSize: number,
-  canvasColor: string
+  canvasColor: string,
+  threadsAtCenter: boolean = false
 ) {
   const { r, g, b } = hexToRgb(canvasColor);
 
@@ -202,9 +211,17 @@ function drawRealisticCanvasMesh(
   const threadHighlight = lightenColor(canvasColor, 0.05);
   const threadShadow = darkenColor(canvasColor, 0.15);
 
+  const cols = Math.round(canvasWidth / cellSize);
+  const rows = Math.round(canvasHeight / cellSize);
+  // When threads run through cell centers there is one thread per cell (offset
+  // by half a cell); along the grid lines there is one more line than cells.
+  const offset = threadsAtCenter ? 0.5 : 0;
+  const rowLines = threadsAtCenter ? rows : rows + 1;
+  const colLines = threadsAtCenter ? cols : cols + 1;
+
   // Horizontal threads (weft)
-  for (let row = 0; row <= canvasHeight / cellSize; row++) {
-    const y = row * cellSize;
+  for (let row = 0; row < rowLines; row++) {
+    const y = (row + offset) * cellSize;
 
     // Thread shadow
     ctx.fillStyle = threadShadow;
@@ -220,8 +237,8 @@ function drawRealisticCanvasMesh(
   }
 
   // Vertical threads (warp) - drawn on top to create weave
-  for (let col = 0; col <= canvasWidth / cellSize; col++) {
-    const x = col * cellSize;
+  for (let col = 0; col < colLines; col++) {
+    const x = (col + offset) * cellSize;
 
     // Thread shadow
     ctx.fillStyle = threadShadow;
@@ -236,13 +253,15 @@ function drawRealisticCanvasMesh(
     ctx.fillRect(x - threadWidth / 2, 0, threadWidth * 0.3, canvasHeight);
   }
 
-  // Draw holes at intersections (the mesh openings)
+  // Draw needle holes. When intersections sit at cell centers the holes are at
+  // the cell corners (the openings between four threads); otherwise they fall on
+  // the grid crossings.
   const holeRadius = Math.max(1, cellSize * 0.08);
   const holeColor = darkenColor(canvasColor, 0.20);
 
   ctx.fillStyle = holeColor;
-  for (let row = 0; row <= canvasHeight / cellSize; row++) {
-    for (let col = 0; col <= canvasWidth / cellSize; col++) {
+  for (let row = 0; row <= rows; row++) {
+    for (let col = 0; col <= cols; col++) {
       const x = col * cellSize;
       const y = row * cellSize;
 
@@ -269,8 +288,10 @@ export function generateStitchPreview(
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
 
-  // Draw realistic canvas mesh as background
-  drawRealisticCanvasMesh(ctx, canvas.width, canvas.height, cellSize, canvasColor);
+  // Draw realistic canvas mesh as background. Intersections sit at cell centers
+  // so each diagonal tent stitch passes over one intersection (true needlepoint),
+  // rather than across the open middle of a mesh square.
+  drawRealisticCanvasMesh(ctx, canvas.width, canvas.height, cellSize, canvasColor, true);
 
   // Draw stitches
   for (let row = 0; row < height; row++) {
