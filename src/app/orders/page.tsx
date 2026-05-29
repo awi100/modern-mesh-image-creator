@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/route";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
+import MysteryBagPickerDialog from "@/components/MysteryBagPickerDialog";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 
 // Kit content types
@@ -189,6 +190,7 @@ export default function OrdersPage() {
   };
   const [updating, setUpdating] = useState<string | null>(null); // Track which design is being updated
   const [fulfilling, setFulfilling] = useState<string | null>(null); // Track which order is being fulfilled
+  const [mysteryPickerOrder, setMysteryPickerOrder] = useState<Order | null>(null); // Order whose Mystery Bag picker is open
 
   // Track pending values being typed
   const [pendingKits, setPendingKits] = useState<Record<string, string>>({});
@@ -410,9 +412,10 @@ export default function OrdersPage() {
     setError(null);
 
     try {
-      // Prepare items for fulfillment (both designs and supplies)
+      // Prepare items for fulfillment (matched designs/supplies + Mystery Bag
+      // line items, which deduct via separately-saved picks).
       const items = order.items
-        .filter(item => item.designId || item.supplyId) // Items with matching designs or supplies
+        .filter(item => item.designId || item.supplyId || item.itemType === "mystery_bag")
         .map(item => ({
           designId: item.designId || undefined,
           supplyId: item.supplyId || undefined,
@@ -1728,6 +1731,7 @@ export default function OrdersPage() {
                         fulfilling={fulfilling === order.shopifyOrderId}
                         onUndo={handleUndoFulfillment}
                         undoing={undoing === order.shopifyOrderId}
+                        onPickMysteryBag={setMysteryPickerOrder}
                       />
                     ));
                   })()
@@ -1735,6 +1739,27 @@ export default function OrdersPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* Mystery Bag Picker */}
+        {mysteryPickerOrder && mysteryPickerOrder.mysteryBag && (
+          <MysteryBagPickerDialog
+            open
+            shopifyOrderId={mysteryPickerOrder.shopifyOrderId}
+            orderNumber={mysteryPickerOrder.orderNumber}
+            customerName={mysteryPickerOrder.customerName}
+            orderItems={mysteryPickerOrder.items.map((i) => ({
+              productTitle: i.productTitle,
+              quantity: i.quantity,
+            }))}
+            required={mysteryPickerOrder.mysteryBag.required}
+            initialPicks={mysteryPickerOrder.mysteryBag.picks.map((p) => ({ designId: p.designId }))}
+            onClose={() => setMysteryPickerOrder(null)}
+            onSaved={() => {
+              setMysteryPickerOrder(null);
+              fetchOrders();
+            }}
+          />
         )}
 
         {/* Backup Color Picker Modal */}
@@ -1840,9 +1865,10 @@ interface OrderCardProps {
   fulfilling: boolean;
   onUndo: (shopifyOrderId: string) => void;
   undoing: boolean;
+  onPickMysteryBag: (order: Order) => void;
 }
 
-function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilling, onUndo, undoing }: OrderCardProps) {
+function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilling, onUndo, undoing, onPickMysteryBag }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Only count canvas items for kits/canvases
@@ -1863,9 +1889,17 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
     return item.canvasPrinted >= item.quantity;
   });
 
+  // Mystery Misprint Bag: picks must be complete before fulfill is allowed.
+  const mysteryBag = order.mysteryBag;
+  const picksRemaining = mysteryBag ? mysteryBag.required - mysteryBag.picks.length : 0;
+  const mysteryPicksReady = !mysteryBag || picksRemaining === 0;
+  // Synced/fulfilled Mystery Bag with no picks recorded — needs manual deduction reminder.
+  const needsManualMysteryDeduction =
+    !!mysteryBag && order.locallyFulfilled && mysteryBag.picks.length === 0;
+
   // canFulfillOrder is calculated by parent, accounting for older orders consuming inventory first
-  // Can't fulfill if already locally fulfilled
-  const canFulfill = !order.locallyFulfilled && canFulfillOrder;
+  // Can't fulfill if already locally fulfilled or if Mystery Bag picks are incomplete
+  const canFulfill = !order.locallyFulfilled && canFulfillOrder && mysteryPicksReady;
 
   return (
     <div className={`bg-slate-800 rounded-xl border overflow-hidden ${
@@ -1923,6 +1957,17 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
                   {suppliesInOrder} suppl{suppliesInOrder > 1 ? "ies" : "y"}
                 </span>
               )}
+              {mysteryBag && (
+                <span
+                  className={`px-2 py-1 rounded text-xs font-medium ${
+                    mysteryPicksReady
+                      ? "bg-purple-900/50 text-purple-300"
+                      : "bg-amber-900/50 text-amber-300"
+                  }`}
+                >
+                  Mystery Bag: {mysteryBag.picks.length}/{mysteryBag.required}
+                </span>
+              )}
             </div>
 
             <svg
@@ -1935,6 +1980,21 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
             </svg>
           </div>
         </button>
+
+        {/* Pick Mystery Bag misprints (only relevant before fulfillment) */}
+        {mysteryBag && !order.locallyFulfilled && (
+          <button
+            onClick={() => onPickMysteryBag(order)}
+            className={`ml-4 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              mysteryPicksReady
+                ? "bg-purple-900/40 text-purple-200 border border-purple-700 hover:bg-purple-900/60"
+                : "bg-purple-700 text-white hover:bg-purple-600"
+            }`}
+            title={mysteryPicksReady ? "Edit misprint picks" : "Choose which misprints ship with this bag"}
+          >
+            {mysteryPicksReady ? "Edit picks" : `Pick misprints (${picksRemaining} left)`}
+          </button>
+        )}
 
         {/* Fulfill Order Button */}
         {order.locallyFulfilled ? (
@@ -1973,7 +2033,13 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
                 ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                 : "bg-slate-700 text-slate-500 cursor-not-allowed"
             } disabled:opacity-50`}
-            title={canFulfill ? "Mark as fulfilled and deduct inventory" : "Not enough kits or canvases ready"}
+            title={
+              canFulfill
+                ? "Mark as fulfilled and deduct inventory"
+                : !mysteryPicksReady
+                  ? `Pick ${picksRemaining} more misprint${picksRemaining === 1 ? "" : "s"} before fulfilling`
+                  : "Not enough kits or canvases ready"
+            }
           >
             {fulfilling ? (
               <>
@@ -1995,9 +2061,39 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
         )}
       </div>
 
+      {/* Mystery Bag warning banner: visible without expanding when picks
+          are missing or when the order was fulfilled outside the app */}
+      {mysteryBag && (!mysteryPicksReady || needsManualMysteryDeduction) && (
+        <div className={`px-4 py-2 text-sm border-t ${
+          needsManualMysteryDeduction
+            ? "bg-amber-900/20 border-amber-800/50 text-amber-200"
+            : "bg-purple-900/20 border-purple-800/50 text-purple-200"
+        }`}>
+          {needsManualMysteryDeduction
+            ? "Mystery Bag was fulfilled in Shopify before picks were recorded. Pick designs and decrement misprint + kit inventory manually."
+            : `Mystery Bag needs ${picksRemaining} more pick${picksRemaining === 1 ? "" : "s"} before it can be fulfilled.`}
+        </div>
+      )}
+
       {/* Expanded Content */}
       {expanded && (
         <div className="border-t border-slate-700 divide-y divide-slate-700/50">
+          {mysteryBag && mysteryBag.picks.length > 0 && (
+            <div className="px-4 py-3 bg-slate-900/40">
+              <p className="text-xs uppercase tracking-wide text-slate-500 mb-2">Mystery Bag picks</p>
+              <div className="flex flex-wrap gap-2">
+                {mysteryBag.picks.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-purple-900/40 border border-purple-800/60 text-purple-100 text-xs"
+                    title={`Misprints in stock: ${p.misprintCount} · Kits ready: ${p.kitsReady}`}
+                  >
+                    {p.designName}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           {order.items.map((item, idx) => (
             <OrderItemRow key={idx} item={item} demandByDesign={demandByDesign} />
           ))}

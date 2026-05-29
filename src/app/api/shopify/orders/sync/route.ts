@@ -6,6 +6,7 @@ import {
   parseNeedsKit,
   normalizeTitle,
 } from "@/lib/shopify";
+import { isMysteryBagTitle } from "@/lib/mystery-bag";
 
 interface SyncResult {
   synced: number;
@@ -152,6 +153,11 @@ export async function POST() {
         const supplyUpdatesMap = new Map<string, number>();
 
         for (const item of items) {
+          // Mystery Bag line items never auto-deduct on sync — they require
+          // explicit picks via the orders UI. Sync records them as-is so the
+          // app can surface a "pick designs" prompt to the user.
+          if (isMysteryBagTitle(item.productTitle)) continue;
+
           if (item.designId) {
             const existing = designUpdatesMap.get(item.designId) || {
               canvasDeduction: 0,

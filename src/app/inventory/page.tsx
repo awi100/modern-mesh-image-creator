@@ -30,6 +30,7 @@ interface Design {
   kitsReady: number;
   canvasPrinted: number;
   canvasPrintedMaddie: number;
+  misprintCount: number;
   isDraft: boolean;
   kitColorCount: number;
   kitSkeinCount: number;
@@ -57,7 +58,7 @@ interface ColorUsage {
   designs: ColorUsageDesign[];
 }
 
-type TabType = "threads" | "kits" | "canvases" | "supplies" | "bobbins";
+type TabType = "threads" | "kits" | "canvases" | "supplies" | "bobbins" | "misprints";
 
 interface Supply {
   id: string;
@@ -757,6 +758,27 @@ export default function InventoryPage() {
     setTransferringCanvas(null);
   };
 
+  // Adjust a design's misprint count by signed delta (additive); clamp at 0.
+  const handleMisprintDelta = async (designId: string, delta: number) => {
+    const design = designs.find((d) => d.id === designId);
+    if (!design) return;
+    if (delta < 0 && design.misprintCount + delta < 0) return;
+    try {
+      const res = await fetch(`/api/designs/${designId}/misprint`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ delta }),
+      });
+      if (!res.ok) return;
+      const data: { id: string; misprintCount: number } = await res.json();
+      setDesigns((prev) =>
+        prev.map((d) => (d.id === data.id ? { ...d, misprintCount: data.misprintCount } : d))
+      );
+    } catch (err) {
+      console.error("Failed to adjust misprint count:", err);
+    }
+  };
+
   // Handle bulk transfer of ALL canvases from Maddie to main
   const handleTransferAll = async () => {
     if (!confirm(`Transfer all ${maddieCanvases} canvases from Maddie's to main?`)) return;
@@ -956,6 +978,22 @@ export default function InventoryPage() {
               {bobbinData && (
                 <span className="ml-1 text-xs opacity-75">({bobbinData.summary.totalBobbins})</span>
               )}
+            </button>
+            <button
+              onClick={() => setActiveTab("misprints")}
+              className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+                activeTab === "misprints"
+                  ? "bg-purple-800 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-700"
+              }`}
+            >
+              <svg className="w-4 h-4 flex-shrink-0 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Misprints
+              <span className="ml-1 text-xs opacity-75">
+                ({designs.filter((d) => d.meshCount === 14).reduce((sum, d) => sum + d.misprintCount, 0)})
+              </span>
             </button>
             <div className="border-l border-slate-600 h-6 mx-2" />
             <Link
@@ -2292,6 +2330,118 @@ export default function InventoryPage() {
             )}
           </div>
         )}
+
+        {/* Misprints Tab */}
+        {activeTab === "misprints" && (() => {
+          const misprint14ct = designs.filter((d) => d.meshCount === 14);
+          const totalMisprints = misprint14ct.reduce((sum, d) => sum + d.misprintCount, 0);
+          const designsWithStock = misprint14ct.filter((d) => d.misprintCount > 0).length;
+          const filtered = searchQuery
+            ? misprint14ct.filter((d) => d.name.toLowerCase().includes(searchQuery.toLowerCase()))
+            : misprint14ct;
+          const sorted = [...filtered].sort((a, b) => {
+            // Designs with misprints first, then alphabetical
+            if ((a.misprintCount > 0) !== (b.misprintCount > 0)) {
+              return a.misprintCount > 0 ? -1 : 1;
+            }
+            return a.name.localeCompare(b.name);
+          });
+          return (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider">Misprints in Stock</p>
+                  <p className="text-xl font-bold text-purple-400">{totalMisprints}</p>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider">Distinct Designs</p>
+                  <p className="text-xl font-bold text-white">{designsWithStock}</p>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider">14ct Designs</p>
+                  <p className="text-xl font-bold text-slate-300">{misprint14ct.length}</p>
+                </div>
+              </div>
+
+              <div className="mb-4 px-4 py-3 rounded-lg bg-purple-900/20 border border-purple-800/40 text-sm text-purple-200">
+                Misprints are 14ct only. Use the controls below to add or remove from inventory as physical misprints accumulate or ship.
+              </div>
+
+              {/* Search */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search 14ct designs…"
+                  className="w-full max-w-md px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-700"
+                />
+              </div>
+
+              {sorted.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">No 14ct designs found.</div>
+              ) : (
+                <div className="grid gap-2">
+                  {sorted.map((design) => (
+                    <div
+                      key={design.id}
+                      className={`bg-slate-800 rounded-lg border p-3 flex items-center gap-3 ${
+                        design.misprintCount > 0 ? "border-purple-800/60" : "border-slate-700"
+                      }`}
+                    >
+                      <Link href={`/design/${design.id}/info`} className="flex-shrink-0">
+                        {design.previewImageUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={design.previewImageUrl}
+                            alt={design.name}
+                            className="w-12 h-12 object-cover rounded border border-slate-600"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded bg-slate-700 border border-slate-600" />
+                        )}
+                      </Link>
+                      <div className="flex-1 min-w-0">
+                        <Link
+                          href={`/design/${design.id}/info`}
+                          className="text-white font-medium hover:text-purple-300 truncate text-sm md:text-base block"
+                        >
+                          {design.name}
+                        </Link>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {design.canvasPrinted} canvases printed · {design.kitsReady} kits ready
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleMisprintDelta(design.id, -1)}
+                          disabled={design.misprintCount <= 0}
+                          className="w-8 h-8 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Remove one misprint"
+                        >
+                          −
+                        </button>
+                        <span className={`w-10 text-center font-mono font-medium ${
+                          design.misprintCount > 0 ? "text-purple-300" : "text-slate-500"
+                        }`}>
+                          {design.misprintCount}
+                        </span>
+                        <button
+                          onClick={() => handleMisprintDelta(design.id, 1)}
+                          className="w-8 h-8 rounded bg-purple-700 text-white hover:bg-purple-600"
+                          title="Add one misprint"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* Add/Edit Supply Modal */}

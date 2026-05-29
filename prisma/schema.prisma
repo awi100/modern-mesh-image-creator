@@ -99,6 +99,7 @@ model Design {
   kitsReady             Int     @default(0)  // assembled kits awaiting sale
   canvasPrinted         Int     @default(0)  // physical canvases printed (at main location)
   canvasPrintedMaddie   Int     @default(0)  // canvases printed at Maddie's location
+  misprintCount         Int     @default(0)  // misprinted 14ct canvases available for Mystery Misprint Bags
 
   // Sales tracking (from Shopify fulfilled orders)
   totalSold             Int     @default(0)  // total units sold (kits + canvas-only)
@@ -156,6 +157,7 @@ model Design {
   kitSales  KitSale[]
   shopifyOrderItems ShopifyOrderItem[]
   finishingProjects FinishingProject[]
+  mysteryBagPicks   MysteryBagPick[]
 
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -247,8 +249,25 @@ model ShopifyOrder {
   fulfilledAt     DateTime? // When we processed the fulfillment
   createdAt       DateTime @default(now())
   items           ShopifyOrderItem[]
+  mysteryBagPicks MysteryBagPick[]
 
   @@map("shopify_orders")
+}
+
+// Mystery Misprint Bag picks: which misprint designs we chose to include in a
+// specific order's mystery-bag line item(s). Each row = one canvas + kit pair.
+// An order with quantity-2 Mystery Bag will have 2 picks per bag = 4 rows.
+model MysteryBagPick {
+  id              String       @id @default(cuid())
+  shopifyOrderId  String       // FK to ShopifyOrder.id (local row id)
+  order           ShopifyOrder @relation(fields: [shopifyOrderId], references: [id], onDelete: Cascade)
+  designId        String
+  design          Design       @relation(fields: [designId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+
+  @@index([shopifyOrderId])
+  @@index([designId])
+  @@map("mystery_bag_picks")
 }
 
 model ShopifyOrderItem {

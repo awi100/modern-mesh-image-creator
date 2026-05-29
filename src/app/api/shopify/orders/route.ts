@@ -7,8 +7,24 @@ import {
   normalizeTitle,
   ShopifyOrderNode,
 } from "@/lib/shopify";
+import { isMysteryBagTitle, PICKS_PER_BAG } from "@/lib/mystery-bag";
 
-export type ItemType = "canvas" | "supply";
+export type ItemType = "canvas" | "supply" | "mystery_bag";
+
+export interface MysteryBagPickInfo {
+  id: string;
+  designId: string;
+  designName: string;
+  previewImageUrl: string | null;
+  meshCount: number;
+  misprintCount: number;
+  kitsReady: number;
+}
+
+export interface MysteryBagState {
+  required: number;     // total picks needed across all bag line items
+  picks: MysteryBagPickInfo[];
+}
 
 export interface OrderItem {
   lineItemId: string;
@@ -42,6 +58,8 @@ export interface Order {
   // Local fulfillment tracking
   locallyFulfilled: boolean;
   locallyFulfilledAt: string | null;
+  // Mystery Misprint Bag state (null if the order has no bag line items)
+  mysteryBag: MysteryBagState | null;
 }
 
 export interface OrdersResponse {
@@ -59,7 +77,16 @@ export interface OrdersResponse {
 }
 
 // Classify item type based on whether it matches a design or supply
-function classifyItemType(matchedDesign: boolean, matchedSupply: boolean): ItemType {
+function classifyItemType(
+  productTitle: string,
+  matchedDesign: boolean,
+  matchedSupply: boolean
+): ItemType {
+  // Mystery Misprint Bag wins over everything else (special multi-design bundle)
+  if (isMysteryBagTitle(productTitle)) {
+    return "mystery_bag";
+  }
+
   // If it matches a design in our system, it's a canvas
   if (matchedDesign) {
     return "canvas";
@@ -134,22 +161,39 @@ export async function GET() {
     const shopifyData = await fetchUnfulfilledOrders();
     const shopifyOrders = shopifyData.orders.nodes;
 
-    // Fetch local fulfillment status for all orders
-    const localFulfillments = await prisma.shopifyOrder.findMany({
+    // Fetch local order records (fulfillment + mystery bag picks) for all orders
+    const localOrders = await prisma.shopifyOrder.findMany({
       where: {
         shopifyOrderId: {
           in: shopifyOrders.map((o) => o.id),
         },
-        fulfilledAt: { not: null },
       },
       select: {
         shopifyOrderId: true,
         fulfilledAt: true,
+        mysteryBagPicks: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            design: {
+              select: {
+                id: true,
+                name: true,
+                previewImageUrl: true,
+                meshCount: true,
+                misprintCount: true,
+                kitsReady: true,
+              },
+            },
+          },
+        },
       },
     });
 
     const localFulfillmentMap = new Map(
-      localFulfillments.map((f) => [f.shopifyOrderId, f.fulfilledAt])
+      localOrders.map((f) => [f.shopifyOrderId, f.fulfilledAt])
+    );
+    const localPicksMap = new Map(
+      localOrders.map((f) => [f.shopifyOrderId, f.mysteryBagPicks])
     );
 
     // Process orders
@@ -183,7 +227,7 @@ export async function GET() {
         const matchedSupply = supplyMap.get(normalizedTitle);
 
         // Classify item type based on matches
-        const itemType = classifyItemType(!!matchedDesign, !!matchedSupply);
+        const itemType = classifyItemType(productTitle, !!matchedDesign, !!matchedSupply);
 
         if (!matchedDesign && !matchedSupply && itemType === "canvas") {
           unmatchedProducts.add(productTitle);
@@ -209,6 +253,11 @@ export async function GET() {
           supplyName: matchedSupply?.name || null,
           supplyQuantity: matchedSupply?.quantity || 0,
         });
+
+        // Mystery bag items have no design/supply demand of their own — their
+        // demand is on misprintCount + kitsReady of the designs the team picks,
+        // applied during fulfillment.
+        if (itemType === "mystery_bag") continue;
 
         // Count what's needed based on item type
         if (itemType === "canvas") {
@@ -248,6 +297,28 @@ export async function GET() {
 
       const localFulfilledAt = localFulfillmentMap.get(shopifyOrder.id);
 
+      // Compute Mystery Bag state if any line items are mystery bags
+      let mysteryBag: MysteryBagState | null = null;
+      const bagQuantity = items
+        .filter((i) => i.itemType === "mystery_bag")
+        .reduce((sum, i) => sum + i.quantity, 0);
+      if (bagQuantity > 0) {
+        const required = bagQuantity * PICKS_PER_BAG;
+        const savedPicks = localPicksMap.get(shopifyOrder.id) || [];
+        mysteryBag = {
+          required,
+          picks: savedPicks.map((p) => ({
+            id: p.id,
+            designId: p.design.id,
+            designName: p.design.name,
+            previewImageUrl: p.design.previewImageUrl,
+            meshCount: p.design.meshCount,
+            misprintCount: p.design.misprintCount,
+            kitsReady: p.design.kitsReady,
+          })),
+        };
+      }
+
       orders.push({
         shopifyOrderId: shopifyOrder.id,
         orderNumber: shopifyOrder.name,
@@ -256,6 +327,7 @@ export async function GET() {
         items,
         locallyFulfilled: !!localFulfilledAt,
         locallyFulfilledAt: localFulfilledAt?.toISOString() || null,
+        mysteryBag,
       });
     }
 
