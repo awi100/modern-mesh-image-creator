@@ -186,6 +186,7 @@ export default function InventoryPage() {
   const [pendingKits, setPendingKits] = useState<Record<string, string>>({});
   const [pendingCanvases, setPendingCanvases] = useState<Record<string, string>>({});
   const [pendingCanvasesMaddie, setPendingCanvasesMaddie] = useState<Record<string, string>>({});
+  const [pendingMisprints, setPendingMisprints] = useState<Record<string, string>>({});
   const [pendingSupplyQuantity, setPendingSupplyQuantity] = useState<Record<string, string>>({});
 
   // Kit contents expansion state
@@ -777,6 +778,22 @@ export default function InventoryPage() {
     } catch (err) {
       console.error("Failed to adjust misprint count:", err);
     }
+  };
+
+  // Set a design's misprint count to an absolute value (used by text input).
+  const handleSetMisprintValue = async (designId: string, value: number) => {
+    const design = designs.find((d) => d.id === designId);
+    if (!design) return;
+    const newVal = Math.max(0, Math.floor(value));
+    const delta = newVal - design.misprintCount;
+    if (delta !== 0) {
+      await handleMisprintDelta(designId, delta);
+    }
+    setPendingMisprints((prev) => {
+      const next = { ...prev };
+      delete next[designId];
+      return next;
+    });
   };
 
   // Handle bulk transfer of ALL canvases from Maddie to main
@@ -2422,11 +2439,38 @@ export default function InventoryPage() {
                         >
                           −
                         </button>
-                        <span className={`w-10 text-center font-mono font-medium ${
-                          design.misprintCount > 0 ? "text-purple-300" : "text-slate-500"
-                        }`}>
-                          {design.misprintCount}
-                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={pendingMisprints[design.id] ?? design.misprintCount}
+                          onChange={(e) =>
+                            setPendingMisprints((prev) => ({ ...prev, [design.id]: e.target.value }))
+                          }
+                          onBlur={() => {
+                            const val = pendingMisprints[design.id];
+                            if (val !== undefined && val !== "") {
+                              handleSetMisprintValue(design.id, Number(val));
+                            } else if (val === "") {
+                              // empty input → clear pending
+                              setPendingMisprints((prev) => {
+                                const next = { ...prev };
+                                delete next[design.id];
+                                return next;
+                              });
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          onFocus={(e) => e.currentTarget.select()}
+                          className={`w-14 px-1 py-1 bg-slate-900 border rounded text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-600 ${
+                            design.misprintCount > 0
+                              ? "text-purple-300 border-purple-700/50"
+                              : "text-slate-400 border-slate-700"
+                          }`}
+                        />
                         <button
                           onClick={() => handleMisprintDelta(design.id, 1)}
                           className="w-8 h-8 rounded bg-purple-700 text-white hover:bg-purple-600"
