@@ -9,32 +9,40 @@ export async function POST() {
   }
 
   try {
+    // Read each row's Maddie count with SELECT FOR UPDATE so the transfer is
+    // atomic — prevents the race where two concurrent bulk transfers each see
+    // the same canvasPrintedMaddie value and double-credit canvasPrinted.
     const result = await prisma.$transaction(async (tx) => {
-      // Find all designs with canvases at Maddie's
-      const designs = await tx.design.findMany({
+      const candidates = await tx.design.findMany({
         where: { canvasPrintedMaddie: { gt: 0 }, deletedAt: null },
-        select: { id: true, name: true, canvasPrinted: true, canvasPrintedMaddie: true },
+        select: { id: true },
       });
 
-      if (designs.length === 0) {
+      if (candidates.length === 0) {
         return { totalTransferred: 0, designs: [] };
       }
 
-      const updated = [];
+      const updated: { id: string; name: string; canvasPrinted: number; canvasPrintedMaddie: number }[] = [];
       let totalTransferred = 0;
 
-      for (const design of designs) {
-        const qty = design.canvasPrintedMaddie;
-        totalTransferred += qty;
+      for (const { id } of candidates) {
+        // Lock the row before reading the qty so a concurrent transfer for
+        // the same design has to wait for this transaction to commit.
+        const locked = await tx.$queryRaw<{ canvasPrintedMaddie: number }[]>`
+          SELECT "canvasPrintedMaddie" FROM designs WHERE id = ${id} FOR UPDATE
+        `;
+        const qty = locked[0]?.canvasPrintedMaddie ?? 0;
+        if (qty <= 0) continue;
 
         const updatedDesign = await tx.design.update({
-          where: { id: design.id },
+          where: { id },
           data: {
             canvasPrinted: { increment: qty },
             canvasPrintedMaddie: 0,
           },
           select: { id: true, name: true, canvasPrinted: true, canvasPrintedMaddie: true },
         });
+        totalTransferred += qty;
         updated.push(updatedDesign);
       }
 
@@ -74,23 +82,22 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Use transaction for atomic transfer
+    // Use transaction with SELECT FOR UPDATE so concurrent transfers for the
+    // same design can't both read the same canvasPrintedMaddie and double-credit.
     const result = await prisma.$transaction(async (tx) => {
-      // Get current design within transaction
-      const design = await tx.design.findUnique({
-        where: { id: designId },
-        select: { canvasPrinted: true, canvasPrintedMaddie: true },
-      });
+      // Lock the row and read the qty atomically.
+      const locked = await tx.$queryRaw<{ canvasPrintedMaddie: number }[]>`
+        SELECT "canvasPrintedMaddie" FROM designs WHERE id = ${designId} FOR UPDATE
+      `;
 
-      if (!design) {
+      if (locked.length === 0) {
         throw new Error("Design not found");
       }
 
-      if (design.canvasPrintedMaddie === 0) {
+      const quantity = locked[0].canvasPrintedMaddie;
+      if (quantity <= 0) {
         throw new Error("No canvases at Maddie's location to transfer");
       }
-
-      const quantity = design.canvasPrintedMaddie;
 
       // Atomic transfer: increment main, set Maddie's to 0
       const updatedDesign = await tx.design.update({

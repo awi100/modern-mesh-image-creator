@@ -684,18 +684,7 @@ export default function InventoryPage() {
     const design = designs.find((d) => d.id === id);
     if (!design) return;
 
-    const currentVal = field === "kitsReady"
-      ? design.kitsReady
-      : field === "canvasPrinted"
-      ? design.canvasPrinted
-      : (design.canvasPrintedMaddie || 0);
-    const newVal = Math.max(0, value);
-    const delta = newVal - currentVal;
-
-    if (delta !== 0) {
-      await handleUpdateDesign(id, field, delta);
-    } else {
-      // Just clear pending
+    const clearPending = () => {
       if (field === "kitsReady") {
         setPendingKits((prev) => { const next = { ...prev }; delete next[id]; return next; });
       } else if (field === "canvasPrinted") {
@@ -703,6 +692,26 @@ export default function InventoryPage() {
       } else {
         setPendingCanvasesMaddie((prev) => { const next = { ...prev }; delete next[id]; return next; });
       }
+    };
+
+    // Guard against `Number("")` = 0 / NaN silently zeroing a count.
+    if (!Number.isFinite(value)) {
+      clearPending();
+      return;
+    }
+
+    const currentVal = field === "kitsReady"
+      ? design.kitsReady
+      : field === "canvasPrinted"
+      ? design.canvasPrinted
+      : (design.canvasPrintedMaddie || 0);
+    const newVal = Math.max(0, Math.floor(value));
+    const delta = newVal - currentVal;
+
+    if (delta !== 0) {
+      await handleUpdateDesign(id, field, delta);
+    } else {
+      clearPending();
     }
   };
 
@@ -1271,14 +1280,14 @@ export default function InventoryPage() {
                                   onChange={(e) => setPendingSkeins((prev) => ({ ...prev, [item.id]: e.target.value }))}
                                   onBlur={() => {
                                     const val = pendingSkeins[item.id];
-                                    if (val !== undefined) {
+                                    if (val !== undefined && val !== "") {
                                       handleUpdateSkeins(item.id, Number(val));
                                     }
                                   }}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter") {
                                       const val = pendingSkeins[item.id];
-                                      if (val !== undefined) {
+                                      if (val !== undefined && val !== "") {
                                         handleUpdateSkeins(item.id, Number(val));
                                       }
                                       (e.target as HTMLInputElement).blur();
@@ -1537,14 +1546,14 @@ export default function InventoryPage() {
                                   onChange={(e) => setPendingKits((prev) => ({ ...prev, [design.id]: e.target.value }))}
                                   onBlur={() => {
                                     const val = pendingKits[design.id];
-                                    if (val !== undefined) {
+                                    if (val !== undefined && val !== "") {
                                       handleSetDesignValue(design.id, "kitsReady", Number(val));
                                     }
                                   }}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter") {
                                       const val = pendingKits[design.id];
-                                      if (val !== undefined) {
+                                      if (val !== undefined && val !== "") {
                                         handleSetDesignValue(design.id, "kitsReady", Number(val));
                                       }
                                       (e.target as HTMLInputElement).blur();
@@ -1641,14 +1650,14 @@ export default function InventoryPage() {
                                                   }}
                                                   onBlur={() => {
                                                     const val = pendingInventoryValues[item.dmcNumber];
-                                                    if (val !== undefined) {
+                                                    if (val !== undefined && val !== "") {
                                                       handleSetKitInventory(item.dmcNumber, Number(val));
                                                     }
                                                   }}
                                                   onKeyDown={(e) => {
                                                     if (e.key === "Enter") {
                                                       const val = pendingInventoryValues[item.dmcNumber];
-                                                      if (val !== undefined) {
+                                                      if (val !== undefined && val !== "") {
                                                         handleSetKitInventory(item.dmcNumber, Number(val));
                                                       }
                                                       (e.target as HTMLInputElement).blur();
@@ -1928,14 +1937,14 @@ export default function InventoryPage() {
                                 onChange={(e) => setPendingCanvases((prev) => ({ ...prev, [design.id]: e.target.value }))}
                                 onBlur={() => {
                                   const val = pendingCanvases[design.id];
-                                  if (val !== undefined) {
+                                  if (val !== undefined && val !== "") {
                                     handleSetDesignValue(design.id, "canvasPrinted", Number(val));
                                   }
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
                                     const val = pendingCanvases[design.id];
-                                    if (val !== undefined) {
+                                    if (val !== undefined && val !== "") {
                                       handleSetDesignValue(design.id, "canvasPrinted", Number(val));
                                     }
                                     (e.target as HTMLInputElement).blur();
@@ -1972,14 +1981,14 @@ export default function InventoryPage() {
                                 onChange={(e) => setPendingCanvasesMaddie((prev) => ({ ...prev, [design.id]: e.target.value }))}
                                 onBlur={() => {
                                   const val = pendingCanvasesMaddie[design.id];
-                                  if (val !== undefined) {
+                                  if (val !== undefined && val !== "") {
                                     handleSetDesignValue(design.id, "canvasPrintedMaddie", Number(val));
                                   }
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
                                     const val = pendingCanvasesMaddie[design.id];
-                                    if (val !== undefined) {
+                                    if (val !== undefined && val !== "") {
                                       handleSetDesignValue(design.id, "canvasPrintedMaddie", Number(val));
                                     }
                                     (e.target as HTMLInputElement).blur();
@@ -2110,14 +2119,14 @@ export default function InventoryPage() {
                           onChange={(e) => setPendingSupplyQuantity((prev) => ({ ...prev, [supply.id]: e.target.value }))}
                           onBlur={() => {
                             const val = pendingSupplyQuantity[supply.id];
-                            if (val !== undefined) {
+                            if (val !== undefined && val !== "") {
                               handleSetSupplyQuantity(supply.id, Number(val));
                             }
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               const val = pendingSupplyQuantity[supply.id];
-                              if (val !== undefined) {
+                              if (val !== undefined && val !== "") {
                                 handleSetSupplyQuantity(supply.id, Number(val));
                               }
                               (e.target as HTMLInputElement).blur();

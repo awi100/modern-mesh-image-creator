@@ -55,9 +55,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (size !== 5 && size !== 8) {
+    if (size !== 3 && size !== 5) {
       return NextResponse.json(
-        { error: "Size must be 5 or 8" },
+        { error: "Size must be 3 (13ct) or 5 (14/18ct)" },
+        { status: 400 }
+      );
+    }
+
+    const numSkeins = Number(skeins);
+    if (!Number.isFinite(numSkeins) || numSkeins < 0 || !Number.isInteger(numSkeins)) {
+      return NextResponse.json(
+        { error: "skeins must be a non-negative integer" },
         { status: 400 }
       );
     }
@@ -68,12 +76,12 @@ export async function POST(request: NextRequest) {
         dmcNumber_size: { dmcNumber, size: Number(size) },
       },
       update: {
-        skeins: Number(skeins),
+        skeins: numSkeins,
       },
       create: {
         dmcNumber,
         size: Number(size),
-        skeins: Number(skeins),
+        skeins: numSkeins,
       },
     });
 
@@ -105,15 +113,21 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (size !== 5 && size !== 8) {
+    if (size !== 3 && size !== 5) {
       return NextResponse.json(
-        { error: "Size must be 5 or 8" },
+        { error: "Size must be 3 (13ct) or 5 (14/18ct)" },
         { status: 400 }
       );
     }
 
     const numDelta = Number(delta);
     const numSize = Number(size);
+    if (!Number.isFinite(numDelta) || !Number.isInteger(numDelta)) {
+      return NextResponse.json(
+        { error: "delta must be an integer" },
+        { status: 400 }
+      );
+    }
 
     // Use transaction for atomic update with floor check
     const item = await prisma.$transaction(async (tx) => {

@@ -28,6 +28,20 @@ interface DesignUpdates {
   totalKitsSold: number;
 }
 
+// Sentinel thrown from inside the fulfill transaction when saved mystery-bag
+// picks don't match the required count — rolls back the transaction and is
+// translated to a 400 response in the outer handler.
+class MysteryPicksError extends Error {
+  required: number;
+  saved: number;
+  constructor(required: number, saved: number) {
+    super(`Mystery Misprint Bag picks not complete: required ${required}, saved ${saved}`);
+    this.name = "MysteryPicksError";
+    this.required = required;
+    this.saved = saved;
+  }
+}
+
 // POST - Fulfill an order (deduct kitsReady and canvasPrinted, record local fulfillment)
 // Consolidates all updates per design into a single atomic operation
 export async function POST(request: NextRequest) {
@@ -94,33 +108,39 @@ export async function POST(request: NextRequest) {
     // Mystery Bag picks: each pick = 1 kit + 1 misprint canvas for that design.
     // Picks are saved separately via /api/shopify/orders/mystery-bag and we
     // require the count to match the bag quantities before fulfilling.
+    // We read picks INSIDE the transaction below so a concurrent PUT picks
+    // can't change them between the read and the deduction.
     const requiredPicks = picksRequiredForItems(items);
-    let mysteryPicks: { designId: string }[] = [];
-    if (requiredPicks > 0) {
-      const existingLocal = existingOrder ?? null;
-      // We need the local order id to look up picks; create it lazily later if
-      // it doesn't exist yet, but picks live keyed to the local id, so they
-      // must have been saved against the existing record. If no local record
-      // yet, picks can't exist.
-      if (existingLocal) {
-        mysteryPicks = await prisma.mysteryBagPick.findMany({
-          where: { shopifyOrderId: existingLocal.id },
+
+    // Process all updates in a single transaction with idempotency check
+    const result = await prisma.$transaction(async (tx) => {
+      // Check again inside transaction to prevent race conditions with webhook
+      const existingInTx = await tx.shopifyOrder.findUnique({
+        where: { shopifyOrderId },
+      });
+
+      if (existingInTx?.fulfilledAt) {
+        // Already processed (possibly by webhook)
+        return { alreadyProcessed: true, kitsDeducted: 0, canvasesDeducted: 0, suppliesDeducted: 0, misprintsDeducted: 0 };
+      }
+
+      // Read mystery bag picks atomically with the rest of this transaction —
+      // a concurrent PUT picks cannot change them between this read and the
+      // deductions below.
+      let mysteryPicks: { designId: string }[] = [];
+      if (requiredPicks > 0 && existingInTx) {
+        mysteryPicks = await tx.mysteryBagPick.findMany({
+          where: { shopifyOrderId: existingInTx.id },
           select: { designId: true },
         });
       }
-      if (mysteryPicks.length !== requiredPicks) {
-        return NextResponse.json(
-          {
-            error:
-              "Mystery Misprint Bag picks not complete",
-            requiredPicks,
-            savedPicks: mysteryPicks.length,
-          },
-          { status: 400 }
-        );
+      if (requiredPicks > 0 && mysteryPicks.length !== requiredPicks) {
+        // Throw a sentinel so the transaction rolls back and the outer handler
+        // can map it to a 400.
+        throw new MysteryPicksError(requiredPicks, mysteryPicks.length);
       }
 
-      // Each pick deducts 1 kit + 1 misprint canvas for its design.
+      // Fold picks into the per-design update map. Each pick = 1 kit + 1 misprint.
       for (const pick of mysteryPicks) {
         const existing = designUpdatesMap.get(pick.designId) || {
           canvasDeduction: 0,
@@ -134,19 +154,6 @@ export async function POST(request: NextRequest) {
         existing.totalSold += 1;
         existing.totalKitsSold += 1;
         designUpdatesMap.set(pick.designId, existing);
-      }
-    }
-
-    // Process all updates in a single transaction with idempotency check
-    const result = await prisma.$transaction(async (tx) => {
-      // Check again inside transaction to prevent race conditions with webhook
-      const existingInTx = await tx.shopifyOrder.findUnique({
-        where: { shopifyOrderId },
-      });
-
-      if (existingInTx?.fulfilledAt) {
-        // Already processed (possibly by webhook)
-        return { alreadyProcessed: true, kitsDeducted: 0, canvasesDeducted: 0, suppliesDeducted: 0, misprintsDeducted: 0 };
       }
 
       let kitsDeducted = 0;
@@ -256,6 +263,16 @@ export async function POST(request: NextRequest) {
       misprintsDeducted: result.misprintsDeducted,
     });
   } catch (error) {
+    if (error instanceof MysteryPicksError) {
+      return NextResponse.json(
+        {
+          error: "Mystery Misprint Bag picks not complete",
+          requiredPicks: error.required,
+          savedPicks: error.saved,
+        },
+        { status: 400 }
+      );
+    }
     console.error("Error fulfilling order:", error);
     return NextResponse.json(
       { error: "Failed to fulfill order" },

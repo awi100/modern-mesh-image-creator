@@ -564,8 +564,23 @@ export default function OrdersPage() {
     }
   }, [sendUpdate]);
 
-  // Set an absolute value for kitsReady or canvasPrinted
+  // Set an absolute value for kitsReady or canvasPrinted.
+  // Bail (no PATCH) on non-finite input — guards against `Number("")` = 0
+  // silently zeroing a count when the user blurs an empty input.
   const handleSetValue = useCallback((designId: string, field: "kitsReady" | "canvasPrinted", value: number) => {
+    const clearPending = () => {
+      if (field === "kitsReady") {
+        setPendingKits((prev) => { const next = { ...prev }; delete next[designId]; return next; });
+      } else {
+        setPendingCanvases((prev) => { const next = { ...prev }; delete next[designId]; return next; });
+      }
+    };
+
+    if (!Number.isFinite(value)) {
+      clearPending();
+      return;
+    }
+
     // Find current value from data
     let currentValue = 0;
     if (data) {
@@ -579,19 +594,14 @@ export default function OrdersPage() {
       }
     }
 
-    const newVal = Math.max(0, value);
+    const newVal = Math.max(0, Math.floor(value));
     const delta = newVal - currentValue;
 
     if (delta !== 0) {
       handleUpdateCount(designId, field, delta);
     }
 
-    // Clear pending value
-    if (field === "kitsReady") {
-      setPendingKits((prev) => { const next = { ...prev }; delete next[designId]; return next; });
-    } else {
-      setPendingCanvases((prev) => { const next = { ...prev }; delete next[designId]; return next; });
-    }
+    clearPending();
   }, [data, handleUpdateCount]);
 
   // Update thread inventory for a kit color
@@ -1141,15 +1151,20 @@ export default function OrdersPage() {
                                                 onChange={(e) => setPendingKits((prev) => ({ ...prev, [kit.designId!]: e.target.value }))}
                                                 onBlur={() => {
                                                   const val = pendingKits[kit.designId!];
-                                                  if (val !== undefined) {
+                                                  if (val !== undefined && val !== "") {
                                                     handleSetValue(kit.designId!, "kitsReady", Number(val));
+                                                  } else if (val === "") {
+                                                    // Clear pending without zeroing the count
+                                                    setPendingKits((prev) => { const next = { ...prev }; delete next[kit.designId!]; return next; });
                                                   }
                                                 }}
                                                 onKeyDown={(e) => {
                                                   if (e.key === "Enter") {
                                                     const val = pendingKits[kit.designId!];
-                                                    if (val !== undefined) {
+                                                    if (val !== undefined && val !== "") {
                                                       handleSetValue(kit.designId!, "kitsReady", Number(val));
+                                                    } else if (val === "") {
+                                                      setPendingKits((prev) => { const next = { ...prev }; delete next[kit.designId!]; return next; });
                                                     }
                                                     (e.target as HTMLInputElement).blur();
                                                   }
@@ -1255,15 +1270,19 @@ export default function OrdersPage() {
                                                           onChange={(e) => setPendingInventory((prev) => ({ ...prev, [item.dmcNumber]: e.target.value }))}
                                                           onBlur={() => {
                                                             const val = pendingInventory[item.dmcNumber];
-                                                            if (val !== undefined) {
+                                                            if (val !== undefined && val !== "") {
                                                               handleSetInventory(item.dmcNumber, Number(val));
+                                                            } else if (val === "") {
+                                                              setPendingInventory((prev) => { const next = { ...prev }; delete next[item.dmcNumber]; return next; });
                                                             }
                                                           }}
                                                           onKeyDown={(e) => {
                                                             if (e.key === "Enter") {
                                                               const val = pendingInventory[item.dmcNumber];
-                                                              if (val !== undefined) {
+                                                              if (val !== undefined && val !== "") {
                                                                 handleSetInventory(item.dmcNumber, Number(val));
+                                                              } else if (val === "") {
+                                                                setPendingInventory((prev) => { const next = { ...prev }; delete next[item.dmcNumber]; return next; });
                                                               }
                                                               (e.target as HTMLInputElement).blur();
                                                           }
@@ -1539,15 +1558,19 @@ export default function OrdersPage() {
                                         onChange={(e) => setPendingCanvases((prev) => ({ ...prev, [canvas.designId!]: e.target.value }))}
                                         onBlur={() => {
                                           const val = pendingCanvases[canvas.designId!];
-                                          if (val !== undefined) {
+                                          if (val !== undefined && val !== "") {
                                             handleSetValue(canvas.designId!, "canvasPrinted", Number(val));
+                                          } else if (val === "") {
+                                            setPendingCanvases((prev) => { const next = { ...prev }; delete next[canvas.designId!]; return next; });
                                           }
                                         }}
                                         onKeyDown={(e) => {
                                           if (e.key === "Enter") {
                                             const val = pendingCanvases[canvas.designId!];
-                                            if (val !== undefined) {
+                                            if (val !== undefined && val !== "") {
                                               handleSetValue(canvas.designId!, "canvasPrinted", Number(val));
+                                            } else if (val === "") {
+                                              setPendingCanvases((prev) => { const next = { ...prev }; delete next[canvas.designId!]; return next; });
                                             }
                                             (e.target as HTMLInputElement).blur();
                                           }

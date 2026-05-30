@@ -16,16 +16,17 @@ export async function PATCH(
     const body = await request.json();
     const { skeins } = body;
 
-    if (skeins === undefined || skeins < 0) {
+    const numSkeins = Number(skeins);
+    if (skeins === undefined || !Number.isFinite(numSkeins) || numSkeins < 0 || !Number.isInteger(numSkeins)) {
       return NextResponse.json(
-        { error: "Valid skeins count is required" },
+        { error: "skeins must be a non-negative integer" },
         { status: 400 }
       );
     }
 
     const item = await prisma.inventoryItem.update({
       where: { id },
-      data: { skeins: Number(skeins) },
+      data: { skeins: numSkeins },
     });
 
     return NextResponse.json(item);

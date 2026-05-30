@@ -25,10 +25,11 @@ export async function POST(
       select: {
         id: true,
         name: true,
+        deletedAt: true,
       },
     });
 
-    if (!design) {
+    if (!design || design.deletedAt) {
       return NextResponse.json({ error: "Design not found" }, { status: 404 });
     }
 

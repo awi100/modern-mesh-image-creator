@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isAuthenticated } from "@/lib/session";
 
 // GET - List all canvas presets
 export async function GET() {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const presets = await prisma.canvasPreset.findMany({
       orderBy: [
@@ -23,13 +28,23 @@ export async function GET() {
 
 // POST - Create a new canvas preset
 export async function POST(request: NextRequest) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { name, widthInches, heightInches, description } = body;
 
-    if (!name || !widthInches || !heightInches) {
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    const width = Number(widthInches);
+    const height = Number(heightInches);
+    if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
       return NextResponse.json(
-        { error: "Name, width, and height are required" },
+        { error: "widthInches and heightInches must be positive numbers" },
         { status: 400 }
       );
     }
@@ -41,10 +56,10 @@ export async function POST(request: NextRequest) {
 
     const preset = await prisma.canvasPreset.create({
       data: {
-        name,
-        widthInches: Number(widthInches),
-        heightInches: Number(heightInches),
-        description: description || null,
+        name: name.trim(),
+        widthInches: width,
+        heightInches: height,
+        description: typeof description === "string" ? description : null,
         sortOrder: (maxOrder._max.sortOrder || 0) + 1,
       },
     });

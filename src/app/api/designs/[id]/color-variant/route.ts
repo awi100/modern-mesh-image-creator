@@ -54,7 +54,7 @@ export async function POST(
       },
     });
 
-    if (!original) {
+    if (!original || original.deletedAt) {
       return NextResponse.json({ error: "Design not found" }, { status: 404 });
     }
 

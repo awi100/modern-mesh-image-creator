@@ -38,10 +38,11 @@ export async function GET(
         totalSold: true,
         totalKitsSold: true,
         backupColors: true,
+        deletedAt: true,
       },
     });
 
-    if (!design) {
+    if (!design || design.deletedAt) {
       return NextResponse.json({ error: "Design not found" }, { status: 404 });
     }
 

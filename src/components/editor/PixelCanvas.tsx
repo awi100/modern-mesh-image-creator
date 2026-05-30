@@ -1130,6 +1130,19 @@ export default function PixelCanvas({
     lastPosRef.current = null;
   }, []);
 
+  // Fires when the browser cancels an in-progress touch (e.g. system gesture,
+  // pull-to-refresh, alert). Drop every gesture-state ref so the next touch
+  // starts clean — leaving stale state would silently break the next tap/draw.
+  const handleTouchCancel = useCallback(() => {
+    pinchRef.current = null;
+    dragRef.current = null;
+    shapeDragRef.current = null;
+    touchDrawRef.current = null;
+    moveRef.current = null;
+    isDrawingRef.current = false;
+    lastPosRef.current = null;
+  }, []);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const canvas = canvasRef.current;
@@ -1271,6 +1284,7 @@ export default function PixelCanvas({
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
         />
       </div>
 
