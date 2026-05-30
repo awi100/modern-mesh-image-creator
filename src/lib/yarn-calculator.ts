@@ -57,6 +57,21 @@ export function bobbinThresholdsForMesh(meshCount: MeshCount): { min: number; ma
   return { min: 2.4, max: 5 };
 }
 
+/** Bobbin yard thresholds for a given thread size (same content as
+ *  bobbinThresholdsForMesh; provided for callers that already have threadSize). */
+export function bobbinThresholdsForThread(threadSize: ThreadSize): { min: number; max: number } {
+  return threadSize === 3 ? { min: 1.5, max: 4 } : { min: 2.4, max: 5 };
+}
+
+/** Usable yards per skein when winding bobbins.
+ *  Skeins lose some thread to the cut/end during winding; this is the practical
+ *  amount we plan ordering against. Scaled proportionally to skein size:
+ *    Size 5 → 22 yards effective from a 27-yard skein (~5y waste)
+ *    Size 3 → 13 yards effective from a 16-yard skein (~3y waste, same fraction) */
+export function effectiveYardsPerSkein(threadSize: ThreadSize): number {
+  return threadSize === 3 ? 13 : 22;
+}
+
 export type StitchType = "continental" | "basketweave";
 
 export interface YarnUsage {

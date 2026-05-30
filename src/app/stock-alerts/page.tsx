@@ -26,7 +26,7 @@ interface MostUsedColor {
   inventorySkeins: number;
   skeinsReservedInKits: number;
   effectiveInventory: number;
-  threadSize: 5 | 8;
+  threadSize: 3 | 5;
   designs: ColorDesignUsage[];
   coverageRounds: number;
   skeinsToNextRound: number;
@@ -40,7 +40,7 @@ interface OrderSuggestion {
   dmcNumber: string;
   colorName: string;
   hex: string;
-  threadSize: 5 | 8;
+  threadSize: 3 | 5;
   currentStock: number;
   demandPerRound: number;
   currentCoverage: number;

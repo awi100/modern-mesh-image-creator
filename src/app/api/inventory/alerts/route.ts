@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount, threadSizeForMesh } from "@/lib/yarn-calculator";
+import {
+  calculateYarnUsage,
+  MeshCount,
+  threadSizeForMesh,
+  effectiveYardsPerSkein,
+  bobbinThresholdsForThread,
+} from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
@@ -140,7 +146,6 @@ export async function GET(request: NextRequest) {
     const inventoryBySize: Record<number, Map<string, number>> = {
       3: new Map(),
       5: new Map(),
-      8: new Map(),
     };
     for (const item of inventoryItems) {
       if (!inventoryBySize[item.size]) inventoryBySize[item.size] = new Map();
@@ -329,21 +334,20 @@ export async function GET(request: NextRequest) {
       return (b.salesVelocity ?? 0) - (a.salesVelocity ?? 0);
     });
 
-    // Build most used colors list with aggregate demand metrics
-    // Use 22 effective yards per skein (vs 27 actual) to account for waste when winding bobbins
-    const EFFECTIVE_YARDS_PER_SKEIN = 22;
-    // Match the 5-yard threshold from yarn-calculator: under 5 yards = bobbin, not a full skein
-    const FULL_SKEIN_THRESHOLD = 5;
-
+    // Build most used colors list with aggregate demand metrics.
+    // Effective yards per skein and the bobbin-vs-full-skein threshold both
+    // depend on thread size — Size 3 (13ct) has smaller skeins than Size 5.
     const mostUsedColors: MostUsedColor[] = [];
     for (const [, data] of colorUsageMap.entries()) {
       const dmcNumber = data.dmcNumber;
       const threadSize = data.threadSize;
+      const effectivePerSkein = effectiveYardsPerSkein(threadSize);
+      const fullSkeinThreshold = bobbinThresholdsForThread(threadSize).max;
       const dmcColor = getDmcColorByNumber(dmcNumber);
       const totalYardsNeeded = Math.round(data.totalYards * 10) / 10;
-      const totalSkeinsNeeded = data.totalYards <= FULL_SKEIN_THRESHOLD
+      const totalSkeinsNeeded = data.totalYards <= fullSkeinThreshold
         ? 0
-        : Math.ceil(data.totalYards / EFFECTIVE_YARDS_PER_SKEIN);
+        : Math.ceil(data.totalYards / effectivePerSkein);
       const inventorySkeins = inventoryBySize[threadSize]?.get(dmcNumber) ?? 0;
       const skeinsReservedInKits = data.skeinsReservedInKits;
       const effectiveInventory = inventorySkeins;
