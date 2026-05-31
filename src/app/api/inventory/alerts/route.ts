@@ -62,7 +62,7 @@ interface MostUsedColor {
   inventorySkeins: number;
   skeinsReservedInKits: number; // Skeins already used in assembled kits
   effectiveInventory: number; // inventorySkeins - skeinsReservedInKits
-  threadSize: 3 | 5 | 8;
+  threadSize: 3 | 5;
   designs: ColorDesignUsage[]; // Which designs use this color with usage details
   // Aggregate demand metrics
   coverageRounds: number; // How many complete rounds (1 kit of each design) can be made
@@ -85,7 +85,7 @@ interface OrderSuggestion {
   dmcNumber: string;
   colorName: string;
   hex: string;
-  threadSize: 3 | 5 | 8;
+  threadSize: 3 | 5;
   currentStock: number;
   demandPerRound: number;
   currentCoverage: number;

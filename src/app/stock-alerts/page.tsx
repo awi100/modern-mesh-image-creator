@@ -117,13 +117,15 @@ export default function StockAlertsPage() {
     fetchAlerts();
   }, [meshFilter]);
 
-  const toggleExpand = (dmcNumber: string) => {
+  // Keys are composite `${dmcNumber}-${threadSize}` since the same DMC color
+  // can appear as both a Size 3 and Size 5 row in the same list.
+  const toggleExpand = (key: string) => {
     setExpandedColors((prev) => {
       const next = new Set(prev);
-      if (next.has(dmcNumber)) {
-        next.delete(dmcNumber);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.add(dmcNumber);
+        next.add(key);
       }
       return next;
     });
@@ -154,12 +156,34 @@ export default function StockAlertsPage() {
   }, [orderList]);
 
   const copyOrderToClipboard = () => {
-    const lines = orderList.map((s) => `${s.dmcNumber}\t${s.orderQty}`);
-    const text = lines.join("\n");
-    navigator.clipboard.writeText(text);
+    // Group by thread size so the vendor order is clearly split — Size 3 and
+    // Size 5 are different SKUs of the same DMC color.
+    const size3 = orderList.filter((s) => s.threadSize === 3);
+    const size5 = orderList.filter((s) => s.threadSize === 5);
+    const parts: string[] = [];
+    if (size5.length > 0) {
+      parts.push("Size 5 (14ct / 18ct)");
+      parts.push(...size5.map((s) => `${s.dmcNumber}\t${s.orderQty}`));
+    }
+    if (size3.length > 0) {
+      if (parts.length > 0) parts.push("");
+      parts.push("Size 3 (13ct)");
+      parts.push(...size3.map((s) => `${s.dmcNumber}\t${s.orderQty}`));
+    }
+    navigator.clipboard.writeText(parts.join("\n"));
     setCopiedOrder(true);
     setTimeout(() => setCopiedOrder(false), 2000);
   };
+
+  const orderTotalsBySize = useMemo(() => {
+    let s3 = 0;
+    let s5 = 0;
+    for (const item of orderList) {
+      if (item.threadSize === 3) s3 += item.orderQty;
+      else s5 += item.orderQty;
+    }
+    return { size3: s3, size5: s5 };
+  }, [orderList]);
 
   // Get all unique designs from the color data (for excluding)
   const allIncludedDesigns = useMemo(() => {
@@ -324,21 +348,25 @@ export default function StockAlertsPage() {
               <div className="space-y-2">
                 {filteredColors.map((color) => {
                   const stockStatus = getStockStatus(color.coverageRounds);
-                  const isExpanded = expandedColors.has(color.dmcNumber);
+                  const rowKey = `${color.dmcNumber}-${color.threadSize}`;
+                  const isExpanded = expandedColors.has(rowKey);
                   const statusColor = stockStatus === "critical"
                     ? "border-l-red-500"
                     : stockStatus === "low"
                     ? "border-l-yellow-500"
                     : "border-l-green-500";
+                  const sizeBadge = color.threadSize === 3
+                    ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
 
                   return (
                     <div
-                      key={color.dmcNumber}
+                      key={rowKey}
                       className={`bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 border-l-4 ${statusColor} overflow-hidden`}
                     >
                       {/* Main row */}
                       <div
-                        onClick={() => toggleExpand(color.dmcNumber)}
+                        onClick={() => toggleExpand(rowKey)}
                         className="w-full p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
                       >
                         {/* Color swatch - clickable link to color page */}
@@ -362,6 +390,9 @@ export default function StockAlertsPage() {
                               {color.colorName}
                             </Link>
                             <span className="text-slate-400 dark:text-slate-500 text-sm">#{color.dmcNumber}</span>
+                            <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${sizeBadge}`} title={`Pearl Cotton Size ${color.threadSize}`}>
+                              Size {color.threadSize}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2 text-sm">
                             <span className="text-slate-500 dark:text-slate-400">
@@ -503,10 +534,36 @@ export default function StockAlertsPage() {
                   <span className="text-slate-500 dark:text-slate-400 text-sm">Colors to order</span>
                   <span className="text-slate-900 dark:text-white font-medium">{orderList.length}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-2">
                   <span className="text-slate-500 dark:text-slate-400 text-sm">Total skeins</span>
                   <span className="text-slate-900 dark:text-white font-bold text-lg">{totalSkeinsToOrder}</span>
                 </div>
+                {(orderTotalsBySize.size3 > 0 || orderTotalsBySize.size5 > 0) && (
+                  <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
+                    {orderTotalsBySize.size5 > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                            Size 5
+                          </span>
+                          <span className="text-slate-500 dark:text-slate-400">14ct / 18ct</span>
+                        </span>
+                        <span className="text-slate-700 dark:text-slate-200 font-medium">{orderTotalsBySize.size5}</span>
+                      </div>
+                    )}
+                    {orderTotalsBySize.size3 > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                            Size 3
+                          </span>
+                          <span className="text-slate-500 dark:text-slate-400">13ct</span>
+                        </span>
+                        <span className="text-slate-700 dark:text-slate-200 font-medium">{orderTotalsBySize.size3}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Copy Button */}
@@ -545,24 +602,34 @@ export default function StockAlertsPage() {
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                    {orderList.map((item) => (
-                      <div key={item.dmcNumber} className="p-3 flex items-center gap-3">
-                        <div
-                          className="w-6 h-6 rounded border border-slate-300 dark:border-slate-600 flex-shrink-0"
-                          style={{ backgroundColor: item.hex }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-slate-900 dark:text-white text-sm font-medium">{item.dmcNumber}</div>
-                          <div className="text-slate-500 dark:text-slate-400 text-xs truncate">{item.colorName}</div>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-slate-900 dark:text-white font-bold">{item.orderQty}</div>
-                          <div className="text-slate-400 dark:text-slate-500 text-xs">
-                            {item.currentStock} → {item.currentStock + item.orderQty}
+                    {orderList.map((item) => {
+                      const sizeBadge = item.threadSize === 3
+                        ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
+                      return (
+                        <div key={`${item.dmcNumber}-${item.threadSize}`} className="p-3 flex items-center gap-3">
+                          <div
+                            className="w-6 h-6 rounded border border-slate-300 dark:border-slate-600 flex-shrink-0"
+                            style={{ backgroundColor: item.hex }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-900 dark:text-white text-sm font-medium">{item.dmcNumber}</span>
+                              <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${sizeBadge}`} title={`Pearl Cotton Size ${item.threadSize}`}>
+                                Size {item.threadSize}
+                              </span>
+                            </div>
+                            <div className="text-slate-500 dark:text-slate-400 text-xs truncate">{item.colorName}</div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-slate-900 dark:text-white font-bold">{item.orderQty}</div>
+                            <div className="text-slate-400 dark:text-slate-500 text-xs">
+                              {item.currentStock} → {item.currentStock + item.orderQty}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
