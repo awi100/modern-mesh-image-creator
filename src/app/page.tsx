@@ -80,7 +80,8 @@ function buildDesignsUrl(
   searchQuery: string,
   skillLevel: string | null,
   sizeCategory: string | null,
-  meshCount: number | null
+  meshCount: number | null,
+  draftStatus: "draft" | "complete" | null
 ): string {
   const params = new URLSearchParams();
   if (showTrash) {
@@ -91,6 +92,7 @@ function buildDesignsUrl(
     if (skillLevel) params.set("skillLevel", skillLevel);
     if (sizeCategory) params.set("sizeCategory", sizeCategory);
     if (meshCount) params.set("meshCount", meshCount.toString());
+    if (draftStatus) params.set("draftStatus", draftStatus);
   }
   if (searchQuery) params.set("search", searchQuery);
   return `/api/designs?${params.toString()}`;
@@ -118,6 +120,7 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showTrash, setShowTrash] = useState(false);
   const [selectedSkillLevel, setSelectedSkillLevel] = useState<string | null>(null);
+  const [selectedDraftStatus, setSelectedDraftStatus] = useState<"draft" | "complete" | null>(null);
   const [selectedSizeCategory, setSelectedSizeCategory] = useState<string | null>(null);
   const [selectedMeshCount, setSelectedMeshCount] = useState<number | null>(null);
 
@@ -229,7 +232,7 @@ export default function HomePage() {
   }, [childFoldersMap]);
 
   // SWR for designs (refetches when filters change via key)
-  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory, selectedMeshCount);
+  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory, selectedMeshCount, selectedDraftStatus);
   const { data: designs = [], isLoading: loading, mutate: mutateDesigns } = useSWR<Design[]>(
     designsUrl,
     {
@@ -1502,6 +1505,28 @@ export default function HomePage() {
                   ))}
                 </div>
               </div>
+
+              {/* Draft Status */}
+              <div>
+                <h3 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                  Status
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {(["draft", "complete"] as const).map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => setSelectedDraftStatus(selectedDraftStatus === status ? null : status)}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors capitalize ${
+                        selectedDraftStatus === status
+                          ? "bg-rose-900 text-white"
+                          : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1731,6 +1756,28 @@ export default function HomePage() {
                     }`}
                   >
                     {mesh}ct
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Draft Status */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">
+                Status
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {(["draft", "complete"] as const).map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setSelectedDraftStatus(selectedDraftStatus === status ? null : status)}
+                    className={`px-3 py-1 rounded-lg text-sm transition-colors capitalize ${
+                      selectedDraftStatus === status
+                        ? "bg-rose-900 text-white"
+                        : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-600"
+                    }`}
+                  >
+                    {status}
                   </button>
                 ))}
               </div>

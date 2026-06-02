@@ -68,6 +68,13 @@ export async function GET(request: NextRequest) {
       where.sizeCategory = sizeCategory;
     }
 
+    const draftStatus = searchParams.get("draftStatus");
+    if (draftStatus === "draft") {
+      where.isDraft = true;
+    } else if (draftStatus === "complete") {
+      where.isDraft = false;
+    }
+
     const meshCount = searchParams.get("meshCount");
     if (meshCount) {
       where.meshCount = parseInt(meshCount, 10);
