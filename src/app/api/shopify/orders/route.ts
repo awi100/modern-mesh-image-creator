@@ -7,6 +7,7 @@ import {
   normalizeTitle,
   ShopifyOrderNode,
   visibleCustomAttributes,
+  isExpressShippingTitle,
 } from "@/lib/shopify";
 import { isMysteryBagTitle, PICKS_PER_BAG } from "@/lib/mystery-bag";
 
@@ -64,6 +65,9 @@ export interface Order {
   locallyFulfilledAt: string | null;
   // Mystery Misprint Bag state (null if the order has no bag line items)
   mysteryBag: MysteryBagState | null;
+  // Shipping
+  shippingTitle: string | null; // e.g. "Express", "Standard"
+  isExpress: boolean;           // derived from shippingTitle (express / priority / overnight / etc.)
 }
 
 export interface OrdersResponse {
@@ -327,6 +331,7 @@ export async function GET() {
         };
       }
 
+      const shippingTitle = shopifyOrder.shippingLine?.title || null;
       orders.push({
         shopifyOrderId: shopifyOrder.id,
         orderNumber: shopifyOrder.name,
@@ -336,6 +341,8 @@ export async function GET() {
         locallyFulfilled: !!localFulfilledAt,
         locallyFulfilledAt: localFulfilledAt?.toISOString() || null,
         mysteryBag,
+        shippingTitle,
+        isExpress: isExpressShippingTitle(shippingTitle),
       });
     }
 

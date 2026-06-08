@@ -73,9 +73,31 @@ export interface ShopifyOrderNode {
     country: string | null;
     countryCodeV2: string | null;
   } | null;
+  // The selected shipping method at checkout, e.g. { title: "Express" } or
+  // { title: "Standard" }. May be null on draft/free orders.
+  shippingLine: {
+    title: string | null;
+  } | null;
   lineItems: {
     nodes: ShopifyLineItem[];
   };
+}
+
+// Heuristic: the customer paid for an express/expedited/priority/overnight
+// shipping option. Matched case-insensitively against the shipping line title.
+export function isExpressShippingTitle(title: string | null | undefined): boolean {
+  if (!title) return false;
+  const t = title.toLowerCase();
+  return (
+    t.includes("express") ||
+    t.includes("expedited") ||
+    t.includes("priority") ||
+    t.includes("overnight") ||
+    t.includes("rush") ||
+    t.includes("next day") ||
+    t.includes("next-day") ||
+    t.includes("1-day")
+  );
 }
 
 export interface OrdersQueryResult {
@@ -111,6 +133,9 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
             provinceCode
             country
             countryCodeV2
+          }
+          shippingLine {
+            title
           }
           lineItems(first: 50) {
             nodes {
@@ -192,6 +217,9 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
             provinceCode
             country
             countryCodeV2
+          }
+          shippingLine {
+            title
           }
           lineItems(first: 50) {
             nodes {

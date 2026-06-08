@@ -93,10 +93,15 @@ function calculateDemandByDesign(orders: Order[]) {
 function calculateFulfillableOrders(orders: Order[]) {
   const fulfillableOrders = new Set<string>();
 
-  // Sort orders by date (oldest first) - exclude locally fulfilled
+  // Sort express orders first (they paid for fast shipping, so they get
+  // inventory priority), then by date (oldest first). Locally fulfilled
+  // orders are excluded — they've already consumed their inventory.
   const unfulfilledOrders = orders
     .filter(o => !o.locallyFulfilled)
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    .sort((a, b) => {
+      if (a.isExpress !== b.isExpress) return a.isExpress ? -1 : 1;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
 
   // Track remaining inventory per design
   // We need to get initial inventory from the first item of each design
@@ -1798,7 +1803,17 @@ export default function OrdersPage() {
                   (() => {
                     const demandByDesign = calculateDemandByDesign(data.orders);
                     const fulfillableOrders = calculateFulfillableOrders(data.orders);
-                    return data.orders.map((order) => (
+                    // Show express orders first to mirror the fulfillability
+                    // priority. Unfulfilled before locally-fulfilled; within
+                    // each group, express ahead of standard, then by date.
+                    const sortedOrders = [...data.orders].sort((a, b) => {
+                      if (a.locallyFulfilled !== b.locallyFulfilled) {
+                        return a.locallyFulfilled ? 1 : -1;
+                      }
+                      if (a.isExpress !== b.isExpress) return a.isExpress ? -1 : 1;
+                      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                    });
+                    return sortedOrders.map((order) => (
                       <OrderCard
                         key={order.shopifyOrderId}
                         order={order}
@@ -1982,7 +1997,9 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
     <div className={`bg-slate-800 rounded-xl border overflow-hidden ${
       order.locallyFulfilled
         ? "border-emerald-700/50 opacity-60"
-        : "border-slate-700"
+        : order.isExpress
+          ? "border-sky-600/70 ring-1 ring-sky-600/40"
+          : "border-slate-700"
     }`}>
       {/* Header */}
       <div className="p-4 flex items-center justify-between">
@@ -1991,7 +2008,20 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
           className="flex-1 flex items-center gap-4 text-left hover:bg-slate-700/30 transition-colors rounded-lg -m-2 p-2"
         >
           <div>
-            <p className="text-white font-medium">{order.orderNumber}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-white font-medium">{order.orderNumber}</p>
+              {order.isExpress && (
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-sky-600 text-white"
+                  title={`Express shipping selected${order.shippingTitle ? `: ${order.shippingTitle}` : ""}. Gets inventory priority over standard-shipping orders.`}
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Express
+                </span>
+              )}
+            </div>
             <p className="text-sm text-slate-400">{order.customerName}</p>
             {order.locallyFulfilled && order.locallyFulfilledAt && (
               <p className="text-xs text-emerald-400 mt-0.5">
