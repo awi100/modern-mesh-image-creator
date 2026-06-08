@@ -13,7 +13,7 @@ export default function MobileBottomBar({ onShowColors, onShowMetrics, onShowLay
   const { currentColor, undo, redo, canUndo, canRedo } = useEditorStore();
 
   return (
-    <div className="md:hidden bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-2 py-2 flex items-center justify-around safe-area-bottom">
+    <div className="lg:hidden bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-2 py-2 flex items-center justify-around safe-area-bottom">
       {/* Current color indicator + open color picker */}
       <button
         onClick={onShowColors}

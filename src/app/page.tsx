@@ -1207,8 +1207,9 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3 overflow-x-auto flex-1 justify-end">
-            {/* Nav links - hidden on mobile, shown on md+ */}
-            <nav className="hidden md:flex items-center gap-2">
+            {/* Nav links — hidden on mobile and iPad portrait; shown at lg+
+                where there's room without horizontal scrolling. */}
+            <nav className="hidden lg:flex items-center gap-2">
               <Link href="/kits" className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all text-sm">
                 Kits
               </Link>
@@ -1226,8 +1227,9 @@ export default function HomePage() {
               </Link>
             </nav>
 
-            {/* Mobile nav menu button */}
-            <div className="relative md:hidden">
+            {/* Mobile nav menu button — also visible on iPad portrait
+                since the full nav links don't fit until lg+. */}
+            <div className="relative lg:hidden">
               <button
                 onClick={() => setShowMobileNav(!showMobileNav)}
                 className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg"
@@ -1278,8 +1280,8 @@ export default function HomePage() {
                 </button>
               </Tooltip>
             )}
-            {/* From Photo - hidden on mobile (in menu) */}
-            <div className="hidden md:block">
+            {/* From Photo - hidden on mobile and iPad portrait (in menu) */}
+            <div className="hidden lg:block">
               <Tooltip label="From Photo" position="bottom">
                 <Link
                   href="/custom-design"

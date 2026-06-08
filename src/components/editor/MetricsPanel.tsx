@@ -72,7 +72,7 @@ export default function MetricsPanel() {
   }, [getCompositeGrid, gridWidth, gridHeight]);
 
   return (
-    <div className="bg-white dark:bg-slate-800 lg:border-l border-slate-200 dark:border-slate-700 w-full lg:w-72 flex flex-col overflow-auto">
+    <div className="bg-white dark:bg-slate-800 lg:border-l border-slate-200 dark:border-slate-700 w-full lg:w-72 flex flex-col overflow-auto flex-shrink-0">
       {/* Design Preview */}
       <div className="p-4 border-b border-slate-200 dark:border-slate-700">
         <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider">

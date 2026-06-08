@@ -418,8 +418,10 @@ export default function Editor({ designId, initialData }: EditorProps) {
       />
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Color picker - hidden on mobile, shown via bottom drawer */}
-        <div className="hidden md:flex md:h-full">
+        {/* Color picker — inline at lg+ (desktop / iPad landscape); at < lg
+            the user opens it from the bottom drawer. iPad portrait at md: is
+            too narrow to fit three side panels around the canvas. */}
+        <div className="hidden lg:flex lg:h-full">
           {colorPanelCollapsed ? (
             <div className="bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col items-center py-2">
               <button
@@ -462,8 +464,9 @@ export default function Editor({ designId, initialData }: EditorProps) {
           onShowColors={() => setShowColorPicker(true)}
         />
 
-        {/* Right side panels — show on tablet (md) and up */}
-        <div className="hidden md:flex md:flex-row">
+        {/* Right side panels — show on lg+ (desktop / iPad landscape). At
+            < lg the layers/metrics are reachable from the bottom drawer. */}
+        <div className="hidden lg:flex lg:flex-row">
           {rightPanelCollapsed ? (
             <div className="bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col items-center py-2">
               <button
@@ -539,7 +542,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
 
       {/* Mobile Color Picker Drawer */}
       {showColorPicker && (
-        <div className="md:hidden fixed inset-0 z-50">
+        <div className="lg:hidden fixed inset-0 z-50">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowColorPicker(false)}
@@ -563,7 +566,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
 
       {/* Mobile Metrics Drawer */}
       {showMetrics && (
-        <div className="md:hidden fixed inset-0 z-50">
+        <div className="lg:hidden fixed inset-0 z-50">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowMetrics(false)}
@@ -587,7 +590,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
 
       {/* Mobile Layers Drawer */}
       {showLayers && (
-        <div className="md:hidden fixed inset-0 z-50">
+        <div className="lg:hidden fixed inset-0 z-50">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowLayers(false)}
