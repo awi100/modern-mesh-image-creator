@@ -53,6 +53,10 @@ export interface ShopifyLineItem {
     title: string;
     productType: string;
   } | null;
+  // Line-item custom attributes set by the customer at checkout (e.g. a
+  // "Special instructions" field on the product page). Keys starting with
+  // "_" are Shopify-internal/hidden and should not be displayed to staff.
+  customAttributes: { key: string; value: string | null }[];
 }
 
 export interface ShopifyOrderNode {
@@ -118,6 +122,10 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
                 id
                 title
                 productType
+              }
+              customAttributes {
+                key
+                value
               }
             }
           }
@@ -196,6 +204,10 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
                 title
                 productType
               }
+              customAttributes {
+                key
+                value
+              }
             }
           }
         }
@@ -253,4 +265,15 @@ export function parseNeedsKit(variantTitle: string | null): boolean {
 // Shopify product title should match design name
 export function normalizeTitle(title: string): string {
   return title.toLowerCase().trim();
+}
+
+// Filter line-item custom attributes to the ones meant to be shown to staff.
+// Shopify convention: keys starting with "_" are internal/hidden.
+export function visibleCustomAttributes(
+  attrs: { key: string; value: string | null }[] | null | undefined
+): { key: string; value: string }[] {
+  if (!attrs) return [];
+  return attrs
+    .filter((a) => a.key && !a.key.startsWith("_") && a.value)
+    .map((a) => ({ key: a.key, value: a.value as string }));
 }

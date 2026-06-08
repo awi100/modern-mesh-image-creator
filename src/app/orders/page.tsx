@@ -63,7 +63,7 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
-type FilterType = "all" | "canvases" | "kits" | "supplies";
+type FilterType = "all" | "canvases" | "kits" | "supplies" | "mystery";
 
 // Calculate aggregated demand per design across all orders (only for canvas items, excludes locally fulfilled)
 function calculateDemandByDesign(orders: Order[]) {
@@ -423,6 +423,7 @@ export default function OrdersPage() {
           variantTitle: item.variantTitle,
           quantity: item.quantity,
           needsKit: item.needsKit,
+          customAttributes: item.customAttributes ?? [],
         }));
 
       if (items.length === 0) {
@@ -961,6 +962,19 @@ export default function OrdersPage() {
               >
                 Supplies <span className="opacity-75">({data.summary.totalSuppliesReady ?? 0}/{data.summary.totalSupplies})</span>
               </button>
+              {(data.summary.totalMysteryBags ?? 0) > 0 && (
+                <button
+                  onClick={() => setFilter("mystery")}
+                  className={`px-2 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors ${
+                    filter === "mystery"
+                      ? "bg-fuchsia-700 text-white"
+                      : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-fuchsia-300"
+                  }`}
+                  title="Orders containing a Mystery Misprint Bag"
+                >
+                  Mystery <span className="opacity-75">({data.summary.totalMysteryBagPicksMade ?? 0}/{data.summary.totalMysteryBagPicksNeeded ?? 0} picks · {data.summary.totalMysteryBags} {data.summary.totalMysteryBags === 1 ? "order" : "orders"})</span>
+                </button>
+              )}
             </div>
 
             {/* Kits Needed View - Grouped by collection */}
@@ -1732,6 +1746,46 @@ export default function OrdersPage() {
               </div>
             )}
 
+            {/* Mystery Misprints View */}
+            {filter === "mystery" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-white">Mystery Misprint Bags</h2>
+                  <Link
+                    href="/inventory"
+                    className="text-sm text-fuchsia-400 hover:text-fuchsia-300"
+                  >
+                    Manage Misprints →
+                  </Link>
+                </div>
+                {(() => {
+                  const mysteryOrders = data.orders.filter((o) => o.mysteryBag);
+                  if (mysteryOrders.length === 0) {
+                    return (
+                      <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+                        <p className="text-slate-400">No orders with a Mystery Misprint Bag</p>
+                      </div>
+                    );
+                  }
+                  const demandByDesign = calculateDemandByDesign(data.orders);
+                  const fulfillableOrders = calculateFulfillableOrders(data.orders);
+                  return mysteryOrders.map((order) => (
+                    <OrderCard
+                      key={order.shopifyOrderId}
+                      order={order}
+                      demandByDesign={demandByDesign}
+                      canFulfillOrder={fulfillableOrders.has(order.shopifyOrderId)}
+                      onFulfill={handleFulfillOrder}
+                      fulfilling={fulfilling === order.shopifyOrderId}
+                      onUndo={handleUndoFulfillment}
+                      undoing={undoing === order.shopifyOrderId}
+                      onPickMysteryBag={setMysteryPickerOrder}
+                    />
+                  ));
+                })()}
+              </div>
+            )}
+
             {/* All Orders View */}
             {filter === "all" && (
               <div className="space-y-4">
@@ -2095,6 +2149,23 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
           {needsManualMysteryDeduction
             ? "Mystery Bag was fulfilled in Shopify before picks were recorded. Pick designs and decrement misprint + kit inventory manually."
             : `Mystery Bag needs ${picksRemaining} more pick${picksRemaining === 1 ? "" : "s"} before it can be fulfilled.`}
+        </div>
+      )}
+
+      {/* Customer-entered special instructions (line-item custom attributes).
+          Visible without expanding because it can change what we ship. */}
+      {order.items.some((i) => i.customAttributes && i.customAttributes.length > 0) && (
+        <div className="px-4 py-2 border-t border-slate-700 bg-slate-900/30 space-y-1">
+          {order.items.flatMap((item) =>
+            (item.customAttributes ?? []).map((attr, idx) => (
+              <div key={`${item.lineItemId}-${idx}`} className="text-sm flex items-start gap-2">
+                <span className="text-xs uppercase tracking-wide text-slate-500 mt-0.5 flex-shrink-0">
+                  {attr.key}
+                </span>
+                <span className="text-slate-200">{attr.value}</span>
+              </div>
+            ))
+          )}
         </div>
       )}
 

@@ -6,6 +6,7 @@ import {
   parseNeedsKit,
   normalizeTitle,
   ShopifyOrderNode,
+  visibleCustomAttributes,
 } from "@/lib/shopify";
 import { isMysteryBagTitle, PICKS_PER_BAG } from "@/lib/mystery-bag";
 
@@ -47,6 +48,9 @@ export interface OrderItem {
   supplyId: string | null;
   supplyName: string | null;
   supplyQuantity: number; // Stock count
+  // Customer-entered line-item attributes (e.g. "Special instructions"
+  // on a Mystery Misprint Bag). `_`-prefixed keys are filtered out.
+  customAttributes: { key: string; value: string }[];
 }
 
 export interface Order {
@@ -70,6 +74,9 @@ export interface OrdersResponse {
     totalKitsReady: number;
     totalCanvasesNeeded: number;
     totalCanvasesReady: number;
+    totalMysteryBags: number;
+    totalMysteryBagPicksMade: number;
+    totalMysteryBagPicksNeeded: number;
     totalSupplies: number;
     totalSuppliesReady: number;
     unmatchedProducts: string[];
@@ -252,6 +259,7 @@ export async function GET() {
           supplyId: matchedSupply?.id || null,
           supplyName: matchedSupply?.name || null,
           supplyQuantity: matchedSupply?.quantity || 0,
+          customAttributes: visibleCustomAttributes(lineItem.customAttributes),
         });
 
         // Mystery bag items have no design/supply demand of their own — their
@@ -344,6 +352,19 @@ export async function GET() {
       totalSuppliesReady += Math.min(demand.ready, demand.needed);
     }
 
+    // Mystery Misprint Bag totals: count orders that contain at least one
+    // mystery bag line item (not bag-units sold), plus aggregate picks-state
+    // for the summary chip.
+    let totalMysteryBags = 0;
+    let totalMysteryBagPicksMade = 0;
+    let totalMysteryBagPicksNeeded = 0;
+    for (const order of orders) {
+      if (!order.mysteryBag) continue;
+      totalMysteryBags += 1;
+      totalMysteryBagPicksMade += order.mysteryBag.picks.length;
+      totalMysteryBagPicksNeeded += order.mysteryBag.required;
+    }
+
     const response: OrdersResponse = {
       orders,
       summary: {
@@ -352,6 +373,9 @@ export async function GET() {
         totalKitsReady,
         totalCanvasesNeeded,
         totalCanvasesReady,
+        totalMysteryBags,
+        totalMysteryBagPicksMade,
+        totalMysteryBagPicksNeeded,
         totalSupplies,
         totalSuppliesReady,
         unmatchedProducts: Array.from(unmatchedProducts),

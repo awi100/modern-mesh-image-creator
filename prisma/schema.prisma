@@ -283,6 +283,11 @@ model ShopifyOrderItem {
   quantity        Int
   needsKit        Boolean      // true if "Yes" was selected for kit option
   processed       Boolean      @default(false) // true after inventory deducted
+  // Shopify line-item customAttributes (e.g. "Special instructions" for
+  // Mystery Misprint Bag). Stored as a JSON array of {key, value} so we
+  // can render them after fulfillment when Shopify's unfulfilled feed no
+  // longer returns the order.
+  customAttributes Json?
 
   @@map("shopify_order_items")
 }

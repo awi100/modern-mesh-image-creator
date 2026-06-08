@@ -10,6 +10,7 @@ interface FulfillItem {
   variantTitle?: string | null;
   quantity: number;
   needsKit: boolean;
+  customAttributes?: { key: string; value: string }[];
 }
 
 interface FulfillRequest {
@@ -187,6 +188,9 @@ export async function POST(request: NextRequest) {
             quantity: item.quantity,
             needsKit: item.needsKit,
             processed: true,
+            customAttributes: item.customAttributes && item.customAttributes.length > 0
+              ? item.customAttributes
+              : undefined,
           },
         });
       }

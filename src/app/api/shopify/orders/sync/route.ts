@@ -5,6 +5,7 @@ import {
   fetchRecentlyFulfilledOrders,
   parseNeedsKit,
   normalizeTitle,
+  visibleCustomAttributes,
 } from "@/lib/shopify";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 
@@ -121,6 +122,7 @@ export async function POST() {
           variantTitle: string | null;
           quantity: number;
           needsKit: boolean;
+          customAttributes: { key: string; value: string }[];
         }[] = [];
 
         for (const lineItem of shopifyOrder.lineItems.nodes) {
@@ -140,6 +142,7 @@ export async function POST() {
             variantTitle: lineItem.variantTitle,
             quantity: lineItem.quantity,
             needsKit: matchedDesign ? needsKit : false,
+            customAttributes: visibleCustomAttributes(lineItem.customAttributes),
           });
         }
 
@@ -208,6 +211,7 @@ export async function POST() {
                 quantity: item.quantity,
                 needsKit: item.needsKit,
                 processed: true,
+                customAttributes: item.customAttributes.length > 0 ? item.customAttributes : undefined,
               },
             });
           }
