@@ -49,6 +49,16 @@ interface PeriodComparison {
   avgOrderSize: { current: number; previous: number; change: number };
 }
 
+interface StitchAnalysis {
+  designId: string;
+  designName: string;
+  previewImageUrl: string | null;
+  meshCount: number;
+  totalStitches: number;
+  gridWidth: number;
+  gridHeight: number;
+}
+
 interface OrderAnalytics {
   summary: {
     totalOrders: number;
@@ -65,6 +75,7 @@ interface OrderAnalytics {
   geographicDistribution: StateAnalytics[];
   weeklyTrends: TimeAnalytics[];
   colorDemand: ColorDemand[];
+  stitchAnalysis: StitchAnalysis[];
   bundleOpportunities: {
     design1: string;
     design2: string;
@@ -237,6 +248,10 @@ export async function GET(request: NextRequest) {
         totalKitsSold: true,
         velocityCategory: true,
         colorsUsed: true,
+        meshCount: true,
+        totalStitches: true,
+        gridWidth: true,
+        gridHeight: true,
       },
     });
 
@@ -400,6 +415,20 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.totalSkeinsNeeded - a.totalSkeinsNeeded)
       .slice(0, 20);
 
+    // Stitch analysis - all designs ranked by precomputed stitch count
+    const stitchAnalysis: StitchAnalysis[] = designs
+      .map((design) => ({
+        designId: design.id,
+        designName: design.name,
+        previewImageUrl: design.previewImageUrl,
+        meshCount: design.meshCount,
+        totalStitches: design.totalStitches,
+        gridWidth: design.gridWidth,
+        gridHeight: design.gridHeight,
+      }))
+      .filter((d) => d.totalStitches > 0)
+      .sort((a, b) => b.totalStitches - a.totalStitches);
+
     // Bundle opportunities
     const pairCounts = new Map<string, number>();
     for (const designSet of current.orderDesigns.values()) {
@@ -441,6 +470,7 @@ export async function GET(request: NextRequest) {
       geographicDistribution,
       weeklyTrends,
       colorDemand,
+      stitchAnalysis,
       bundleOpportunities,
       stockAlerts,
     };

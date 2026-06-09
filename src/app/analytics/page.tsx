@@ -5,6 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { USHeatMap } from "@/components/USHeatMap";
+import MeshFilterChips, { type MeshFilter } from "@/components/MeshFilterChips";
 
 interface DesignAnalytics {
   designId: string;
@@ -44,6 +45,16 @@ interface ColorDemand {
   topDesigns: { name: string; skeins: number }[];
 }
 
+interface StitchAnalysis {
+  designId: string;
+  designName: string;
+  previewImageUrl: string | null;
+  meshCount: number;
+  totalStitches: number;
+  gridWidth: number;
+  gridHeight: number;
+}
+
 interface PeriodComparison {
   orders: { current: number; previous: number; change: number };
   units: { current: number; previous: number; change: number };
@@ -78,12 +89,31 @@ interface OrderAnalytics {
   geographicDistribution: StateAnalytics[];
   weeklyTrends: TimeAnalytics[];
   colorDemand: ColorDemand[];
+  stitchAnalysis: StitchAnalysis[];
   bundleOpportunities: {
     design1: string;
     design2: string;
     coOccurrences: number;
   }[];
   stockAlerts: StockAlert[];
+}
+
+// Client-side mirror of meshCountWhere() in src/lib/mesh-filter.ts
+function matchesMeshFilter(design: StitchAnalysis, filter: MeshFilter): boolean {
+  switch (filter) {
+    case "13": return design.meshCount === 13;
+    case "14": return design.meshCount === 14;
+    case "18": return design.meshCount === 18;
+    case "order":
+    case "order14":
+      return design.meshCount === 18 ||
+        (design.meshCount === 14 && design.designName.toLowerCase().includes("intro"));
+    case "order13":
+      return design.meshCount === 18 || design.meshCount === 13;
+    case "all":
+    default:
+      return true;
+  }
 }
 
 function getContrastTextColor(hex: string): string {
@@ -136,8 +166,9 @@ type SortField = "units" | "kits" | "kitRate" | "stock";
 type SortDir = "asc" | "desc";
 
 export default function AnalyticsPage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "designs" | "geography" | "colors" | "bundles">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "designs" | "geography" | "colors" | "stitches" | "bundles">("overview");
   const [periodDays, setPeriodDays] = useState(90);
+  const [stitchMeshFilter, setStitchMeshFilter] = useState<MeshFilter>("all");
   const [sortField, setSortField] = useState<SortField>("units");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [hoveredWeek, setHoveredWeek] = useState<TimeAnalytics | null>(null);
@@ -164,6 +195,16 @@ export default function AnalyticsPage() {
     });
     return designs;
   }, [analytics, sortField, sortDir]);
+
+  // Stitch analysis filtered by mesh count (already sorted desc by the API)
+  const filteredStitchDesigns = useMemo(() => {
+    if (!analytics) return [];
+    return analytics.stitchAnalysis.filter((d) => matchesMeshFilter(d, stitchMeshFilter));
+  }, [analytics, stitchMeshFilter]);
+
+  const maxStitches = useMemo(() => {
+    return Math.max(...filteredStitchDesigns.map((d) => d.totalStitches), 1);
+  }, [filteredStitchDesigns]);
 
   const maxUnits = useMemo(() => {
     if (!analytics) return 0;
@@ -270,6 +311,7 @@ export default function AnalyticsPage() {
               { id: "designs", label: "Design Performance" },
               { id: "geography", label: "Geographic" },
               { id: "colors", label: "Color Demand" },
+              { id: "stitches", label: "Stitch Count" },
               { id: "bundles", label: "Bundles" },
             ].map((tab) => (
               <button
@@ -704,6 +746,66 @@ export default function AnalyticsPage() {
                 </Link>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Stitches Tab */}
+        {activeTab === "stitches" && (
+          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div className="p-4 border-b border-slate-700 space-y-3">
+              <div>
+                <h3 className="text-white font-semibold">Stitch Count</h3>
+                <p className="text-sm text-slate-400">Designs ranked by total stitches (most labor-intensive first)</p>
+              </div>
+              <MeshFilterChips value={stitchMeshFilter} onChange={setStitchMeshFilter} />
+            </div>
+            {filteredStitchDesigns.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">No designs match this filter</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-700 text-left">
+                      <th className="p-3 text-xs text-slate-400 font-medium">#</th>
+                      <th className="p-3 text-xs text-slate-400 font-medium">Design</th>
+                      <th className="p-3 text-xs text-slate-400 font-medium text-right">Mesh</th>
+                      <th className="p-3 text-xs text-slate-400 font-medium text-right">Grid</th>
+                      <th className="p-3 text-xs text-slate-400 font-medium text-right">Total Stitches</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStitchDesigns.map((design, i) => (
+                      <tr key={design.designId} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                        <td className="p-3 text-slate-500 text-sm">{i + 1}</td>
+                        <td className="p-3">
+                          <Link href={`/design/${design.designId}/info`} className="flex items-center gap-3 hover:text-rose-400">
+                            {design.previewImageUrl ? (
+                              <img src={design.previewImageUrl} alt="" className="w-10 h-10 rounded object-cover" />
+                            ) : (
+                              <div className="w-10 h-10 bg-slate-700 rounded" />
+                            )}
+                            <span className="text-white text-sm">{design.designName}</span>
+                          </Link>
+                        </td>
+                        <td className="p-3 text-right text-slate-400 text-sm">{design.meshCount}ct</td>
+                        <td className="p-3 text-right text-slate-400 text-sm">{design.gridWidth} × {design.gridHeight}</td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="w-24 bg-slate-700 rounded-full h-1.5">
+                              <div
+                                className="bg-rose-500 h-1.5 rounded-full"
+                                style={{ width: `${(design.totalStitches / maxStitches) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-white text-sm w-16">{design.totalStitches.toLocaleString()}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
