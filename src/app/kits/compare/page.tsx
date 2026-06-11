@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
@@ -51,12 +51,34 @@ function getBaseName(name: string): string {
 }
 
 export default function KitComparePage() {
-  const { data: allKits = [], isLoading } = useSWR<KitSummary[]>("/api/kits", {
+  const { data: allKits = [], isLoading, mutate } = useSWR<KitSummary[]>("/api/kits", {
     revalidateOnFocus: false,
   });
 
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set());
   const [expandedDesigns, setExpandedDesigns] = useState<Set<string>>(new Set());
+
+  // Adjust a design's "kits ready" inventory by a delta, optimistically.
+  const adjustKitsReady = async (designId: string, delta: number) => {
+    mutate(
+      (prev) =>
+        prev?.map((k) =>
+          k.designId === designId ? { ...k, kitsReady: Math.max(0, k.kitsReady + delta) } : k
+        ),
+      false
+    );
+    try {
+      const res = await fetch(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kitsReadyDelta: delta }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+    } catch {
+      // Revalidate from the server to undo the optimistic change on failure
+      mutate();
+    }
+  };
 
   // Match 14ct and 18ct kits by base name, grouped by collection (folder)
   const collections = useMemo(() => {
@@ -182,14 +204,27 @@ export default function KitComparePage() {
                       return (
                         <div key={designKey} className="border-t border-slate-700/50 first:border-t-0">
                           {/* Design header */}
-                          <button
+                          <div
+                            role="button"
+                            tabIndex={0}
                             onClick={() => setExpandedDesigns(prev => {
                               const next = new Set(prev);
                               if (next.has(designKey)) next.delete(designKey);
                               else next.add(designKey);
                               return next;
                             })}
-                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-700/30 transition-colors"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setExpandedDesigns(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(designKey)) next.delete(designKey);
+                                  else next.add(designKey);
+                                  return next;
+                                });
+                              }
+                            }}
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-700/30 transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-2 pl-4">
                               <svg className={`w-3 h-3 text-slate-500 transition-transform ${isDesignExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -208,9 +243,10 @@ export default function KitComparePage() {
                                   <span className="px-2 py-0.5 rounded text-xs bg-zinc-700 text-zinc-300">
                                     14ct: {pair.kit14.totalColors}c / {pair.kit14.totalSkeins}sk
                                   </span>
-                                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${pair.kit14.kitsReady > 0 ? "bg-emerald-900/60 text-emerald-300" : "bg-slate-700 text-slate-400"}`} title="Kits in stock">
-                                    {pair.kit14.kitsReady} ready
-                                  </span>
+                                  <ReadyStepper
+                                    count={pair.kit14.kitsReady}
+                                    onAdjust={(delta) => adjustKitsReady(pair.kit14!.designId, delta)}
+                                  />
                                 </>
                               )}
                               {pair.kit18 && (
@@ -218,13 +254,14 @@ export default function KitComparePage() {
                                   <span className="px-2 py-0.5 rounded text-xs bg-amber-900/60 text-amber-300">
                                     18ct: {pair.kit18.totalColors}c / {pair.kit18.totalSkeins}sk
                                   </span>
-                                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${pair.kit18.kitsReady > 0 ? "bg-emerald-900/60 text-emerald-300" : "bg-slate-700 text-slate-400"}`} title="Kits in stock">
-                                    {pair.kit18.kitsReady} ready
-                                  </span>
+                                  <ReadyStepper
+                                    count={pair.kit18.kitsReady}
+                                    onAdjust={(delta) => adjustKitsReady(pair.kit18!.designId, delta)}
+                                  />
                                 </>
                               )}
                             </div>
-                          </button>
+                          </div>
 
                           {/* Expanded comparison table */}
                           {isDesignExpanded && (pair.kit14 || pair.kit18) && (
@@ -240,6 +277,72 @@ export default function KitComparePage() {
           })
         )}
       </div>
+    </div>
+  );
+}
+
+// Editable "kits in stock" control: − / + steppers plus click-to-type the exact count.
+// stopPropagation keeps clicks from toggling the surrounding expand/collapse row.
+function ReadyStepper({ count, onAdjust }: { count: number; onAdjust: (delta: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(count));
+
+  useEffect(() => {
+    if (!editing) setDraft(String(count));
+  }, [count, editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const next = Math.max(0, parseInt(draft, 10) || 0);
+    if (next !== count) onAdjust(next - count);
+  };
+
+  return (
+    <div
+      className="flex items-center rounded overflow-hidden border border-slate-600"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); if (count > 0) onAdjust(-1); }}
+        disabled={count <= 0}
+        className="px-2 py-0.5 text-slate-300 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
+        aria-label="Decrease kits ready"
+      >
+        −
+      </button>
+      {editing ? (
+        <input
+          autoFocus
+          type="number"
+          min={0}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") { setDraft(String(count)); setEditing(false); }
+          }}
+          className="w-12 px-1 py-0.5 text-xs text-center bg-slate-900 text-white outline-none"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          className={`px-2 py-0.5 text-xs font-semibold min-w-[3.75rem] text-center ${count > 0 ? "bg-emerald-900/60 text-emerald-300" : "bg-slate-700 text-slate-400"}`}
+          title="Click to edit kits in stock"
+        >
+          {count} ready
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onAdjust(1); }}
+        className="px-2 py-0.5 text-slate-300 hover:bg-slate-600"
+        aria-label="Increase kits ready"
+      >
+        +
+      </button>
     </div>
   );
 }
