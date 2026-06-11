@@ -177,8 +177,8 @@ model UserSettings {
   mesh13BasketwaveYardsPerSqIn     Float    @default(2.5)   // 13ct, Size 3
   mesh14ContinentalYardsPerSqIn    Float    @default(2.1)   // 14ct, 196 stitches/sq in, Size 5
   mesh14BasketwaveYardsPerSqIn     Float    @default(2.4)   // 14ct, ~15% more
-  mesh18ContinentalYardsPerSqIn    Float    @default(3.46)  // 18ct, 324 stitches/sq in, Size 5
-  mesh18BasketwaveYardsPerSqIn     Float    @default(3.98)  // 18ct, ~15% more
+  mesh18ContinentalYardsPerSqIn    Float    @default(3.1)   // 18ct, 324 stitches/sq in, Size 5 (hybrid model, see yarn-calculator.ts)
+  mesh18BasketwaveYardsPerSqIn     Float    @default(3.57)  // 18ct, ~15% more
   // Default export DPI
   defaultExportDpi                 Int      @default(600)
   createdAt                        DateTime @default(now())

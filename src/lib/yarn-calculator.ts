@@ -23,12 +23,18 @@ export const DEFAULT_SETTINGS: YarnCalculationSettings = {
   // 13 mesh: 169 stitches/sq in, Size 3 thread (estimated)
   mesh13ContinentalYardsPerSqIn: 2.2,
   mesh13BasketwaveYardsPerSqIn: 2.5,
-  // 14 mesh: 196 stitches/sq in, Size 5 thread
+  // 14 mesh: 196 stitches/sq in, Size 5 thread (field-tested anchor value)
   mesh14ContinentalYardsPerSqIn: 2.1,
   mesh14BasketwaveYardsPerSqIn: 2.4,
-  // 18 mesh: 324 stitches/sq in, Size 5 thread
-  mesh18ContinentalYardsPerSqIn: 3.46,
-  mesh18BasketwaveYardsPerSqIn: 3.98,
+  // 18 mesh: 324 stitches/sq in, Size 5 thread.
+  // Derived from the 14ct anchor with a hybrid model: per-stitch length =
+  // geometric component (front diagonal + back pass, scales with 1/mesh)
+  // + constant overhead (canvas thickness passes, thread diameter, tension).
+  // Model gives ~2.95 yd/sq in; +5% safety margin → 3.1.
+  // (Old value 3.46 assumed per-stitch length doesn't shrink with mesh and
+  // overestimated by ~15%; pure linear scaling, 2.7, underestimates.)
+  mesh18ContinentalYardsPerSqIn: 3.1,
+  mesh18BasketwaveYardsPerSqIn: 3.57, // ~15% more, same ratio as 14ct
 };
 
 /** Thread size used for a given canvas mesh count. */

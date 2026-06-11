@@ -1,14 +1,15 @@
 /**
- * One-time backfill script to compute kitColorCount and kitSkeinCount
- * for all existing designs.
+ * Backfill script to recompute kitColorCount and kitSkeinCount
+ * for all existing designs using the app's real yarn calculator.
+ *
+ * Run after changing yarn rates in src/lib/yarn-calculator.ts so the
+ * precomputed kit summaries match what the kit pages compute live.
  *
  * Run with: npx tsx scripts/backfill-kit-summary.ts
  */
 import { PrismaClient } from "@prisma/client";
 import pako from "pako";
-
-// Inline the yarn calculation logic to avoid module resolution issues
-const SKEIN_YARDS = 27;
+import { calculateYarnUsage, type MeshCount, type StitchType } from "../src/lib/yarn-calculator.ts";
 
 function countStitchesByColor(grid: (string | null)[][]): Map<string, number> {
   const counts = new Map<string, number>();
@@ -20,31 +21,6 @@ function countStitchesByColor(grid: (string | null)[][]): Map<string, number> {
     }
   }
   return counts;
-}
-
-function calculateSkeins(
-  stitchCounts: Map<string, number>,
-  meshCount: number,
-  stitchType: string,
-  bufferPercent: number
-): { count: number; totalSkeins: number } {
-  const yardsPerSqIn =
-    meshCount === 14
-      ? stitchType === "basketweave"
-        ? 2.4
-        : 2.1
-      : stitchType === "basketweave"
-        ? 3.1
-        : 2.7;
-
-  let totalSkeins = 0;
-  for (const [, stitches] of stitchCounts) {
-    const sqInches = stitches / (meshCount * meshCount);
-    const yards = sqInches * yardsPerSqIn * (1 + bufferPercent / 100);
-    totalSkeins += Math.ceil(yards / SKEIN_YARDS);
-  }
-
-  return { count: stitchCounts.size, totalSkeins };
 }
 
 async function backfill() {
@@ -59,12 +35,15 @@ async function backfill() {
         meshCount: true,
         stitchType: true,
         bufferPercent: true,
+        kitColorCount: true,
+        kitSkeinCount: true,
       },
     });
 
     console.log(`Processing ${designs.length} designs...`);
 
     let updated = 0;
+    let unchanged = 0;
     for (const design of designs) {
       try {
         const decompressed = pako.inflate(Buffer.from(design.pixelData), {
@@ -72,23 +51,32 @@ async function backfill() {
         });
         const grid: (string | null)[][] = JSON.parse(decompressed);
         const stitchCounts = countStitchesByColor(grid);
-        const { count, totalSkeins } = calculateSkeins(
+
+        // Mirror the save-time computation in src/app/api/designs/route.ts
+        const yarnUsage = calculateYarnUsage(
           stitchCounts,
-          design.meshCount,
-          design.stitchType,
+          design.meshCount as MeshCount,
+          design.stitchType as StitchType,
           design.bufferPercent
         );
+        const kitColorCount = yarnUsage.length;
+        const kitSkeinCount = yarnUsage.reduce(
+          (sum, u) => sum + (u.usesFullSkein ? u.skeinsNeeded : 0),
+          0
+        );
+
+        if (kitColorCount === design.kitColorCount && kitSkeinCount === design.kitSkeinCount) {
+          unchanged++;
+          continue;
+        }
 
         await prisma.design.update({
           where: { id: design.id },
-          data: {
-            kitColorCount: count,
-            kitSkeinCount: totalSkeins,
-          },
+          data: { kitColorCount, kitSkeinCount },
         });
 
         console.log(
-          `  ${design.name}: ${count} colors, ${totalSkeins} skeins`
+          `  ${design.name} (${design.meshCount}ct): ${design.kitColorCount}c/${design.kitSkeinCount}sk → ${kitColorCount}c/${kitSkeinCount}sk`
         );
         updated++;
       } catch (e) {
@@ -96,7 +84,7 @@ async function backfill() {
       }
     }
 
-    console.log(`\nDone. Updated ${updated}/${designs.length} designs.`);
+    console.log(`\nDone. Updated ${updated}, unchanged ${unchanged}, of ${designs.length} designs.`);
   } finally {
     await prisma.$disconnect();
   }
