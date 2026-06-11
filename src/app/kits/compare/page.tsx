@@ -35,13 +35,19 @@ interface MatchedPair {
   folderName: string;
 }
 
-// Strip mesh count suffixes to find the base design name
-function getBaseName(name: string): string {
+// Strip a trailing mesh-count suffix, preserving the original casing.
+// Handles: "Martini (14)", "Aperol Spritz(14)", "Cosmopolitan (18ct)",
+// "Foo - 14ct", "Foo - 14 count", etc.
+function stripMeshSuffix(name: string): string {
   return name
-    .replace(/\s*\(\d+ct\)\s*$/i, "")
-    .replace(/\s*-\s*\d+\s*(ct|count|mesh)\s*$/i, "")
-    .trim()
-    .toLowerCase();
+    .replace(/\s*\(\s*\d+\s*(ct|count|mesh)?\s*\)\s*$/i, "") // "(14)", "(14ct)", "( 18 mesh )"
+    .replace(/\s*-\s*\d+\s*(ct|count|mesh)\s*$/i, "")          // "- 14ct", "- 18 count"
+    .trim();
+}
+
+// Strip mesh count suffixes to find the base design name (case-insensitive key)
+function getBaseName(name: string): string {
+  return stripMeshSuffix(name).toLowerCase();
 }
 
 export default function KitComparePage() {
@@ -170,7 +176,7 @@ export default function KitComparePage() {
                     {pairs.map((pair) => {
                       const designKey = pair.baseName;
                       const isDesignExpanded = expandedDesigns.has(designKey);
-                      const displayName = (pair.kit14?.designName || pair.kit18?.designName || pair.baseName).replace(/\s*\(\d+ct\)\s*$/i, "");
+                      const displayName = stripMeshSuffix(pair.kit18?.designName || pair.kit14?.designName || pair.baseName);
                       const hasBoth = !!pair.kit14 && !!pair.kit18;
 
                       return (
