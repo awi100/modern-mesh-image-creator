@@ -113,7 +113,8 @@ function calculateSkeinsForQuantity(kitContents: KitItem[], quantity: number): {
 export default function KitsPage() {
   const [expandedKit, setExpandedKit] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "in-stock" | "out-of-stock">("all");
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<string | null>>(new Set());
+  // Folders start collapsed; only folders in this set are expanded
+  const [expandedFolders, setExpandedFolders] = useState<Set<string | null>>(new Set());
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
   const [assemblingKit, setAssemblingKit] = useState<KitSummary | null>(null);
   const [assemblyQuantity, setAssemblyQuantity] = useState(1);
@@ -435,7 +436,7 @@ export default function KitsPage() {
   }, [filteredKits]);
 
   const toggleFolder = (folderId: string | null) => {
-    setCollapsedFolders((prev) => {
+    setExpandedFolders((prev) => {
       const next = new Set(prev);
       if (next.has(folderId)) {
         next.delete(folderId);
@@ -544,7 +545,7 @@ export default function KitsPage() {
           </div>
         ) : (
           groupedKits.map((group) => {
-            const isCollapsed = collapsedFolders.has(group.folderId);
+            const isCollapsed = !expandedFolders.has(group.folderId);
             const inStockCount = group.kits.filter((k) => k.allInStock).length;
             const outOfStockCount = group.kits.length - inStockCount;
 
