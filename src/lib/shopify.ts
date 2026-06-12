@@ -63,7 +63,14 @@ export interface ShopifyOrderNode {
   id: string;
   name: string; // Order number like "#1001"
   createdAt: string;
+  cancelledAt: string | null;
   displayFulfillmentStatus: string;
+  // PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED, etc.
+  displayFinancialStatus: string | null;
+  // Order total after refunds/edits — fully refunded orders show "0.00"
+  currentTotalPriceSet: {
+    shopMoney: { amount: string } | null;
+  } | null;
   // Note: customer field requires read_customers scope
   billingAddress: {
     name: string | null;
@@ -100,6 +107,18 @@ export function isExpressShippingTitle(title: string | null | undefined): boolea
   );
 }
 
+// An order the app should ignore entirely: cancelled, fully refunded/voided,
+// or with a $0 current total (e.g. placed then "cancelled" via full refund).
+// Partial refunds do NOT exclude an order.
+export function isIgnorableOrder(order: ShopifyOrderNode): boolean {
+  if (order.cancelledAt) return true;
+  const fin = order.displayFinancialStatus?.toUpperCase();
+  if (fin === "REFUNDED" || fin === "VOIDED") return true;
+  const amount = order.currentTotalPriceSet?.shopMoney?.amount;
+  if (amount !== undefined && amount !== null && parseFloat(amount) === 0) return true;
+  return false;
+}
+
 export interface OrdersQueryResult {
   orders: {
     nodes: ShopifyOrderNode[];
@@ -117,7 +136,7 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
       orders(
         first: 50
         after: $cursor
-        query: "fulfillment_status:unfulfilled"
+        query: "fulfillment_status:unfulfilled AND -status:cancelled AND -financial_status:refunded AND -financial_status:voided"
         sortKey: CREATED_AT
         reverse: true
       ) {
@@ -125,7 +144,14 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
           id
           name
           createdAt
+          cancelledAt
           displayFulfillmentStatus
+          displayFinancialStatus
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+            }
+          }
           billingAddress {
             name
             city
@@ -170,7 +196,9 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
 
   while (hasMore) {
     const result = await shopifyGraphQL<OrdersQueryResult>(query, { cursor });
-    allOrders.push(...result.orders.nodes);
+    // Belt-and-braces: also drop cancelled/refunded/$0 orders the search
+    // filter didn't catch (e.g. $0 totals from a full-discount checkout)
+    allOrders.push(...result.orders.nodes.filter((o) => !isIgnorableOrder(o)));
     hasMore = result.orders.pageInfo.hasNextPage;
     cursor = result.orders.pageInfo.endCursor || undefined;
 
@@ -201,7 +229,7 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
       orders(
         first: 100
         after: $cursor
-        query: "fulfillment_status:fulfilled ${dateFilter}"
+        query: "fulfillment_status:fulfilled AND -status:cancelled AND -financial_status:refunded AND -financial_status:voided ${dateFilter}"
         sortKey: UPDATED_AT
         reverse: true
       ) {
@@ -209,7 +237,14 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
           id
           name
           createdAt
+          cancelledAt
           displayFulfillmentStatus
+          displayFinancialStatus
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+            }
+          }
           billingAddress {
             name
             city
@@ -254,7 +289,7 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
 
   while (hasMore) {
     const result = await shopifyGraphQL<OrdersQueryResult>(query, { cursor });
-    allOrders.push(...result.orders.nodes);
+    allOrders.push(...result.orders.nodes.filter((o) => !isIgnorableOrder(o)));
     hasMore = result.orders.pageInfo.hasNextPage;
     cursor = result.orders.pageInfo.endCursor || undefined;
 
