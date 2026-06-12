@@ -129,6 +129,87 @@ function calculateSkeinsForQuantity(kitContents: KitItem[], quantity: number): {
   };
 }
 
+// Stat card with editable count: − / + steppers, click the number to type an exact value.
+function CounterStatCard({
+  value,
+  label,
+  cardClass,
+  valueClass,
+  onAdjust,
+  onSet,
+}: {
+  value: number;
+  label: string;
+  cardClass: string;
+  valueClass: string;
+  onAdjust: (delta: number) => void;
+  onSet: (value: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    if (!editing) setDraft(String(value));
+  }, [value, editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const next = Math.max(0, parseInt(draft, 10) || 0);
+    if (next !== value) onSet(next);
+  };
+
+  return (
+    <div className={`rounded-xl p-4 border ${cardClass}`}>
+      <div className="flex items-center gap-2">
+        {editing ? (
+          <input
+            autoFocus
+            type="number"
+            min={0}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") { setDraft(String(value)); setEditing(false); }
+            }}
+            className={`w-16 text-2xl font-bold bg-slate-900 rounded px-1 outline-none ${valueClass}`}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className={`text-2xl font-bold ${valueClass} hover:opacity-80`}
+            title={`Click to edit ${label.toLowerCase()}`}
+          >
+            {value}
+          </button>
+        )}
+        <div className="flex flex-col">
+          <button
+            type="button"
+            onClick={() => onAdjust(1)}
+            className="px-1.5 text-slate-400 hover:text-white leading-none text-sm"
+            aria-label={`Increase ${label.toLowerCase()}`}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => { if (value > 0) onAdjust(-1); }}
+            disabled={value <= 0}
+            className="px-1.5 text-slate-400 hover:text-white leading-none text-sm disabled:opacity-30"
+            aria-label={`Decrease ${label.toLowerCase()}`}
+          >
+            −
+          </button>
+        </div>
+      </div>
+      <p className="text-sm text-slate-400">{label}</p>
+    </div>
+  );
+}
+
 export default function KitPage() {
   const params = useParams();
   const router = useRouter();
@@ -197,6 +278,41 @@ export default function KitPage() {
       console.error("Error fetching kit:", error);
     }
     setLoading(false);
+  };
+
+  // Adjust kitsReady / canvasPrinted inventory counters, optimistically.
+  // Uses the atomic *Delta PATCH so concurrent edits don't clobber each other.
+  const adjustCounter = async (field: "kitsReady" | "canvasPrinted", delta: number) => {
+    const setter = field === "kitsReady" ? setKitsReady : setCanvasPrinted;
+    setter((prev) => Math.max(0, prev + delta));
+    try {
+      const res = await fetch(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [`${field}Delta`]: delta }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+    } catch (error) {
+      console.error(`Error updating ${field}:`, error);
+      fetchKit(); // restore server values
+    }
+  };
+
+  const setCounter = async (field: "kitsReady" | "canvasPrinted", value: number) => {
+    const newVal = Math.max(0, value);
+    const setter = field === "kitsReady" ? setKitsReady : setCanvasPrinted;
+    setter(newVal);
+    try {
+      const res = await fetch(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: newVal }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+    } catch (error) {
+      console.error(`Error updating ${field}:`, error);
+      fetchKit(); // restore server values
+    }
   };
 
   const handleSetBackupColor = useCallback(async (primaryDmc: string, backupDmc: string) => {
@@ -667,14 +783,22 @@ export default function KitPage() {
                 )}
               </p>
             </div>
-            <div className="bg-blue-900/20 rounded-xl p-4 border border-blue-800">
-              <p className="text-2xl font-bold text-blue-400">{canvasPrinted}</p>
-              <p className="text-sm text-slate-400">Printed</p>
-            </div>
-            <div className="bg-emerald-900/20 rounded-xl p-4 border border-emerald-800">
-              <p className="text-2xl font-bold text-emerald-400">{kitsReady}</p>
-              <p className="text-sm text-slate-400">Kits Ready</p>
-            </div>
+            <CounterStatCard
+              value={canvasPrinted}
+              label="Printed"
+              cardClass="bg-blue-900/20 border-blue-800"
+              valueClass="text-blue-400"
+              onAdjust={(delta) => adjustCounter("canvasPrinted", delta)}
+              onSet={(value) => setCounter("canvasPrinted", value)}
+            />
+            <CounterStatCard
+              value={kitsReady}
+              label="Kits Ready"
+              cardClass="bg-emerald-900/20 border-emerald-800"
+              valueClass="text-emerald-400"
+              onAdjust={(delta) => adjustCounter("kitsReady", delta)}
+              onSet={(value) => setCounter("kitsReady", value)}
+            />
           </div>
         )}
 
