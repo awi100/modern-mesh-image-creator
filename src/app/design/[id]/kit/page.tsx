@@ -247,6 +247,7 @@ export default function KitPage() {
   const [loadingFinishing, setLoadingFinishing] = useState(false);
   const [showMeshConvert, setShowMeshConvert] = useState(false);
   const [exportingPrintOrder, setExportingPrintOrder] = useState(false);
+  const [copiedSupplier, setCopiedSupplier] = useState(false);
   const [printVersion, setPrintVersion] = useState<{ id: string; name: string; updatedAt: string } | null>(null);
   const [creatingPrintVersion, setCreatingPrintVersion] = useState(false);
 
@@ -594,6 +595,43 @@ export default function KitPage() {
     downloadFile(csv, filename, "text/csv");
   }, [design, kitContents]);
 
+  // Copy a supplier-ready spec to the clipboard: per-color buffered YARDS
+  // (not our full-skein rounding), for quoting kits with a fulfillment house.
+  const handleCopySupplierList = useCallback(async () => {
+    if (!design || kitContents.length === 0) return;
+
+    const threadLabel =
+      design.meshCount === 13
+        ? "DMC Pearl Cotton Size 3"
+        : "DMC Pearl Cotton Size 5";
+
+    const totalYards = kitContents.reduce((sum, item) => sum + item.yardsWithBuffer, 0);
+
+    const header = [
+      `${design.name} — needlepoint kit thread spec`,
+      `${design.widthInches}" x ${design.heightInches}" @ ${design.meshCount} mesh · ${threadLabel} · ${design.stitchType}`,
+      `Yards include a ${design.bufferPercent}% working buffer. ${kitContents.length} colors.`,
+      "",
+      ["DMC #", "Color", "Yards"].join("\t"),
+    ].join("\n");
+
+    const rows = kitContents
+      .map((item) => [item.dmcNumber, item.colorName, item.yardsWithBuffer.toFixed(1)].join("\t"))
+      .join("\n");
+
+    const footer = `\n\nTotal: ${totalYards.toFixed(1)} yards across ${kitContents.length} colors`;
+
+    const text = header + "\n" + rows + footer;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedSupplier(true);
+      setTimeout(() => setCopiedSupplier(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy supplier list:", error);
+    }
+  }, [design, kitContents]);
+
   // Export shopping list as printable
   const handlePrint = useCallback(() => {
     if (!design || kitContents.length === 0) return;
@@ -677,6 +715,22 @@ export default function KitPage() {
 
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* Export buttons */}
+            <Tooltip label={copiedSupplier ? "Copied!" : "Copy supplier thread spec (yards w/ buffer)"} position="bottom">
+              <button
+                onClick={handleCopySupplierList}
+                className={`p-2 rounded-lg transition-colors ${copiedSupplier ? "text-emerald-400 bg-slate-700" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}
+              >
+                {copiedSupplier ? (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </button>
+            </Tooltip>
             <Tooltip label="Print shopping list" position="bottom">
               <button
                 onClick={handlePrint}
