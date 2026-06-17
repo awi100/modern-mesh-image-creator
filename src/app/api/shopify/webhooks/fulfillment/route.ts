@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { parseNeedsKit, normalizeTitle } from "@/lib/shopify";
+import { parseNeedsKit, normalizeTitle, isPosSource } from "@/lib/shopify";
 import crypto from "crypto";
 
 // Shopify webhook payload types
@@ -23,6 +23,7 @@ interface ShopifyWebhookPayload {
   id: number; // Order ID
   name: string; // Order number like "#1001"
   admin_graphql_api_id: string; // "gid://shopify/Order/123"
+  source_name?: string | null; // "pos" = Point of Sale, "web"/checkout = online
   billing_address?: {
     name?: string;
   };
@@ -72,6 +73,9 @@ export async function POST(request: NextRequest) {
     }
 
     const shopifyOrderId = payload.admin_graphql_api_id;
+    // POS (in-person/craft market) sales deduct from the market tote; online
+    // orders deduct from main/online stock.
+    const isPos = isPosSource(payload.source_name);
 
     // Quick check outside transaction (optimization, not relied upon for correctness)
     const existingOrder = await prisma.shopifyOrder.findUnique({
@@ -196,9 +200,11 @@ export async function POST(request: NextRequest) {
           shopifyOrderId,
           orderNumber: payload.name,
           customerName: payload.billing_address?.name || null,
+          sourceName: payload.source_name || null,
           fulfilledAt: new Date(),
         },
         update: {
+          sourceName: payload.source_name || null,
           fulfilledAt: new Date(),
         },
       });
@@ -223,22 +229,37 @@ export async function POST(request: NextRequest) {
       let canvasesDeducted = 0;
       let suppliesDeducted = 0;
 
-      // Process design updates
+      // Process design updates. POS sales draw down the market tote; online
+      // sales draw down main/online stock. totalSold/totalKitsSold always
+      // increment (a sale is a sale for velocity), regardless of channel.
       for (const [designId, updates] of designUpdatesMap) {
         const design = await tx.design.findUnique({
           where: { id: designId },
-          select: { kitsReady: true, canvasPrinted: true },
+          select: { kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true },
         });
 
         if (design) {
-          const actualCanvasDeduction = Math.min(updates.canvasDeduction, design.canvasPrinted);
-          const actualKitDeduction = Math.min(updates.kitDeduction, design.kitsReady);
+          const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
+          const availKit = isPos ? design.marketKitsReady : design.kitsReady;
+          const actualCanvasDeduction = Math.min(updates.canvasDeduction, availCanvas);
+          const actualKitDeduction = Math.min(updates.kitDeduction, availKit);
+
+          if (isPos && (actualCanvasDeduction < updates.canvasDeduction || actualKitDeduction < updates.kitDeduction)) {
+            console.warn(`Webhook: POS order ${payload.name} exceeded market stock for design ${designId} (market tote count likely drifted)`);
+          }
 
           await tx.design.update({
             where: { id: designId },
             data: {
-              canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
-              kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
+              ...(isPos
+                ? {
+                    marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
+                    marketKitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
+                  }
+                : {
+                    canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
+                    kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
+                  }),
               totalSold: { increment: updates.totalSold },
               totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
             },
@@ -249,19 +270,26 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Process supply updates
+      // Process supply updates. POS sales draw down the market tote; online
+      // sales draw down main/online stock.
       for (const [supplyId, deduction] of supplyUpdatesMap) {
         const supply = await tx.supply.findUnique({
           where: { id: supplyId },
-          select: { quantity: true },
+          select: { quantity: true, marketQuantity: true },
         });
 
         if (supply) {
-          const actualDeduction = Math.min(deduction, supply.quantity);
+          const avail = isPos ? supply.marketQuantity : supply.quantity;
+          const actualDeduction = Math.min(deduction, avail);
+          if (isPos && actualDeduction < deduction) {
+            console.warn(`Webhook: POS order ${payload.name} exceeded market supply stock for supply ${supplyId}`);
+          }
           if (actualDeduction > 0) {
             await tx.supply.update({
               where: { id: supplyId },
-              data: { quantity: { decrement: actualDeduction } },
+              data: isPos
+                ? { marketQuantity: { decrement: actualDeduction } }
+                : { quantity: { decrement: actualDeduction } },
             });
             suppliesDeducted += actualDeduction;
           }

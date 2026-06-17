@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { isMysteryBagTitle, picksRequiredForItems } from "@/lib/mystery-bag";
+import { isPosSource } from "@/lib/shopify";
 
 interface FulfillItem {
   designId?: string;
@@ -316,6 +317,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Order was not fulfilled locally" }, { status: 400 });
     }
 
+    // POS orders deducted from the market tote — restore there. Online orders
+    // restore to main/online stock. Mystery-bag misprint restores always go to
+    // main (mystery bags are online-only).
+    const isPos = isPosSource(localOrder.sourceName);
+
     // Aggregate what needs to be restored by designId and supplyId
     const designRestoreMap = new Map<string, {
       canvasRestore: number;
@@ -382,8 +388,16 @@ export async function DELETE(request: NextRequest) {
         await tx.design.update({
           where: { id: designId },
           data: {
-            canvasPrinted: restore.canvasRestore > 0 ? { increment: restore.canvasRestore } : undefined,
-            kitsReady: restore.kitRestore > 0 ? { increment: restore.kitRestore } : undefined,
+            ...(isPos
+              ? {
+                  marketCanvasPrinted: restore.canvasRestore > 0 ? { increment: restore.canvasRestore } : undefined,
+                  marketKitsReady: restore.kitRestore > 0 ? { increment: restore.kitRestore } : undefined,
+                }
+              : {
+                  canvasPrinted: restore.canvasRestore > 0 ? { increment: restore.canvasRestore } : undefined,
+                  kitsReady: restore.kitRestore > 0 ? { increment: restore.kitRestore } : undefined,
+                }),
+            // Misprint restores are always main (mystery bags are online-only).
             misprintCount: restore.misprintRestore > 0 ? { increment: restore.misprintRestore } : undefined,
             totalSold: { decrement: restore.totalSoldRestore },
             totalKitsSold: restore.totalKitsSoldRestore > 0 ? { decrement: restore.totalKitsSoldRestore } : undefined,
@@ -395,13 +409,13 @@ export async function DELETE(request: NextRequest) {
         misprintsRestored += restore.misprintRestore;
       }
 
-      // Restore supply inventory
+      // Restore supply inventory to the bucket it was deducted from.
       for (const [supplyId, quantity] of supplyRestoreMap) {
         await tx.supply.update({
           where: { id: supplyId },
-          data: {
-            quantity: { increment: quantity },
-          },
+          data: isPos
+            ? { marketQuantity: { increment: quantity } }
+            : { quantity: { increment: quantity } },
         });
         suppliesRestored += quantity;
       }

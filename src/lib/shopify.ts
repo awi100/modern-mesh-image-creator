@@ -64,6 +64,10 @@ export interface ShopifyOrderNode {
   name: string; // Order number like "#1001"
   createdAt: string;
   cancelledAt: string | null;
+  // Order origin: "pos" = Shopify Point of Sale (in-person/craft market),
+  // "web"/"shopify_draft_order"/etc. = online. Used to route inventory
+  // deduction to the market tote (POS) vs main/online stock.
+  sourceName: string | null;
   displayFulfillmentStatus: string;
   // PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED, etc.
   displayFinancialStatus: string | null;
@@ -145,6 +149,7 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
           name
           createdAt
           cancelledAt
+          sourceName
           displayFulfillmentStatus
           displayFinancialStatus
           currentTotalPriceSet {
@@ -238,6 +243,7 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
           name
           createdAt
           cancelledAt
+          sourceName
           displayFulfillmentStatus
           displayFinancialStatus
           currentTotalPriceSet {
@@ -311,6 +317,13 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
 // Fetch ALL fulfilled orders from entire Shopify history (no date filter)
 export async function fetchAllFulfilledOrders(): Promise<OrdersQueryResult> {
   return fetchRecentlyFulfilledOrders(); // No date = all orders
+}
+
+// Whether an order originated from Shopify Point of Sale (in-person / craft
+// market). Shopify sets the order's source_name to "pos" for POS sales.
+// POS sales deduct from the market tote inventory, not online/main stock.
+export function isPosSource(sourceName: string | null | undefined): boolean {
+  return (sourceName || "").trim().toLowerCase() === "pos";
 }
 
 // Parse variant title to determine if kit is needed

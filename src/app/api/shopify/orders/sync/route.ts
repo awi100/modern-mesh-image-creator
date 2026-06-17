@@ -6,6 +6,7 @@ import {
   parseNeedsKit,
   normalizeTitle,
   visibleCustomAttributes,
+  isPosSource,
 } from "@/lib/shopify";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 
@@ -114,6 +115,10 @@ export async function POST() {
 
     for (const shopifyOrder of ordersToSync) {
       try {
+        // POS (in-person/craft market) sales deduct from the market tote;
+        // online orders deduct from main/online stock.
+        const isPos = isPosSource(shopifyOrder.sourceName);
+
         // Build items list with design/supply matching
         const items: {
           designId: string | null;
@@ -192,9 +197,11 @@ export async function POST() {
               shopifyOrderId: shopifyOrder.id,
               orderNumber: shopifyOrder.name,
               customerName: shopifyOrder.billingAddress?.name || null,
+              sourceName: shopifyOrder.sourceName || null,
               fulfilledAt: new Date(),
             },
             update: {
+              sourceName: shopifyOrder.sourceName || null,
               fulfilledAt: new Date(),
             },
           });
@@ -216,22 +223,37 @@ export async function POST() {
             });
           }
 
-          // Process design updates
+          // Process design updates. POS sales draw down the market tote;
+          // online sales draw down main/online stock. totalSold/totalKitsSold
+          // always increment regardless of channel.
           for (const [designId, updates] of designUpdatesMap) {
             const design = await tx.design.findUnique({
               where: { id: designId },
-              select: { kitsReady: true, canvasPrinted: true },
+              select: { kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true },
             });
 
             if (design) {
-              const actualCanvasDeduction = Math.min(updates.canvasDeduction, design.canvasPrinted);
-              const actualKitDeduction = Math.min(updates.kitDeduction, design.kitsReady);
+              const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
+              const availKit = isPos ? design.marketKitsReady : design.kitsReady;
+              const actualCanvasDeduction = Math.min(updates.canvasDeduction, availCanvas);
+              const actualKitDeduction = Math.min(updates.kitDeduction, availKit);
+
+              if (isPos && (actualCanvasDeduction < updates.canvasDeduction || actualKitDeduction < updates.kitDeduction)) {
+                console.warn(`Sync: POS order ${shopifyOrder.name} exceeded market stock for design ${designId} (market tote count likely drifted)`);
+              }
 
               await tx.design.update({
                 where: { id: designId },
                 data: {
-                  canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
-                  kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
+                  ...(isPos
+                    ? {
+                        marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
+                        marketKitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
+                      }
+                    : {
+                        canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
+                        kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
+                      }),
                   totalSold: { increment: updates.totalSold },
                   totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
                 },
@@ -239,19 +261,26 @@ export async function POST() {
             }
           }
 
-          // Process supply updates
+          // Process supply updates. POS sales draw down the market tote;
+          // online sales draw down main/online stock.
           for (const [supplyId, deduction] of supplyUpdatesMap) {
             const supply = await tx.supply.findUnique({
               where: { id: supplyId },
-              select: { quantity: true },
+              select: { quantity: true, marketQuantity: true },
             });
 
             if (supply) {
-              const actualDeduction = Math.min(deduction, supply.quantity);
+              const avail = isPos ? supply.marketQuantity : supply.quantity;
+              const actualDeduction = Math.min(deduction, avail);
+              if (isPos && actualDeduction < deduction) {
+                console.warn(`Sync: POS order ${shopifyOrder.name} exceeded market supply stock for supply ${supplyId}`);
+              }
               if (actualDeduction > 0) {
                 await tx.supply.update({
                   where: { id: supplyId },
-                  data: { quantity: { decrement: actualDeduction } },
+                  data: isPos
+                    ? { marketQuantity: { decrement: actualDeduction } }
+                    : { quantity: { decrement: actualDeduction } },
                 });
               }
             }

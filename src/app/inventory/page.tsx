@@ -30,6 +30,8 @@ interface Design {
   kitsReady: number;
   canvasPrinted: number;
   canvasPrintedMaddie: number;
+  marketKitsReady: number;
+  marketCanvasPrinted: number;
   misprintCount: number;
   isDraft: boolean;
   kitColorCount: number;
@@ -67,6 +69,7 @@ interface Supply {
   description: string | null;
   imageUrl: string | null;
   quantity: number;
+  marketQuantity: number;
 }
 
 interface BackupColorInfo {
@@ -186,8 +189,11 @@ export default function InventoryPage() {
   const [pendingKits, setPendingKits] = useState<Record<string, string>>({});
   const [pendingCanvases, setPendingCanvases] = useState<Record<string, string>>({});
   const [pendingCanvasesMaddie, setPendingCanvasesMaddie] = useState<Record<string, string>>({});
+  const [pendingMarketKits, setPendingMarketKits] = useState<Record<string, string>>({});
+  const [pendingMarketCanvases, setPendingMarketCanvases] = useState<Record<string, string>>({});
   const [pendingMisprints, setPendingMisprints] = useState<Record<string, string>>({});
   const [pendingSupplyQuantity, setPendingSupplyQuantity] = useState<Record<string, string>>({});
+  const [pendingSupplyMarket, setPendingSupplyMarket] = useState<Record<string, string>>({});
 
   // Kit contents expansion state
   const [expandedKits, setExpandedKits] = useState<Set<string>>(new Set());
@@ -244,7 +250,7 @@ export default function InventoryPage() {
 
   const fetchDesigns = async () => {
     try {
-      const response = await fetch("/api/designs");
+      const response = await fetch(`/api/designs${meshFilter !== "all" ? `?meshCount=${meshFilter}` : ""}`);
       if (response.ok) {
         const data = await response.json();
         // Filter out drafts
@@ -538,6 +544,48 @@ export default function InventoryPage() {
     setPendingSupplyQuantity((prev) => { const next = { ...prev }; delete next[id]; return next; });
   };
 
+  // Move supply stock between main and the market tote (conserves total).
+  // Positive = main -> market ("bring to market"); negative = market -> main.
+  const handleSupplyMarketTransfer = async (id: string, delta: number) => {
+    const supply = supplies.find((s) => s.id === id);
+    if (!supply || delta === 0) return;
+    const moved = delta >= 0
+      ? Math.min(delta, supply.quantity)
+      : -Math.min(-delta, supply.marketQuantity);
+    setPendingSupplyMarket((p) => { const n = { ...p }; delete n[id]; return n; });
+    if (moved === 0) return;
+
+    // Optimistic update
+    setSupplies(supplies.map((s) => s.id === id
+      ? { ...s, quantity: s.quantity - moved, marketQuantity: s.marketQuantity + moved }
+      : s));
+    try {
+      const res = await fetch(`/api/supplies/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ marketTransferDelta: delta }),
+      });
+      if (!res.ok) fetchSupplies();
+    } catch (error) {
+      console.error("Error transferring supply to market:", error);
+      fetchSupplies();
+    }
+  };
+
+  // Set the market supply count to an absolute value by transferring the
+  // difference from/to main.
+  const handleSetSupplyMarket = async (id: string, value: number) => {
+    const supply = supplies.find((s) => s.id === id);
+    if (!supply) return;
+    if (!Number.isFinite(value)) {
+      setPendingSupplyMarket((p) => { const n = { ...p }; delete n[id]; return n; });
+      return;
+    }
+    const delta = Math.max(0, Math.floor(value)) - supply.marketQuantity;
+    if (delta !== 0) await handleSupplyMarketTransfer(id, delta);
+    else setPendingSupplyMarket((p) => { const n = { ...p }; delete n[id]; return n; });
+  };
+
   const filteredItems = useMemo(() => {
     let result = items;
     if (sizeFilter !== null) {
@@ -715,6 +763,69 @@ export default function InventoryPage() {
     }
   };
 
+  // Move stock between main and the market tote (conserves total). A positive
+  // delta moves from main -> market ("bring to market" / "restock the tote");
+  // negative moves market -> main. The API clamps so neither side goes below 0.
+  const handleMarketTransfer = async (id: string, type: "kits" | "canvas", delta: number) => {
+    const design = designs.find((d) => d.id === id);
+    if (!design || delta === 0) return;
+
+    const main = type === "kits" ? design.kitsReady : design.canvasPrinted;
+    const market = type === "kits" ? design.marketKitsReady : design.marketCanvasPrinted;
+    // Clamp locally for the optimistic update to match the server's clamping.
+    const moved = delta >= 0 ? Math.min(delta, main) : -Math.min(-delta, market);
+    if (moved === 0) {
+      // Nothing can move (source empty); just clear any pending input.
+      if (type === "kits") setPendingMarketKits((p) => { const n = { ...p }; delete n[id]; return n; });
+      else setPendingMarketCanvases((p) => { const n = { ...p }; delete n[id]; return n; });
+      return;
+    }
+
+    // Optimistic update
+    setDesigns(designs.map((d) => {
+      if (d.id !== id) return d;
+      return type === "kits"
+        ? { ...d, kitsReady: d.kitsReady - moved, marketKitsReady: d.marketKitsReady + moved }
+        : { ...d, canvasPrinted: d.canvasPrinted - moved, marketCanvasPrinted: d.marketCanvasPrinted + moved };
+    }));
+    if (type === "kits") setPendingMarketKits((p) => { const n = { ...p }; delete n[id]; return n; });
+    else setPendingMarketCanvases((p) => { const n = { ...p }; delete n[id]; return n; });
+
+    try {
+      const body = type === "kits"
+        ? { marketTransferKitsDelta: delta }
+        : { marketTransferCanvasDelta: delta };
+      const response = await fetch(`/api/designs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        await fetchDesigns();
+      }
+    } catch (error) {
+      console.error("Error transferring to market:", error);
+      await fetchDesigns();
+    }
+  };
+
+  // Set the market count to an absolute value by transferring the difference
+  // from/to main (e.g. "set market to 8" tops the tote up from storage).
+  const handleSetMarketValue = async (id: string, type: "kits" | "canvas", value: number) => {
+    const design = designs.find((d) => d.id === id);
+    if (!design) return;
+    const clearPending = () => {
+      if (type === "kits") setPendingMarketKits((p) => { const n = { ...p }; delete n[id]; return n; });
+      else setPendingMarketCanvases((p) => { const n = { ...p }; delete n[id]; return n; });
+    };
+    if (!Number.isFinite(value)) { clearPending(); return; }
+    const current = type === "kits" ? design.marketKitsReady : design.marketCanvasPrinted;
+    const newVal = Math.max(0, Math.floor(value));
+    const delta = newVal - current;
+    if (delta !== 0) await handleMarketTransfer(id, type, delta);
+    else clearPending();
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Remove this thread from inventory?")) return;
     try {
@@ -739,10 +850,15 @@ export default function InventoryPage() {
   const totalKitsReady = designs.reduce((sum, d) => sum + d.kitsReady, 0);
   const totalCanvasesPrinted = designs.reduce((sum, d) => sum + d.canvasPrinted, 0);
 
+  // Market tote stats (in-person/craft-market stock, not available online)
+  const marketKitsReady = designs.reduce((sum, d) => sum + (d.marketKitsReady || 0), 0);
+  const marketCanvases = designs.reduce((sum, d) => sum + (d.marketCanvasPrinted || 0), 0);
+  const totalKitsOverall = totalKitsReady + marketKitsReady;
+
   // Canvas location-specific stats
   const mainCanvases = designs.reduce((sum, d) => sum + d.canvasPrinted, 0);
   const maddieCanvases = designs.reduce((sum, d) => sum + (d.canvasPrintedMaddie || 0), 0);
-  const allCanvases = mainCanvases + maddieCanvases;
+  const allCanvases = mainCanvases + maddieCanvases + marketCanvases;
 
   // Handle canvas transfer from Maddie to main
   const handleCanvasTransfer = async (designId: string) => {
@@ -1430,18 +1546,22 @@ export default function InventoryPage() {
         {activeTab === "kits" && (
           <>
             {/* Stats bar */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Total Kits Ready</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Online Kits Ready</p>
                 <p className="text-xl font-bold text-white">{totalKitsReady}</p>
               </div>
+              <div className="bg-slate-800 rounded-lg p-3 border border-emerald-800/60">
+                <p className="text-xs text-emerald-400 uppercase tracking-wider">Market Tote</p>
+                <p className="text-xl font-bold text-emerald-300">{marketKitsReady}</p>
+              </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Designs</p>
-                <p className="text-xl font-bold text-white">{designs.length}</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Total Kits</p>
+                <p className="text-xl font-bold text-white">{totalKitsOverall}</p>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <p className="text-xs text-slate-400 uppercase tracking-wider">With Stock</p>
-                <p className="text-xl font-bold text-white">{designs.filter(d => d.kitsReady > 0).length}</p>
+                <p className="text-xl font-bold text-white">{designs.filter(d => d.kitsReady + d.marketKitsReady > 0).length}</p>
               </div>
             </div>
 
@@ -1528,47 +1648,100 @@ export default function InventoryPage() {
                                 </button>
                               </div>
 
-                              {/* Kits Ready control */}
-                              <div className="flex items-center gap-1 md:gap-2">
-                                <button
-                                  onClick={() => handleUpdateDesign(design.id, "kitsReady", -1)}
-                                  className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                                  disabled={design.kitsReady <= 0}
-                                >
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                  </svg>
-                                </button>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={pendingKits[design.id] ?? design.kitsReady}
-                                  onChange={(e) => setPendingKits((prev) => ({ ...prev, [design.id]: e.target.value }))}
-                                  onBlur={() => {
-                                    const val = pendingKits[design.id];
-                                    if (val !== undefined && val !== "") {
-                                      handleSetDesignValue(design.id, "kitsReady", Number(val));
-                                    }
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
+                              {/* Kits Ready control (online/storage stock) */}
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-[10px] uppercase tracking-wider text-slate-500">Online</span>
+                                <div className="flex items-center gap-1 md:gap-2">
+                                  <button
+                                    onClick={() => handleUpdateDesign(design.id, "kitsReady", -1)}
+                                    className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                    disabled={design.kitsReady <= 0}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                    </svg>
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={pendingKits[design.id] ?? design.kitsReady}
+                                    onChange={(e) => setPendingKits((prev) => ({ ...prev, [design.id]: e.target.value }))}
+                                    onBlur={() => {
                                       const val = pendingKits[design.id];
                                       if (val !== undefined && val !== "") {
                                         handleSetDesignValue(design.id, "kitsReady", Number(val));
                                       }
-                                      (e.target as HTMLInputElement).blur();
-                                    }
-                                  }}
-                                  className="w-14 md:w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
-                                />
-                                <button
-                                  onClick={() => handleUpdateDesign(design.id, "kitsReady", 1)}
-                                  className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                                >
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                  </svg>
-                                </button>
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        const val = pendingKits[design.id];
+                                        if (val !== undefined && val !== "") {
+                                          handleSetDesignValue(design.id, "kitsReady", Number(val));
+                                        }
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                    className="w-14 md:w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
+                                  />
+                                  <button
+                                    onClick={() => handleUpdateDesign(design.id, "kitsReady", 1)}
+                                    className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Market tote control (POS / craft-market stock).
+                                  +/- moves stock to/from the Online count. */}
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-[10px] uppercase tracking-wider text-emerald-500" title="Stock in the craft-market tote. POS sales deduct from here. +/- moves stock between Online and Market.">Market</span>
+                                <div className="flex items-center gap-1 md:gap-2">
+                                  <button
+                                    onClick={() => handleMarketTransfer(design.id, "kits", -1)}
+                                    className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                    disabled={design.marketKitsReady <= 0}
+                                    title="Return one kit from market to online"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                    </svg>
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={pendingMarketKits[design.id] ?? design.marketKitsReady}
+                                    onChange={(e) => setPendingMarketKits((prev) => ({ ...prev, [design.id]: e.target.value }))}
+                                    onBlur={() => {
+                                      const val = pendingMarketKits[design.id];
+                                      if (val !== undefined && val !== "") {
+                                        handleSetMarketValue(design.id, "kits", Number(val));
+                                      }
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        const val = pendingMarketKits[design.id];
+                                        if (val !== undefined && val !== "") {
+                                          handleSetMarketValue(design.id, "kits", Number(val));
+                                        }
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                    className="w-14 md:w-16 px-2 py-1 bg-slate-700 border border-emerald-700/60 rounded text-emerald-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                                  />
+                                  <button
+                                    onClick={() => handleMarketTransfer(design.id, "kits", 1)}
+                                    className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                    disabled={design.kitsReady <= 0}
+                                    title="Move one kit from online to market"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
                             </div>
 
@@ -1811,10 +1984,14 @@ export default function InventoryPage() {
         {activeTab === "canvases" && (
           <>
             {/* Stats bar */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <p className="text-xs text-slate-400 uppercase tracking-wider">Here (Main)</p>
                 <p className="text-xl font-bold text-emerald-400">{mainCanvases}</p>
+              </div>
+              <div className="bg-slate-800 rounded-lg p-3 border border-emerald-800/60">
+                <p className="text-xs text-emerald-400 uppercase tracking-wider">Market Tote</p>
+                <p className="text-xl font-bold text-emerald-300">{marketCanvases}</p>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <p className="text-xs text-slate-400 uppercase tracking-wider">Maddie&apos;s</p>
@@ -1962,6 +2139,53 @@ export default function InventoryPage() {
                               </button>
                             </div>
 
+                            {/* Market tote (POS / craft-market). +/- moves to/from Here (Main). */}
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-emerald-300 mr-1 hidden md:inline" title="Canvases in the craft-market tote. POS sales deduct from here. +/- moves stock between Here (Main) and Market.">Market:</span>
+                              <button
+                                onClick={() => handleMarketTransfer(design.id, "canvas", -1)}
+                                className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                disabled={design.marketCanvasPrinted <= 0}
+                                title="Return one canvas from market to main"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                </svg>
+                              </button>
+                              <input
+                                type="number"
+                                min="0"
+                                value={pendingMarketCanvases[design.id] ?? design.marketCanvasPrinted}
+                                onChange={(e) => setPendingMarketCanvases((prev) => ({ ...prev, [design.id]: e.target.value }))}
+                                onBlur={() => {
+                                  const val = pendingMarketCanvases[design.id];
+                                  if (val !== undefined && val !== "") {
+                                    handleSetMarketValue(design.id, "canvas", Number(val));
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    const val = pendingMarketCanvases[design.id];
+                                    if (val !== undefined && val !== "") {
+                                      handleSetMarketValue(design.id, "canvas", Number(val));
+                                    }
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className="w-12 px-1 py-1 bg-emerald-900/30 border border-emerald-700/50 rounded text-emerald-300 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                              />
+                              <button
+                                onClick={() => handleMarketTransfer(design.id, "canvas", 1)}
+                                className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                                disabled={design.canvasPrinted <= 0}
+                                title="Move one canvas from main to market"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                              </button>
+                            </div>
+
                             {/* Maddie's location with transfer */}
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-amber-400 mr-1 hidden md:inline">Maddie:</span>
@@ -2101,48 +2325,101 @@ export default function InventoryPage() {
                         {supply.sku && <p className="text-xs text-slate-500">SKU: {supply.sku}</p>}
                         {supply.description && <p className="text-xs text-slate-400 truncate">{supply.description}</p>}
                       </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleSupplyQuantityChange(supply.id, -1)}
-                          disabled={supply.quantity <= 0}
-                          className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Remove 1"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                          </svg>
-                        </button>
-                        <input
-                          type="number"
-                          min="0"
-                          value={pendingSupplyQuantity[supply.id] ?? supply.quantity}
-                          onChange={(e) => setPendingSupplyQuantity((prev) => ({ ...prev, [supply.id]: e.target.value }))}
-                          onBlur={() => {
-                            const val = pendingSupplyQuantity[supply.id];
-                            if (val !== undefined && val !== "") {
-                              handleSetSupplyQuantity(supply.id, Number(val));
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
+                      {/* Online (storage) quantity */}
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] uppercase tracking-wider text-slate-500">Online</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleSupplyQuantityChange(supply.id, -1)}
+                            disabled={supply.quantity <= 0}
+                            className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Remove 1"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                            </svg>
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={pendingSupplyQuantity[supply.id] ?? supply.quantity}
+                            onChange={(e) => setPendingSupplyQuantity((prev) => ({ ...prev, [supply.id]: e.target.value }))}
+                            onBlur={() => {
                               const val = pendingSupplyQuantity[supply.id];
                               if (val !== undefined && val !== "") {
                                 handleSetSupplyQuantity(supply.id, Number(val));
                               }
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-800"
-                        />
-                        <button
-                          onClick={() => handleSupplyQuantityChange(supply.id, 1)}
-                          className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
-                          title="Add 1"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                        </button>
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const val = pendingSupplyQuantity[supply.id];
+                                if (val !== undefined && val !== "") {
+                                  handleSetSupplyQuantity(supply.id, Number(val));
+                                }
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="w-16 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-800"
+                          />
+                          <button
+                            onClick={() => handleSupplyQuantityChange(supply.id, 1)}
+                            className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700"
+                            title="Add 1"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Market tote (POS / craft-market). +/- moves to/from Online. */}
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] uppercase tracking-wider text-emerald-500" title="Supply stock in the craft-market tote. POS sales deduct from here. +/- moves stock between Online and Market.">Market</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleSupplyMarketTransfer(supply.id, -1)}
+                            disabled={supply.marketQuantity <= 0}
+                            className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Return one from market to online"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                            </svg>
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={pendingSupplyMarket[supply.id] ?? supply.marketQuantity}
+                            onChange={(e) => setPendingSupplyMarket((prev) => ({ ...prev, [supply.id]: e.target.value }))}
+                            onBlur={() => {
+                              const val = pendingSupplyMarket[supply.id];
+                              if (val !== undefined && val !== "") {
+                                handleSetSupplyMarket(supply.id, Number(val));
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const val = pendingSupplyMarket[supply.id];
+                                if (val !== undefined && val !== "") {
+                                  handleSetSupplyMarket(supply.id, Number(val));
+                                }
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="w-16 px-2 py-1 bg-slate-700 border border-emerald-700/60 rounded text-emerald-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                          />
+                          <button
+                            onClick={() => handleSupplyMarketTransfer(supply.id, 1)}
+                            disabled={supply.quantity <= 0}
+                            className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Move one from online to market"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
                         <button

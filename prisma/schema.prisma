@@ -96,10 +96,17 @@ model Design {
   bufferPercent         Float   @default(20)
 
   // Kit tracking
-  kitsReady             Int     @default(0)  // assembled kits awaiting sale
-  canvasPrinted         Int     @default(0)  // physical canvases printed (at main location)
+  kitsReady             Int     @default(0)  // assembled kits awaiting sale (online/storage stock)
+  canvasPrinted         Int     @default(0)  // physical canvases printed (at main location, online/storage stock)
   canvasPrintedMaddie   Int     @default(0)  // canvases printed at Maddie's location
   misprintCount         Int     @default(0)  // misprinted 14ct canvases available for Mystery Misprint Bags
+
+  // Market (craft-market tote) inventory — physically allocated to in-person
+  // market sales and NOT available for online orders. POS (Shopify source_name
+  // "pos") sales deduct from these; online orders deduct from kitsReady/canvasPrinted.
+  // Stock is moved here from main via the "transfer to market" action.
+  marketKitsReady       Int     @default(0)  // assembled kits in the market tote
+  marketCanvasPrinted   Int     @default(0)  // printed canvases in the market tote
 
   // Sales tracking (from Shopify fulfilled orders)
   totalSold             Int     @default(0)  // total units sold (kits + canvas-only)
@@ -246,6 +253,8 @@ model ShopifyOrder {
   shopifyOrderId  String   @unique // Shopify's order ID (e.g., "gid://shopify/Order/123")
   orderNumber     String   // Human-readable order number (e.g., "#1001")
   customerName    String?
+  sourceName      String?  // Shopify order source ("pos" = Point of Sale, "web"/checkout = online).
+                           // Determines which inventory bucket the order deducts from / restores to.
   fulfilledAt     DateTime? // When we processed the fulfillment
   createdAt       DateTime @default(now())
   items           ShopifyOrderItem[]
@@ -313,7 +322,8 @@ model Supply {
   sku         String?  // Optional SKU
   description String?
   imageUrl    String?
-  quantity    Int      @default(0) // Stock count
+  quantity    Int      @default(0) // Stock count (online/storage)
+  marketQuantity Int   @default(0) // Stock in the craft-market tote (POS sales deduct from here)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   shopifyOrderItems ShopifyOrderItem[]

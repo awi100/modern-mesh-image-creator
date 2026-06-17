@@ -73,6 +73,28 @@ export async function PATCH(
         updateData.quantity = Math.max(0, current.quantity + delta);
       }
     }
+    if (body.marketQuantity !== undefined) {
+      updateData.marketQuantity = Math.max(0, Math.floor(body.marketQuantity));
+    }
+    // Market transfer: move stock between main and the market tote, conserving
+    // the total. Positive = main -> market; negative = market -> main. Clamped
+    // so neither side goes below 0.
+    if (body.marketTransferDelta !== undefined) {
+      const requested = Math.trunc(body.marketTransferDelta);
+      const current = await prisma.supply.findUnique({
+        where: { id },
+        select: { quantity: true, marketQuantity: true },
+      });
+      if (current) {
+        const moved = requested >= 0
+          ? Math.min(requested, current.quantity)
+          : -Math.min(-requested, current.marketQuantity);
+        if (moved !== 0) {
+          updateData.quantity = Math.max(0, current.quantity - moved);
+          updateData.marketQuantity = Math.max(0, current.marketQuantity + moved);
+        }
+      }
+    }
 
     const supply = await prisma.supply.update({
       where: { id },

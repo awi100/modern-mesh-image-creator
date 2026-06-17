@@ -348,9 +348,16 @@ export async function PATCH(
 
     // Handle delta updates for counters using atomic increment
     // This prevents race conditions when multiple requests update simultaneously
+    // Market transfer deltas move stock between main and the market tote,
+    // conserving the total. Positive = main -> market ("bring to market" /
+    // "restock the tote"); negative = market -> main ("return from market").
+    const hasMarketTransfer = body.marketTransferKitsDelta !== undefined ||
+                              body.marketTransferCanvasDelta !== undefined;
+
     const hasDeltaUpdates = body.canvasPrintedDelta !== undefined ||
                             body.kitsReadyDelta !== undefined ||
-                            body.canvasPrintedMaddieDelta !== undefined;
+                            body.canvasPrintedMaddieDelta !== undefined ||
+                            hasMarketTransfer;
 
     if (hasDeltaUpdates) {
       // Use transaction for atomic delta updates with floor check
@@ -358,11 +365,41 @@ export async function PATCH(
         // First, get current values to check if delta would go negative
         const current = await tx.design.findUnique({
           where: { id },
-          select: { canvasPrinted: true, kitsReady: true, canvasPrintedMaddie: true },
+          select: {
+            canvasPrinted: true,
+            kitsReady: true,
+            canvasPrintedMaddie: true,
+            marketKitsReady: true,
+            marketCanvasPrinted: true,
+          },
         });
 
         if (!current) {
           throw new Error("Design not found");
+        }
+
+        // Market transfers: clamp the moved quantity so neither side goes below 0.
+        if (body.marketTransferKitsDelta !== undefined) {
+          const requested = Math.trunc(body.marketTransferKitsDelta);
+          // moving to market is limited by main stock; moving back is limited by market stock
+          const moved = requested >= 0
+            ? Math.min(requested, current.kitsReady)
+            : -Math.min(-requested, current.marketKitsReady);
+          if (moved !== 0) {
+            data.kitsReady = { increment: -moved };
+            data.marketKitsReady = { increment: moved };
+          }
+        }
+
+        if (body.marketTransferCanvasDelta !== undefined) {
+          const requested = Math.trunc(body.marketTransferCanvasDelta);
+          const moved = requested >= 0
+            ? Math.min(requested, current.canvasPrinted)
+            : -Math.min(-requested, current.marketCanvasPrinted);
+          if (moved !== 0) {
+            data.canvasPrinted = { increment: -moved };
+            data.marketCanvasPrinted = { increment: moved };
+          }
         }
 
         // Calculate safe deltas (prevent going below 0)
