@@ -1646,6 +1646,10 @@ export default function InventoryPage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                   </svg>
                                 </button>
+                                <p className="text-xs mt-0.5">
+                                  <span className="text-slate-300 font-semibold">{design.kitsReady + design.marketKitsReady} total</span>
+                                  <span className="text-slate-500"> ({design.kitsReady} online · <span className="text-emerald-400">{design.marketKitsReady} market</span>)</span>
+                                </p>
                               </div>
 
                               {/* Kits Ready control (online/storage stock) */}
@@ -2091,6 +2095,10 @@ export default function InventoryPage() {
                             <p className="text-slate-400 text-xs md:text-sm">
                               {design.widthInches}&quot; × {design.heightInches}&quot;
                             </p>
+                            <p className="text-xs mt-0.5">
+                              <span className="text-slate-300 font-semibold">{design.canvasPrinted + design.marketCanvasPrinted + (design.canvasPrintedMaddie || 0)} total</span>
+                              <span className="text-slate-500"> ({design.canvasPrinted} here · <span className="text-emerald-400">{design.marketCanvasPrinted} market</span>{(design.canvasPrintedMaddie || 0) > 0 ? <> · <span className="text-amber-400">{design.canvasPrintedMaddie} Maddie</span></> : null})</span>
+                            </p>
                           </div>
 
                           {/* Canvases controls - Main (Here) */}
@@ -2324,6 +2332,10 @@ export default function InventoryPage() {
                         <p className="text-white font-medium truncate">{supply.name}</p>
                         {supply.sku && <p className="text-xs text-slate-500">SKU: {supply.sku}</p>}
                         {supply.description && <p className="text-xs text-slate-400 truncate">{supply.description}</p>}
+                        <p className="text-xs mt-0.5">
+                          <span className="text-slate-300 font-semibold">{supply.quantity + supply.marketQuantity} total</span>
+                          <span className="text-slate-500"> ({supply.quantity} online · <span className="text-emerald-400">{supply.marketQuantity} market</span>)</span>
+                        </p>
                       </div>
                       {/* Online (storage) quantity */}
                       <div className="flex flex-col items-center gap-1">
