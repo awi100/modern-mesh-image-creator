@@ -190,8 +190,9 @@ export default function OrdersPage() {
   const handleMeshFilterChange = (f: MeshFilter) => {
     setMeshFilter(f);
     if (typeof window !== "undefined") sessionStorage.setItem("ordersMeshFilter", f);
-    // Reset kit data so it refetches with new filter
+    // Reset cached data so it refetches with the new filter
     setKitData(new Map());
+    setColorUsage(new Map());
   };
   const [updating, setUpdating] = useState<string | null>(null); // Track which design is being updated
   const [fulfilling, setFulfilling] = useState<string | null>(null); // Track which order is being fulfilled
@@ -371,13 +372,14 @@ export default function OrdersPage() {
       console.error("Failed to fetch kit data:", err);
     }
     setLoadingKits(false);
-  }, [kitData.size]);
+  }, [kitData.size, meshFilter]);
 
   // Fetch color usage data for showing which designs use each color
   const fetchColorUsage = useCallback(async () => {
     if (colorUsage.size > 0) return; // Already loaded
     try {
-      const res = await fetch("/api/colors/usage");
+      const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
+      const res = await fetch(`/api/colors/usage${meshParam}`);
       if (res.ok) {
         const data: ColorUsage[] = await res.json();
         const usageMap = new Map<string, ColorDesignUsage[]>();
@@ -389,7 +391,7 @@ export default function OrdersPage() {
     } catch (err) {
       console.error("Failed to fetch color usage:", err);
     }
-  }, [colorUsage.size]);
+  }, [colorUsage.size, meshFilter]);
 
   // Toggle expanded kit view
   const toggleKitExpanded = useCallback((designId: string) => {

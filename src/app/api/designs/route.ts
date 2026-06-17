@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 
 // Recursively get all descendant folder IDs
@@ -77,7 +78,9 @@ export async function GET(request: NextRequest) {
 
     const meshCount = searchParams.get("meshCount");
     if (meshCount) {
-      where.meshCount = parseInt(meshCount, 10);
+      // Use the shared mesh filter so "order14"/"order13"/"order" views work
+      // the same here as in /api/kits, /api/colors/usage, etc.
+      Object.assign(where, meshCountWhere(meshCount));
     }
 
     const designs = await prisma.design.findMany({
