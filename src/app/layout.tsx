@@ -5,6 +5,7 @@ import { SWRProvider } from "@/lib/swr-config";
 import PWAProvider from "@/components/PWAProvider";
 import { ToastProvider } from "@/components/Toast";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import SessionExpiryHandler from "@/components/SessionExpiryHandler";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -84,6 +85,7 @@ export default function RootLayout({
           <ToastProvider>
             <SWRProvider>
               <PWAProvider>{children}</PWAProvider>
+              <SessionExpiryHandler />
             </SWRProvider>
           </ToastProvider>
         </ThemeProvider>
