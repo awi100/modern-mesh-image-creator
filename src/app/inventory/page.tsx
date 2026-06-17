@@ -144,9 +144,45 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
+// Sort-by-total-inventory control shared by the kits, canvases, and supplies tabs.
+function SortControls({
+  value,
+  onChange,
+}: {
+  value: "default" | "high" | "low";
+  onChange: (v: "default" | "high" | "low") => void;
+}) {
+  const options: { key: "default" | "high" | "low"; label: string }[] = [
+    { key: "default", label: "Default" },
+    { key: "high", label: "Most stock" },
+    { key: "low", label: "Least stock" },
+  ];
+  return (
+    <div className="inline-flex items-center gap-1 rounded-lg bg-slate-800 border border-slate-700 p-1">
+      <span className="px-2 text-xs uppercase tracking-wider text-slate-500 hidden sm:inline">Sort</span>
+      {options.map((o) => (
+        <button
+          key={o.key}
+          onClick={() => onChange(o.key)}
+          className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+            value === o.key
+              ? "bg-rose-900 text-white"
+              : "text-slate-300 hover:bg-slate-700"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function InventoryPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("threads");
+  // Sort by total inventory count on the kits/canvases/supplies tabs.
+  // "default" keeps the collection grouping / original order.
+  const [sortMode, setSortMode] = useState<"default" | "high" | "low">("default");
   const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
     if (typeof window !== "undefined") {
       return (sessionStorage.getItem("inventoryMeshFilter") as MeshFilter) || "order";
@@ -946,6 +982,26 @@ export default function InventoryPage() {
 
   // Group designs by collection (folder)
   const designsByCollection = useMemo(() => {
+    // When sorting by inventory count, collapse the folder grouping into one
+    // list ordered by TOTAL inventory (online + market, plus Maddie's for
+    // canvases). The active tab decides which total to sort by.
+    if (sortMode !== "default") {
+      const totalFor = (d: Design) =>
+        activeTab === "canvases"
+          ? d.canvasPrinted + d.marketCanvasPrinted + (d.canvasPrintedMaddie || 0)
+          : d.kitsReady + d.marketKitsReady;
+      const sorted = [...filteredDesigns].sort((a, b) =>
+        sortMode === "high" ? totalFor(b) - totalFor(a) : totalFor(a) - totalFor(b)
+      );
+      return [
+        {
+          folderId: "__sorted__",
+          folderName: sortMode === "high" ? "Sorted: most stock first" : "Sorted: least stock first",
+          designs: sorted,
+        },
+      ];
+    }
+
     const groups: { folderId: string | null; folderName: string; designs: Design[] }[] = [];
     const folderMap = new Map<string | null, Design[]>();
 
@@ -977,7 +1033,16 @@ export default function InventoryPage() {
     });
 
     return groups;
-  }, [filteredDesigns]);
+  }, [filteredDesigns, sortMode, activeTab]);
+
+  // Supplies sorted by total inventory (online + market) when a count sort is on.
+  const sortedSupplies = useMemo(() => {
+    if (sortMode === "default") return supplies;
+    const totalFor = (s: Supply) => s.quantity + s.marketQuantity;
+    return [...supplies].sort((a, b) =>
+      sortMode === "high" ? totalFor(b) - totalFor(a) : totalFor(a) - totalFor(b)
+    );
+  }, [supplies, sortMode]);
 
   return (
     <div className="min-h-screen bg-slate-900 overflow-x-hidden">
@@ -1566,14 +1631,15 @@ export default function InventoryPage() {
             </div>
 
             {/* Search */}
-            <div className="mb-6">
+            <div className="mb-6 flex flex-wrap items-center gap-3">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search designs..."
-                className="w-full max-w-md px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
+                className="flex-1 min-w-[200px] max-w-md px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
+              <SortControls value={sortMode} onChange={setSortMode} />
             </div>
 
             {/* Designs list grouped by collection */}
@@ -2028,14 +2094,15 @@ export default function InventoryPage() {
             </div>
 
             {/* Search */}
-            <div className="mb-6">
+            <div className="mb-6 flex flex-wrap items-center gap-3">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search designs..."
-                className="w-full max-w-md px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
+                className="flex-1 min-w-[200px] max-w-md px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
+              <SortControls value={sortMode} onChange={setSortMode} />
             </div>
 
             {/* Designs list grouped by collection */}
@@ -2293,11 +2360,14 @@ export default function InventoryPage() {
               </button>
             </div>
 
-            {/* Info box */}
-            <div className="p-4 bg-slate-800 border border-slate-700 rounded-lg mb-4">
-              <p className="text-sm text-slate-400">
-                Supply names must match Shopify product titles exactly for automatic order matching.
-              </p>
+            {/* Info box + sort */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="flex-1 min-w-[200px] p-4 bg-slate-800 border border-slate-700 rounded-lg">
+                <p className="text-sm text-slate-400">
+                  Supply names must match Shopify product titles exactly for automatic order matching.
+                </p>
+              </div>
+              <SortControls value={sortMode} onChange={setSortMode} />
             </div>
 
             {suppliesLoading ? (
@@ -2321,7 +2391,7 @@ export default function InventoryPage() {
             ) : (
               <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
                 <div className="divide-y divide-slate-700/50">
-                  {supplies.map((supply) => (
+                  {sortedSupplies.map((supply) => (
                     <div key={supply.id} className="p-4 flex items-center gap-4">
                       <div className="w-12 h-12 rounded-lg bg-purple-900/30 border border-purple-700/50 flex items-center justify-center flex-shrink-0">
                         <svg className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
