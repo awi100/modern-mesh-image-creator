@@ -41,6 +41,32 @@ export default function ColorSwapPage() {
   const [originalGrid, setOriginalGrid] = useState<(string | null)[][] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState(false);
+
+  // Persist print color overrides. Returns true only if the server actually
+  // saved — previously the result was ignored, so a failed save (e.g. an
+  // expired session returning 401) still showed "Saved" and silently lost the
+  // adjustment. Now a failure surfaces clearly and "Saved" is never shown.
+  const persistOverrides = useCallback(async (newOverrides: Record<string, string>): Promise<boolean> => {
+    setSaving(true);
+    setSaveError(false);
+    try {
+      const res = await fetch(`/api/designs/${designId}/color-swap`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overrides: newOverrides }),
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      setLastSaved(new Date().toLocaleTimeString());
+      return true;
+    } catch (err) {
+      console.error("Error saving print colors:", err);
+      setSaveError(true);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [designId]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -91,11 +117,7 @@ export default function ColorSwapPage() {
 
       // Save defaults if they were just generated and none existed before
       if (!data.printColorOverrides && Object.keys(currentOverrides).length > 0) {
-        await fetch(`/api/designs/${designId}/color-swap`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ overrides: currentOverrides }),
-        });
+        await persistOverrides(currentOverrides);
       }
 
       // Fetch original design grid for comparison preview
@@ -111,28 +133,17 @@ export default function ColorSwapPage() {
       setError("Failed to load. Please try refreshing.");
     }
     setLoading(false);
-  }, [designId]);
+  }, [designId, persistOverrides]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // Auto-save overrides after slider changes (debounced)
   const saveOverrides = useCallback((newOverrides: Record<string, string>) => {
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveTimeout.current = setTimeout(async () => {
-      setSaving(true);
-      try {
-        await fetch(`/api/designs/${designId}/color-swap`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ overrides: newOverrides }),
-        });
-        setLastSaved(new Date().toLocaleTimeString());
-      } catch (err) {
-        console.error("Error saving:", err);
-      }
-      setSaving(false);
+    saveTimeout.current = setTimeout(() => {
+      persistOverrides(newOverrides);
     }, 500);
-  }, [designId]);
+  }, [persistOverrides]);
 
   const handleLightnessChange = (dmcNumber: string, newLightness: number) => {
     const color = colors.find(c => c.dmcNumber === dmcNumber);
@@ -160,17 +171,7 @@ export default function ColorSwapPage() {
   const handleResetAll = async () => {
     if (!confirm("Reset all colors to original? This removes all adjustments.")) return;
     setOverrides({});
-    setSaving(true);
-    try {
-      await fetch(`/api/designs/${designId}/color-swap`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ overrides: {} }),
-      });
-    } catch (err) {
-      console.error("Error resetting:", err);
-    }
-    setSaving(false);
+    await persistOverrides({});
   };
 
   const handleAutoAdjust = async () => {
@@ -182,17 +183,7 @@ export default function ColorSwapPage() {
       }
     }
     setOverrides(newOverrides);
-    setSaving(true);
-    try {
-      await fetch(`/api/designs/${designId}/color-swap`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ overrides: newOverrides }),
-      });
-    } catch (err) {
-      console.error("Error:", err);
-    }
-    setSaving(false);
+    await persistOverrides(newOverrides);
   };
 
   const handleExportPrintOrder = async () => {
@@ -297,6 +288,8 @@ export default function ColorSwapPage() {
           <div className="flex items-center gap-2">
             {saving ? (
               <span className="text-xs text-amber-400">Saving...</span>
+            ) : saveError ? (
+              <span className="text-xs font-medium text-red-400">Not saved — check connection / log in</span>
             ) : lastSaved ? (
               <span className="text-xs text-slate-500">Saved {lastSaved}</span>
             ) : null}
