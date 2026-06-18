@@ -24,6 +24,7 @@ interface KitSummary {
   totalColors: number;
   totalSkeins: number;
   kitsReady: number;
+  marketKitsReady: number;
   kitContents: KitContent[];
   folder: { id: string; name: string } | null;
 }
@@ -159,6 +160,10 @@ export default function KitComparePage() {
             const pairedInCollection = pairs.filter(p => p.kit14 && p.kit18).length;
             const ready14InCollection = pairs.reduce((sum, p) => sum + (p.kit14?.kitsReady || 0), 0);
             const ready18InCollection = pairs.reduce((sum, p) => sum + (p.kit18?.kitsReady || 0), 0);
+            // Market-tote stock shown separately so the headline number still
+            // matches the per-design (online) counters below.
+            const market14InCollection = pairs.reduce((sum, p) => sum + (p.kit14?.marketKitsReady || 0), 0);
+            const market18InCollection = pairs.reduce((sum, p) => sum + (p.kit18?.marketKitsReady || 0), 0);
 
             return (
               <div key={folderName} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
@@ -185,9 +190,11 @@ export default function KitComparePage() {
                   <div className="flex gap-2 text-xs">
                     <span className="px-2 py-0.5 rounded bg-zinc-700 text-zinc-300">
                       14ct: {ready14InCollection} ready
+                      {market14InCollection > 0 && <span className="ml-1 text-emerald-400" title="in the market tote">+{market14InCollection} mkt</span>}
                     </span>
                     <span className="px-2 py-0.5 rounded bg-amber-900/60 text-amber-300">
                       18ct: {ready18InCollection} ready
+                      {market18InCollection > 0 && <span className="ml-1 text-emerald-400" title="in the market tote">+{market18InCollection} mkt</span>}
                     </span>
                   </div>
                 </button>

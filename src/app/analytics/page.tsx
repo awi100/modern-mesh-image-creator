@@ -16,6 +16,8 @@ interface DesignAnalytics {
   kitAttachmentRate: number;
   kitsReady: number;
   canvasPrinted: number;
+  marketKitsReady: number;
+  marketCanvasPrinted: number;
   velocityCategory: string | null;
   stockAlert: "critical" | "low" | "ok" | null;
 }
@@ -69,6 +71,8 @@ interface StockAlert {
   salesLast30Days: number;
   kitsReady: number;
   canvasPrinted: number;
+  marketKitsReady: number;
+  marketCanvasPrinted: number;
   daysOfStock: number;
   alertLevel: "critical" | "low";
 }
@@ -188,7 +192,7 @@ export default function AnalyticsPage() {
         case "units": aVal = a.totalUnitsSold; bVal = b.totalUnitsSold; break;
         case "kits": aVal = a.totalKitsSold; bVal = b.totalKitsSold; break;
         case "kitRate": aVal = a.kitAttachmentRate; bVal = b.kitAttachmentRate; break;
-        case "stock": aVal = a.kitsReady + a.canvasPrinted; bVal = b.kitsReady + b.canvasPrinted; break;
+        case "stock": aVal = a.kitsReady + a.canvasPrinted + a.marketKitsReady + a.marketCanvasPrinted; bVal = b.kitsReady + b.canvasPrinted + b.marketKitsReady + b.marketCanvasPrinted; break;
         default: aVal = a.totalUnitsSold; bVal = b.totalUnitsSold;
       }
       return sortDir === "desc" ? bVal - aVal : aVal - bVal;
@@ -398,7 +402,10 @@ export default function AnalyticsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm truncate">{alert.designName}</p>
                         <p className="text-xs text-slate-400">
-                          {alert.salesLast30Days}/mo · {alert.kitsReady + alert.canvasPrinted} in stock
+                          {alert.salesLast30Days}/mo · {alert.kitsReady + alert.canvasPrinted + alert.marketKitsReady + alert.marketCanvasPrinted} in stock
+                          {(alert.marketKitsReady + alert.marketCanvasPrinted) > 0 && (
+                            <span className="text-emerald-400" title="includes market-tote stock"> (incl. {alert.marketKitsReady + alert.marketCanvasPrinted} market)</span>
+                          )}
                         </p>
                       </div>
                       <div className="text-right">
@@ -603,6 +610,11 @@ export default function AnalyticsPage() {
                       <td className="p-3 text-right">
                         <span className="text-slate-400 text-sm">{design.kitsReady} kits</span>
                         <span className="text-slate-600 text-sm"> / {design.canvasPrinted} canvas</span>
+                        {(design.marketKitsReady + design.marketCanvasPrinted) > 0 && (
+                          <span className="block text-[10px] text-emerald-400" title="in the market tote">
+                            +{design.marketKitsReady} kit / {design.marketCanvasPrinted} canvas market
+                          </span>
+                        )}
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">

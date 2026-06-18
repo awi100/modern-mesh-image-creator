@@ -41,6 +41,8 @@ interface Design {
   tags: Tag[];
   kitsReady: number;
   canvasPrinted: number;
+  marketKitsReady: number;
+  marketCanvasPrinted: number;
   kitColorCount: number;
   kitSkeinCount: number;
   colorsUsed: string | null;
@@ -2112,9 +2114,15 @@ export default function HomePage() {
                                 onClick={(e) => { e.stopPropagation(); handleUpdateCanvasPrinted(design.id, 1); }}
                                 className="hover:text-blue-200"
                               >+</button>
+                              {design.marketCanvasPrinted > 0 && (
+                                <span className="text-emerald-400" title="canvases in the market tote">+{design.marketCanvasPrinted} mkt</span>
+                              )}
                             </span>
                             <span className="px-1.5 py-0.5 bg-emerald-900/40 text-emerald-400 rounded">
                               {design.kitsReady} kits ready
+                              {design.marketKitsReady > 0 && (
+                                <span className="ml-1 text-emerald-300/80" title="kits in the market tote">+{design.marketKitsReady} mkt</span>
+                              )}
                             </span>
                           </div>
 

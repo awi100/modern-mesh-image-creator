@@ -11,6 +11,7 @@ interface Supply {
   description: string | null;
   imageUrl: string | null;
   quantity: number;
+  marketQuantity: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -367,6 +368,11 @@ export default function SuppliesPage() {
                     {supply.description && (
                       <p className="text-xs text-slate-400 truncate">
                         {supply.description}
+                      </p>
+                    )}
+                    {supply.marketQuantity > 0 && (
+                      <p className="text-[10px] text-emerald-400" title="in the craft-market tote (not available online)">
+                        {supply.quantity} online · +{supply.marketQuantity} market · {supply.quantity + supply.marketQuantity} total
                       </p>
                     )}
                   </div>

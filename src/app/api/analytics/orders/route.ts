@@ -13,6 +13,8 @@ interface DesignAnalytics {
   kitAttachmentRate: number;
   kitsReady: number;
   canvasPrinted: number;
+  marketKitsReady: number;
+  marketCanvasPrinted: number;
   velocityCategory: string | null;
   stockAlert: "critical" | "low" | "ok" | null; // New: alert if fast seller with low stock
 }
@@ -88,6 +90,8 @@ interface OrderAnalytics {
     salesLast30Days: number;
     kitsReady: number;
     canvasPrinted: number;
+    marketKitsReady: number;
+    marketCanvasPrinted: number;
     daysOfStock: number;
     alertLevel: "critical" | "low";
   }[];
@@ -244,6 +248,8 @@ export async function GET(request: NextRequest) {
         previewImageUrl: true,
         kitsReady: true,
         canvasPrinted: true,
+        marketKitsReady: true,
+        marketCanvasPrinted: true,
         totalSold: true,
         totalKitsSold: true,
         velocityCategory: true,
@@ -300,7 +306,9 @@ export async function GET(request: NextRequest) {
     const designPerformance: DesignAnalytics[] = designs
       .map((design) => {
         const stats = current.designStats.get(design.id) || { units: 0, kitUnits: 0 };
-        const totalStock = design.kitsReady + design.canvasPrinted;
+        // Sales rate counts ALL sales (online + POS), so days-of-stock must
+        // count ALL stock (online + market tote) or it under-reports.
+        const totalStock = design.kitsReady + design.canvasPrinted + design.marketKitsReady + design.marketCanvasPrinted;
         const salesRate = stats.units / (days / 30); // monthly rate
 
         let stockAlert: "critical" | "low" | "ok" | null = null;
@@ -322,6 +330,8 @@ export async function GET(request: NextRequest) {
             : 0,
           kitsReady: design.kitsReady,
           canvasPrinted: design.canvasPrinted,
+          marketKitsReady: design.marketKitsReady,
+          marketCanvasPrinted: design.marketCanvasPrinted,
           velocityCategory: design.velocityCategory,
           stockAlert,
         };
@@ -333,7 +343,8 @@ export async function GET(request: NextRequest) {
     const stockAlerts = designs
       .map((design) => {
         const stats = current.designStats.get(design.id) || { units: 0, kitUnits: 0 };
-        const totalStock = design.kitsReady + design.canvasPrinted;
+        // Include market-tote stock — sales rate below counts POS sales too.
+        const totalStock = design.kitsReady + design.canvasPrinted + design.marketKitsReady + design.marketCanvasPrinted;
         const salesLast30Days = days === 30 ? stats.units : Math.round(stats.units / (days / 30));
         const dailyRate = salesLast30Days / 30;
         const daysOfStock = dailyRate > 0 ? Math.round(totalStock / dailyRate) : Infinity;
@@ -345,6 +356,8 @@ export async function GET(request: NextRequest) {
           salesLast30Days,
           kitsReady: design.kitsReady,
           canvasPrinted: design.canvasPrinted,
+          marketKitsReady: design.marketKitsReady,
+          marketCanvasPrinted: design.marketCanvasPrinted,
           daysOfStock: daysOfStock === Infinity ? 999 : daysOfStock,
           alertLevel: daysOfStock < 14 ? "critical" as const : "low" as const,
         };
