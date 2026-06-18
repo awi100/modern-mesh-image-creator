@@ -34,6 +34,8 @@ export async function GET(request: NextRequest) {
         pixelData: true,
         kitsReady: true,
         canvasPrinted: true,
+        marketKitsReady: true,
+        marketCanvasPrinted: true,
         backupColors: true,
         folder: {
           select: {
@@ -200,6 +202,8 @@ export async function GET(request: NextRequest) {
           bufferPercent: design.bufferPercent,
           kitsReady: design.kitsReady ?? 0,
           canvasPrinted: design.canvasPrinted ?? 0,
+          marketKitsReady: design.marketKitsReady ?? 0,
+          marketCanvasPrinted: design.marketCanvasPrinted ?? 0,
           totalColors: kitContents.length,
           totalSkeins,
           allInStock: kitContents.every((c) => c.inStock),

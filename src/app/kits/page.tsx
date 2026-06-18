@@ -49,6 +49,8 @@ interface KitSummary {
   bufferPercent: number;
   kitsReady: number;
   canvasPrinted: number;
+  marketKitsReady: number;
+  marketCanvasPrinted: number;
   totalColors: number;
   totalSkeins: number;
   allInStock: boolean;
@@ -687,7 +689,12 @@ export default function KitsPage() {
                                   }}
                                   className="w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-lg text-center font-bold text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                                 />
-                                <p className="text-xs text-slate-400">Ready</p>
+                                <p className="text-xs text-slate-400">{kit.marketKitsReady > 0 ? "Here (online)" : "Ready"}</p>
+                                {kit.marketKitsReady > 0 && (
+                                  <p className="text-[10px] text-emerald-400 whitespace-nowrap" title="Kits in the craft-market tote (not available online)">
+                                    +{kit.marketKitsReady} market · {kit.kitsReady + kit.marketKitsReady} total
+                                  </p>
+                                )}
                               </div>
                               <button
                                 onClick={() => handleUpdateKitsReady(kit.designId, 1)}
