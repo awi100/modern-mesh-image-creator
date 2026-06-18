@@ -60,7 +60,7 @@ interface ColorUsage {
   designs: ColorUsageDesign[];
 }
 
-type TabType = "threads" | "kits" | "canvases" | "supplies" | "bobbins" | "misprints";
+type TabType = "threads" | "kits" | "canvases" | "market" | "supplies" | "bobbins" | "misprints";
 
 interface Supply {
   id: string;
@@ -227,6 +227,7 @@ export default function InventoryPage() {
   const [pendingCanvasesMaddie, setPendingCanvasesMaddie] = useState<Record<string, string>>({});
   const [pendingMarketKits, setPendingMarketKits] = useState<Record<string, string>>({});
   const [pendingMarketCanvases, setPendingMarketCanvases] = useState<Record<string, string>>({});
+  const [matchingAllMarket, setMatchingAllMarket] = useState(false);
   const [pendingMisprints, setPendingMisprints] = useState<Record<string, string>>({});
   const [pendingSupplyQuantity, setPendingSupplyQuantity] = useState<Record<string, string>>({});
   const [pendingSupplyMarket, setPendingSupplyMarket] = useState<Record<string, string>>({});
@@ -862,6 +863,41 @@ export default function InventoryPage() {
     else clearPending();
   };
 
+  // "Match kits to canvases" for one design: bring (or return) kits so the
+  // market kit count equals the market canvas count — i.e. for every canvas
+  // in the tote there's a matching kit. Moves the difference from/to online.
+  const handleMatchKitsToCanvas = async (id: string) => {
+    const design = designs.find((d) => d.id === id);
+    if (!design) return;
+    const delta = design.marketCanvasPrinted - design.marketKitsReady;
+    if (delta !== 0) await handleMarketTransfer(id, "kits", delta);
+  };
+
+  // Same, across every (filtered) design at once. Fires the transfers then
+  // resyncs from the server to avoid stale-state races in the loop.
+  const handleMatchAllKitsToCanvas = async () => {
+    const work = filteredDesigns
+      .map((d) => ({ id: d.id, delta: d.marketCanvasPrinted - d.marketKitsReady }))
+      .filter((x) => x.delta !== 0);
+    if (work.length === 0) return;
+    setMatchingAllMarket(true);
+    try {
+      await Promise.all(
+        work.map((x) =>
+          fetch(`/api/designs/${x.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ marketTransferKitsDelta: x.delta }),
+          })
+        )
+      );
+    } catch (e) {
+      console.error("Error matching all kits to canvases:", e);
+    }
+    await fetchDesigns();
+    setMatchingAllMarket(false);
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Remove this thread from inventory?")) return;
     try {
@@ -1035,6 +1071,22 @@ export default function InventoryPage() {
     return groups;
   }, [filteredDesigns, sortMode, activeTab]);
 
+  // Designs for the Market view, market-allocated items first.
+  const marketDesigns = useMemo(() => {
+    return [...filteredDesigns].sort((a, b) => {
+      const am = a.marketCanvasPrinted + a.marketKitsReady;
+      const bm = b.marketCanvasPrinted + b.marketKitsReady;
+      if (bm !== am) return bm - am;
+      return a.name.localeCompare(b.name);
+    });
+  }, [filteredDesigns]);
+
+  // Designs whose market kit count doesn't yet match their market canvas count.
+  const marketUnmatchedCount = useMemo(
+    () => filteredDesigns.filter((d) => d.marketCanvasPrinted !== d.marketKitsReady).length,
+    [filteredDesigns]
+  );
+
   // Supplies sorted by total inventory (online + market) when a count sort is on.
   const sortedSupplies = useMemo(() => {
     if (sortMode === "default") return supplies;
@@ -1153,6 +1205,20 @@ export default function InventoryPage() {
             >
               Canvases
               <span className="ml-1 text-xs opacity-75">({totalCanvasesPrinted})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("market")}
+              className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+                activeTab === "market"
+                  ? "bg-emerald-800 text-white"
+                  : "text-emerald-400 hover:text-white hover:bg-slate-700"
+              }`}
+            >
+              <svg className="w-4 h-4 flex-shrink-0 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              Market
+              <span className="ml-1 text-xs opacity-75">({marketKitsReady + marketCanvases})</span>
             </button>
             <button
               onClick={() => setActiveTab("supplies")}
@@ -2335,6 +2401,147 @@ export default function InventoryPage() {
           </>
         )}
 
+
+        {/* Market Tab — kits & canvases allocated to the craft-market tote */}
+        {activeTab === "market" && (
+          <>
+            {/* Stats + match all */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="grid grid-cols-3 gap-3 flex-1 min-w-[280px]">
+                <div className="bg-slate-800 rounded-lg p-3 border border-emerald-800/60">
+                  <p className="text-xs text-emerald-400 uppercase tracking-wider">Market Canvases</p>
+                  <p className="text-xl font-bold text-emerald-300">{marketCanvases}</p>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3 border border-emerald-800/60">
+                  <p className="text-xs text-emerald-400 uppercase tracking-wider">Market Kits</p>
+                  <p className="text-xl font-bold text-emerald-300">{marketKitsReady}</p>
+                </div>
+                <div className={`rounded-lg p-3 border ${marketUnmatchedCount > 0 ? "bg-amber-900/30 border-amber-700" : "bg-slate-800 border-slate-700"}`}>
+                  <p className={`text-xs uppercase tracking-wider ${marketUnmatchedCount > 0 ? "text-amber-400" : "text-slate-400"}`}>Unmatched</p>
+                  <p className={`text-xl font-bold ${marketUnmatchedCount > 0 ? "text-amber-300" : "text-white"}`}>{marketUnmatchedCount}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleMatchAllKitsToCanvas}
+                disabled={matchingAllMarket || marketUnmatchedCount === 0}
+                className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium flex items-center gap-2"
+                title="Bring a matching kit to the tote for every market canvas, across all designs"
+              >
+                {matchingAllMarket ? (
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                )}
+                Match all kits to canvases
+              </button>
+            </div>
+
+            <div className="p-3 bg-slate-800 border border-slate-700 rounded-lg mb-4">
+              <p className="text-sm text-slate-400">
+                Stock allocated to the craft-market tote. POS sales deduct from here. Adjust counts to load the tote (moves from your online stock), then <span className="text-emerald-400">Match kits to canvases</span> so every canvas in the tote has a kit to go with it.
+              </p>
+            </div>
+
+            {/* Search */}
+            <div className="mb-6">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search designs..."
+                className="w-full max-w-md px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              />
+            </div>
+
+            {marketDesigns.length === 0 ? (
+              <div className="text-center py-12"><p className="text-slate-400">No designs found</p></div>
+            ) : (
+              <div className="space-y-2">
+                {marketDesigns.map((design) => {
+                  const matched = design.marketCanvasPrinted === design.marketKitsReady;
+                  return (
+                    <div key={design.id} className="bg-slate-800 rounded-xl border border-slate-700 p-3 md:p-4 flex flex-wrap items-center gap-3 md:gap-4">
+                      <Link href={`/design/${design.id}/info`} className="flex-shrink-0">
+                        {design.previewImageUrl ? (
+                          <img src={design.previewImageUrl} alt={design.name} className="w-12 h-12 md:w-14 md:h-14 object-cover rounded-lg border border-slate-600" />
+                        ) : (
+                          <div className="w-12 h-12 md:w-14 md:h-14 bg-slate-700 rounded-lg border border-slate-600" />
+                        )}
+                      </Link>
+                      <div className="flex-1 min-w-[140px]">
+                        <Link href={`/design/${design.id}/info`} className="text-white font-medium hover:text-emerald-400 truncate block text-sm md:text-base">
+                          {design.name}
+                        </Link>
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${meshBadgeClassLight(design.meshCount)}`}>{design.meshCount}ct</span>
+                      </div>
+
+                      {/* Market canvas control */}
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] uppercase tracking-wider text-slate-400">Canvas</span>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => handleMarketTransfer(design.id, "canvas", -1)} disabled={design.marketCanvasPrinted <= 0} className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+                          </button>
+                          <input
+                            type="number" min="0"
+                            value={pendingMarketCanvases[design.id] ?? design.marketCanvasPrinted}
+                            onChange={(e) => setPendingMarketCanvases((prev) => ({ ...prev, [design.id]: e.target.value }))}
+                            onBlur={() => { const v = pendingMarketCanvases[design.id]; if (v !== undefined && v !== "") handleSetMarketValue(design.id, "canvas", Number(v)); }}
+                            onKeyDown={(e) => { if (e.key === "Enter") { const v = pendingMarketCanvases[design.id]; if (v !== undefined && v !== "") handleSetMarketValue(design.id, "canvas", Number(v)); (e.target as HTMLInputElement).blur(); } }}
+                            className="w-14 px-1 py-1 bg-slate-700 border border-emerald-700/60 rounded text-emerald-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                          />
+                          <button onClick={() => handleMarketTransfer(design.id, "canvas", 1)} disabled={design.canvasPrinted <= 0} className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30" title={`${design.canvasPrinted} available online`}>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Market kit control */}
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] uppercase tracking-wider text-slate-400">Kit</span>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => handleMarketTransfer(design.id, "kits", -1)} disabled={design.marketKitsReady <= 0} className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+                          </button>
+                          <input
+                            type="number" min="0"
+                            value={pendingMarketKits[design.id] ?? design.marketKitsReady}
+                            onChange={(e) => setPendingMarketKits((prev) => ({ ...prev, [design.id]: e.target.value }))}
+                            onBlur={() => { const v = pendingMarketKits[design.id]; if (v !== undefined && v !== "") handleSetMarketValue(design.id, "kits", Number(v)); }}
+                            onKeyDown={(e) => { if (e.key === "Enter") { const v = pendingMarketKits[design.id]; if (v !== undefined && v !== "") handleSetMarketValue(design.id, "kits", Number(v)); (e.target as HTMLInputElement).blur(); } }}
+                            className="w-14 px-1 py-1 bg-slate-700 border border-emerald-700/60 rounded text-emerald-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                          />
+                          <button onClick={() => handleMarketTransfer(design.id, "kits", 1)} disabled={design.kitsReady <= 0} className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30" title={`${design.kitsReady} available online`}>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Match button */}
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] uppercase tracking-wider text-transparent select-none">.</span>
+                        {matched ? (
+                          <span className="px-2.5 py-1.5 text-xs text-emerald-400 flex items-center gap-1" title="Kit count matches canvas count">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                            Matched
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleMatchKitsToCanvas(design.id)}
+                            className="px-2.5 py-1.5 text-xs font-medium bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg whitespace-nowrap"
+                            title={`Set market kits to ${design.marketCanvasPrinted} to match canvases`}
+                          >
+                            Match kits → {design.marketCanvasPrinted}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
         {/* Supplies Tab */}
         {activeTab === "supplies" && (
