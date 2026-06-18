@@ -652,60 +652,68 @@ export default function KitsPage() {
                             }`}>
                               {kit.allInStock ? "In Stock" : "Out of Stock"}
                             </div>
-                            {/* Kits ready with editable input */}
-                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => handleUpdateKitsReady(kit.designId, -1)}
-                                disabled={updatingKitsReady === kit.designId || kit.kitsReady <= 0}
-                                className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                title="Remove 1 kit"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                </svg>
-                              </button>
-                              <div className="text-center">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={pendingKitsReady[kit.designId] ?? kit.kitsReady}
-                                  onChange={(e) => {
-                                    setPendingKitsReady((prev) => ({ ...prev, [kit.designId]: e.target.value }));
-                                  }}
-                                  onBlur={() => {
-                                    const val = pendingKitsReady[kit.designId];
-                                    if (val !== undefined) {
-                                      handleSetKitsReady(kit.designId, Number(val));
-                                    }
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
+                            {/* Counts: Here (online, editable) · Market (tote) · Total */}
+                            <div className="flex items-center gap-2 md:gap-3" onClick={(e) => e.stopPropagation()}>
+                              {/* Here — online stock, editable */}
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleUpdateKitsReady(kit.designId, -1)}
+                                  disabled={updatingKitsReady === kit.designId || kit.kitsReady <= 0}
+                                  className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title="Remove 1 kit (online)"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                  </svg>
+                                </button>
+                                <div className="text-center">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={pendingKitsReady[kit.designId] ?? kit.kitsReady}
+                                    onChange={(e) => {
+                                      setPendingKitsReady((prev) => ({ ...prev, [kit.designId]: e.target.value }));
+                                    }}
+                                    onBlur={() => {
                                       const val = pendingKitsReady[kit.designId];
                                       if (val !== undefined) {
                                         handleSetKitsReady(kit.designId, Number(val));
                                       }
-                                      (e.target as HTMLInputElement).blur();
-                                    }
-                                  }}
-                                  className="w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-lg text-center font-bold text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                                />
-                                <p className="text-xs text-slate-400">{kit.marketKitsReady > 0 ? "Here (online)" : "Ready"}</p>
-                                {kit.marketKitsReady > 0 && (
-                                  <p className="text-[10px] text-emerald-400 whitespace-nowrap" title="Kits in the craft-market tote (not available online)">
-                                    +{kit.marketKitsReady} market · {kit.kitsReady + kit.marketKitsReady} total
-                                  </p>
-                                )}
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        const val = pendingKitsReady[kit.designId];
+                                        if (val !== undefined) {
+                                          handleSetKitsReady(kit.designId, Number(val));
+                                        }
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                    className="w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                                  />
+                                  <p className="text-xs text-slate-400">Here</p>
+                                </div>
+                                <button
+                                  onClick={() => handleUpdateKitsReady(kit.designId, 1)}
+                                  disabled={updatingKitsReady === kit.designId}
+                                  className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title="Add 1 kit (online)"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                </button>
                               </div>
-                              <button
-                                onClick={() => handleUpdateKitsReady(kit.designId, 1)}
-                                disabled={updatingKitsReady === kit.designId}
-                                className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                title="Add 1 kit"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                              </button>
+                              {/* Market — tote stock (manage on the Market tab) */}
+                              <div className="text-center min-w-[2.5rem]" title="Kits in the craft-market tote — manage on Inventory → Market">
+                                <p className="text-lg font-bold text-emerald-400">{kit.marketKitsReady}</p>
+                                <p className="text-xs text-slate-400">Market</p>
+                              </div>
+                              {/* Total — here + market */}
+                              <div className="text-center min-w-[2.5rem] border-l border-slate-700 pl-2 md:pl-3">
+                                <p className="text-lg font-bold text-white">{kit.kitsReady + kit.marketKitsReady}</p>
+                                <p className="text-xs text-slate-400">Total</p>
+                              </div>
                             </div>
                           </div>
 
