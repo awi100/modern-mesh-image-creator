@@ -863,22 +863,35 @@ export default function InventoryPage() {
     else clearPending();
   };
 
-  // "Match kits to canvases" for one design: bring (or return) kits so the
-  // market kit count equals the market canvas count — i.e. for every canvas
-  // in the tote there's a matching kit. Moves the difference from/to online.
+  // "Match kits to canvases" for one design: set the MARKET kit count equal to
+  // the MARKET canvas count. Market-only — it never touches the at-home (online)
+  // kit count.
   const handleMatchKitsToCanvas = async (id: string) => {
     const design = designs.find((d) => d.id === id);
     if (!design) return;
-    const delta = design.marketCanvasPrinted - design.marketKitsReady;
-    if (delta !== 0) await handleMarketTransfer(id, "kits", delta);
+    const target = design.marketCanvasPrinted;
+    if (target === design.marketKitsReady) return;
+    // Optimistic update (market only)
+    setDesigns(designs.map((d) => (d.id === id ? { ...d, marketKitsReady: target } : d)));
+    try {
+      const res = await fetch(`/api/designs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ marketKitsReady: target }),
+      });
+      if (!res.ok) await fetchDesigns();
+    } catch (e) {
+      console.error("Error matching market kits to canvases:", e);
+      await fetchDesigns();
+    }
   };
 
-  // Same, across every (filtered) design at once. Fires the transfers then
-  // resyncs from the server to avoid stale-state races in the loop.
+  // Same, across every (filtered) design at once. Sets each design's market kit
+  // count to its market canvas count, then resyncs from the server.
   const handleMatchAllKitsToCanvas = async () => {
     const work = filteredDesigns
-      .map((d) => ({ id: d.id, delta: d.marketCanvasPrinted - d.marketKitsReady }))
-      .filter((x) => x.delta !== 0);
+      .filter((d) => d.marketCanvasPrinted !== d.marketKitsReady)
+      .map((d) => ({ id: d.id, target: d.marketCanvasPrinted }));
     if (work.length === 0) return;
     setMatchingAllMarket(true);
     try {
@@ -887,7 +900,7 @@ export default function InventoryPage() {
           fetch(`/api/designs/${x.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ marketTransferKitsDelta: x.delta }),
+            body: JSON.stringify({ marketKitsReady: x.target }),
           })
         )
       );

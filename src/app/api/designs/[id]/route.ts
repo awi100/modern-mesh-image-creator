@@ -346,6 +346,16 @@ export async function PATCH(
       data.canvasPrintedMaddie = Math.max(0, body.canvasPrintedMaddie);
     }
 
+    // Direct set of the market-tote counts (does NOT touch online stock).
+    // Used by "match kits to canvases", which adjusts the market count only.
+    if (body.marketKitsReady !== undefined) {
+      data.marketKitsReady = Math.max(0, body.marketKitsReady);
+    }
+
+    if (body.marketCanvasPrinted !== undefined) {
+      data.marketCanvasPrinted = Math.max(0, body.marketCanvasPrinted);
+    }
+
     // Handle delta updates for counters using atomic increment
     // This prevents race conditions when multiple requests update simultaneously
     // Market transfer deltas move stock between main and the market tote,
