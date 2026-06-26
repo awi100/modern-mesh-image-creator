@@ -55,6 +55,16 @@ interface ExcludedDesign {
   previewImageUrl: string | null;
 }
 
+// Which mesh counts contribute Size 5 thread under the current mesh filter.
+// Size 5 is used by 14ct and 18ct (13ct uses Size 3), so when the filter is
+// 18ct-only — or order13, whose Size-5 designs are all 18ct — the label is
+// just "18ct"; 14ct-only is "14ct"; everything else mixes both.
+function size5MeshLabel(meshFilter: string | null): string {
+  if (meshFilter === "18" || meshFilter === "order13") return "18ct";
+  if (meshFilter === "14") return "14ct";
+  return "14ct / 18ct";
+}
+
 interface GlobalDemandSummary {
   totalColors: number;
   criticalColors: number;
@@ -162,7 +172,7 @@ export default function StockAlertsPage() {
     const size5 = orderList.filter((s) => s.threadSize === 5);
     const parts: string[] = [];
     if (size5.length > 0) {
-      parts.push("Size 5 (14ct / 18ct)");
+      parts.push(`Size 5 (${size5MeshLabel(meshFilter)})`);
       parts.push(...size5.map((s) => `${s.dmcNumber}\t${s.orderQty}`));
     }
     if (size3.length > 0) {
@@ -546,7 +556,7 @@ export default function StockAlertsPage() {
                           <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                             Size 5
                           </span>
-                          <span className="text-slate-500 dark:text-slate-400">14ct / 18ct</span>
+                          <span className="text-slate-500 dark:text-slate-400">{size5MeshLabel(meshFilter)}</span>
                         </span>
                         <span className="text-slate-700 dark:text-slate-200 font-medium">{orderTotalsBySize.size5}</span>
                       </div>
