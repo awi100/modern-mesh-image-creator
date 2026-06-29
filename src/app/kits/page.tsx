@@ -146,10 +146,12 @@ export default function KitsPage() {
 
   const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
 
-  // Use SWR for caching - data persists across navigations
+  // Use SWR for caching - data persists across navigations.
+  // Revalidate on focus so kit/market counts reflect POS sales that came in
+  // while this tab was in the background (otherwise the numbers look stale).
   const { data: kits, isLoading: loading, mutate: mutateKits } = useSWR<KitSummary[]>(`/api/kits${meshParam}`, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
   });
 
   // Fetch color usage data to show which designs use each color
