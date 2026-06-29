@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
       for (const [designId, updates] of designUpdatesMap) {
         const design = await tx.design.findUnique({
           where: { id: designId },
-          select: { kitsReady: true, canvasPrinted: true, misprintCount: true },
+          select: { name: true, kitsReady: true, canvasPrinted: true, misprintCount: true },
         });
 
         if (design) {
@@ -218,6 +218,18 @@ export async function POST(request: NextRequest) {
               misprintCount: actualMisprintDeduction > 0 ? { decrement: actualMisprintDeduction } : undefined,
               totalSold: { increment: updates.totalSold },
               totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
+            },
+          });
+
+          // Manual fulfillment is always online stock (POS orders are
+          // auto-fulfilled and never reach this path).
+          await tx.orderDeduction.create({
+            data: {
+              shopifyOrderId, orderNumber, sourceName: null,
+              bucket: "online", via: "fulfill",
+              designId, designName: design.name,
+              kitsRequested: updates.kitDeduction, kitsDeducted: actualKitDeduction,
+              canvasRequested: updates.canvasDeduction, canvasDeducted: actualCanvasDeduction,
             },
           });
 

@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
       for (const [designId, updates] of designUpdatesMap) {
         const design = await tx.design.findUnique({
           where: { id: designId },
-          select: { kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true },
+          select: { name: true, kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true },
         });
 
         if (design) {
@@ -262,6 +262,16 @@ export async function POST(request: NextRequest) {
                   }),
               totalSold: { increment: updates.totalSold },
               totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
+            },
+          });
+
+          await tx.orderDeduction.create({
+            data: {
+              shopifyOrderId, orderNumber: payload.name, sourceName: payload.source_name || null,
+              bucket: isPos ? "market" : "online", via: "webhook",
+              designId, designName: design.name,
+              kitsRequested: updates.kitDeduction, kitsDeducted: actualKitDeduction,
+              canvasRequested: updates.canvasDeduction, canvasDeducted: actualCanvasDeduction,
             },
           });
 

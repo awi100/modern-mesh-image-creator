@@ -301,6 +301,31 @@ model ShopifyOrderItem {
   @@map("shopify_order_items")
 }
 
+// Audit log of inventory deductions from Shopify orders. One row per design
+// per processed order, recording how much was requested vs actually deducted
+// (so clamps are visible) and which bucket it came from (market vs online).
+// Lets us answer "did this sale come off the right inventory?" definitively.
+model OrderDeduction {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  shopifyOrderId  String   // Shopify order gid
+  orderNumber     String   // e.g. "#2593"
+  sourceName      String?  // "pos" | "web" | etc.
+  bucket          String   // "market" | "online"
+  via             String   // "webhook" | "sync" | "fulfill"
+  designId        String?
+  designName      String?  // denormalized for readability
+  kitsRequested   Int      @default(0)
+  kitsDeducted    Int      @default(0) // < requested means it clamped (ran out)
+  canvasRequested Int      @default(0)
+  canvasDeducted  Int      @default(0)
+
+  @@index([shopifyOrderId])
+  @@index([designId])
+  @@index([createdAt])
+  @@map("order_deductions")
+}
+
 // Custom canvas size presets
 model CanvasPreset {
   id          String   @id @default(cuid())
