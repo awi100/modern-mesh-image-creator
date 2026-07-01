@@ -250,6 +250,7 @@ export async function GET(request: NextRequest) {
         canvasPrinted: true,
         marketKitsReady: true,
         marketCanvasPrinted: true,
+        canvasAndover: true,
         totalSold: true,
         totalKitsSold: true,
         velocityCategory: true,
@@ -308,7 +309,7 @@ export async function GET(request: NextRequest) {
         const stats = current.designStats.get(design.id) || { units: 0, kitUnits: 0 };
         // Sales rate counts ALL sales (online + POS), so days-of-stock must
         // count ALL stock (online + market tote) or it under-reports.
-        const totalStock = design.kitsReady + design.canvasPrinted + design.marketKitsReady + design.marketCanvasPrinted;
+        const totalStock = design.kitsReady + design.canvasPrinted + design.marketKitsReady + design.marketCanvasPrinted + design.canvasAndover;
         const salesRate = stats.units / (days / 30); // monthly rate
 
         let stockAlert: "critical" | "low" | "ok" | null = null;
@@ -344,7 +345,7 @@ export async function GET(request: NextRequest) {
       .map((design) => {
         const stats = current.designStats.get(design.id) || { units: 0, kitUnits: 0 };
         // Include market-tote stock — sales rate below counts POS sales too.
-        const totalStock = design.kitsReady + design.canvasPrinted + design.marketKitsReady + design.marketCanvasPrinted;
+        const totalStock = design.kitsReady + design.canvasPrinted + design.marketKitsReady + design.marketCanvasPrinted + design.canvasAndover;
         const salesLast30Days = days === 30 ? stats.units : Math.round(stats.units / (days / 30));
         const dailyRate = salesLast30Days / 30;
         const daysOfStock = dailyRate > 0 ? Math.round(totalStock / dailyRate) : Infinity;

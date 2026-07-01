@@ -356,6 +356,11 @@ export async function PATCH(
       data.marketCanvasPrinted = Math.max(0, body.marketCanvasPrinted);
     }
 
+    // Direct set of Andover bulk-storage canvases (e.g. logging a bulk order).
+    if (body.canvasAndover !== undefined) {
+      data.canvasAndover = Math.max(0, Math.floor(body.canvasAndover));
+    }
+
     // Handle delta updates for counters using atomic increment
     // This prevents race conditions when multiple requests update simultaneously
     // Market transfer deltas move stock between main and the market tote,
@@ -364,10 +369,17 @@ export async function PATCH(
     const hasMarketTransfer = body.marketTransferKitsDelta !== undefined ||
                               body.marketTransferCanvasDelta !== undefined;
 
+    // Andover transfer moves canvases between Andover storage and home,
+    // conserving the total. Positive = Andover -> home ("restock from Andover");
+    // negative = home -> Andover ("return to storage").
+    const hasAndoverUpdate = body.andoverTransferDelta !== undefined ||
+                             body.canvasAndoverDelta !== undefined;
+
     const hasDeltaUpdates = body.canvasPrintedDelta !== undefined ||
                             body.kitsReadyDelta !== undefined ||
                             body.canvasPrintedMaddieDelta !== undefined ||
-                            hasMarketTransfer;
+                            hasMarketTransfer ||
+                            hasAndoverUpdate;
 
     if (hasDeltaUpdates) {
       // Use transaction for atomic delta updates with floor check
@@ -381,11 +393,31 @@ export async function PATCH(
             canvasPrintedMaddie: true,
             marketKitsReady: true,
             marketCanvasPrinted: true,
+            canvasAndover: true,
           },
         });
 
         if (!current) {
           throw new Error("Design not found");
+        }
+
+        // Andover -> home restock (or home -> Andover return), clamped so
+        // neither side goes below 0.
+        if (body.andoverTransferDelta !== undefined) {
+          const requested = Math.trunc(body.andoverTransferDelta);
+          const moved = requested >= 0
+            ? Math.min(requested, current.canvasAndover)
+            : -Math.min(-requested, current.canvasPrinted);
+          if (moved !== 0) {
+            data.canvasAndover = { increment: -moved };
+            data.canvasPrinted = { increment: moved };
+          }
+        }
+
+        // Receive/adjust Andover stock by a signed delta (clamped at 0).
+        if (body.canvasAndoverDelta !== undefined) {
+          const newVal = current.canvasAndover + body.canvasAndoverDelta;
+          data.canvasAndover = newVal < 0 ? 0 : { increment: body.canvasAndoverDelta };
         }
 
         // Market transfers: clamp the moved quantity so neither side goes below 0.
