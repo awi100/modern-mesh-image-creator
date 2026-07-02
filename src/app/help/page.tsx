@@ -8,7 +8,7 @@ export default function HelpPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 px-4 py-3">
+      <header className="bg-slate-800 border-b border-slate-700 px-4 py-3 sticky top-0 z-40 safe-area-top">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <span className="text-xl">🧵</span>
