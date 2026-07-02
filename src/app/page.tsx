@@ -401,6 +401,30 @@ export default function HomePage() {
     return lines.join("\n");
   };
 
+  // Kit-order spreadsheets for a pre-made-kit supplier.
+  // Summary: one row per design (name, mesh, colors, total yards/kit, stitch
+  // guide filename, blank Quantity Ordered to fill in).
+  const buildKitOrderCsv = (rows: { name: string; meshCount: number; colors: number; totalYards: number; guideFile: string }[]): string => {
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const header = ["Design Name", "Mesh Count", "Thread Colors", "Total Yards (per kit)", "Stitch Guide File", "Quantity Ordered"];
+    const lines = [header.join(",")];
+    for (const r of rows) {
+      lines.push([esc(r.name), `${r.meshCount}`, `${r.colors}`, `${r.totalYards}`, esc(r.guideFile), ""].join(","));
+    }
+    return lines.join("\n");
+  };
+
+  // Thread detail: one row per (design, color) with yards needed per kit.
+  const buildThreadColorsCsv = (rows: { name: string; dmc: string; colorName: string; yards: number }[]): string => {
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const header = ["Design Name", "DMC #", "Color Name", "Yards Needed (per kit)"];
+    const lines = [header.join(",")];
+    for (const r of rows) {
+      lines.push([esc(r.name), esc(r.dmc), esc(r.colorName), `${r.yards}`].join(","));
+    }
+    return lines.join("\n");
+  };
+
   const handleDownloadFolderPdfs = async (folderId: string, folderName: string) => {
     setDownloadingFolderId(folderId);
     try {
@@ -1188,6 +1212,95 @@ export default function HomePage() {
     } catch (error) {
       console.error("Batch export kits error:", error);
       showToast("Failed to export kit list. Please try again.", "error");
+    }
+  };
+
+  // Build a supplier kit-order ZIP: per-design thread colors + yards, stitch
+  // guide images, and an order sheet with a Quantity Ordered column.
+  const handleBatchExportKitOrder = async () => {
+    const designIds = Array.from(selectedDesigns);
+    if (designIds.length === 0) return;
+
+    showToast(`Building kit order for ${designIds.length} design${designIds.length > 1 ? "s" : ""}...`, "success");
+
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      const summaryRows: { name: string; meshCount: number; colors: number; totalYards: number; guideFile: string }[] = [];
+      const threadRows: { name: string; dmc: string; colorName: string; yards: number }[] = [];
+
+      for (const id of designIds) {
+        // Full design (grid + specs) — use the ORIGINAL design (real kit colors),
+        // not a print version.
+        const dRes = await fetch(`/api/designs/${id}`);
+        if (!dRes.ok) continue;
+        const design = await dRes.json();
+        if (design.printVersionOf) continue;
+
+        // Kit thread breakdown (colors + yards per color, incl. buffer).
+        const kRes = await fetch(`/api/designs/${id}/kit`);
+        if (!kRes.ok) continue;
+        const kit = await kRes.json();
+        const contents: { dmcNumber: string; colorName: string; yardsWithBuffer: number }[] = kit.kitContents || [];
+
+        const cleanName = design.name.replace(/[/\\?%*:|"<>]/g, "_");
+        const guideFile = `${cleanName}_stitch_guide.png`;
+
+        // Stitch guide / instruction sheet image.
+        const grid: (string | null)[][] = design.grid || [];
+        const colorSet = new Set<string>();
+        for (const row of grid) for (const cell of row) if (cell) colorSet.add(cell);
+        const usedColors = Array.from(colorSet)
+          .map((dmc) => getDmcColorByNumber(dmc))
+          .filter((c): c is NonNullable<typeof c> => c !== null);
+        const dataUrl = grid.length > 0
+          ? exportStitchGuideImage({
+              grid,
+              widthInches: design.widthInches,
+              heightInches: design.heightInches,
+              meshCount: design.meshCount,
+              designName: design.name,
+              usedColors,
+            })
+          : null;
+        if (dataUrl) {
+          zip.file(guideFile, dataUrl.split(",")[1], { base64: true });
+        }
+
+        const totalYards = Math.round(contents.reduce((s, c) => s + (c.yardsWithBuffer || 0), 0) * 10) / 10;
+        summaryRows.push({
+          name: design.name,
+          meshCount: design.meshCount,
+          colors: contents.length,
+          totalYards,
+          guideFile: dataUrl ? guideFile : "(none)",
+        });
+        for (const c of contents) {
+          threadRows.push({ name: design.name, dmc: c.dmcNumber, colorName: c.colorName, yards: c.yardsWithBuffer });
+        }
+      }
+
+      if (summaryRows.length === 0) {
+        showToast("No kit data to export.", "error");
+        return;
+      }
+
+      zip.file("kit_order.csv", buildKitOrderCsv(summaryRows));
+      zip.file("thread_colors.csv", buildThreadColorsCsv(threadRows));
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kit_order_${summaryRows.length}_designs.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showToast(`Downloaded kit order for ${summaryRows.length} design${summaryRows.length > 1 ? "s" : ""}`, "success");
+    } catch (error) {
+      console.error("Kit order export error:", error);
+      showToast("Failed to export kit order. Please try again.", "error");
     }
   };
 
@@ -2303,6 +2416,7 @@ export default function HomePage() {
           onDelete={handleBatchDelete}
           onExportKits={handleBatchExportKits}
           onExportPdfs={handleBatchExportPdfs}
+          onExportKitOrder={handleBatchExportKitOrder}
           onCancel={clearSelection}
           folders={folders}
           tags={tags}
