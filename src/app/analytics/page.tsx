@@ -173,6 +173,7 @@ export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "designs" | "geography" | "colors" | "stitches" | "bundles">("overview");
   const [periodDays, setPeriodDays] = useState(90);
   const [stitchMeshFilter, setStitchMeshFilter] = useState<MeshFilter>("all");
+  const [stitchSort, setStitchSort] = useState<{ field: "grid" | "stitches"; dir: "asc" | "desc" }>({ field: "stitches", dir: "desc" });
   const [sortField, setSortField] = useState<SortField>("units");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [hoveredWeek, setHoveredWeek] = useState<TimeAnalytics | null>(null);
@@ -200,11 +201,17 @@ export default function AnalyticsPage() {
     return designs;
   }, [analytics, sortField, sortDir]);
 
-  // Stitch analysis filtered by mesh count (already sorted desc by the API)
+  // Stitch analysis filtered by mesh count and sorted by the chosen column
+  // (grid = total cells = gridWidth × gridHeight, or total stitches).
   const filteredStitchDesigns = useMemo(() => {
     if (!analytics) return [];
-    return analytics.stitchAnalysis.filter((d) => matchesMeshFilter(d, stitchMeshFilter));
-  }, [analytics, stitchMeshFilter]);
+    const rows = analytics.stitchAnalysis.filter((d) => matchesMeshFilter(d, stitchMeshFilter));
+    const val = (d: StitchAnalysis) => stitchSort.field === "grid" ? d.gridWidth * d.gridHeight : d.totalStitches;
+    return [...rows].sort((a, b) => stitchSort.dir === "desc" ? val(b) - val(a) : val(a) - val(b));
+  }, [analytics, stitchMeshFilter, stitchSort]);
+
+  const toggleStitchSort = (field: "grid" | "stitches") =>
+    setStitchSort((s) => s.field === field ? { field, dir: s.dir === "desc" ? "asc" : "desc" } : { field, dir: "desc" });
 
   const maxStitches = useMemo(() => {
     return Math.max(...filteredStitchDesigns.map((d) => d.totalStitches), 1);
@@ -767,7 +774,7 @@ export default function AnalyticsPage() {
             <div className="p-4 border-b border-slate-700 space-y-3">
               <div>
                 <h3 className="text-white font-semibold">Stitch Count</h3>
-                <p className="text-sm text-slate-400">Designs ranked by total stitches (most labor-intensive first)</p>
+                <p className="text-sm text-slate-400">Click Grid or Total Stitches to sort.</p>
               </div>
               <MeshFilterChips value={stitchMeshFilter} onChange={setStitchMeshFilter} />
             </div>
@@ -781,8 +788,16 @@ export default function AnalyticsPage() {
                       <th className="p-3 text-xs text-slate-400 font-medium">#</th>
                       <th className="p-3 text-xs text-slate-400 font-medium">Design</th>
                       <th className="p-3 text-xs text-slate-400 font-medium text-right">Mesh</th>
-                      <th className="p-3 text-xs text-slate-400 font-medium text-right">Grid</th>
-                      <th className="p-3 text-xs text-slate-400 font-medium text-right">Total Stitches</th>
+                      <th className="p-3 text-xs font-medium text-right">
+                        <button onClick={() => toggleStitchSort("grid")} className={`hover:text-white transition-colors ${stitchSort.field === "grid" ? "text-white" : "text-slate-400"}`}>
+                          Grid{stitchSort.field === "grid" ? (stitchSort.dir === "desc" ? " ↓" : " ↑") : ""}
+                        </button>
+                      </th>
+                      <th className="p-3 text-xs font-medium text-right">
+                        <button onClick={() => toggleStitchSort("stitches")} className={`hover:text-white transition-colors ${stitchSort.field === "stitches" ? "text-white" : "text-slate-400"}`}>
+                          Total Stitches{stitchSort.field === "stitches" ? (stitchSort.dir === "desc" ? " ↓" : " ↑") : ""}
+                        </button>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
