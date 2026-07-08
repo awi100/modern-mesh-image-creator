@@ -11,6 +11,7 @@ import ColorSwapDialog from "@/components/ColorSwapDialog";
 import MeshConvertDialog from "@/components/MeshConvertDialog";
 import { exportStitchGuideImage, generatePrintOrderPdfBlob } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { threadSizeForMesh, MeshCount } from "@/lib/yarn-calculator";
 import { useToast } from "@/components/Toast";
 import { DesignGridSkeleton } from "@/components/DesignCardSkeleton";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -404,23 +405,23 @@ export default function HomePage() {
   // Kit-order spreadsheets for a pre-made-kit supplier.
   // Summary: one row per design (name, mesh, colors, total yards/kit, stitch
   // guide filename, blank Quantity Ordered to fill in).
-  const buildKitOrderCsv = (rows: { name: string; meshCount: number; colors: number; totalYards: number; guideFile: string }[]): string => {
+  const buildKitOrderCsv = (rows: { name: string; meshCount: number; threadSize: string; colors: number; totalYards: number; guideFile: string }[]): string => {
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const header = ["Design Name", "Mesh Count", "Thread Colors", "Total Yards (per kit)", "Stitch Guide File", "Quantity Ordered"];
+    const header = ["Design Name", "Mesh Count", "Thread Size", "Thread Colors", "Total Yards (per kit)", "Stitch Guide File", "Quantity Ordered"];
     const lines = [header.join(",")];
     for (const r of rows) {
-      lines.push([esc(r.name), `${r.meshCount}`, `${r.colors}`, `${r.totalYards}`, esc(r.guideFile), ""].join(","));
+      lines.push([esc(r.name), `${r.meshCount}`, esc(r.threadSize), `${r.colors}`, `${r.totalYards}`, esc(r.guideFile), ""].join(","));
     }
     return lines.join("\n");
   };
 
   // Thread detail: one row per (design, color) with yards needed per kit.
-  const buildThreadColorsCsv = (rows: { name: string; dmc: string; colorName: string; yards: number }[]): string => {
+  const buildThreadColorsCsv = (rows: { name: string; threadSize: string; dmc: string; colorName: string; yards: number }[]): string => {
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const header = ["Design Name", "DMC #", "Color Name", "Yards Needed (per kit)"];
+    const header = ["Design Name", "Thread Size", "DMC #", "Color Name", "Yards Needed (per kit)"];
     const lines = [header.join(",")];
     for (const r of rows) {
-      lines.push([esc(r.name), esc(r.dmc), esc(r.colorName), `${r.yards}`].join(","));
+      lines.push([esc(r.name), esc(r.threadSize), esc(r.dmc), esc(r.colorName), `${r.yards}`].join(","));
     }
     return lines.join("\n");
   };
@@ -1227,8 +1228,8 @@ export default function HomePage() {
       const JSZip = (await import("jszip")).default;
       const zip = new JSZip();
 
-      const summaryRows: { name: string; meshCount: number; colors: number; totalYards: number; guideFile: string }[] = [];
-      const threadRows: { name: string; dmc: string; colorName: string; yards: number }[] = [];
+      const summaryRows: { name: string; meshCount: number; threadSize: string; colors: number; totalYards: number; guideFile: string }[] = [];
+      const threadRows: { name: string; threadSize: string; dmc: string; colorName: string; yards: number }[] = [];
 
       for (const id of designIds) {
         // Full design (grid + specs) — use the ORIGINAL design (real kit colors),
@@ -1268,16 +1269,18 @@ export default function HomePage() {
           zip.file(guideFile, dataUrl.split(",")[1], { base64: true });
         }
 
+        const threadSize = `Size ${threadSizeForMesh((design.meshCount || 14) as MeshCount)}`;
         const totalYards = Math.round(contents.reduce((s, c) => s + (c.yardsWithBuffer || 0), 0) * 10) / 10;
         summaryRows.push({
           name: design.name,
           meshCount: design.meshCount,
+          threadSize,
           colors: contents.length,
           totalYards,
           guideFile: dataUrl ? guideFile : "(none)",
         });
         for (const c of contents) {
-          threadRows.push({ name: design.name, dmc: c.dmcNumber, colorName: c.colorName, yards: c.yardsWithBuffer });
+          threadRows.push({ name: design.name, threadSize, dmc: c.dmcNumber, colorName: c.colorName, yards: c.yardsWithBuffer });
         }
       }
 
