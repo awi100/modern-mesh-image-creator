@@ -313,6 +313,17 @@ export async function PATCH(
       });
     }
 
+    // Archive / unarchive (also cascades to the print version so it stays in
+    // sync and out of any exports).
+    if (body.archived !== undefined) {
+      const archivedAt = body.archived ? new Date() : null;
+      data.archivedAt = archivedAt;
+      await prisma.design.updateMany({
+        where: { printVersionOf: id },
+        data: { archivedAt },
+      });
+    }
+
     if (body.name !== undefined) {
       data.name = body.name;
     }

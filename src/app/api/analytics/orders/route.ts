@@ -239,9 +239,9 @@ export async function GET(request: NextRequest) {
       return date >= previousPeriodStart && date < periodStart;
     });
 
-    // Fetch all designs
+    // Fetch all designs (archived excluded — no longer in use)
     const designs = await prisma.design.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, archivedAt: null },
       select: {
         id: true,
         name: true,

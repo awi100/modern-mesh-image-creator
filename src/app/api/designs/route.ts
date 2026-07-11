@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     const tagId = searchParams.get("tagId");
     const search = searchParams.get("search");
     const showDeleted = searchParams.get("deleted") === "true";
+    const showArchived = searchParams.get("archived") === "true";
     const skillLevel = searchParams.get("skillLevel");
     const sizeCategory = searchParams.get("sizeCategory");
 
@@ -40,6 +41,14 @@ export async function GET(request: NextRequest) {
       where.deletedAt = { not: null };
     } else {
       where.deletedAt = null;
+    }
+
+    // Archived designs are hidden from the main list (and every consumer of it)
+    // unless explicitly requested via ?archived=true.
+    if (showArchived) {
+      where.archivedAt = { not: null };
+    } else {
+      where.archivedAt = null;
     }
 
     // Hide print versions from the main list — they're accessed via the original design

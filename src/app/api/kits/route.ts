@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch non-draft designs (filtered by mesh count if specified)
     const designs = await prisma.design.findMany({
-      where: { isDraft: false, deletedAt: null, printVersionOf: null, ...meshWhere },
+      where: { isDraft: false, deletedAt: null, archivedAt: null, printVersionOf: null, ...meshWhere },
       select: {
         id: true,
         name: true,

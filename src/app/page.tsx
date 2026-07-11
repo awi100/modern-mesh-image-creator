@@ -49,6 +49,7 @@ interface Design {
   colorsUsed: string | null;
   isDraft: boolean;
   deletedAt: string | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   skillLevel: string | null;
@@ -84,11 +85,14 @@ function buildDesignsUrl(
   skillLevel: string | null,
   sizeCategory: string | null,
   meshCount: number | null,
-  draftStatus: "draft" | "complete" | null
+  draftStatus: "draft" | "complete" | null,
+  showArchived: boolean
 ): string {
   const params = new URLSearchParams();
   if (showTrash) {
     params.set("deleted", "true");
+  } else if (showArchived) {
+    params.set("archived", "true");
   } else {
     if (selectedFolder !== null) params.set("folderId", selectedFolder || "null");
     if (selectedTag) params.set("tagId", selectedTag);
@@ -122,6 +126,7 @@ export default function HomePage() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showTrash, setShowTrash] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [selectedSkillLevel, setSelectedSkillLevel] = useState<string | null>(null);
   const [selectedDraftStatus, setSelectedDraftStatus] = useState<"draft" | "complete" | null>(null);
   const [selectedSizeCategory, setSelectedSizeCategory] = useState<string | null>(null);
@@ -194,6 +199,12 @@ export default function HomePage() {
   });
   const trashCount = trashData.length;
 
+  const { data: archivedData = [] } = useSWR<Design[]>("/api/designs?archived=true", {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
+  const archivedCount = archivedData.length;
+
   // Memoize inventory set (Size 5 only in internal app)
   const inStockColors = useMemo(() =>
     new Set(inventory5.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
@@ -235,7 +246,7 @@ export default function HomePage() {
   }, [childFoldersMap]);
 
   // SWR for designs (refetches when filters change via key)
-  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory, selectedMeshCount, selectedDraftStatus);
+  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory, selectedMeshCount, selectedDraftStatus, showArchived);
   const { data: designs = [], isLoading: loading, mutate: mutateDesigns } = useSWR<Design[]>(
     designsUrl,
     {
@@ -288,6 +299,25 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error("Error restoring design:", error);
+    }
+  };
+
+  const handleArchive = async (id: string, archived: boolean) => {
+    try {
+      const response = await fetch(`/api/designs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived }),
+      });
+      if (response.ok) {
+        // Optimistically remove from the current view (it moves to/from Archived)
+        mutateDesigns(designs.filter((d) => d.id !== id), false);
+        mutate("/api/designs?archived=true");
+        showToast(archived ? "Design archived" : "Design unarchived", "success");
+      }
+    } catch (error) {
+      console.error("Error archiving design:", error);
+      showToast("Failed to archive design", "error");
     }
   };
 
@@ -643,7 +673,7 @@ export default function HomePage() {
                   )}
                 </button>
                 <button
-                  onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); if (!expandedFolders.has(folder.id)) toggleFolderExpanded(folder.id); }}
+                  onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); setShowArchived(false); if (!expandedFolders.has(folder.id)) toggleFolderExpanded(folder.id); }}
                   onDragOver={(e) => {
                     if (!draggingDesignId && !draggingFolderId) return;
                     if (draggingFolderId === folder.id) return; // Can't drop on self
@@ -1084,6 +1114,28 @@ export default function HomePage() {
     } catch (error) {
       console.error("Batch delete error:", error);
       showToast("Failed to delete designs. Please try again.", "error");
+    }
+  };
+
+  const handleBatchArchive = async () => {
+    try {
+      const response = await fetch("/api/designs/batch", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          designIds: Array.from(selectedDesigns),
+          action: showArchived ? "unarchive" : "archive",
+        }),
+      });
+      if (response.ok) {
+        mutateDesigns(designs.filter(d => !selectedDesigns.has(d.id)), false);
+        mutate("/api/designs?archived=true");
+        showToast(showArchived ? "Designs unarchived" : "Designs archived", "success");
+        clearSelection();
+      }
+    } catch (error) {
+      console.error("Batch archive error:", error);
+      showToast("Failed to archive designs. Please try again.", "error");
     }
   };
 
@@ -1715,7 +1767,7 @@ export default function HomePage() {
 
               <div className="space-y-1">
                 <button
-                  onClick={() => { setSelectedFolder(null); setShowTrash(false); }}
+                  onClick={() => { setSelectedFolder(null); setShowTrash(false); setShowArchived(false); }}
                   onDragOver={(e) => {
                     if (!draggingFolderId) return;
                     e.preventDefault();
@@ -1741,7 +1793,7 @@ export default function HomePage() {
                   All Designs
                 </button>
                 <button
-                  onClick={() => { setSelectedFolder(""); setShowTrash(false); }}
+                  onClick={() => { setSelectedFolder(""); setShowTrash(false); setShowArchived(false); }}
                   onDragOver={(e) => {
                     if (!draggingDesignId) return;
                     e.preventDefault();
@@ -1768,10 +1820,25 @@ export default function HomePage() {
                 </button>
                 {renderDesktopFolderTree(rootFolders, 0)}
 
-                {/* Trash */}
-                <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700">
+                {/* Archived + Trash */}
+                <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
                   <button
-                    onClick={() => { setShowTrash(true); setSelectedFolder(null); setSelectedTag(null); }}
+                    onClick={() => { setShowArchived(true); setShowTrash(false); setSelectedFolder(null); setSelectedTag(null); }}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between ${
+                      showArchived
+                        ? "bg-sky-900/20 text-sky-400"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <span>📦 Archived</span>
+                    {archivedCount > 0 && (
+                      <span className="text-xs bg-slate-600 text-slate-300 px-2 py-0.5 rounded-full">
+                        {archivedCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => { setShowTrash(true); setShowArchived(false); setSelectedFolder(null); setSelectedTag(null); }}
                     className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between ${
                       showTrash
                         ? "bg-rose-900/20 text-rose-400"
@@ -1928,6 +1995,16 @@ export default function HomePage() {
               </div>
             )}
 
+            {/* Archived header */}
+            {showArchived && (
+              <div className="mb-4 pb-4 border-b border-slate-700">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">📦 Archived</h2>
+                <p className="text-sm text-slate-400">
+                  No longer in use — excluded from ordering, color usage, kit/stock calculations, and analytics. Unarchive any design to put it back in use.
+                </p>
+              </div>
+            )}
+
             {loading ? (
               <DesignGridSkeleton />
             ) : designs.length === 0 ? (
@@ -1942,14 +2019,16 @@ export default function HomePage() {
                   </svg>
                 </div>
                 <h2 className="text-lg md:text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                  {showTrash ? "Trash is empty" : "No designs yet"}
+                  {showArchived ? "No archived designs" : showTrash ? "Trash is empty" : "No designs yet"}
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm md:text-base px-4">
-                  {showTrash
+                  {showArchived
+                    ? "Designs you archive will appear here. They stay in the app but don't count toward orders, color usage, or any inventory calculations."
+                    : showTrash
                     ? "Deleted designs will appear here for 14 days before being permanently removed."
                     : "Create your first needlepoint design to get started."}
                 </p>
-                {!showTrash && (
+                {!showTrash && !showArchived && (
                   <button
                     onClick={() => setShowNewDesignDialog(true)}
                     className="inline-flex items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-rose-900 to-rose-800 text-white rounded-lg hover:from-rose-950 hover:to-rose-900 transition-all text-sm md:text-base"
@@ -2274,6 +2353,22 @@ export default function HomePage() {
                                   </Tooltip>
                                 </div>
                               </>
+                            ) : showArchived ? (
+                              <>
+                                <span className="text-xs text-sky-400">📦 Archived</span>
+                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                  <Tooltip label="Unarchive (put back in use)">
+                                    <button
+                                      onClick={() => handleArchive(design.id, false)}
+                                      className="p-1.5 text-slate-500 hover:text-emerald-400 transition-colors"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                      </svg>
+                                    </button>
+                                  </Tooltip>
+                                </div>
+                              </>
                             ) : (
                               <>
                                 <span className="text-xs text-slate-400 dark:text-slate-500">
@@ -2391,6 +2486,13 @@ export default function HomePage() {
                                     >
                                       Edit Print Version
                                     </button>
+                                    <button
+                                      onClick={() => { handleArchive(design.id, true); setCardMenuDesignId(null); }}
+                                      className="w-full text-left px-3 py-2 text-sm text-sky-600 dark:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-600 border-t border-slate-200 dark:border-slate-600"
+                                      title="Archive: keep the design but exclude it from ordering, color usage, and all other counts"
+                                    >
+                                      Archive
+                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -2417,6 +2519,8 @@ export default function HomePage() {
           onAddTags={handleBatchAddTags}
           onRemoveTags={handleBatchRemoveTags}
           onDelete={handleBatchDelete}
+          onArchive={handleBatchArchive}
+          archiveLabel={showArchived ? "Unarchive" : "Archive"}
           onExportKits={handleBatchExportKits}
           onExportPdfs={handleBatchExportPdfs}
           onExportKitOrder={handleBatchExportKitOrder}

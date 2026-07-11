@@ -20,6 +20,8 @@ interface BatchActionBarProps {
   onAddTags: (tagIds: string[]) => Promise<void>;
   onRemoveTags: (tagIds: string[]) => Promise<void>;
   onDelete: () => Promise<void>;
+  onArchive: () => Promise<void>;
+  archiveLabel?: string;
   onExportKits: () => Promise<void>;
   onExportPdfs: () => Promise<void>;
   onExportKitOrder: () => Promise<void>;
@@ -34,6 +36,8 @@ export default function BatchActionBar({
   onAddTags,
   onRemoveTags,
   onDelete,
+  onArchive,
+  archiveLabel = "Archive",
   onExportKits,
   onExportPdfs,
   onExportKitOrder,
@@ -134,6 +138,15 @@ export default function BatchActionBar({
     setLoading(true);
     try {
       await onExportKitOrder();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setLoading(true);
+    try {
+      await onArchive();
     } finally {
       setLoading(false);
     }
@@ -281,6 +294,18 @@ export default function BatchActionBar({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
             </svg>
             <span className="hidden sm:inline">Kit Order ZIP</span>
+          </button>
+
+          {/* Archive / Unarchive */}
+          <button
+            onClick={handleArchive}
+            disabled={loading}
+            className="px-3 py-1.5 bg-sky-900/50 text-sky-200 rounded-lg hover:bg-sky-800/50 disabled:opacity-50 text-sm flex items-center gap-1"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+            <span className="hidden sm:inline">{archiveLabel}</span>
           </button>
 
           {/* Delete */}

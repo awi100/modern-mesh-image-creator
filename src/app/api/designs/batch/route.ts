@@ -4,7 +4,7 @@ import { isAuthenticated } from "@/lib/session";
 
 interface BatchRequest {
   designIds: string[];
-  action: "move" | "addTags" | "removeTags" | "delete";
+  action: "move" | "addTags" | "removeTags" | "delete" | "archive" | "unarchive";
   payload?: {
     folderId?: string | null;
     tagIds?: string[];
@@ -102,6 +102,24 @@ export async function PATCH(request: NextRequest) {
         const updateResult = await prisma.design.updateMany({
           where: { id: { in: designIds } },
           data: { deletedAt: new Date() },
+        });
+
+        result = { success: true, count: updateResult.count };
+        break;
+      }
+
+      case "archive":
+      case "unarchive": {
+        // Archive / unarchive designs and their print versions.
+        const archivedAt = action === "archive" ? new Date() : null;
+        const updateResult = await prisma.design.updateMany({
+          where: {
+            OR: [
+              { id: { in: designIds } },
+              { printVersionOf: { in: designIds } },
+            ],
+          },
+          data: { archivedAt },
         });
 
         result = { success: true, count: updateResult.count };

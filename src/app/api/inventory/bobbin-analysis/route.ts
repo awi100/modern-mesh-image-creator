@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
       where: {
         isDraft: false,
         deletedAt: null,
+        archivedAt: null,
         printVersionOf: null,
         ...meshWhere,
       },

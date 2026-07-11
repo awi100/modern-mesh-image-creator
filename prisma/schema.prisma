@@ -144,6 +144,11 @@ model Design {
   // Draft status (new designs start as draft, mark complete when ready to sell)
   isDraft               Boolean @default(true)
 
+  // Archived: design still exists but is no longer used. Excluded from all
+  // aggregations (ordering, color usage, kits, stock alerts, analytics, etc.)
+  // and from the main gallery by default. Distinct from draft (WIP) and trash.
+  archivedAt            DateTime?
+
   // Product categorization
   skillLevel            String? // "easy", "intermediate", "advanced"
   sizeCategory          String? // "small", "medium", "large"
@@ -177,6 +182,7 @@ model Design {
   @@index([folderId])
   @@index([createdAt])
   @@index([deletedAt])
+  @@index([archivedAt])
   @@map("designs")
 }
 

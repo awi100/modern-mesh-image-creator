@@ -106,14 +106,14 @@ export async function GET(request: NextRequest) {
 
     // Fetch excluded designs (to show in UI for toggling)
     const excludedDesigns = await prisma.design.findMany({
-      where: { isDraft: false, deletedAt: null, excludeFromStockAlerts: true, printVersionOf: null, ...meshWhere },
+      where: { isDraft: false, deletedAt: null, archivedAt: null, excludeFromStockAlerts: true, printVersionOf: null, ...meshWhere },
       select: { id: true, name: true, previewImageUrl: true },
       orderBy: { name: "asc" },
     });
 
     // Fetch all non-draft designs with pixel data and velocity info (excluding ones marked for exclusion)
     const designs = await prisma.design.findMany({
-      where: { isDraft: false, deletedAt: null, excludeFromStockAlerts: false, printVersionOf: null, ...meshWhere },
+      where: { isDraft: false, deletedAt: null, archivedAt: null, excludeFromStockAlerts: false, printVersionOf: null, ...meshWhere },
       select: {
         id: true,
         name: true,
