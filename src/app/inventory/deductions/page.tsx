@@ -101,13 +101,13 @@ export default function DeductionLogPage() {
                 const kitShort = r.kitsDeducted < r.kitsRequested;
                 const canvasShort = r.canvasDeducted < r.canvasRequested;
                 return (
-                  <div key={r.id} className="px-4 py-2.5 flex items-center gap-3 text-sm">
+                  <div key={r.id} className="px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                     <span className="text-slate-500 w-28 flex-shrink-0">{fmt(r.createdAt)}</span>
                     <span className="text-slate-400 w-16 flex-shrink-0">{r.orderNumber}</span>
                     <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0 ${r.bucket === "market" ? "bg-emerald-900/50 text-emerald-300" : "bg-slate-700 text-slate-300"}`}>
                       {r.bucket}
                     </span>
-                    <span className="text-white flex-1 min-w-0 truncate">{r.designName || "(unmatched)"}</span>
+                    <span className="text-white basis-full sm:basis-auto sm:flex-1 min-w-0 truncate">{r.designName || "(unmatched)"}</span>
                     <span className={`flex-shrink-0 ${kitShort ? "text-red-400 font-semibold" : "text-slate-300"}`} title={kitShort ? `needed ${r.kitsRequested}, only ${r.kitsDeducted} in stock` : ""}>
                       −{r.kitsDeducted} kit{kitShort ? ` / ${r.kitsRequested}` : ""}
                     </span>

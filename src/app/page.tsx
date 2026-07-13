@@ -1404,21 +1404,13 @@ export default function HomePage() {
                 onClick={() => setShowMobileNav(!showMobileNav)}
                 className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg"
                 title="Menu"
+                aria-label="Menu"
+                aria-expanded={showMobileNav}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              {showMobileNav && (
-                <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-slate-700 rounded-lg shadow-xl border border-slate-200 dark:border-slate-600 py-1 z-50">
-                  <Link href="/kits" className="block px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Kits</Link>
-                  <Link href="/orders" className="block px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Orders</Link>
-                  <Link href="/analytics" className="block px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Analytics</Link>
-                  <Link href="/inventory" className="block px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Inventory</Link>
-                  <Link href="/finishing" className="block px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Finishing</Link>
-                  <Link href="/custom-design" className="block px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>From Photo</Link>
-                </div>
-              )}
             </div>
 
             {/* Refresh */}
@@ -1488,6 +1480,26 @@ export default function HomePage() {
             </Tooltip>
           </div>
         </div>
+
+        {/* Mobile nav dropdown — rendered outside the overflow-x-auto toolbar
+            so it isn't clipped. Backdrop closes on outside tap. */}
+        {showMobileNav && (
+          <div className="lg:hidden">
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setShowMobileNav(false)}
+              aria-hidden="true"
+            />
+            <div className="absolute right-3 md:right-4 top-full mt-1 w-48 bg-white dark:bg-slate-700 rounded-lg shadow-xl border border-slate-200 dark:border-slate-600 py-1 z-50">
+              <Link href="/kits" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Kits</Link>
+              <Link href="/orders" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Orders</Link>
+              <Link href="/analytics" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Analytics</Link>
+              <Link href="/inventory" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Inventory</Link>
+              <Link href="/finishing" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Finishing</Link>
+              <Link href="/custom-design" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>From Photo</Link>
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6">

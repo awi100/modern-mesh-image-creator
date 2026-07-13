@@ -1197,7 +1197,7 @@ export default function CustomDesignPage() {
                             className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-white text-xs mb-2"
                             autoFocus
                           />
-                          <div className="grid grid-cols-10 gap-1 max-h-32 overflow-y-auto">
+                          <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-1 max-h-32 overflow-y-auto">
                             {filteredColors.map((c) => (
                               <button
                                 key={c.dmcNumber}

@@ -886,7 +886,7 @@ export default function KitPage() {
         </div>
 
         {/* Kit contents table */}
-        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <div className="bg-slate-800 rounded-xl border border-slate-700 md:overflow-hidden">
           <div className="p-4 border-b border-slate-700">
             <h2 className="text-lg font-semibold text-white">Kit Contents</h2>
           </div>

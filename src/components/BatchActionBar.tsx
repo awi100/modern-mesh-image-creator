@@ -153,8 +153,8 @@ export default function BatchActionBar({
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800 border-t border-slate-600 shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800 border-t border-slate-600 shadow-lg safe-area-bottom">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
         {/* Selection count */}
         <div className="flex items-center gap-2 text-white">
           <svg className="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

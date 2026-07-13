@@ -290,7 +290,7 @@ export default function ColorSwapDialog({
                             />
 
                             {/* Color grid */}
-                            <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
+                            <div className="grid grid-cols-6 sm:grid-cols-8 gap-1 max-h-48 overflow-y-auto">
                               {filteredColors.slice(0, 100).map((c) => (
                                 <button
                                   key={c.dmcNumber}
