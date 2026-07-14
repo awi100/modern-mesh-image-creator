@@ -12,6 +12,7 @@ import MeshConvertDialog from "@/components/MeshConvertDialog";
 import { exportStitchGuideImage, generatePrintOrderPdfBlob } from "@/lib/pdf-export";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { threadSizeForMesh, MeshCount } from "@/lib/yarn-calculator";
+import { buildXlsx, XlsxCell } from "@/lib/xlsx";
 import { useToast } from "@/components/Toast";
 import { DesignGridSkeleton } from "@/components/DesignCardSkeleton";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -433,27 +434,17 @@ export default function HomePage() {
   };
 
   // Kit-order spreadsheets for a pre-made-kit supplier.
-  // Summary: one row per design (name, mesh, colors, total yards/kit, stitch
+  // Summary tab: one row per design (name, mesh, colors, total yards/kit, stitch
   // guide filename, blank Quantity Ordered to fill in).
-  const buildKitOrderCsv = (rows: { name: string; meshCount: number; threadSize: string; colors: number; totalYards: number; guideFile: string }[]): string => {
-    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const buildKitOrderSheetRows = (rows: { name: string; meshCount: number; threadSize: string; colors: number; totalYards: number; guideFile: string }[]): XlsxCell[][] => {
     const header = ["Design Name", "Mesh Count", "Thread Size", "Thread Colors", "Total Yards (per kit)", "Stitch Guide File", "Quantity Ordered"];
-    const lines = [header.join(",")];
-    for (const r of rows) {
-      lines.push([esc(r.name), `${r.meshCount}`, esc(r.threadSize), `${r.colors}`, `${r.totalYards}`, esc(r.guideFile), ""].join(","));
-    }
-    return lines.join("\n");
+    return [header, ...rows.map((r) => [r.name, r.meshCount, r.threadSize, r.colors, r.totalYards, r.guideFile, ""])];
   };
 
-  // Thread detail: one row per (design, color) with yards needed per kit.
-  const buildThreadColorsCsv = (rows: { name: string; threadSize: string; dmc: string; colorName: string; yards: number }[]): string => {
-    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  // Thread detail tab: one row per (design, color) with yards needed per kit.
+  const buildThreadColorsSheetRows = (rows: { name: string; threadSize: string; dmc: string; colorName: string; yards: number }[]): XlsxCell[][] => {
     const header = ["Design Name", "Thread Size", "DMC #", "Color Name", "Yards Needed (per kit)"];
-    const lines = [header.join(",")];
-    for (const r of rows) {
-      lines.push([esc(r.name), esc(r.threadSize), esc(r.dmc), esc(r.colorName), `${r.yards}`].join(","));
-    }
-    return lines.join("\n");
+    return [header, ...rows.map((r) => [r.name, r.threadSize, r.dmc, r.colorName, r.yards])];
   };
 
   const handleDownloadFolderPdfs = async (folderId: string, folderName: string) => {
@@ -1341,8 +1332,12 @@ export default function HomePage() {
         return;
       }
 
-      zip.file("kit_order.csv", buildKitOrderCsv(summaryRows));
-      zip.file("thread_colors.csv", buildThreadColorsCsv(threadRows));
+      // One workbook, two tabs: "Kit Order" summary + "Thread Colors" detail.
+      const xlsxData = await buildXlsx([
+        { name: "Kit Order", rows: buildKitOrderSheetRows(summaryRows) },
+        { name: "Thread Colors", rows: buildThreadColorsSheetRows(threadRows) },
+      ]);
+      zip.file("kit_order.xlsx", xlsxData);
 
       const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
