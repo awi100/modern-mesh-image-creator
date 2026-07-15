@@ -49,6 +49,7 @@ interface ColorDesignUsage {
   yardsNeeded: number;
   skeinsNeeded: number;
   usesFullSkein: boolean;
+  kitsReady: number; // kits already assembled for this design (don't re-order thread for these)
 }
 
 interface MostUsedColor {
@@ -211,6 +212,7 @@ export async function GET(request: NextRequest) {
             yardsNeeded: Math.round(yardsNeeded * 10) / 10,
             skeinsNeeded: usesFullSkein ? skeinsNeeded : 0,
             usesFullSkein,
+            kitsReady,
           };
 
           const fullSkeinsCount = usesFullSkein ? skeinsNeeded : 0;
@@ -425,17 +427,34 @@ export async function GET(request: NextRequest) {
       healthyColors: mostUsedColors.filter((c) => c.coverageRounds >= 7).length,
     };
 
-    // Generate order suggestions for colors that need ordering (< 10 rounds)
+    // Generate order suggestions. "Target N" means "have N of every design
+    // assembled". Kits already made count toward that target, so a design that
+    // already has `kitsReady` kits only needs thread for `N - kitsReady` more.
+    // Demand is summed across designs in YARDS (accounting for each design's
+    // kitsReady) and then converted to skeins, so shared thread isn't double
+    // ordered. `currentStock` already excludes thread consumed by made kits.
     const orderSuggestions: OrderSuggestion[] = mostUsedColors
-      .filter((c) => c.coverageRounds < 10 && c.totalSkeinsNeeded > 0)
+      .filter((c) => c.totalSkeinsNeeded > 0)
       .map((c) => {
-        const demandPerRound = c.totalSkeinsNeeded;
         const currentStock = c.effectiveInventory;
         const currentCoverage = c.coverageRounds;
-        // Calculate how many skeins needed to reach target levels (10, 20, 30 rounds)
-        const skeinsFor10Rounds = Math.max(0, demandPerRound * 10 - currentStock);
-        const skeinsFor20Rounds = Math.max(0, demandPerRound * 20 - currentStock);
-        const skeinsFor30Rounds = Math.max(0, demandPerRound * 30 - currentStock);
+        const effectivePerSkein = effectiveYardsPerSkein(c.threadSize);
+        const fullSkeinThreshold = bobbinThresholdsForThread(c.threadSize).max;
+
+        // Skeins needed to bring every design up to `target` assembled kits,
+        // ignoring designs already at/above target.
+        const skeinsToReach = (target: number): number => {
+          const remainingYards = c.designs.reduce(
+            (sum, d) => sum + Math.max(0, target - d.kitsReady) * d.yardsNeeded,
+            0
+          );
+          if (remainingYards <= fullSkeinThreshold) return 0;
+          return Math.ceil(remainingYards / effectivePerSkein);
+        };
+
+        const skeinsFor10Rounds = Math.max(0, skeinsToReach(10) - currentStock);
+        const skeinsFor20Rounds = Math.max(0, skeinsToReach(20) - currentStock);
+        const skeinsFor30Rounds = Math.max(0, skeinsToReach(30) - currentStock);
 
         return {
           dmcNumber: c.dmcNumber,
@@ -443,15 +462,17 @@ export async function GET(request: NextRequest) {
           hex: c.hex,
           threadSize: c.threadSize,
           currentStock,
-          demandPerRound,
+          demandPerRound: c.totalSkeinsNeeded,
           currentCoverage,
           skeinsFor10Rounds,
           skeinsFor20Rounds,
           skeinsFor30Rounds,
         };
       })
-      .filter((s) => s.skeinsFor10Rounds > 0) // Only include if needs ordering to reach 10 rounds
-      .sort((a, b) => b.skeinsFor10Rounds - a.skeinsFor10Rounds); // Sort by most needed first
+      // Keep any color that needs ordering at some target (30 is the largest,
+      // so if it needs 0 there it needs 0 everywhere).
+      .filter((s) => s.skeinsFor30Rounds > 0)
+      .sort((a, b) => b.skeinsFor30Rounds - a.skeinsFor30Rounds);
 
     return NextResponse.json({
       alerts,

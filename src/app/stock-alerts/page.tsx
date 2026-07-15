@@ -514,13 +514,13 @@ export default function StockAlertsPage() {
               <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <h2 className="text-slate-900 dark:text-white font-semibold">Order Builder</h2>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                  Build an order to reach your target coverage
+                  Thread to order to have this many of every design assembled. Kits already made are subtracted, so you only order for what&apos;s left to build.
                 </p>
               </div>
 
-              {/* Target Rounds Selector */}
+              {/* Target Selector */}
               <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-                <div className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider mb-2">Target Rounds</div>
+                <div className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider mb-2">Target kits per design</div>
                 <div className="flex gap-2">
                   {([10, 20, 30] as const).map((rounds) => (
                     <button
@@ -608,7 +608,7 @@ export default function StockAlertsPage() {
               <div className="max-h-96 overflow-y-auto">
                 {orderList.length === 0 ? (
                   <div className="p-4 text-center text-slate-500 dark:text-slate-400 text-sm">
-                    All colors have sufficient stock for {targetRounds} rounds
+                    Enough thread on hand to build {targetRounds} of every design (after counting kits already made)
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100 dark:divide-slate-700">
