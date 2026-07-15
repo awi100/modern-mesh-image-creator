@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/";
 
@@ -26,14 +25,18 @@ function LoginForm() {
       const data = await response.json();
 
       if (response.ok) {
-        router.push(redirect);
-        router.refresh();
+        // Hard navigation (not router.push) so the browser sends the
+        // just-set session cookie on the next request. A client-side
+        // transition can race the cookie and bounce back to /login,
+        // which is why login previously took two attempts.
+        window.location.href = redirect;
+        return;
       } else {
         setError(data.error || "Login failed");
+        setLoading(false);
       }
     } catch {
       setError("An error occurred. Please try again.");
-    } finally {
       setLoading(false);
     }
   };
