@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     // Get all non-deleted designs
     const designs = await prisma.design.findMany({
-      where: { deletedAt: null, archivedAt: null },
+      where: { deletedAt: null, archivedAt: null, isDraft: false, printVersionOf: null },
       select: {
         id: true,
         totalSold: true,
@@ -182,7 +182,7 @@ export async function GET() {
 
   try {
     const designs = await prisma.design.findMany({
-      where: { deletedAt: null, archivedAt: null },
+      where: { deletedAt: null, archivedAt: null, isDraft: false, printVersionOf: null },
       select: {
         id: true,
         name: true,
@@ -303,7 +303,15 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (targetStockWeeks !== undefined) {
-      data.targetStockWeeks = targetStockWeeks;
+      if (targetStockWeeks === null) {
+        data.targetStockWeeks = null;
+      } else {
+        const n = Number(targetStockWeeks);
+        if (!Number.isInteger(n) || n <= 0) {
+          return NextResponse.json({ error: "targetStockWeeks must be a positive integer or null" }, { status: 400 });
+        }
+        data.targetStockWeeks = n;
+      }
     }
 
     const design = await prisma.design.update({

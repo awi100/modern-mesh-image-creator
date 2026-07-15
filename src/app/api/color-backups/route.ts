@@ -47,64 +47,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If backupDmcNumber is empty/null, remove any existing backup
+    // If backupDmcNumber is empty/null, remove any existing backup involving
+    // this color (either direction), atomically.
     if (!backupDmcNumber || !backupDmcNumber.trim()) {
-      // Delete any existing backup where this color is primary
-      await prisma.colorBackup.deleteMany({
-        where: { dmcNumber },
-      });
-      // Also delete any where this color is the backup (to clean up the pair)
-      await prisma.colorBackup.deleteMany({
-        where: { backupDmcNumber: dmcNumber },
-      });
-
+      await prisma.$transaction([
+        prisma.colorBackup.deleteMany({ where: { dmcNumber } }),
+        prisma.colorBackup.deleteMany({ where: { backupDmcNumber: dmcNumber } }),
+      ]);
       return NextResponse.json({ success: true, removed: true });
     }
 
     const trimmedBackup = backupDmcNumber.trim();
 
-    // Check if the reverse relationship exists (backup -> this color)
-    const reverseExists = await prisma.colorBackup.findUnique({
-      where: { dmcNumber: trimmedBackup },
-    });
-
-    if (reverseExists) {
-      // Update the existing reverse relationship to point to this color
-      // This ensures we only have one record for the pair
-      if (reverseExists.backupDmcNumber !== dmcNumber) {
-        // Delete the old relationship
-        await prisma.colorBackup.delete({
-          where: { dmcNumber: trimmedBackup },
-        });
-      }
+    if (trimmedBackup === dmcNumber) {
+      return NextResponse.json({ error: "A color cannot be its own backup" }, { status: 400 });
     }
 
-    // Delete any existing backup for this color
-    await prisma.colorBackup.deleteMany({
-      where: { dmcNumber },
-    });
-
-    // Also remove any backup where either color is already paired with something else
-    await prisma.colorBackup.deleteMany({
-      where: { backupDmcNumber: dmcNumber },
-    });
-    await prisma.colorBackup.deleteMany({
-      where: { dmcNumber: trimmedBackup },
-    });
-    await prisma.colorBackup.deleteMany({
-      where: { backupDmcNumber: trimmedBackup },
-    });
-
-    // Create the new backup relationship (we only store one direction)
-    // Store with the lower DMC number first for consistency
-    const [first, second] = [dmcNumber, trimmedBackup].sort();
-
-    await prisma.colorBackup.create({
-      data: {
-        dmcNumber: first,
-        backupDmcNumber: second,
-      },
-    });
+    // The pair is symmetric and stored once. Atomically clear any existing pair
+    // referencing either color (in either column), then create the single row.
+    const pair = [dmcNumber, trimmedBackup];
+    const [first, second] = [...pair].sort();
+    await prisma.$transaction([
+      prisma.colorBackup.deleteMany({ where: { dmcNumber: { in: pair } } }),
+      prisma.colorBackup.deleteMany({ where: { backupDmcNumber: { in: pair } } }),
+      prisma.colorBackup.create({ data: { dmcNumber: first, backupDmcNumber: second } }),
+    ]);
 
     return NextResponse.json({ success: true, dmcNumber: first, backupDmcNumber: second });
   } catch (error) {

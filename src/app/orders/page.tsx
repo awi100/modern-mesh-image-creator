@@ -449,6 +449,7 @@ export default function OrdersPage() {
           shopifyOrderId: order.shopifyOrderId,
           orderNumber: order.orderNumber,
           customerName: order.customerName,
+          sourceName: order.sourceName,
           items,
         }),
       });

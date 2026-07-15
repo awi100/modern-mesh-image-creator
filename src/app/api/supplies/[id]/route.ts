@@ -45,60 +45,69 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
+    // Validate numeric fields up front (a string/NaN would corrupt the count).
+    for (const field of ["quantity", "quantityDelta", "marketQuantity", "marketTransferDelta"] as const) {
+      if (body[field] !== undefined && !Number.isFinite(Number(body[field]))) {
+        return NextResponse.json({ error: `${field} must be a number` }, { status: 400 });
+      }
+    }
+
     const updateData: Record<string, unknown> = {};
 
     if (body.name !== undefined) {
+      if (typeof body.name !== "string" || !body.name.trim()) {
+        return NextResponse.json({ error: "name must be a non-empty string" }, { status: 400 });
+      }
       updateData.name = body.name.trim();
     }
     if (body.sku !== undefined) {
-      updateData.sku = body.sku?.trim() || null;
+      updateData.sku = typeof body.sku === "string" ? (body.sku.trim() || null) : null;
     }
     if (body.description !== undefined) {
-      updateData.description = body.description?.trim() || null;
+      updateData.description = typeof body.description === "string" ? (body.description.trim() || null) : null;
     }
     if (body.imageUrl !== undefined) {
-      updateData.imageUrl = body.imageUrl?.trim() || null;
+      updateData.imageUrl = typeof body.imageUrl === "string" ? (body.imageUrl.trim() || null) : null;
     }
     if (body.quantity !== undefined) {
-      updateData.quantity = Math.max(0, Math.floor(body.quantity));
-    }
-    if (body.quantityDelta !== undefined) {
-      // Increment/decrement quantity
-      const delta = Math.floor(body.quantityDelta);
-      const current = await prisma.supply.findUnique({
-        where: { id },
-        select: { quantity: true },
-      });
-      if (current) {
-        updateData.quantity = Math.max(0, current.quantity + delta);
-      }
+      updateData.quantity = Math.max(0, Math.floor(Number(body.quantity)));
     }
     if (body.marketQuantity !== undefined) {
-      updateData.marketQuantity = Math.max(0, Math.floor(body.marketQuantity));
-    }
-    // Market transfer: move stock between main and the market tote, conserving
-    // the total. Positive = main -> market; negative = market -> main. Clamped
-    // so neither side goes below 0.
-    if (body.marketTransferDelta !== undefined) {
-      const requested = Math.trunc(body.marketTransferDelta);
-      const current = await prisma.supply.findUnique({
-        where: { id },
-        select: { quantity: true, marketQuantity: true },
-      });
-      if (current) {
-        const moved = requested >= 0
-          ? Math.min(requested, current.quantity)
-          : -Math.min(-requested, current.marketQuantity);
-        if (moved !== 0) {
-          updateData.quantity = Math.max(0, current.quantity - moved);
-          updateData.marketQuantity = Math.max(0, current.marketQuantity + moved);
-        }
-      }
+      updateData.marketQuantity = Math.max(0, Math.floor(Number(body.marketQuantity)));
     }
 
-    const supply = await prisma.supply.update({
-      where: { id },
-      data: updateData,
+    // Delta / transfer operations depend on the current row, so read and write
+    // them inside a transaction to avoid lost updates under concurrency.
+    const hasDelta = body.quantityDelta !== undefined || body.marketTransferDelta !== undefined;
+
+    const supply = await prisma.$transaction(async (tx) => {
+      if (hasDelta) {
+        const current = await tx.supply.findUnique({
+          where: { id },
+          select: { quantity: true, marketQuantity: true },
+        });
+        if (!current) {
+          throw new Error("Record to update not found");
+        }
+        if (body.quantityDelta !== undefined) {
+          const delta = Math.floor(Number(body.quantityDelta));
+          updateData.quantity = Math.max(0, current.quantity + delta);
+        }
+        // Market transfer: move stock between main and the market tote,
+        // conserving the total; clamped so neither side goes below 0.
+        if (body.marketTransferDelta !== undefined) {
+          const requested = Math.trunc(Number(body.marketTransferDelta));
+          const base = updateData.quantity !== undefined ? (updateData.quantity as number) : current.quantity;
+          const moved = requested >= 0
+            ? Math.min(requested, base)
+            : -Math.min(-requested, current.marketQuantity);
+          if (moved !== 0) {
+            updateData.quantity = Math.max(0, base - moved);
+            updateData.marketQuantity = Math.max(0, current.marketQuantity + moved);
+          }
+        }
+      }
+      return tx.supply.update({ where: { id }, data: updateData });
     });
 
     return NextResponse.json(supply);

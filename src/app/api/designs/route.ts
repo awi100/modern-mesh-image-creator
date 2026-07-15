@@ -151,6 +151,20 @@ export async function POST(request: NextRequest) {
       tagIds,
     } = body;
 
+    // Validate required fields up front so a bad request returns 400 rather
+    // than throwing a 500 (e.g. Buffer.from(undefined) or a Prisma type error).
+    if (typeof name !== "string" || !name.trim()) {
+      return NextResponse.json({ error: "name is required" }, { status: 400 });
+    }
+    if (typeof pixelData !== "string" || !pixelData) {
+      return NextResponse.json({ error: "pixelData is required" }, { status: 400 });
+    }
+    for (const [key, val] of Object.entries({ widthInches, heightInches, meshCount, gridWidth, gridHeight })) {
+      if (typeof val !== "number" || !Number.isFinite(val)) {
+        return NextResponse.json({ error: `${key} must be a number` }, { status: 400 });
+      }
+    }
+
     // Convert base64 to Buffer
     const pixelDataBuffer = Buffer.from(pixelData, "base64");
 

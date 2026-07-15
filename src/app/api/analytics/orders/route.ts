@@ -239,9 +239,10 @@ export async function GET(request: NextRequest) {
       return date >= previousPeriodStart && date < periodStart;
     });
 
-    // Fetch all designs (archived excluded — no longer in use)
+    // Fetch all designs (archived, drafts, and print versions excluded — the
+    // latter would duplicate every design in stitch/color analysis).
     const designs = await prisma.design.findMany({
-      where: { deletedAt: null, archivedAt: null },
+      where: { deletedAt: null, archivedAt: null, isDraft: false, printVersionOf: null },
       select: {
         id: true,
         name: true,

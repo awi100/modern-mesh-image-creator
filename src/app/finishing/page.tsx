@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import useSWR, { mutate } from "swr";
+import { useToast } from "@/components/Toast";
 
 const PRODUCT_TYPES = [
   "Pillow",
@@ -55,6 +56,7 @@ function elapsedTime(startedAt: string, finishedAt: string | null): string {
 }
 
 export default function FinishingPage() {
+  const { showToast } = useToast();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const { data: projects = [], isLoading } = useSWR<FinishingProject[]>("/api/finishing");
@@ -112,14 +114,20 @@ export default function FinishingPage() {
       notes: form.notes || null,
     };
 
-    await fetch("/api/finishing", {
-      method: editingId ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    resetForm();
-    mutate("/api/finishing");
+    try {
+      const res = await fetch("/api/finishing", {
+        method: editingId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      resetForm();
+      mutate("/api/finishing");
+      showToast(editingId ? "Project updated" : "Project added", "success");
+    } catch (err) {
+      console.error("Failed to save finishing project:", err);
+      showToast("Failed to save — please try again.", "error");
+    }
   };
 
   const editProject = (p: FinishingProject) => {
@@ -139,26 +147,38 @@ export default function FinishingPage() {
   };
 
   const markFinished = async (p: FinishingProject) => {
-    await fetch("/api/finishing", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: p.id,
-        status: "finished",
-        finishedAt: new Date().toISOString(),
-      }),
-    });
-    mutate("/api/finishing");
+    try {
+      const res = await fetch("/api/finishing", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: p.id,
+          status: "finished",
+          finishedAt: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) throw new Error(`Update failed (${res.status})`);
+      mutate("/api/finishing");
+    } catch (err) {
+      console.error("Failed to mark finished:", err);
+      showToast("Failed to update — please try again.", "error");
+    }
   };
 
   const deleteProject = async (id: string) => {
     if (!confirm("Delete this finishing project?")) return;
-    await fetch("/api/finishing", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    mutate("/api/finishing");
+    try {
+      const res = await fetch("/api/finishing", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      mutate("/api/finishing");
+    } catch (err) {
+      console.error("Failed to delete finishing project:", err);
+      showToast("Failed to delete — please try again.", "error");
+    }
   };
 
   // Get unique people for quick filter

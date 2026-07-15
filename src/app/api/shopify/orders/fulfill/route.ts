@@ -18,6 +18,7 @@ interface FulfillRequest {
   shopifyOrderId: string;
   orderNumber: string;
   customerName?: string;
+  sourceName?: string | null;
   items: FulfillItem[];
 }
 
@@ -53,7 +54,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: FulfillRequest = await request.json();
-    const { shopifyOrderId, orderNumber, customerName, items } = body;
+    const { shopifyOrderId, orderNumber, customerName, sourceName, items } = body;
+    // POS (in-person/market) sales draw down the market tote; online orders
+    // draw down main/online stock.
+    const isPos = isPosSource(sourceName);
 
     if (!shopifyOrderId || !orderNumber) {
       return NextResponse.json({ error: "Missing shopifyOrderId or orderNumber" }, { status: 400 });
@@ -170,9 +174,11 @@ export async function POST(request: NextRequest) {
           shopifyOrderId,
           orderNumber,
           customerName: customerName || null,
+          sourceName: sourceName || null,
           fulfilledAt: new Date(),
         },
         update: {
+          sourceName: sourceName || null,
           fulfilledAt: new Date(),
         },
       });
@@ -200,33 +206,41 @@ export async function POST(request: NextRequest) {
       for (const [designId, updates] of designUpdatesMap) {
         const design = await tx.design.findUnique({
           where: { id: designId },
-          select: { name: true, kitsReady: true, canvasPrinted: true, misprintCount: true },
+          select: { name: true, kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true, misprintCount: true },
         });
 
         if (design) {
-          // Calculate safe deductions (don't go below 0)
-          const actualCanvasDeduction = Math.min(updates.canvasDeduction, design.canvasPrinted);
-          const actualKitDeduction = Math.min(updates.kitDeduction, design.kitsReady);
+          // POS sales draw from the market tote; online from main stock.
+          // Misprint (mystery-bag) canvases are online-only regardless.
+          const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
+          const availKit = isPos ? design.marketKitsReady : design.kitsReady;
+          const actualCanvasDeduction = Math.min(updates.canvasDeduction, availCanvas);
+          const actualKitDeduction = Math.min(updates.kitDeduction, availKit);
           const actualMisprintDeduction = Math.min(updates.misprintDeduction, design.misprintCount);
 
           // Single consolidated update per design
           await tx.design.update({
             where: { id: designId },
             data: {
-              canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
-              kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
+              ...(isPos
+                ? {
+                    marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
+                    marketKitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
+                  }
+                : {
+                    canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
+                    kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
+                  }),
               misprintCount: actualMisprintDeduction > 0 ? { decrement: actualMisprintDeduction } : undefined,
               totalSold: { increment: updates.totalSold },
               totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
             },
           });
 
-          // Manual fulfillment is always online stock (POS orders are
-          // auto-fulfilled and never reach this path).
           await tx.orderDeduction.create({
             data: {
-              shopifyOrderId, orderNumber, sourceName: null,
-              bucket: "online", via: "fulfill",
+              shopifyOrderId, orderNumber, sourceName: sourceName || null,
+              bucket: isPos ? "market" : "online", via: "fulfill",
               designId, designName: design.name,
               kitsRequested: updates.kitDeduction, kitsDeducted: actualKitDeduction,
               canvasRequested: updates.canvasDeduction, canvasDeducted: actualCanvasDeduction,
@@ -243,15 +257,18 @@ export async function POST(request: NextRequest) {
       for (const [supplyId, deduction] of supplyUpdatesMap) {
         const supply = await tx.supply.findUnique({
           where: { id: supplyId },
-          select: { quantity: true },
+          select: { quantity: true, marketQuantity: true },
         });
 
         if (supply) {
-          const actualDeduction = Math.min(deduction, supply.quantity);
+          const avail = isPos ? supply.marketQuantity : supply.quantity;
+          const actualDeduction = Math.min(deduction, avail);
           if (actualDeduction > 0) {
             await tx.supply.update({
               where: { id: supplyId },
-              data: { quantity: { decrement: actualDeduction } },
+              data: isPos
+                ? { marketQuantity: { decrement: actualDeduction } }
+                : { quantity: { decrement: actualDeduction } },
             });
             suppliesDeducted += actualDeduction;
           }

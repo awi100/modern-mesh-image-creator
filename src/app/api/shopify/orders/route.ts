@@ -60,6 +60,8 @@ export interface Order {
   customerName: string;
   createdAt: string;
   items: OrderItem[];
+  // Channel: "pos" = in-person/market sale (deducts market tote), else online
+  sourceName: string | null;
   // Local fulfillment tracking
   locallyFulfilled: boolean;
   locallyFulfilledAt: string | null;
@@ -337,6 +339,7 @@ export async function GET() {
         orderNumber: shopifyOrder.name,
         customerName: shopifyOrder.billingAddress?.name || "Guest",
         createdAt: shopifyOrder.createdAt,
+        sourceName: shopifyOrder.sourceName || null,
         items,
         locallyFulfilled: !!localFulfilledAt,
         locallyFulfilledAt: localFulfilledAt?.toISOString() || null,

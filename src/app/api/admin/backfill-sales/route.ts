@@ -75,8 +75,15 @@ export async function POST(request: NextRequest) {
     });
 
     const designMap = new Map<string, string>();
+    const titleCollisions: string[] = [];
     for (const design of designs) {
-      designMap.set(normalizeTitle(design.name), design.id);
+      const key = normalizeTitle(design.name);
+      if (designMap.has(key)) {
+        // Two designs normalize to the same title — sales can't be attributed
+        // unambiguously. Surface it instead of silently keeping the last one.
+        titleCollisions.push(design.name);
+      }
+      designMap.set(key, design.id);
     }
 
     console.log(`[Backfill] Found ${designs.length} designs to match against`);
@@ -107,18 +114,26 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Backfill] Found sales for ${salesByDesign.size} designs`);
 
-    // Update designs with sales counts
+    // Recompute from scratch: zero every design first so designs that no
+    // longer match any order don't keep stale counts from a prior run, then
+    // set the matched totals. Idempotent — safe to run repeatedly.
     let updated = 0;
-    for (const [designId, sales] of salesByDesign) {
-      await prisma.design.update({
-        where: { id: designId },
-        data: {
-          totalSold: sales.total,
-          totalKitsSold: sales.kits,
-        },
+    await prisma.$transaction(async (tx) => {
+      await tx.design.updateMany({
+        where: { deletedAt: null },
+        data: { totalSold: 0, totalKitsSold: 0 },
       });
-      updated++;
-    }
+      for (const [designId, sales] of salesByDesign) {
+        await tx.design.update({
+          where: { id: designId },
+          data: {
+            totalSold: sales.total,
+            totalKitsSold: sales.kits,
+          },
+        });
+        updated++;
+      }
+    });
 
     console.log(`[Backfill] Updated ${updated} designs with sales data`);
 
@@ -136,6 +151,7 @@ export async function POST(request: NextRequest) {
       success: true,
       ordersProcessed: orders.length,
       designsUpdated: updated,
+      titleCollisions, // designs whose normalized name collides with another
       summary: summary.slice(0, 20), // Top 20 sellers
     });
   } catch (error) {

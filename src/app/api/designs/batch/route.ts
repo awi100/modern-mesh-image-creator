@@ -98,9 +98,15 @@ export async function PATCH(request: NextRequest) {
       }
 
       case "delete": {
-        // Soft delete designs (move to trash)
+        // Soft delete designs and their print versions (mirrors the
+        // single-design DELETE, which cascades to the print version).
         const updateResult = await prisma.design.updateMany({
-          where: { id: { in: designIds } },
+          where: {
+            OR: [
+              { id: { in: designIds } },
+              { printVersionOf: { in: designIds } },
+            ],
+          },
           data: { deletedAt: new Date() },
         });
 

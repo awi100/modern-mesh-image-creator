@@ -58,14 +58,20 @@ export async function PATCH(request: NextRequest) {
         { status: 400 }
       );
     }
-    const existing = await prisma.bobbinInventory.findUnique({
-      where: { dmcNumber_length_threadSize: { dmcNumber, length, threadSize } },
-    });
-    const newCount = Math.max(0, (existing?.count || 0) + delta);
-    const item = await prisma.bobbinInventory.upsert({
-      where: { dmcNumber_length_threadSize: { dmcNumber, length, threadSize } },
-      create: { dmcNumber, length, threadSize, count: newCount },
-      update: { count: newCount },
+    // Atomic read-modify-write inside a transaction with an atomic increment,
+    // so concurrent +/- clicks can't lose an update.
+    const item = await prisma.$transaction(async (tx) => {
+      const key = { dmcNumber_length_threadSize: { dmcNumber, length, threadSize } };
+      const existing = await tx.bobbinInventory.findUnique({ where: key });
+      if (!existing) {
+        return tx.bobbinInventory.create({
+          data: { dmcNumber, length, threadSize, count: Math.max(0, delta) },
+        });
+      }
+      if (existing.count + delta < 0) {
+        return tx.bobbinInventory.update({ where: key, data: { count: 0 } });
+      }
+      return tx.bobbinInventory.update({ where: key, data: { count: { increment: delta } } });
     });
     return NextResponse.json(item);
   } catch (error) {

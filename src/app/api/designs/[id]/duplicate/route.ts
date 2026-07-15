@@ -40,6 +40,12 @@ export async function POST(
         stitchType: original.stitchType,
         bufferPercent: original.bufferPercent,
         folderId: original.folderId,
+        // Copy precomputed kit summary (identical pixelData → identical summary)
+        // so the duplicate shows correct color/skein/stitch counts immediately.
+        kitColorCount: original.kitColorCount,
+        kitSkeinCount: original.kitSkeinCount,
+        colorsUsed: original.colorsUsed,
+        totalStitches: original.totalStitches,
         // Don't copy preview images - they'll be regenerated
       },
     });
@@ -68,6 +74,10 @@ export async function POST(
           stitchType: original.stitchType,
           bufferPercent: original.bufferPercent,
           folderId: original.folderId,
+          kitColorCount: original.kitColorCount,
+          kitSkeinCount: original.kitSkeinCount,
+          colorsUsed: original.colorsUsed,
+          totalStitches: original.totalStitches,
           printVersionOf: duplicate.id,
         },
       });

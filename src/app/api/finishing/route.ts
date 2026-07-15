@@ -83,9 +83,36 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    const { id, ...updates } = body;
-    if (updates.startedAt) updates.startedAt = new Date(updates.startedAt);
-    if (updates.finishedAt) updates.finishedAt = new Date(updates.finishedAt);
+    // Allow-list updatable fields — never pass the raw body to Prisma
+    // (mass-assignment would let a caller repoint designId, overwrite
+    // createdAt, etc).
+    const { id } = body;
+    const updates: {
+      person?: string;
+      status?: string;
+      productType?: string | null;
+      notes?: string | null;
+      startedAt?: Date;
+      finishedAt?: Date | null;
+    } = {};
+    if (typeof body.person === "string") updates.person = body.person;
+    if (typeof body.status === "string") updates.status = body.status;
+    if (body.productType !== undefined) updates.productType = body.productType || null;
+    if (body.notes !== undefined) updates.notes = body.notes || null;
+    if (body.startedAt !== undefined) {
+      const d = new Date(body.startedAt);
+      if (isNaN(d.getTime())) return NextResponse.json({ error: "Invalid startedAt" }, { status: 400 });
+      updates.startedAt = d;
+    }
+    if (body.finishedAt !== undefined) {
+      if (body.finishedAt === null) {
+        updates.finishedAt = null;
+      } else {
+        const d = new Date(body.finishedAt);
+        if (isNaN(d.getTime())) return NextResponse.json({ error: "Invalid finishedAt" }, { status: 400 });
+        updates.finishedAt = d;
+      }
+    }
 
     const updated = await prisma.finishingProject.update({
       where: { id },

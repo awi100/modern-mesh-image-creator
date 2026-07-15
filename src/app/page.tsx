@@ -614,6 +614,7 @@ export default function HomePage() {
 
   // Recursive folder tree renderer for desktop sidebar
   const renderDesktopFolderTree = (folderList: Folder[], depth: number): React.ReactNode => {
+    if (depth > 20) return null; // guard against any accidental folder cycle
     return folderList.map((folder) => {
       const children = childFoldersMap.get(folder.id) || [];
       const hasChildren = children.length > 0;
@@ -776,6 +777,7 @@ export default function HomePage() {
 
   // Mobile folder chips renderer - shows parent/child hierarchy as indented chips
   const renderMobileFolderChips = (folderList: Folder[], depth: number): React.ReactNode => {
+    if (depth > 20) return null; // guard against any accidental folder cycle
     return folderList.map((folder) => {
       const children = childFoldersMap.get(folder.id) || [];
       const hasChildren = children.length > 0;
@@ -816,6 +818,7 @@ export default function HomePage() {
 
   // Recursive folder dropdown for move-to-folder menus
   const renderFolderDropdown = (folderList: Folder[], design: Design, depth: number): React.ReactNode => {
+    if (depth > 20) return null; // guard against any accidental folder cycle
     return folderList.map((folder) => {
       const children = childFoldersMap.get(folder.id) || [];
       return (

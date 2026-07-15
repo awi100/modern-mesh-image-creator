@@ -63,6 +63,29 @@ export async function PATCH(
     if (body.name !== undefined) data.name = body.name;
     if (body.parentId !== undefined) data.parentId = body.parentId;
 
+    // Prevent cycles: a folder cannot be its own parent, nor be moved into one
+    // of its own descendants. A cycle would make the recursive folder-tree
+    // renderer loop forever and crash the home page.
+    if (data.parentId) {
+      if (data.parentId === id) {
+        return NextResponse.json({ error: "A folder cannot be its own parent" }, { status: 400 });
+      }
+      const seen = new Set<string>();
+      let cursor: string | null = data.parentId;
+      while (cursor) {
+        if (cursor === id) {
+          return NextResponse.json({ error: "Cannot move a folder into its own descendant" }, { status: 400 });
+        }
+        if (seen.has(cursor)) break; // pre-existing cycle elsewhere; don't loop
+        seen.add(cursor);
+        const parent: { parentId: string | null } | null = await prisma.folder.findUnique({
+          where: { id: cursor },
+          select: { parentId: true },
+        });
+        cursor = parent?.parentId ?? null;
+      }
+    }
+
     const folder = await prisma.folder.update({
       where: { id },
       data,

@@ -31,11 +31,20 @@ export async function DELETE(
 
     // Atomic transaction: decrement kitsReady + delete sale
     await prisma.$transaction(async (tx) => {
-      // Decrement kitsReady by the quantity that was assembled
-      await tx.design.update({
+      // Decrement kitsReady by the assembled quantity, clamped so it can't go
+      // negative (kitsReady may have already been drawn down by sales or edited
+      // inline since this assembly was recorded).
+      const design = await tx.design.findUnique({
         where: { id: sale.designId },
-        data: { kitsReady: { decrement: sale.quantity ?? 1 } },
+        select: { kitsReady: true },
       });
+      const dec = Math.min(sale.quantity ?? 1, design?.kitsReady ?? 0);
+      if (dec > 0) {
+        await tx.design.update({
+          where: { id: sale.designId },
+          data: { kitsReady: { decrement: dec } },
+        });
+      }
 
       // Delete the sale (cascade deletes items if any)
       await tx.kitSale.delete({

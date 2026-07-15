@@ -49,13 +49,22 @@ export async function POST() {
       } as SyncResult);
     }
 
-    // Get all Shopify order IDs that we've already processed
+    // Get all Shopify order IDs that we've already processed. An order counts
+    // as processed if it was fulfilled locally OR if it already has line-item
+    // rows — the latter catches orders that were fulfilled and then
+    // deliberately UNDONE (undo clears fulfilledAt but keeps the items).
+    // Re-syncing an undone order would silently re-deduct inventory and undo
+    // the undo. A pre-fulfillment Mystery-Bag row has no items, so it stays
+    // eligible for a real sync.
     const processedOrders = await prisma.shopifyOrder.findMany({
       where: {
         shopifyOrderId: {
           in: fulfilledOrders.map((o) => o.id),
         },
-        fulfilledAt: { not: null },
+        OR: [
+          { fulfilledAt: { not: null } },
+          { items: { some: {} } },
+        ],
       },
       select: { shopifyOrderId: true },
     });

@@ -302,6 +302,26 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
+    // Validate & coerce all counter fields to integers up front. These feed
+    // Prisma atomic increments and Math.max clamps; a string or NaN would
+    // corrupt the stored count (e.g. 3 + "5" -> "35") or throw a 500.
+    const numericFields = [
+      "kitsReady", "canvasPrinted", "canvasPrintedMaddie",
+      "marketKitsReady", "marketCanvasPrinted", "canvasAndover",
+      "canvasPrintedDelta", "kitsReadyDelta", "canvasPrintedMaddieDelta",
+      "marketTransferKitsDelta", "marketTransferCanvasDelta",
+      "andoverTransferDelta", "canvasAndoverDelta",
+    ] as const;
+    for (const field of numericFields) {
+      if (body[field] !== undefined) {
+        const n = Number(body[field]);
+        if (!Number.isInteger(n)) {
+          return NextResponse.json({ error: `${field} must be an integer` }, { status: 400 });
+        }
+        body[field] = n;
+      }
+    }
+
     const data: Record<string, unknown> = {};
 
     // Restore from trash (also restore print version)

@@ -30,17 +30,26 @@ export async function POST(request: NextRequest) {
   try {
     const { name, parentId } = await request.json();
 
-    if (!name) {
+    if (!name || typeof name !== "string") {
       return NextResponse.json(
         { error: "Name is required" },
         { status: 400 }
       );
     }
 
+    // Validate the parent exists so we don't create an orphan folder that
+    // never renders (root filter is !parentId).
+    if (parentId) {
+      const parent = await prisma.folder.findUnique({ where: { id: parentId }, select: { id: true } });
+      if (!parent) {
+        return NextResponse.json({ error: "Parent folder not found" }, { status: 400 });
+      }
+    }
+
     const folder = await prisma.folder.create({
       data: {
-        name,
-        parentId,
+        name: name.trim(),
+        parentId: parentId ?? null,
       },
     });
 

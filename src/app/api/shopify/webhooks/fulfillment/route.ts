@@ -24,11 +24,27 @@ interface ShopifyWebhookPayload {
   name: string; // Order number like "#1001"
   admin_graphql_api_id: string; // "gid://shopify/Order/123"
   source_name?: string | null; // "pos" = Point of Sale, "web"/checkout = online
+  cancelled_at?: string | null;
+  financial_status?: string | null; // "refunded" | "voided" | "paid" | ...
+  current_total_price?: string | null;
+  total_price?: string | null;
   billing_address?: {
     name?: string;
   };
   fulfillments: ShopifyFulfillment[];
   line_items: ShopifyLineItem[];
+}
+
+// Mirror of isIgnorableOrder (lib/shopify) for the REST-shaped webhook payload:
+// cancelled, fully refunded/voided, or $0 total orders must be ignored so the
+// webhook never deducts inventory the rest of the system skips.
+function isIgnorableWebhookOrder(p: ShopifyWebhookPayload): boolean {
+  if (p.cancelled_at) return true;
+  const fin = (p.financial_status || "").toLowerCase();
+  if (fin === "refunded" || fin === "voided") return true;
+  const totalStr = p.current_total_price ?? p.total_price;
+  if (totalStr !== undefined && totalStr !== null && parseFloat(totalStr) === 0) return true;
+  return false;
 }
 
 // Verify Shopify webhook HMAC signature
@@ -44,10 +60,12 @@ function verifyWebhook(rawBody: string, hmacHeader: string): boolean {
     .update(rawBody, "utf8")
     .digest("base64");
 
-  return crypto.timingSafeEqual(
-    Buffer.from(hash),
-    Buffer.from(hmacHeader)
-  );
+  const expected = Buffer.from(hash, "utf8");
+  const provided = Buffer.from(hmacHeader, "utf8");
+  // timingSafeEqual throws if lengths differ — guard so a malformed header
+  // rejects cleanly instead of throwing.
+  if (expected.length !== provided.length) return false;
+  return crypto.timingSafeEqual(expected, provided);
 }
 
 // POST - Handle Shopify fulfillment webhook
@@ -67,6 +85,12 @@ export async function POST(request: NextRequest) {
     // Parse the webhook payload
     const payload: ShopifyWebhookPayload = JSON.parse(rawBody);
 
+    // Ignore cancelled / fully-refunded / $0 orders (consistent with sync
+    // and analytics, which never count these).
+    if (isIgnorableWebhookOrder(payload)) {
+      return NextResponse.json({ message: "Order ignored (cancelled/refunded/$0)" });
+    }
+
     // Only process if there are fulfillments
     if (!payload.fulfillments || payload.fulfillments.length === 0) {
       return NextResponse.json({ message: "No fulfillments to process" });
@@ -77,12 +101,16 @@ export async function POST(request: NextRequest) {
     // orders deduct from main/online stock.
     const isPos = isPosSource(payload.source_name);
 
-    // Quick check outside transaction (optimization, not relied upon for correctness)
+    // Quick check outside transaction (optimization, not relied upon for correctness).
+    // Treat an order that already has line items as processed too — that catches
+    // orders fulfilled and then deliberately UNDONE (undo keeps the items but
+    // clears fulfilledAt); re-deducting them would undo the undo.
     const existingOrder = await prisma.shopifyOrder.findUnique({
       where: { shopifyOrderId },
+      include: { items: { take: 1, select: { id: true } } },
     });
 
-    if (existingOrder?.fulfilledAt) {
+    if (existingOrder?.fulfilledAt || (existingOrder?.items.length ?? 0) > 0) {
       console.log(`Webhook: Order ${payload.name} already processed, skipping`);
       return NextResponse.json({
         message: "Order already processed",
@@ -186,10 +214,12 @@ export async function POST(request: NextRequest) {
       // Check again inside transaction to prevent race conditions
       const existingInTx = await tx.shopifyOrder.findUnique({
         where: { shopifyOrderId },
+        include: { items: { take: 1, select: { id: true } } },
       });
 
-      if (existingInTx?.fulfilledAt) {
-        // Already processed by another request (race condition avoided)
+      if (existingInTx?.fulfilledAt || (existingInTx?.items.length ?? 0) > 0) {
+        // Already processed by another request (race condition avoided) or
+        // previously fulfilled-then-undone.
         return { alreadyProcessed: true };
       }
 
@@ -328,11 +358,12 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error processing fulfillment webhook:", error);
-    // Return 200 to prevent Shopify from retrying (we log the error)
-    // In production, you might want to queue for retry
+    // Return 500 so Shopify retries — a transient DB failure here would
+    // otherwise silently drop the order's deduction with no retry. The
+    // transaction is atomic, so a failed attempt leaves no partial state.
     return NextResponse.json({
       error: "Failed to process webhook",
       message: error instanceof Error ? error.message : "Unknown error",
-    });
+    }, { status: 500 });
   }
 }
