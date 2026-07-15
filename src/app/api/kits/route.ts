@@ -149,6 +149,7 @@ export async function GET(request: NextRequest) {
               hex: backupColor?.hex ?? "#888888",
               inventorySkeins: backupInventorySkeins,
               inStock: backupInventorySkeins >= usage.skeinsNeeded,
+              threadSize,
             };
           }
 
@@ -168,6 +169,7 @@ export async function GET(request: NextRequest) {
             fullSkeins,
             bobbinYards,
             inventorySkeins,
+            threadSize,
             inStock: effectiveInStock,
             primaryInStock,
             backup,

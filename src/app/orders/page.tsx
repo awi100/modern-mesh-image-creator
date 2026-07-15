@@ -15,6 +15,7 @@ interface BackupColorInfo {
   hex: string;
   inventorySkeins: number;
   inStock: boolean;
+  threadSize: number;
 }
 
 interface KitItem {
@@ -25,6 +26,7 @@ interface KitItem {
   fullSkeins: number;
   bobbinYards: number;
   inventorySkeins: number;
+  threadSize: number;
   inStock: boolean;
   primaryInStock?: boolean;
   backup: BackupColorInfo | null;
@@ -240,10 +242,11 @@ export default function OrdersPage() {
     return searchDmcColors(backupSearch.trim()).slice(0, 50);
   }, [backupSearch]);
 
-  // Fetch inventory for backup color picker (size 5 only - 14 mesh)
-  const fetchInventoryStock = useCallback(async () => {
+  // Fetch inventory for the backup color picker at the design's thread size
+  // (Size 3 for 13ct, Size 5 for 14/18ct) so the in-stock hint is accurate.
+  const fetchInventoryStock = useCallback(async (size: number = 5) => {
     try {
-      const res = await fetch("/api/inventory?size=5");
+      const res = await fetch(`/api/inventory?size=${size}`);
       if (res.ok) {
         const items: { dmcNumber: string; skeins: number }[] = await res.json();
         const stockMap = new Map<string, number>();
@@ -348,8 +351,8 @@ export default function OrdersPage() {
   }, [fetchOrders]);
 
   // Fetch kit data for showing kit contents
-  const fetchKits = useCallback(async () => {
-    if (kitData.size > 0) return; // Already loaded
+  const fetchKits = useCallback(async (force = false) => {
+    if (!force && kitData.size > 0) return; // Already loaded
     setLoadingKits(true);
     try {
       const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
@@ -476,12 +479,14 @@ export default function OrdersPage() {
     setFulfilling(null);
   }, []);
 
-  // Fetch inventory when backup picker opens
+  // Fetch inventory when backup picker opens, using the editing design's
+  // thread size so a 13ct design shows Size 3 stock (not Size 5).
   useEffect(() => {
     if (editingBackup) {
-      fetchInventoryStock();
+      const editingItem = kitData.get(editingBackup.designId)?.kitContents.find(i => i.dmcNumber === editingBackup.dmcNumber);
+      fetchInventoryStock(editingItem?.threadSize ?? 5);
     }
-  }, [editingBackup, fetchInventoryStock]);
+  }, [editingBackup, fetchInventoryStock, kitData]);
 
   useEffect(() => {
     const loadAndSync = async () => {
@@ -612,19 +617,24 @@ export default function OrdersPage() {
     clearPending();
   }, [data, handleUpdateCount]);
 
-  // Update thread inventory for a kit color
-  const handleUpdateInventory = useCallback(async (dmcNumber: string, delta: number, threadSize: number = 5) => {
-    if (updatingInventory === dmcNumber) return;
-
-    setUpdatingInventory(dmcNumber);
+  // Update thread inventory for a kit color. Inventory is keyed by
+  // (dmcNumber, threadSize) — 13ct designs use Size 3, 14/18ct use Size 5 —
+  // so the write and the optimistic update must both respect the size.
+  const handleUpdateInventory = useCallback(async (dmcNumber: string, delta: number, threadSize: number) => {
     const size = threadSize;
+    const key = `${dmcNumber}-${size}`;
+    if (updatingInventory === key) return;
 
-    // Optimistic update in kitData
+    setUpdatingInventory(key);
+
+    // Optimistic update in kitData — only items of the SAME thread size share
+    // this inventory record; a same-DMC item at a different size is a different
+    // SKU and must not move.
     setKitData(prevKitData => {
       const newMap = new Map(prevKitData);
       for (const [designId, kit] of newMap) {
         const updatedContents = kit.kitContents.map(item => {
-          if (item.dmcNumber !== dmcNumber) return item;
+          if (item.dmcNumber !== dmcNumber || item.threadSize !== size) return item;
           const newSkeins = Math.max(0, item.inventorySkeins + delta);
           return {
             ...item,
@@ -653,18 +663,19 @@ export default function OrdersPage() {
       }
     } catch (error) {
       console.error("Error updating inventory:", error);
-      // Revert by refetching kits
-      fetchKits();
+      // Revert by force-refetching kits (the plain fetch would no-op since
+      // kitData is already loaded).
+      fetchKits(true);
     }
     setUpdatingInventory(null);
   }, [updatingInventory, fetchKits]);
 
-  // Set absolute inventory value for a kit color
-  const handleSetInventory = useCallback(async (dmcNumber: string, value: number) => {
-    // Find current value from kitData
+  // Set absolute inventory value for a kit color at a specific thread size.
+  const handleSetInventory = useCallback(async (dmcNumber: string, value: number, threadSize: number) => {
+    // Find current value from kitData for this exact (dmc, size).
     let currentValue = 0;
     for (const kit of kitData.values()) {
-      const item = kit.kitContents.find(i => i.dmcNumber === dmcNumber);
+      const item = kit.kitContents.find(i => i.dmcNumber === dmcNumber && i.threadSize === threadSize);
       if (item) {
         currentValue = item.inventorySkeins;
         break;
@@ -675,10 +686,10 @@ export default function OrdersPage() {
     const delta = newVal - currentValue;
 
     if (delta !== 0) {
-      await handleUpdateInventory(dmcNumber, delta);
+      await handleUpdateInventory(dmcNumber, delta, threadSize);
     }
     // Clear pending value
-    setPendingInventory((prev) => { const next = { ...prev }; delete next[dmcNumber]; return next; });
+    setPendingInventory((prev) => { const next = { ...prev }; delete next[`${dmcNumber}-${threadSize}`]; return next; });
   }, [kitData, handleUpdateInventory]);
 
   // Save backup color for a design
@@ -729,10 +740,10 @@ export default function OrdersPage() {
             if (!backupDmcNumber.trim()) {
               return { ...item, backup: null };
             }
-            // Find inventory for backup color
+            // Find inventory for backup color at the SAME thread size.
             let backupInventorySkeins = 0;
             for (const k of prevKitData.values()) {
-              const backupItem = k.kitContents.find(i => i.dmcNumber === backupDmcNumber);
+              const backupItem = k.kitContents.find(i => i.dmcNumber === backupDmcNumber && i.threadSize === item.threadSize);
               if (backupItem) {
                 backupInventorySkeins = backupItem.inventorySkeins;
                 break;
@@ -746,6 +757,7 @@ export default function OrdersPage() {
                 hex: backupColor?.hex ?? "#888888",
                 inventorySkeins: backupInventorySkeins,
                 inStock: backupInventorySkeins >= item.skeinsNeeded,
+                threadSize: item.threadSize,
               },
             };
           });
@@ -1275,8 +1287,8 @@ export default function OrdersPage() {
                                                       </div>
                                                       <div className="flex items-center gap-1 flex-shrink-0">
                                                         <button
-                                                          onClick={() => handleUpdateInventory(item.dmcNumber, -1, (item as { threadSize?: number }).threadSize ?? 5)}
-                                                          disabled={updatingInventory === item.dmcNumber || item.inventorySkeins <= 0}
+                                                          onClick={() => handleUpdateInventory(item.dmcNumber, -1, item.threadSize)}
+                                                          disabled={updatingInventory === `${item.dmcNumber}-${item.threadSize}` || item.inventorySkeins <= 0}
                                                           className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
                                                           title="Remove 1"
                                                         >
@@ -1287,23 +1299,23 @@ export default function OrdersPage() {
                                                         <input
                                                           type="number"
                                                           min="0"
-                                                          value={pendingInventory[item.dmcNumber] ?? item.inventorySkeins}
-                                                          onChange={(e) => setPendingInventory((prev) => ({ ...prev, [item.dmcNumber]: e.target.value }))}
+                                                          value={pendingInventory[`${item.dmcNumber}-${item.threadSize}`] ?? item.inventorySkeins}
+                                                          onChange={(e) => setPendingInventory((prev) => ({ ...prev, [`${item.dmcNumber}-${item.threadSize}`]: e.target.value }))}
                                                           onBlur={() => {
-                                                            const val = pendingInventory[item.dmcNumber];
+                                                            const val = pendingInventory[`${item.dmcNumber}-${item.threadSize}`];
                                                             if (val !== undefined && val !== "") {
-                                                              handleSetInventory(item.dmcNumber, Number(val));
+                                                              handleSetInventory(item.dmcNumber, Number(val), item.threadSize);
                                                             } else if (val === "") {
-                                                              setPendingInventory((prev) => { const next = { ...prev }; delete next[item.dmcNumber]; return next; });
+                                                              setPendingInventory((prev) => { const next = { ...prev }; delete next[`${item.dmcNumber}-${item.threadSize}`]; return next; });
                                                             }
                                                           }}
                                                           onKeyDown={(e) => {
                                                             if (e.key === "Enter") {
-                                                              const val = pendingInventory[item.dmcNumber];
+                                                              const val = pendingInventory[`${item.dmcNumber}-${item.threadSize}`];
                                                               if (val !== undefined && val !== "") {
-                                                                handleSetInventory(item.dmcNumber, Number(val));
+                                                                handleSetInventory(item.dmcNumber, Number(val), item.threadSize);
                                                               } else if (val === "") {
-                                                                setPendingInventory((prev) => { const next = { ...prev }; delete next[item.dmcNumber]; return next; });
+                                                                setPendingInventory((prev) => { const next = { ...prev }; delete next[`${item.dmcNumber}-${item.threadSize}`]; return next; });
                                                               }
                                                               (e.target as HTMLInputElement).blur();
                                                           }
@@ -1311,8 +1323,8 @@ export default function OrdersPage() {
                                                         className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
                                                       />
                                                       <button
-                                                        onClick={() => handleUpdateInventory(item.dmcNumber, 1, (item as { threadSize?: number }).threadSize ?? 5)}
-                                                        disabled={updatingInventory === item.dmcNumber}
+                                                        onClick={() => handleUpdateInventory(item.dmcNumber, 1, item.threadSize)}
+                                                        disabled={updatingInventory === `${item.dmcNumber}-${item.threadSize}`}
                                                         className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
                                                         title="Add 1"
                                                       >
