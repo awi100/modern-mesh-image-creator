@@ -47,7 +47,12 @@ export interface ShopifyLineItem {
   id: string;
   title: string;
   variantTitle: string | null;
+  // Quantity to act on. In the order fetchers this is normalized to Shopify's
+  // currentQuantity (original quantity minus refunded/removed units), so
+  // partially-refunded line items reflect only what's still owed.
   quantity: number;
+  // Raw current quantity from Shopify (present on real orders, not drafts).
+  currentQuantity?: number;
   product: {
     id: string;
     title: string;
@@ -127,6 +132,16 @@ export function isIgnorableOrder(order: ShopifyOrderNode): boolean {
   return false;
 }
 
+// Normalize line-item quantities to what's still owed after refunds/edits and
+// drop items that were fully refunded (currentQuantity 0). This is why a
+// partially-refunded order keeps showing its non-refunded items only.
+function applyLineItemRefunds(order: ShopifyOrderNode): ShopifyOrderNode {
+  const nodes = order.lineItems.nodes
+    .map((li) => ({ ...li, quantity: li.currentQuantity ?? li.quantity }))
+    .filter((li) => li.quantity > 0);
+  return { ...order, lineItems: { nodes } };
+}
+
 export interface OrdersQueryResult {
   orders: {
     nodes: ShopifyOrderNode[];
@@ -178,6 +193,7 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
               title
               variantTitle
               quantity
+              currentQuantity
               product {
                 id
                 title
@@ -207,7 +223,7 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
     const result = await shopifyGraphQL<OrdersQueryResult>(query, { cursor });
     // Belt-and-braces: also drop cancelled/refunded/$0 orders the search
     // filter didn't catch (e.g. $0 totals from a full-discount checkout)
-    allOrders.push(...result.orders.nodes.filter((o) => !isIgnorableOrder(o)));
+    allOrders.push(...result.orders.nodes.filter((o) => !isIgnorableOrder(o)).map(applyLineItemRefunds));
     hasMore = result.orders.pageInfo.hasNextPage;
     cursor = result.orders.pageInfo.endCursor || undefined;
 
@@ -272,6 +288,7 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
               title
               variantTitle
               quantity
+              currentQuantity
               product {
                 id
                 title
@@ -299,7 +316,7 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
 
   while (hasMore) {
     const result = await shopifyGraphQL<OrdersQueryResult>(query, { cursor });
-    allOrders.push(...result.orders.nodes.filter((o) => !isIgnorableOrder(o)));
+    allOrders.push(...result.orders.nodes.filter((o) => !isIgnorableOrder(o)).map(applyLineItemRefunds));
     hasMore = result.orders.pageInfo.hasNextPage;
     cursor = result.orders.pageInfo.endCursor || undefined;
 
