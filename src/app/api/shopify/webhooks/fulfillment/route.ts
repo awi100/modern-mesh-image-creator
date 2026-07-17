@@ -91,6 +91,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Order ignored (cancelled/refunded/$0)" });
     }
 
+    // Orders that originated from a draft order are handled through the draft
+    // flow + sync (which reconciles drafts already fulfilled in-app so they
+    // aren't deducted twice). Defer them to sync rather than deduct here.
+    if ((payload.source_name || "").toLowerCase() === "shopify_draft_order") {
+      return NextResponse.json({ message: "Draft-originated order — deferred to sync" });
+    }
+
     // Only process if there are fulfillments
     if (!payload.fulfillments || payload.fulfillments.length === 0) {
       return NextResponse.json({ message: "No fulfillments to process" });

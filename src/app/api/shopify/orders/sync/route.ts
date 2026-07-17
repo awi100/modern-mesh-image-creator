@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import {
   fetchRecentlyFulfilledOrders,
+  fetchCompletedDraftLinks,
   parseNeedsKit,
   normalizeTitle,
   visibleCustomAttributes,
@@ -70,6 +71,27 @@ export async function POST() {
     });
 
     const processedIds = new Set(processedOrders.map((o) => o.shopifyOrderId));
+
+    // Draft reconciliation: a draft order fulfilled in-app carries the DRAFT's
+    // id locally, but once completed in Shopify it becomes a real order with a
+    // NEW id that would deduct again here. Map completed drafts -> their order
+    // and, if we already fulfilled the draft locally, treat that order as
+    // processed so it isn't double-deducted.
+    try {
+      const draftLinks = await fetchCompletedDraftLinks(sixtyDaysAgo);
+      if (draftLinks.length > 0) {
+        const fulfilledDrafts = await prisma.shopifyOrder.findMany({
+          where: { shopifyOrderId: { in: draftLinks.map((l) => l.draftId) }, items: { some: {} } },
+          select: { shopifyOrderId: true },
+        });
+        const fulfilledDraftSet = new Set(fulfilledDrafts.map((d) => d.shopifyOrderId));
+        for (const link of draftLinks) {
+          if (fulfilledDraftSet.has(link.draftId)) processedIds.add(link.orderId);
+        }
+      }
+    } catch (e) {
+      console.error("Draft reconciliation failed (continuing without it):", e);
+    }
 
     // Find orders that need to be synced
     const ordersToSync = fulfilledOrders.filter(

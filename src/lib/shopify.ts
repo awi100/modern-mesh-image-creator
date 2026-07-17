@@ -92,6 +92,10 @@ export interface ShopifyOrderNode {
   lineItems: {
     nodes: ShopifyLineItem[];
   };
+  // True when this node was mapped from a Shopify DRAFT order (see
+  // fetchOpenDraftOrders). Draft orders are manually created in the Shopify
+  // admin and never appear in the normal `orders` connection.
+  isDraftOrder?: boolean;
 }
 
 // Heuristic: the customer paid for an express/expedited/priority/overnight
@@ -317,6 +321,173 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
 // Fetch ALL fulfilled orders from entire Shopify history (no date filter)
 export async function fetchAllFulfilledOrders(): Promise<OrdersQueryResult> {
   return fetchRecentlyFulfilledOrders(); // No date = all orders
+}
+
+// ---- Draft orders ----
+// Orders created manually in the Shopify admin start life as DRAFT orders (a
+// separate API) and never show up in the `orders` connection until completed.
+// We surface open drafts so they can be fulfilled in the app, and expose the
+// draft -> resulting-order link so sync can avoid double-deducting once a draft
+// is completed into a real order.
+
+interface DraftOrderLineItemNode {
+  id: string;
+  title: string;
+  variantTitle: string | null;
+  quantity: number;
+  product: { id: string; title: string; productType: string } | null;
+  customAttributes: { key: string; value: string | null }[];
+}
+
+interface DraftOrderNode {
+  id: string;
+  name: string;
+  createdAt: string;
+  status: string; // OPEN | INVOICE_SENT | COMPLETED
+  order: { id: string } | null; // set once the draft is completed into an order
+  totalPriceSet: { shopMoney: { amount: string } | null } | null;
+  billingAddress: ShopifyOrderNode["billingAddress"];
+  shippingLine: { title: string | null } | null;
+  customer: { displayName: string | null } | null;
+  lineItems: { nodes: DraftOrderLineItemNode[] };
+}
+
+interface DraftOrdersQueryResult {
+  draftOrders: {
+    nodes: DraftOrderNode[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+}
+
+const DRAFT_ORDER_FIELDS = `
+  id
+  name
+  createdAt
+  status
+  order { id }
+  totalPriceSet { shopMoney { amount } }
+  billingAddress {
+    name
+    city
+    province
+    provinceCode
+    country
+    countryCodeV2
+  }
+  shippingLine { title }
+  customer { displayName }
+  lineItems(first: 50) {
+    nodes {
+      id
+      title
+      variantTitle
+      quantity
+      product { id title productType }
+      customAttributes { key value }
+    }
+  }
+`;
+
+// Map a DraftOrder into the common ShopifyOrderNode shape so the orders route
+// can process it uniformly. Drafts have no source/fulfillment/financial status;
+// they deduct from main (online) stock and are treated as unfulfilled.
+function draftToOrderNode(d: DraftOrderNode): ShopifyOrderNode {
+  return {
+    id: d.id,
+    name: d.name,
+    createdAt: d.createdAt,
+    cancelledAt: null,
+    sourceName: null,
+    displayFulfillmentStatus: "UNFULFILLED",
+    displayFinancialStatus: null,
+    currentTotalPriceSet: d.totalPriceSet,
+    billingAddress:
+      d.billingAddress ??
+      (d.customer?.displayName
+        ? { name: d.customer.displayName, city: null, province: null, provinceCode: null, country: null, countryCodeV2: null }
+        : null),
+    shippingLine: d.shippingLine,
+    lineItems: {
+      nodes: d.lineItems.nodes.map((li) => ({
+        id: li.id,
+        title: li.title,
+        variantTitle: li.variantTitle,
+        quantity: li.quantity,
+        product: li.product,
+        customAttributes: li.customAttributes,
+      })),
+    },
+    isDraftOrder: true,
+  };
+}
+
+// Open (not-yet-completed) draft orders, mapped as ShopifyOrderNodes.
+export async function fetchOpenDraftOrders(): Promise<ShopifyOrderNode[]> {
+  const query = `
+    query GetOpenDraftOrders($cursor: String) {
+      draftOrders(first: 50, after: $cursor, query: "status:open OR status:invoice_sent", sortKey: UPDATED_AT, reverse: true) {
+        nodes { ${DRAFT_ORDER_FIELDS} }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  `;
+
+  const all: ShopifyOrderNode[] = [];
+  let cursor: string | undefined;
+  let hasMore = true;
+
+  while (hasMore) {
+    const result = await shopifyGraphQL<DraftOrdersQueryResult>(query, { cursor });
+    for (const node of result.draftOrders.nodes) {
+      if (node.status === "COMPLETED") continue; // completed drafts are real orders now
+      all.push(draftToOrderNode(node));
+    }
+    hasMore = result.draftOrders.pageInfo.hasNextPage;
+    cursor = result.draftOrders.pageInfo.endCursor || undefined;
+    if (all.length >= 200) break;
+  }
+
+  return all.slice(0, 200);
+}
+
+export interface DraftOrderLink {
+  draftId: string;
+  orderId: string;
+}
+
+// Completed drafts (updated since `sinceDate`) with the real order they became.
+// Used by sync to skip re-deducting an order whose draft was already fulfilled.
+export async function fetchCompletedDraftLinks(sinceDate: Date): Promise<DraftOrderLink[]> {
+  const dateFilter = `updated_at:>='${sinceDate.toISOString().split("T")[0]}'`;
+  const query = `
+    query GetCompletedDraftOrders($cursor: String) {
+      draftOrders(first: 100, after: $cursor, query: "status:completed AND ${dateFilter}", sortKey: UPDATED_AT, reverse: true) {
+        nodes { id order { id } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  `;
+
+  const links: DraftOrderLink[] = [];
+  let cursor: string | undefined;
+  let hasMore = true;
+
+  while (hasMore) {
+    const result = await shopifyGraphQL<{
+      draftOrders: {
+        nodes: { id: string; order: { id: string } | null }[];
+        pageInfo: { hasNextPage: boolean; endCursor: string | null };
+      };
+    }>(query, { cursor });
+    for (const n of result.draftOrders.nodes) {
+      if (n.order?.id) links.push({ draftId: n.id, orderId: n.order.id });
+    }
+    hasMore = result.draftOrders.pageInfo.hasNextPage;
+    cursor = result.draftOrders.pageInfo.endCursor || undefined;
+    if (links.length >= 2000) break;
+  }
+
+  return links;
 }
 
 // Whether an order originated from Shopify Point of Sale (in-person / craft

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import {
   fetchUnfulfilledOrders,
+  fetchOpenDraftOrders,
   parseNeedsKit,
   normalizeTitle,
   ShopifyOrderNode,
@@ -62,6 +63,8 @@ export interface Order {
   items: OrderItem[];
   // Channel: "pos" = in-person/market sale (deducts market tote), else online
   sourceName: string | null;
+  // True for Shopify draft orders (manually created, not yet completed)
+  isDraft: boolean;
   // Local fulfillment tracking
   locallyFulfilled: boolean;
   locallyFulfilledAt: string | null;
@@ -170,9 +173,17 @@ export async function GET() {
       supplyMap.set(normalizeTitle(supply.name), supply);
     }
 
-    // Fetch unfulfilled orders from Shopify
+    // Fetch unfulfilled orders from Shopify, plus open draft orders (manually
+    // created in the admin — these never appear in the normal orders list).
+    // Drafts are shown first so they're easy to find and act on.
     const shopifyData = await fetchUnfulfilledOrders();
-    const shopifyOrders = shopifyData.orders.nodes;
+    let shopifyOrders = shopifyData.orders.nodes;
+    try {
+      const draftOrders = await fetchOpenDraftOrders();
+      shopifyOrders = [...draftOrders, ...shopifyOrders];
+    } catch (e) {
+      console.error("Failed to fetch draft orders:", e);
+    }
 
     // Fetch local order records (fulfillment + mystery bag picks) for all orders
     const localOrders = await prisma.shopifyOrder.findMany({
@@ -340,6 +351,7 @@ export async function GET() {
         customerName: shopifyOrder.billingAddress?.name || "Guest",
         createdAt: shopifyOrder.createdAt,
         sourceName: shopifyOrder.sourceName || null,
+        isDraft: !!shopifyOrder.isDraftOrder,
         items,
         locallyFulfilled: !!localFulfilledAt,
         locallyFulfilledAt: localFulfilledAt?.toISOString() || null,

@@ -2027,6 +2027,14 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-white font-medium">{order.orderNumber}</p>
+              {order.isDraft && (
+                <span
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-600 text-white"
+                  title="Shopify draft order (created manually, not yet completed). Fulfilling it here deducts inventory now; completing it later in Shopify won't double-deduct."
+                >
+                  Draft
+                </span>
+              )}
               {order.isExpress && (
                 <span
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-sky-600 text-white"
