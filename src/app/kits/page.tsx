@@ -471,8 +471,8 @@ export default function KitsPage() {
       {/* Header */}
       <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40 safe-area-top">
         <div className="max-w-7xl mx-auto px-4 pt-2"><SectionNav /></div>
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex flex-wrap items-center gap-2 md:gap-4 min-w-0">
             <Link
               href="/"
               className="text-slate-400 hover:text-white"
@@ -595,7 +595,7 @@ export default function KitsPage() {
                       >
                         {/* Kit Header - Always visible */}
                         <div
-                          className="p-4 flex items-center gap-4 cursor-pointer hover:bg-slate-700/50 transition-colors"
+                          className="p-4 flex flex-wrap items-center gap-3 md:gap-4 cursor-pointer hover:bg-slate-700/50 transition-colors"
                           onClick={() => setExpandedKit(expandedKit === kit.designId ? null : kit.designId)}
                         >
                           {/* Preview image - clickable link to design */}
@@ -640,7 +640,7 @@ export default function KitsPage() {
                           </div>
 
                           {/* Quick stats */}
-                          <div className="flex items-center gap-4 flex-shrink-0">
+                          <div className="flex items-center gap-3 md:gap-4 flex-shrink-0 w-full md:w-auto justify-between md:justify-start mt-1 md:mt-0">
                             <div className="text-center hidden sm:block">
                               <p className="text-lg font-bold text-white">{kit.totalColors}</p>
                               <p className="text-xs text-slate-400">Colors</p>

@@ -687,7 +687,7 @@ export default function KitPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Header */}
       <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-40 safe-area-top">
-        <div className="max-w-5xl mx-auto px-3 md:px-4 py-3 md:py-4 flex items-center justify-between gap-3">
+        <div className="max-w-5xl mx-auto px-3 md:px-4 py-3 md:py-4 flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link
               href="/"
@@ -713,7 +713,7 @@ export default function KitPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap md:flex-nowrap md:flex-shrink-0">
             {/* Export buttons */}
             <Tooltip label={copiedSupplier ? "Copied!" : "Copy supplier thread spec (yards w/ buffer)"} position="bottom">
               <button
