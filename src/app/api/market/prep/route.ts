@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
     interface ItemAgg {
       name: string;
       kind: "kit" | "canvas" | "supply" | "other";
+      designId: string | null;
       perMarket: number[];
       total: number;
     }
@@ -89,11 +90,12 @@ export async function GET(request: NextRequest) {
         let agg = items.get(name);
         if (!agg) {
           const kind: ItemAgg["kind"] = it.supplyId ? "supply" : it.designId ? (it.needsKit ? "kit" : "canvas") : "other";
-          agg = { name, kind, perMarket: new Array(marketCount).fill(0), total: 0 };
+          agg = { name, kind, designId: it.designId ?? null, perMarket: new Array(marketCount).fill(0), total: 0 };
           items.set(name, agg);
         }
         // A kit line upgrades the kind (an item sold both ways reads as a kit).
         if (it.needsKit && agg.kind === "canvas") agg.kind = "kit";
+        if (!agg.designId && it.designId) agg.designId = it.designId;
         agg.perMarket[mIdx] += it.quantity;
         agg.total += it.quantity;
       }
@@ -108,6 +110,7 @@ export async function GET(request: NextRequest) {
       return {
         name: agg.name,
         kind: agg.kind,
+        designId: agg.designId,
         perMarket: agg.perMarket,
         total: agg.total,
         max,
