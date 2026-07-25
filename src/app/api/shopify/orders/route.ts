@@ -6,6 +6,7 @@ import {
   fetchOpenDraftOrders,
   parseNeedsKit,
   normalizeTitle,
+  matchSupplyByVariant,
   ShopifyOrderNode,
   visibleCustomAttributes,
   isExpressShippingTitle,
@@ -265,7 +266,7 @@ export async function GET() {
         // Try to match to a design or supply
         const normalizedTitle = normalizeTitle(productTitle);
         const matchedDesign = designMap.get(normalizedTitle);
-        const matchedSupply = supplyMap.get(normalizedTitle);
+        const matchedSupply = supplyMap.get(normalizedTitle) ?? matchSupplyByVariant(productTitle, lineItem.variantTitle, supplies) ?? undefined;
 
         // A bundle line item deducts several component supplies.
         const matchedBundle = bundleMap.get(normalizedTitle);

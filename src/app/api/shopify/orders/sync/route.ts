@@ -6,6 +6,7 @@ import {
   fetchCompletedDraftLinks,
   parseNeedsKit,
   normalizeTitle,
+  matchSupplyByVariant,
   visibleCustomAttributes,
   isPosSource,
 } from "@/lib/shopify";
@@ -184,7 +185,7 @@ export async function POST() {
 
           const normalizedTitle = normalizeTitle(productTitle);
           const matchedDesign = designMap.get(normalizedTitle);
-          const matchedSupply = supplyMap.get(normalizedTitle);
+          const matchedSupply = supplyMap.get(normalizedTitle) ?? matchSupplyByVariant(productTitle, lineItem.variantTitle, supplies) ?? undefined;
 
           items.push({
             designId: matchedDesign?.id || null,

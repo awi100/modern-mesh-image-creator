@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { parseNeedsKit, normalizeTitle, isPosSource } from "@/lib/shopify";
+import { parseNeedsKit, normalizeTitle, matchSupplyByVariant, isPosSource } from "@/lib/shopify";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 import crypto from "crypto";
 
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
 
       const normalizedTitle = normalizeTitle(productTitle);
       const matchedDesign = designMap.get(normalizedTitle);
-      const matchedSupply = supplyMap.get(normalizedTitle);
+      const matchedSupply = supplyMap.get(normalizedTitle) ?? matchSupplyByVariant(productTitle, lineItem.variant_title, supplies) ?? undefined;
 
       items.push({
         designId: matchedDesign?.id || null,

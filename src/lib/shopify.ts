@@ -531,6 +531,33 @@ export function normalizeTitle(title: string): string {
   return title.toLowerCase().trim();
 }
 
+// Resolve a supply when the product title alone doesn't match, using the
+// variant. Handles products sold as a generic title + style variant, e.g.
+// product "Needle Minder" + variant "Hydrangea" -> supply "Hydrangea Needle
+// Minder". Only called as a fallback after a direct title match fails.
+export function matchSupplyByVariant<T extends { name: string }>(
+  productTitle: string,
+  variantTitle: string | null | undefined,
+  supplies: T[]
+): T | null {
+  if (!variantTitle) return null;
+  const pt = normalizeTitle(productTitle);
+  const v = normalizeTitle(variantTitle);
+  if (!v) return null;
+  // Exact "<variant> <product>" (e.g. "hydrangea needle minder")
+  const combined = `${v} ${pt}`;
+  const exact = supplies.find((s) => normalizeTitle(s.name) === combined);
+  if (exact) return exact;
+  // Otherwise a supply whose name contains BOTH the variant and the product
+  // title (covers short variants like "Hydrangea" and full ones).
+  return (
+    supplies.find((s) => {
+      const n = normalizeTitle(s.name);
+      return n.includes(v) && n.includes(pt);
+    }) || null
+  );
+}
+
 // Filter line-item custom attributes to the ones meant to be shown to staff.
 // Shopify convention: keys starting with "_" are internal/hidden.
 export function visibleCustomAttributes(

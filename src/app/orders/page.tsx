@@ -2305,17 +2305,22 @@ function OrderItemRow({ item, demandByDesign }: { item: OrderItem; demandByDesig
             {item.productTitle}
           </Link>
         ) : (
-          <p className="text-white font-medium truncate">{item.productTitle}</p>
+          // For supplies matched via variant (e.g. "Needle Minder" + "Hydrangea"),
+          // show the resolved supply name ("Hydrangea Needle Minder").
+          <p className="text-white font-medium truncate">
+            {item.supplyName || item.productTitle}
+          </p>
         )}
-        {item.variantTitle && (
+        {item.variantTitle &&
+          !(item.supplyName && item.supplyName.toLowerCase().includes(item.variantTitle.toLowerCase())) && (
           <p className="text-sm text-slate-400 truncate">{item.variantTitle}</p>
         )}
         {item.isBundle ? (
           <p className="text-xs text-rose-300 truncate" title={item.bundleComponents.map((c) => `${c.quantity}× ${c.name}`).join(", ")}>
             Bundle → {item.bundleComponents.length > 0 ? item.bundleComponents.map((c) => c.name).join(", ") : "no components set (add in Bundles)"}
           </p>
-        ) : !item.designId ? (
-          <p className="text-xs text-yellow-500">No matching design</p>
+        ) : (!item.designId && !item.supplyId && item.itemType !== "mystery_bag") ? (
+          <p className="text-xs text-yellow-500">No matching product</p>
         ) : null}
       </div>
 
