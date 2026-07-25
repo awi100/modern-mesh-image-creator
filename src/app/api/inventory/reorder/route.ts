@@ -15,7 +15,8 @@ import { meshCountWhere } from "@/lib/mesh-filter";
 const WINDOW_DAYS = 90; // trailing window for the sales-rate estimate
 const DEFAULT_LEAD_WEEKS = 6; // orders take ~4-6 weeks to arrive; default to the safe end
 const SAFETY_WEEKS = 2; // extra buffer beyond lead time before we're comfortable
-const TARGET_COVER_WEEKS = 12; // weeks of stock we want to still have AFTER an order lands
+const DEFAULT_TARGET_MONTHS = 6; // how long a reorder should last before ordering again
+const WEEKS_PER_MONTH = 4.345;
 // Below these we don't trust the rate enough to raise an urgent flag.
 const MIN_UNITS_FOR_CONFIDENCE = 4;
 const MIN_DAYS_FOR_CONFIDENCE = 21;
@@ -30,6 +31,9 @@ export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const leadWeeks = Math.min(16, Math.max(1, Number(url.searchParams.get("leadWeeks")) || DEFAULT_LEAD_WEEKS));
+    // How long a reorder should last before we have to order again (months).
+    const targetMonths = Math.min(24, Math.max(1, Number(url.searchParams.get("targetMonths")) || DEFAULT_TARGET_MONTHS));
+    const targetCoverWeeks = Math.round(targetMonths * WEEKS_PER_MONTH);
     const meshWhere = meshCountWhere(url.searchParams.get("meshCount"));
 
     const now = new Date();
@@ -103,8 +107,10 @@ export async function GET(request: NextRequest) {
         status = "ok";
       }
 
-      // Order enough to cover the lead time plus a target stock cushion.
-      const targetUnits = Math.ceil(weeklyVelocity * (leadWeeks + TARGET_COVER_WEEKS));
+      // Order enough that, once it arrives (after the lead time), there's about
+      // `targetMonths` of stock left — so you don't have to reorder again for
+      // roughly that long. Covers sales during the lead time + the target cushion.
+      const targetUnits = Math.ceil(weeklyVelocity * (leadWeeks + targetCoverWeeks));
       const suggestedQty = weeklyVelocity > 0 ? Math.max(0, targetUnits - onHand) : 0;
 
       return {
@@ -146,7 +152,9 @@ export async function GET(request: NextRequest) {
       ok: rows.filter((r) => r.status === "ok").length,
       noSales: rows.filter((r) => r.status === "no_sales").length,
       leadWeeks,
+      targetMonths,
       windowDays: WINDOW_DAYS,
+      totalUnitsToOrder: rows.reduce((s, r) => s + (r.status === "reorder_now" || r.status === "reorder_soon" ? r.suggestedQty : 0), 0),
     };
 
     return NextResponse.json({ rows, summary });
