@@ -15,6 +15,7 @@ interface DesignAnalytics {
   totalUnitsSold: number;
   totalKitsSold: number;
   kitAttachmentRate: number;
+  allTimeSold: number;
   kitsReady: number;
   canvasPrinted: number;
   marketKitsReady: number;
@@ -79,6 +80,7 @@ interface StockAlert {
 }
 
 interface OrderAnalytics {
+  generatedAt: string;
   summary: {
     totalOrders: number;
     totalUnits: number;
@@ -179,10 +181,24 @@ export default function AnalyticsPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [hoveredWeek, setHoveredWeek] = useState<TimeAnalytics | null>(null);
 
-  const { data: analytics, isLoading, error, mutate } = useSWR<OrderAnalytics>(
+  const { data: analytics, isLoading, isValidating, error, mutate } = useSWR<OrderAnalytics>(
     `/api/analytics/orders?days=${periodDays}`,
-    { revalidateOnFocus: false }
+    // Data is fetched live from Shopify; refresh it when the tab regains focus
+    // and after 5 minutes so it never sits stale. keepPreviousData avoids a
+    // full-screen spinner when switching periods.
+    { revalidateOnFocus: true, revalidateIfStale: true, dedupingInterval: 60_000, focusThrottleInterval: 60_000, keepPreviousData: true }
   );
+
+  const periodLabel = periodDays === 365 ? "last year" : `last ${periodDays} days`;
+  const generatedAgo = useMemo(() => {
+    if (!analytics?.generatedAt) return null;
+    const secs = Math.max(0, Math.round((Date.now() - new Date(analytics.generatedAt).getTime()) / 1000));
+    if (secs < 60) return "just now";
+    const mins = Math.round(secs / 60);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.round(mins / 60);
+    return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+  }, [analytics?.generatedAt]);
 
   // Sort design performance
   const sortedDesigns = useMemo(() => {
@@ -290,9 +306,19 @@ export default function AnalyticsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
             </Link>
-            <h1 className="text-xl font-bold text-white">Order Analytics</h1>
-            <button onClick={() => mutate()} className="p-1.5 text-slate-400 hover:text-white" title="Refresh">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div>
+              <h1 className="text-xl font-bold text-white leading-tight">Order Analytics</h1>
+              <p className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-1.5">
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Live from Shopify
+                </span>
+                {generatedAgo && <span>· updated {generatedAgo}</span>}
+                <span>· {periodLabel}</span>
+                {isValidating && <span className="text-slate-600">· refreshing…</span>}
+              </p>
+            </div>
+            <button onClick={() => mutate()} className="p-1.5 text-slate-400 hover:text-white" title="Refresh now">
+              <svg className={`w-5 h-5 ${isValidating ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
@@ -489,7 +515,10 @@ export default function AnalyticsPage() {
             {/* Top Designs Quick View */}
             <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-semibold">Top Selling Designs</h3>
+                <div>
+                  <h3 className="text-white font-semibold">Top Selling Designs</h3>
+                  <p className="text-xs text-slate-500">Units sold · {periodLabel}</p>
+                </div>
                 <button onClick={() => setActiveTab("designs")} className="text-sm text-rose-400 hover:text-rose-300">
                   View All
                 </button>
@@ -572,7 +601,7 @@ export default function AnalyticsPage() {
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
             <div className="p-4 border-b border-slate-700">
               <h3 className="text-white font-semibold">Design Performance</h3>
-              <p className="text-sm text-slate-400">Click column headers to sort</p>
+              <p className="text-sm text-slate-400">Units sold in the {periodLabel} · click column headers to sort</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -607,7 +636,12 @@ export default function AnalyticsPage() {
                               style={{ width: `${(design.totalUnitsSold / maxUnits) * 100}%` }}
                             />
                           </div>
-                          <span className="text-white text-sm w-8">{design.totalUnitsSold}</span>
+                          <div className="w-16 text-right leading-tight">
+                            <span className="text-white text-sm block">{design.totalUnitsSold}</span>
+                            {design.allTimeSold > design.totalUnitsSold && (
+                              <span className="text-[9px] text-slate-500 block" title="all-time units sold">{design.allTimeSold} all-time</span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="p-3 text-right text-emerald-400 text-sm">{design.totalKitsSold}</td>
@@ -635,6 +669,9 @@ export default function AnalyticsPage() {
                   ))}
                 </tbody>
               </table>
+              {sortedDesigns.length === 0 && (
+                <div className="p-8 text-center text-slate-500 text-sm">No design sales recorded in the {periodLabel}.</div>
+              )}
             </div>
           </div>
         )}
@@ -737,7 +774,7 @@ export default function AnalyticsPage() {
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
             <div className="p-4 border-b border-slate-700">
               <h3 className="text-white font-semibold">Color Demand</h3>
-              <p className="text-sm text-slate-400">Most used colors across sold designs - prioritize stocking these</p>
+              <p className="text-sm text-slate-400">Colors weighted by units sold in the {periodLabel} — prioritize stocking these</p>
             </div>
             <div className="p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {analytics.colorDemand.map((color, i) => (

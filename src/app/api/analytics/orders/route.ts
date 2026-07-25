@@ -8,9 +8,10 @@ interface DesignAnalytics {
   designId: string;
   designName: string;
   previewImageUrl: string | null;
-  totalUnitsSold: number;
-  totalKitsSold: number;
-  kitAttachmentRate: number;
+  totalUnitsSold: number; // units sold in the SELECTED PERIOD (live from Shopify)
+  totalKitsSold: number; // kit units sold in the selected period
+  kitAttachmentRate: number; // period kit rate
+  allTimeSold: number; // cumulative units sold, all time (stored field, for reference)
   kitsReady: number;
   canvasPrinted: number;
   marketKitsReady: number;
@@ -62,6 +63,7 @@ interface StitchAnalysis {
 }
 
 interface OrderAnalytics {
+  generatedAt: string; // when this response was computed (data is live from Shopify)
   summary: {
     totalOrders: number;
     totalUnits: number;
@@ -325,11 +327,14 @@ export async function GET(request: NextRequest) {
           designId: design.id,
           designName: design.name,
           previewImageUrl: design.previewImageUrl,
-          totalUnitsSold: design.totalSold || stats.units,
-          totalKitsSold: design.totalKitsSold || stats.kitUnits,
-          kitAttachmentRate: design.totalSold > 0
-            ? Math.round((design.totalKitsSold / design.totalSold) * 100)
+          // Period-based (live from Shopify) so the numbers respond to the
+          // period selector and don't lag the stored totalSold field.
+          totalUnitsSold: stats.units,
+          totalKitsSold: stats.kitUnits,
+          kitAttachmentRate: stats.units > 0
+            ? Math.round((stats.kitUnits / stats.units) * 100)
             : 0,
+          allTimeSold: design.totalSold || 0,
           kitsReady: design.kitsReady,
           canvasPrinted: design.canvasPrinted,
           marketKitsReady: design.marketKitsReady,
@@ -391,10 +396,12 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => a.period.localeCompare(b.period));
 
-    // Color demand
+    // Color demand — weighted by units sold IN THE SELECTED PERIOD (live), so
+    // it reflects what's actually moving now rather than all-time totals.
     const colorDemandMap = new Map<string, { skeins: number; designs: Set<string>; topDesigns: Map<string, number> }>();
     for (const design of designs) {
-      if (!design.colorsUsed || design.totalSold === 0) continue;
+      const soldInPeriod = current.designStats.get(design.id)?.units ?? 0;
+      if (!design.colorsUsed || soldInPeriod === 0) continue;
       try {
         const colors: string[] = JSON.parse(design.colorsUsed);
         for (const dmcNumber of colors) {
@@ -403,8 +410,8 @@ export async function GET(request: NextRequest) {
           }
           const cd = colorDemandMap.get(dmcNumber)!;
           cd.designs.add(design.name);
-          cd.topDesigns.set(design.name, (cd.topDesigns.get(design.name) || 0) + design.totalSold);
-          cd.skeins += design.totalSold;
+          cd.topDesigns.set(design.name, (cd.topDesigns.get(design.name) || 0) + soldInPeriod);
+          cd.skeins += soldInPeriod;
         }
       } catch {
         // Skip invalid JSON
@@ -470,6 +477,7 @@ export async function GET(request: NextRequest) {
       : 0;
 
     const analytics: OrderAnalytics = {
+      generatedAt: new Date().toISOString(),
       summary: {
         totalOrders: current.totalOrders,
         totalUnits: current.totalUnits,
