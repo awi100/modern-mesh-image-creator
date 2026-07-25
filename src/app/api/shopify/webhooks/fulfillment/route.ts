@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseNeedsKit, normalizeTitle, isPosSource } from "@/lib/shopify";
+import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 import crypto from "crypto";
 
 // Shopify webhook payload types
@@ -154,6 +155,19 @@ export async function POST(request: NextRequest) {
       supplyMap.set(normalizeTitle(supply.name), supply);
     }
 
+    // Bundles → component supply deductions
+    const bundlesRaw = await prisma.bundle.findMany({
+      where: { active: true },
+      include: { components: { include: { supply: { select: { name: true } } } } },
+    });
+    const bundleData: BundleData[] = bundlesRaw.map((b) => ({
+      id: b.id,
+      title: b.title,
+      components: b.components.map((c) => ({ quantity: c.quantity, supplyId: c.supplyId, supplyName: c.supply?.name ?? null, chooseFrom: c.chooseFrom })),
+    }));
+    const bundleMap = buildBundleMap(bundleData);
+    const supplyLite = supplies.map((s) => ({ id: s.id, name: s.name }));
+
     // Build items list with design/supply matching
     const items: {
       designId: string | null;
@@ -213,6 +227,15 @@ export async function POST(request: NextRequest) {
       if (item.supplyId) {
         const existing = supplyUpdatesMap.get(item.supplyId) || 0;
         supplyUpdatesMap.set(item.supplyId, existing + item.quantity);
+      }
+
+      // Bundle line item → deduct each component supply.
+      const bundle = bundleMap.get(normalizeTitle(item.productTitle));
+      if (bundle) {
+        const { components } = expandBundle(bundle, item.variantTitle, supplyLite);
+        for (const comp of components) {
+          supplyUpdatesMap.set(comp.supplyId, (supplyUpdatesMap.get(comp.supplyId) || 0) + comp.quantity * item.quantity);
+        }
       }
     }
 

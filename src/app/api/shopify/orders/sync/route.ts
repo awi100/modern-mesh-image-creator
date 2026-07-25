@@ -10,6 +10,7 @@ import {
   isPosSource,
 } from "@/lib/shopify";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
+import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface SyncResult {
   synced: number;
@@ -136,6 +137,20 @@ export async function POST() {
       supplyMap.set(normalizeTitle(supply.name), supply);
     }
 
+    // Bundles: one line item ("Essentials Bundle") that deducts several
+    // component supplies (some fixed, one customer-choice via the variant).
+    const bundlesRaw = await prisma.bundle.findMany({
+      where: { active: true },
+      include: { components: { include: { supply: { select: { name: true } } } } },
+    });
+    const bundleData: BundleData[] = bundlesRaw.map((b) => ({
+      id: b.id,
+      title: b.title,
+      components: b.components.map((c) => ({ quantity: c.quantity, supplyId: c.supplyId, supplyName: c.supply?.name ?? null, chooseFrom: c.chooseFrom })),
+    }));
+    const bundleMap = buildBundleMap(bundleData);
+    const supplyLite = supplies.map((s) => ({ id: s.id, name: s.name }));
+
     // Process each order
     const result: SyncResult = {
       synced: 0,
@@ -216,6 +231,15 @@ export async function POST() {
           if (item.supplyId) {
             const existing = supplyUpdatesMap.get(item.supplyId) || 0;
             supplyUpdatesMap.set(item.supplyId, existing + item.quantity);
+          }
+
+          // Bundle line item → deduct each component supply.
+          const bundle = bundleMap.get(normalizeTitle(item.productTitle));
+          if (bundle) {
+            const { components } = expandBundle(bundle, item.variantTitle, supplyLite);
+            for (const comp of components) {
+              supplyUpdatesMap.set(comp.supplyId, (supplyUpdatesMap.get(comp.supplyId) || 0) + comp.quantity * item.quantity);
+            }
           }
         }
 

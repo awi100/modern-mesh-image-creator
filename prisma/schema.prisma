@@ -370,8 +370,43 @@ model Supply {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   shopifyOrderItems ShopifyOrderItem[]
+  bundleComponents  BundleComponent[]
 
   @@map("supplies")
+}
+
+// A bundle product (e.g. "Essentials Bundle") sold as one Shopify line item
+// that should deduct several component supplies. `title` matches the Shopify
+// product title (case-insensitive). Components are either a fixed supply, or a
+// customer-choice slot resolved from the order line item's variant.
+model Bundle {
+  id         String            @id @default(cuid())
+  title      String            @unique // matches Shopify product title
+  label      String? // optional friendly label
+  active     Boolean           @default(true)
+  components BundleComponent[]
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@map("bundles")
+}
+
+model BundleComponent {
+  id        String  @id @default(cuid())
+  bundleId  String
+  bundle    Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  quantity  Int     @default(1)
+  // Fixed component: supplyId set, chooseFrom null.
+  // Customer-choice component: chooseFrom is a Supply-name filter (e.g.
+  // "Needle Minder"); the specific supply is resolved per order from the
+  // bundle line item's variant. supplyId is null.
+  supplyId   String?
+  supply     Supply? @relation(fields: [supplyId], references: [id], onDelete: SetNull)
+  chooseFrom String?
+  sortOrder  Int     @default(0)
+
+  @@index([bundleId])
+  @@map("bundle_components")
 }
 
 // Tracks owners stitching their own canvases (for marketing, personal use, etc.)

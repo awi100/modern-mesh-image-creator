@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { isMysteryBagTitle, picksRequiredForItems } from "@/lib/mystery-bag";
-import { isPosSource } from "@/lib/shopify";
+import { isPosSource, normalizeTitle } from "@/lib/shopify";
+import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface FulfillItem {
   designId?: string;
@@ -45,6 +46,24 @@ class MysteryPicksError extends Error {
   }
 }
 
+// Load active bundles + supplies for expanding bundle line items into their
+// component supply deductions (used by both fulfill and undo).
+async function loadBundleContext() {
+  const [bundlesRaw, supplies] = await Promise.all([
+    prisma.bundle.findMany({
+      where: { active: true },
+      include: { components: { include: { supply: { select: { name: true } } } } },
+    }),
+    prisma.supply.findMany({ select: { id: true, name: true } }),
+  ]);
+  const bundleData: BundleData[] = bundlesRaw.map((b) => ({
+    id: b.id,
+    title: b.title,
+    components: b.components.map((c) => ({ quantity: c.quantity, supplyId: c.supplyId, supplyName: c.supply?.name ?? null, chooseFrom: c.chooseFrom })),
+  }));
+  return { bundleMap: buildBundleMap(bundleData), supplyLite: supplies };
+}
+
 // POST - Fulfill an order (deduct kitsReady and canvasPrinted, record local fulfillment)
 // Consolidates all updates per design into a single atomic operation
 export async function POST(request: NextRequest) {
@@ -79,6 +98,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { bundleMap, supplyLite } = await loadBundleContext();
+
     // Aggregate updates by designId to consolidate into single updates
     const designUpdatesMap = new Map<string, DesignUpdates>();
     const supplyUpdatesMap = new Map<string, number>();
@@ -87,6 +108,16 @@ export async function POST(request: NextRequest) {
       // Mystery Bag line items aren't backed by a designId — deductions for
       // them are derived from saved MysteryBagPick rows below.
       if (isMysteryBagTitle(item.productTitle)) continue;
+
+      // Bundle line item → deduct each component supply.
+      const bundle = bundleMap.get(normalizeTitle(item.productTitle));
+      if (bundle) {
+        const { components } = expandBundle(bundle, item.variantTitle ?? null, supplyLite);
+        for (const comp of components) {
+          supplyUpdatesMap.set(comp.supplyId, (supplyUpdatesMap.get(comp.supplyId) || 0) + comp.quantity * item.quantity);
+        }
+        continue;
+      }
 
       if (item.designId) {
         const existing = designUpdatesMap.get(item.designId) || {
@@ -360,10 +391,24 @@ export async function DELETE(request: NextRequest) {
       totalKitsSoldRestore: number;
     }>();
     const supplyRestoreMap = new Map<string, number>();
+    const { bundleMap: undoBundleMap, supplyLite: undoSupplyLite } = await loadBundleContext();
 
     for (const item of localOrder.items) {
       // Mystery Bag line items don't carry designId; we restore from picks below.
       if (isMysteryBagTitle(item.productTitle)) continue;
+
+      // Bundle line item → restore each component supply (re-expanded from the
+      // stored title + variant, same as when it was deducted).
+      if (item.processed) {
+        const bundle = undoBundleMap.get(normalizeTitle(item.productTitle));
+        if (bundle) {
+          const { components } = expandBundle(bundle, item.variantTitle ?? null, undoSupplyLite);
+          for (const comp of components) {
+            supplyRestoreMap.set(comp.supplyId, (supplyRestoreMap.get(comp.supplyId) || 0) + comp.quantity * item.quantity);
+          }
+          continue;
+        }
+      }
 
       if (item.designId && item.processed) {
         const existing = designRestoreMap.get(item.designId) || {

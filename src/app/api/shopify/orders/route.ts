@@ -11,8 +11,9 @@ import {
   isExpressShippingTitle,
 } from "@/lib/shopify";
 import { isMysteryBagTitle, PICKS_PER_BAG } from "@/lib/mystery-bag";
+import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
-export type ItemType = "canvas" | "supply" | "mystery_bag";
+export type ItemType = "canvas" | "supply" | "mystery_bag" | "bundle";
 
 export interface MysteryBagPickInfo {
   id: string;
@@ -50,6 +51,9 @@ export interface OrderItem {
   supplyId: string | null;
   supplyName: string | null;
   supplyQuantity: number; // Stock count
+  // Bundle info (for bundle items) — the component supplies it will deduct
+  isBundle: boolean;
+  bundleComponents: { name: string; quantity: number }[];
   // Customer-entered line-item attributes (e.g. "Special instructions"
   // on a Mystery Misprint Bag). `_`-prefixed keys are filtered out.
   customAttributes: { key: string; value: string }[];
@@ -168,6 +172,19 @@ export async function GET() {
       designMap.set(normalizeTitle(design.name), design);
     }
 
+    // Bundles: a bundle line item expands into component supplies.
+    const bundlesRaw = await prisma.bundle.findMany({
+      where: { active: true },
+      include: { components: { include: { supply: { select: { name: true } } } } },
+    });
+    const bundleData: BundleData[] = bundlesRaw.map((b) => ({
+      id: b.id,
+      title: b.title,
+      components: b.components.map((c) => ({ quantity: c.quantity, supplyId: c.supplyId, supplyName: c.supply?.name ?? null, chooseFrom: c.chooseFrom })),
+    }));
+    const bundleMap = buildBundleMap(bundleData);
+    const supplyLite = supplies.map((s) => ({ id: s.id, name: s.name }));
+
     const supplyMap = new Map<string, typeof supplies[0]>();
     for (const supply of supplies) {
       supplyMap.set(normalizeTitle(supply.name), supply);
@@ -250,10 +267,18 @@ export async function GET() {
         const matchedDesign = designMap.get(normalizedTitle);
         const matchedSupply = supplyMap.get(normalizedTitle);
 
-        // Classify item type based on matches
-        const itemType = classifyItemType(productTitle, !!matchedDesign, !!matchedSupply);
+        // A bundle line item deducts several component supplies.
+        const matchedBundle = bundleMap.get(normalizedTitle);
+        const bundleComponents = matchedBundle
+          ? expandBundle(matchedBundle, lineItem.variantTitle, supplyLite).components.map((c) => ({ name: c.supplyName, quantity: c.quantity }))
+          : [];
 
-        if (!matchedDesign && !matchedSupply && itemType === "canvas") {
+        // Classify item type based on matches
+        const itemType: ItemType = matchedBundle
+          ? "bundle"
+          : classifyItemType(productTitle, !!matchedDesign, !!matchedSupply);
+
+        if (!matchedDesign && !matchedSupply && !matchedBundle && itemType === "canvas") {
           unmatchedProducts.add(productTitle);
         }
 
@@ -276,8 +301,14 @@ export async function GET() {
           supplyId: matchedSupply?.id || null,
           supplyName: matchedSupply?.name || null,
           supplyQuantity: matchedSupply?.quantity || 0,
+          isBundle: !!matchedBundle,
+          bundleComponents,
           customAttributes: visibleCustomAttributes(lineItem.customAttributes),
         });
+
+        // Bundle line items carry their own demand as component supplies; they
+        // aren't a canvas/supply/kit of their own, so skip the counters below.
+        if (itemType === "bundle") continue;
 
         // Mystery bag items have no design/supply demand of their own — their
         // demand is on misprintCount + kitsReady of the designs the team picks,

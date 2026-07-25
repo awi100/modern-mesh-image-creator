@@ -426,7 +426,7 @@ export default function OrdersPage() {
       // Prepare items for fulfillment (matched designs/supplies + Mystery Bag
       // line items, which deduct via separately-saved picks).
       const items = order.items
-        .filter(item => item.designId || item.supplyId || item.itemType === "mystery_bag")
+        .filter(item => item.designId || item.supplyId || item.itemType === "mystery_bag" || item.itemType === "bundle")
         .map(item => ({
           designId: item.designId || undefined,
           supplyId: item.supplyId || undefined,
@@ -2310,9 +2310,13 @@ function OrderItemRow({ item, demandByDesign }: { item: OrderItem; demandByDesig
         {item.variantTitle && (
           <p className="text-sm text-slate-400 truncate">{item.variantTitle}</p>
         )}
-        {!item.designId && (
+        {item.isBundle ? (
+          <p className="text-xs text-rose-300 truncate" title={item.bundleComponents.map((c) => `${c.quantity}× ${c.name}`).join(", ")}>
+            Bundle → {item.bundleComponents.length > 0 ? item.bundleComponents.map((c) => c.name).join(", ") : "no components set (add in Bundles)"}
+          </p>
+        ) : !item.designId ? (
           <p className="text-xs text-yellow-500">No matching design</p>
-        )}
+        ) : null}
       </div>
 
       {/* Quantity */}

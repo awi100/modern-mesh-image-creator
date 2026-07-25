@@ -61,6 +61,13 @@ const TOOLS: Tool[] = [
     icon: icon("M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"),
     accent: "text-slate-300",
   },
+  {
+    href: "/inventory/bundles",
+    title: "Bundles",
+    description: "Define bundle products (like the Essentials Bundle) so one order deducts all its component supplies.",
+    icon: icon("M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"),
+    accent: "text-rose-300",
+  },
 ];
 
 export default function InventoryToolsPage() {
