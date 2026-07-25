@@ -533,28 +533,29 @@ export function normalizeTitle(title: string): string {
 
 // Resolve a supply when the product title alone doesn't match, using the
 // variant. Handles products sold as a generic title + style variant, e.g.
-// product "Needle Minder" + variant "Hydrangea" -> supply "Hydrangea Needle
-// Minder". Only called as a fallback after a direct title match fails.
+// product "Needleminder" + variant "Hydrangea" -> supply "Hydrangea Needle
+// Minder". Comparison strips spaces/punctuation so "Needleminder" (one word)
+// matches "Needle Minder". Only called as a fallback after a direct match fails.
 export function matchSupplyByVariant<T extends { name: string }>(
   productTitle: string,
   variantTitle: string | null | undefined,
   supplies: T[]
 ): T | null {
   if (!variantTitle) return null;
-  const pt = normalizeTitle(productTitle);
-  const v = normalizeTitle(variantTitle);
+  const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const pt = squash(productTitle);
+  const v = squash(variantTitle);
   if (!v) return null;
-  // Exact "<variant> <product>" (e.g. "hydrangea needle minder")
-  const combined = `${v} ${pt}`;
-  const exact = supplies.find((s) => normalizeTitle(s.name) === combined);
-  if (exact) return exact;
-  // Otherwise a supply whose name contains BOTH the variant and the product
-  // title (covers short variants like "Hydrangea" and full ones).
+  const combined = `${v}${pt}`; // e.g. "hydrangeaneedleminder"
+  // A supply whose squashed name equals "<variant><product>", or contains both
+  // the variant and the product-title tokens (covers short + full variants).
   return (
+    supplies.find((s) => squash(s.name) === combined) ||
     supplies.find((s) => {
-      const n = normalizeTitle(s.name);
+      const n = squash(s.name);
       return n.includes(v) && n.includes(pt);
-    }) || null
+    }) ||
+    null
   );
 }
 
