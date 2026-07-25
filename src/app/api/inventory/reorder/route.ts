@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     const windowStart = new Date(now.getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
     const designs = await prisma.design.findMany({
-      where: { deletedAt: null, archivedAt: null, isDraft: false, printVersionOf: null, ...meshWhere },
+      where: { deletedAt: null, archivedAt: null, notLiveAt: null, isDraft: false, printVersionOf: null, ...meshWhere },
       select: {
         id: true,
         name: true,

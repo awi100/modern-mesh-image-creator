@@ -149,6 +149,12 @@ model Design {
   // and from the main gallery by default. Distinct from draft (WIP) and trash.
   archivedAt            DateTime?
 
+  // Not Live: printed (or being printed) but not for sale yet. Hidden from
+  // sales/planning (analytics, reorder, velocity, stock alerts, color usage,
+  // bobbin analysis, kits overview) and from the market tote, but its printed
+  // stock still shows in the Canvases/Kits inventory tabs. Distinct from draft.
+  notLiveAt             DateTime?
+
   // Product categorization
   skillLevel            String? // "easy", "intermediate", "advanced"
   sizeCategory          String? // "small", "medium", "large"
@@ -183,6 +189,7 @@ model Design {
   @@index([createdAt])
   @@index([deletedAt])
   @@index([archivedAt])
+  @@index([notLiveAt])
   @@map("designs")
 }
 

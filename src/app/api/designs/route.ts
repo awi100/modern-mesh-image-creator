@@ -31,6 +31,10 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const showDeleted = searchParams.get("deleted") === "true";
     const showArchived = searchParams.get("archived") === "true";
+    // Not Live filter: "only" shows just not-live designs (their own gallery
+    // section), "exclude" hides them (the main gallery). Default = include them
+    // so the inventory Canvases/Kits tabs can still show their printed stock.
+    const notLive = searchParams.get("notLive");
     const skillLevel = searchParams.get("skillLevel");
     const sizeCategory = searchParams.get("sizeCategory");
 
@@ -49,6 +53,12 @@ export async function GET(request: NextRequest) {
       where.archivedAt = { not: null };
     } else {
       where.archivedAt = null;
+    }
+
+    if (notLive === "only") {
+      where.notLiveAt = { not: null };
+    } else if (notLive === "exclude") {
+      where.notLiveAt = null;
     }
 
     // Hide print versions from the main list — they're accessed via the original design

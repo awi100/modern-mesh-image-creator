@@ -22,6 +22,8 @@ interface BatchActionBarProps {
   onDelete: () => Promise<void>;
   onArchive: () => Promise<void>;
   archiveLabel?: string;
+  onNotLive: () => Promise<void>;
+  notLiveLabel?: string;
   onExportKits: () => Promise<void>;
   onExportPdfs: () => Promise<void>;
   onExportKitOrder: () => Promise<void>;
@@ -38,6 +40,8 @@ export default function BatchActionBar({
   onDelete,
   onArchive,
   archiveLabel = "Archive",
+  onNotLive,
+  notLiveLabel = "Not Live",
   onExportKits,
   onExportPdfs,
   onExportKitOrder,
@@ -147,6 +151,15 @@ export default function BatchActionBar({
     setLoading(true);
     try {
       await onArchive();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNotLive = async () => {
+    setLoading(true);
+    try {
+      await onNotLive();
     } finally {
       setLoading(false);
     }
@@ -294,6 +307,18 @@ export default function BatchActionBar({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
             </svg>
             <span className="hidden sm:inline">Kit Order ZIP</span>
+          </button>
+
+          {/* Not Live / Live */}
+          <button
+            onClick={handleNotLive}
+            disabled={loading}
+            className="px-3 py-1.5 bg-amber-900/50 text-amber-200 rounded-lg hover:bg-amber-800/50 disabled:opacity-50 text-sm flex items-center gap-1"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            <span className="hidden sm:inline">{notLiveLabel}</span>
           </button>
 
           {/* Archive / Unarchive */}

@@ -244,7 +244,7 @@ export async function GET(request: NextRequest) {
     // Fetch all designs (archived, drafts, and print versions excluded — the
     // latter would duplicate every design in stitch/color analysis).
     const designs = await prisma.design.findMany({
-      where: { deletedAt: null, archivedAt: null, isDraft: false, printVersionOf: null },
+      where: { deletedAt: null, archivedAt: null, notLiveAt: null, isDraft: false, printVersionOf: null },
       select: {
         id: true,
         name: true,

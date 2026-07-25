@@ -51,6 +51,7 @@ interface Design {
   isDraft: boolean;
   deletedAt: string | null;
   archivedAt: string | null;
+  notLiveAt: string | null;
   createdAt: string;
   updatedAt: string;
   skillLevel: string | null;
@@ -87,13 +88,16 @@ function buildDesignsUrl(
   sizeCategory: string | null,
   meshCount: number | null,
   draftStatus: "draft" | "complete" | null,
-  showArchived: boolean
+  showArchived: boolean,
+  showNotLive: boolean
 ): string {
   const params = new URLSearchParams();
   if (showTrash) {
     params.set("deleted", "true");
   } else if (showArchived) {
     params.set("archived", "true");
+  } else if (showNotLive) {
+    params.set("notLive", "only");
   } else {
     if (selectedFolder !== null) params.set("folderId", selectedFolder || "null");
     if (selectedTag) params.set("tagId", selectedTag);
@@ -101,6 +105,8 @@ function buildDesignsUrl(
     if (sizeCategory) params.set("sizeCategory", sizeCategory);
     if (meshCount) params.set("meshCount", meshCount.toString());
     if (draftStatus) params.set("draftStatus", draftStatus);
+    // Keep printed-but-not-selling designs out of the main gallery.
+    params.set("notLive", "exclude");
   }
   if (searchQuery) params.set("search", searchQuery);
   return `/api/designs?${params.toString()}`;
@@ -128,6 +134,7 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showTrash, setShowTrash] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [showNotLive, setShowNotLive] = useState(false);
   const [selectedSkillLevel, setSelectedSkillLevel] = useState<string | null>(null);
   const [selectedDraftStatus, setSelectedDraftStatus] = useState<"draft" | "complete" | null>(null);
   const [selectedSizeCategory, setSelectedSizeCategory] = useState<string | null>(null);
@@ -206,6 +213,12 @@ export default function HomePage() {
   });
   const archivedCount = archivedData.length;
 
+  const { data: notLiveData = [] } = useSWR<Design[]>("/api/designs?notLive=only", {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
+  const notLiveCount = notLiveData.length;
+
   // Memoize inventory set (Size 5 only in internal app)
   const inStockColors = useMemo(() =>
     new Set(inventory5.filter(i => i.skeins > 0).map(i => i.dmcNumber)),
@@ -247,7 +260,7 @@ export default function HomePage() {
   }, [childFoldersMap]);
 
   // SWR for designs (refetches when filters change via key)
-  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory, selectedMeshCount, selectedDraftStatus, showArchived);
+  const designsUrl = buildDesignsUrl(showTrash, selectedFolder, selectedTag, searchQuery, selectedSkillLevel, selectedSizeCategory, selectedMeshCount, selectedDraftStatus, showArchived, showNotLive);
   const { data: designs = [], isLoading: loading, mutate: mutateDesigns } = useSWR<Design[]>(
     designsUrl,
     {
@@ -319,6 +332,25 @@ export default function HomePage() {
     } catch (error) {
       console.error("Error archiving design:", error);
       showToast("Failed to archive design", "error");
+    }
+  };
+
+  const handleNotLive = async (id: string, notLive: boolean) => {
+    try {
+      const response = await fetch(`/api/designs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notLive }),
+      });
+      if (response.ok) {
+        // Optimistically remove from the current view (moves to/from Not Live)
+        mutateDesigns(designs.filter((d) => d.id !== id), false);
+        mutate("/api/designs?notLive=only");
+        showToast(notLive ? "Marked Not Live" : "Marked Live", "success");
+      }
+    } catch (error) {
+      console.error("Error updating Not Live status:", error);
+      showToast("Failed to update status", "error");
     }
   };
 
@@ -665,7 +697,7 @@ export default function HomePage() {
                   )}
                 </button>
                 <button
-                  onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); setShowArchived(false); if (!expandedFolders.has(folder.id)) toggleFolderExpanded(folder.id); }}
+                  onClick={() => { setSelectedFolder(folder.id); setShowTrash(false); setShowArchived(false); setShowNotLive(false); if (!expandedFolders.has(folder.id)) toggleFolderExpanded(folder.id); }}
                   onDragOver={(e) => {
                     if (!draggingDesignId && !draggingFolderId) return;
                     if (draggingFolderId === folder.id) return; // Can't drop on self
@@ -1130,6 +1162,28 @@ export default function HomePage() {
     } catch (error) {
       console.error("Batch archive error:", error);
       showToast("Failed to archive designs. Please try again.", "error");
+    }
+  };
+
+  const handleBatchNotLive = async () => {
+    try {
+      const response = await fetch("/api/designs/batch", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          designIds: Array.from(selectedDesigns),
+          action: showNotLive ? "live" : "notlive",
+        }),
+      });
+      if (response.ok) {
+        mutateDesigns(designs.filter(d => !selectedDesigns.has(d.id)), false);
+        mutate("/api/designs?notLive=only");
+        showToast(showNotLive ? "Marked Live" : "Marked Not Live", "success");
+        clearSelection();
+      }
+    } catch (error) {
+      console.error("Batch not-live error:", error);
+      showToast("Failed to update designs. Please try again.", "error");
     }
   };
 
@@ -1777,7 +1831,7 @@ export default function HomePage() {
 
               <div className="space-y-1">
                 <button
-                  onClick={() => { setSelectedFolder(null); setShowTrash(false); setShowArchived(false); }}
+                  onClick={() => { setSelectedFolder(null); setShowTrash(false); setShowArchived(false); setShowNotLive(false); }}
                   onDragOver={(e) => {
                     if (!draggingFolderId) return;
                     e.preventDefault();
@@ -1803,7 +1857,7 @@ export default function HomePage() {
                   All Designs
                 </button>
                 <button
-                  onClick={() => { setSelectedFolder(""); setShowTrash(false); setShowArchived(false); }}
+                  onClick={() => { setSelectedFolder(""); setShowTrash(false); setShowArchived(false); setShowNotLive(false); }}
                   onDragOver={(e) => {
                     if (!draggingDesignId) return;
                     e.preventDefault();
@@ -1830,10 +1884,26 @@ export default function HomePage() {
                 </button>
                 {renderDesktopFolderTree(rootFolders, 0)}
 
-                {/* Archived + Trash */}
+                {/* Not Live + Archived + Trash */}
                 <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
                   <button
-                    onClick={() => { setShowArchived(true); setShowTrash(false); setSelectedFolder(null); setSelectedTag(null); }}
+                    onClick={() => { setShowNotLive(true); setShowArchived(false); setShowTrash(false); setSelectedFolder(null); setSelectedTag(null); }}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between ${
+                      showNotLive
+                        ? "bg-amber-900/20 text-amber-400"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    }`}
+                    title="Printed but not for sale yet"
+                  >
+                    <span>🖨️ Not Live</span>
+                    {notLiveCount > 0 && (
+                      <span className="text-xs bg-slate-600 text-slate-300 px-2 py-0.5 rounded-full">
+                        {notLiveCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => { setShowArchived(true); setShowNotLive(false); setShowTrash(false); setSelectedFolder(null); setSelectedTag(null); }}
                     className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between ${
                       showArchived
                         ? "bg-sky-900/20 text-sky-400"
@@ -1848,7 +1918,7 @@ export default function HomePage() {
                     )}
                   </button>
                   <button
-                    onClick={() => { setShowTrash(true); setShowArchived(false); setSelectedFolder(null); setSelectedTag(null); }}
+                    onClick={() => { setShowTrash(true); setShowArchived(false); setShowNotLive(false); setSelectedFolder(null); setSelectedTag(null); }}
                     className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between ${
                       showTrash
                         ? "bg-rose-900/20 text-rose-400"
@@ -2015,6 +2085,16 @@ export default function HomePage() {
               </div>
             )}
 
+            {/* Not Live header */}
+            {showNotLive && (
+              <div className="mb-4 pb-4 border-b border-slate-700">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">🖨️ Not Live</h2>
+                <p className="text-sm text-slate-400">
+                  Printed (or being printed) but not for sale yet — hidden from sales, planning, and the market tote, but their printed stock still shows in the Canvases/Kits inventory tabs. Mark Live when a design goes on sale.
+                </p>
+              </div>
+            )}
+
             {loading ? (
               <DesignGridSkeleton />
             ) : designs.length === 0 ? (
@@ -2029,16 +2109,18 @@ export default function HomePage() {
                   </svg>
                 </div>
                 <h2 className="text-lg md:text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                  {showArchived ? "No archived designs" : showTrash ? "Trash is empty" : "No designs yet"}
+                  {showNotLive ? "Nothing marked Not Live" : showArchived ? "No archived designs" : showTrash ? "Trash is empty" : "No designs yet"}
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm md:text-base px-4">
-                  {showArchived
+                  {showNotLive
+                    ? "Designs you mark Not Live (printed but not for sale yet) will appear here, out of sales and the market tote until you mark them Live."
+                    : showArchived
                     ? "Designs you archive will appear here. They stay in the app but don't count toward orders, color usage, or any inventory calculations."
                     : showTrash
                     ? "Deleted designs will appear here for 14 days before being permanently removed."
                     : "Create your first needlepoint design to get started."}
                 </p>
-                {!showTrash && !showArchived && (
+                {!showTrash && !showArchived && !showNotLive && (
                   <button
                     onClick={() => setShowNewDesignDialog(true)}
                     className="inline-flex items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-rose-900 to-rose-800 text-white rounded-lg hover:from-rose-950 hover:to-rose-900 transition-all text-sm md:text-base"
@@ -2363,6 +2445,22 @@ export default function HomePage() {
                                   </Tooltip>
                                 </div>
                               </>
+                            ) : showNotLive ? (
+                              <>
+                                <span className="text-xs text-amber-400">🖨️ Not Live</span>
+                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                  <Tooltip label="Mark Live (put on sale)">
+                                    <button
+                                      onClick={() => handleNotLive(design.id, false)}
+                                      className="p-1.5 text-slate-500 hover:text-emerald-400 transition-colors"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    </button>
+                                  </Tooltip>
+                                </div>
+                              </>
                             ) : showArchived ? (
                               <>
                                 <span className="text-xs text-sky-400">📦 Archived</span>
@@ -2497,8 +2595,15 @@ export default function HomePage() {
                                       Edit Print Version
                                     </button>
                                     <button
+                                      onClick={() => { handleNotLive(design.id, true); setCardMenuDesignId(null); }}
+                                      className="w-full text-left px-3 py-2 text-sm text-amber-600 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-600 border-t border-slate-200 dark:border-slate-600"
+                                      title="Not Live: printed but not for sale yet — hides it from sales, planning, and the market tote (printed stock still shows in inventory)"
+                                    >
+                                      Mark Not Live
+                                    </button>
+                                    <button
                                       onClick={() => { handleArchive(design.id, true); setCardMenuDesignId(null); }}
-                                      className="w-full text-left px-3 py-2 text-sm text-sky-600 dark:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-600 border-t border-slate-200 dark:border-slate-600"
+                                      className="w-full text-left px-3 py-2 text-sm text-sky-600 dark:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-600"
                                       title="Archive: keep the design but exclude it from ordering, color usage, and all other counts"
                                     >
                                       Archive
@@ -2531,6 +2636,8 @@ export default function HomePage() {
           onDelete={handleBatchDelete}
           onArchive={handleBatchArchive}
           archiveLabel={showArchived ? "Unarchive" : "Archive"}
+          onNotLive={handleBatchNotLive}
+          notLiveLabel={showNotLive ? "Mark Live" : "Not Live"}
           onExportKits={handleBatchExportKits}
           onExportPdfs={handleBatchExportPdfs}
           onExportKitOrder={handleBatchExportKitOrder}

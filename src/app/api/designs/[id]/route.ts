@@ -344,6 +344,22 @@ export async function PATCH(
       });
     }
 
+    // Not Live: printed but not for sale yet. Marking Not Live also clears the
+    // WIP draft flag (it's past draft) and the archived flag; marking Live
+    // clears notLiveAt. Cascades to the print version.
+    if (body.notLive !== undefined) {
+      const notLiveAt = body.notLive ? new Date() : null;
+      data.notLiveAt = notLiveAt;
+      if (body.notLive) {
+        data.isDraft = false;
+        data.archivedAt = null;
+      }
+      await prisma.design.updateMany({
+        where: { printVersionOf: id },
+        data: { notLiveAt },
+      });
+    }
+
     if (body.name !== undefined) {
       data.name = body.name;
     }

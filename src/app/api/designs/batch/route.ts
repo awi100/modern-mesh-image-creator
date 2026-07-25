@@ -4,7 +4,7 @@ import { isAuthenticated } from "@/lib/session";
 
 interface BatchRequest {
   designIds: string[];
-  action: "move" | "addTags" | "removeTags" | "delete" | "archive" | "unarchive";
+  action: "move" | "addTags" | "removeTags" | "delete" | "archive" | "unarchive" | "notlive" | "live";
   payload?: {
     folderId?: string | null;
     tagIds?: string[];
@@ -126,6 +126,30 @@ export async function PATCH(request: NextRequest) {
             ],
           },
           data: { archivedAt },
+        });
+
+        result = { success: true, count: updateResult.count };
+        break;
+      }
+
+      case "notlive":
+      case "live": {
+        // Mark designs (and their print versions) Not Live / Live. Marking
+        // Not Live also clears the WIP draft flag and archived flag.
+        const notLiveAt = action === "notlive" ? new Date() : null;
+        const data: Record<string, unknown> = { notLiveAt };
+        if (action === "notlive") {
+          data.isDraft = false;
+          data.archivedAt = null;
+        }
+        const updateResult = await prisma.design.updateMany({
+          where: {
+            OR: [
+              { id: { in: designIds } },
+              { printVersionOf: { in: designIds } },
+            ],
+          },
+          data,
         });
 
         result = { success: true, count: updateResult.count };

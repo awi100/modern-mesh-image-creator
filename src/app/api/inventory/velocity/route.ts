@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     // Get all non-deleted designs
     const designs = await prisma.design.findMany({
-      where: { deletedAt: null, archivedAt: null, isDraft: false, printVersionOf: null },
+      where: { deletedAt: null, archivedAt: null, notLiveAt: null, isDraft: false, printVersionOf: null },
       select: {
         id: true,
         totalSold: true,
@@ -182,7 +182,7 @@ export async function GET() {
 
   try {
     const designs = await prisma.design.findMany({
-      where: { deletedAt: null, archivedAt: null, isDraft: false, printVersionOf: null },
+      where: { deletedAt: null, archivedAt: null, notLiveAt: null, isDraft: false, printVersionOf: null },
       select: {
         id: true,
         name: true,
