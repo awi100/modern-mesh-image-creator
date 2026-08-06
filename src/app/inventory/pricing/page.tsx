@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import { Breadcrumb } from "@/components/Breadcrumb";
@@ -57,6 +57,13 @@ export default function PricingPage() {
   const [meshFilter, setMeshFilter] = useState<"all" | "18" | "13">("all");
   const [search, setSearch] = useState("");
   const [showAssumptions, setShowAssumptions] = useState(false);
+  const [expandedTiers, setExpandedTiers] = useState<Set<string>>(new Set());
+
+  const toggleTier = (t: string) => setExpandedTiers((prev) => {
+    const next = new Set(prev);
+    next.has(t) ? next.delete(t) : next.add(t);
+    return next;
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -171,6 +178,7 @@ export default function PricingPage() {
           <>
             {/* Tier summary */}
             <h2 className="text-white font-semibold mb-2">Recommended by tier</h2>
+            <p className="text-xs text-slate-500 mb-2">Click a tier to see the designs in it.</p>
             <div className="overflow-x-auto mb-6 rounded-xl border border-slate-700">
               <table className="w-full text-sm">
                 <thead className="bg-slate-800 text-slate-400">
@@ -181,16 +189,54 @@ export default function PricingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tierSummary.sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier)).map((t) => (
-                    <tr key={t.tier} className="border-t border-slate-700/60">
-                      <td className="p-3 text-white font-medium">{t.tier}</td>
-                      <td className="p-3 text-right text-slate-300">{t.count}</td>
-                      <td className="p-3 text-right text-slate-400">{money(t.canvasCogs)}</td>
-                      <td className="p-3 text-right text-white font-semibold">{money(t.recCanvas)}</td>
-                      <td className="p-3 text-right text-slate-400">{money(t.kitCogsMin)}{t.kitCogsMax !== t.kitCogsMin ? `–${money(t.kitCogsMax)}` : ""}</td>
-                      <td className="p-3 text-right text-white font-semibold">{money(t.recKitMin)}{t.recKitMax !== t.recKitMin ? `–${money(t.recKitMax)}` : ""}</td>
-                    </tr>
-                  ))}
+                  {tierSummary.sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier)).map((t) => {
+                    const open = expandedTiers.has(t.tier);
+                    const designs = rows.filter((r) => r.tier === t.tier).sort((a, b) => a.area - b.area);
+                    return (
+                      <React.Fragment key={t.tier}>
+                        <tr onClick={() => toggleTier(t.tier)} className="border-t border-slate-700/60 cursor-pointer hover:bg-slate-800/50">
+                          <td className="p-3 text-white font-medium"><span className="inline-block w-4 text-slate-400">{open ? "▾" : "▸"}</span>{t.tier}</td>
+                          <td className="p-3 text-right text-slate-300">{t.count}</td>
+                          <td className="p-3 text-right text-slate-400">{money(t.canvasCogs)}</td>
+                          <td className="p-3 text-right text-white font-semibold">{money(t.recCanvas)}</td>
+                          <td className="p-3 text-right text-slate-400">{money(t.kitCogsMin)}{t.kitCogsMax !== t.kitCogsMin ? `–${money(t.kitCogsMax)}` : ""}</td>
+                          <td className="p-3 text-right text-white font-semibold">{money(t.recKitMin)}{t.recKitMax !== t.recKitMin ? `–${money(t.recKitMax)}` : ""}</td>
+                        </tr>
+                        {open && (
+                          <tr className="bg-slate-900/60">
+                            <td colSpan={6} className="px-3 pb-3 pt-1">
+                              <div className="rounded-lg border border-slate-700/60 overflow-hidden">
+                                <table className="w-full text-xs">
+                                  <thead className="text-slate-500">
+                                    <tr>
+                                      <th className="text-left p-2 font-normal">Design</th><th className="text-right p-2 font-normal">Size</th>
+                                      <th className="text-right p-2 font-normal">Thread</th><th className="text-right p-2 font-normal">Kit COGS</th>
+                                      <th className="text-right p-2 font-normal">Rec. kit</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {designs.map((r) => (
+                                      <tr key={r.id} className="border-t border-slate-800">
+                                        <td className="p-2">
+                                          <Link href={`/design/${r.id}/info`} className="text-slate-200 hover:text-rose-400" onClick={(e) => e.stopPropagation()}>{r.name}</Link>
+                                          <span className="text-slate-600 ml-1">{r.meshCount}ct</span>
+                                          {!r.computed && <span className="ml-1 text-amber-400" title="No computed thread usage">⚠</span>}
+                                        </td>
+                                        <td className="p-2 text-right text-slate-500">{r.width}×{r.height}</td>
+                                        <td className="p-2 text-right text-slate-500">{money(r.threadCost)}</td>
+                                        <td className="p-2 text-right text-slate-500">{money(r.kitVerCogs)}</td>
+                                        <td className="p-2 text-right text-slate-200 font-medium">{money(r.recKit)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
