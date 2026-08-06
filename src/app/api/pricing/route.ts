@@ -15,8 +15,9 @@ async function loadSettings() {
   return prisma.pricingSettings.create({ data: { id: SETTINGS_ID } });
 }
 
-function tierFor(area: number, mesh: number, s: Settings): "Intro" | "Small" | "Medium" | "Large" | "XL" {
+function tierFor(area: number, mesh: number, s: Settings): "Intro" | "XS" | "Small" | "Medium" | "Large" | "XL" {
   if (mesh === 13) return "Intro";
+  if (area <= s.xsMaxArea) return "XS";
   if (area <= s.smallMaxArea) return "Small";
   if (area <= s.mediumMaxArea) return "Medium";
   if (area <= s.largeMaxArea) return "Large";
@@ -26,6 +27,7 @@ function tierFor(area: number, mesh: number, s: Settings): "Intro" | "Small" | "
 function canvasCostForTier(tier: string, s: Settings): number {
   switch (tier) {
     case "Intro": return s.canvasCostSmall;
+    case "XS": return s.canvasCostXS;
     case "Small": return s.canvasCostSmall;
     case "Medium": return s.canvasCostMedium;
     case "Large": return s.canvasCostLarge;
@@ -132,7 +134,7 @@ export async function GET() {
 
     // Tier summary (recommended prices are consistent within a tier for canvas;
     // kit varies with thread, so report the range).
-    const tiers = ["Intro", "Small", "Medium", "Large", "XL"];
+    const tiers = ["Intro", "XS", "Small", "Medium", "Large", "XL"];
     const tierSummary = tiers.map((t) => {
       const g = rows.filter((r) => r.tier === t);
       if (!g.length) return null;
@@ -160,8 +162,8 @@ const NUMERIC_FIELDS = [
   "skeinCost", "kitHardwareCost", "canvasPackCost", "orderPackCost", "shippingLabelCost",
   "shippingCollected", "feePercent", "feeFixed", "cacPerOrder",
   "targetNetMargin", "kitAttachMargin",
-  "canvasCostSmall", "canvasCostMedium", "canvasCostLarge", "canvasCostXL",
-  "smallMaxArea", "mediumMaxArea", "largeMaxArea", "roundTo",
+  "canvasCostXS", "canvasCostSmall", "canvasCostMedium", "canvasCostLarge", "canvasCostXL",
+  "xsMaxArea", "smallMaxArea", "mediumMaxArea", "largeMaxArea", "roundTo",
 ] as const;
 
 export async function PATCH(request: NextRequest) {

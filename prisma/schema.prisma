@@ -235,11 +235,13 @@ model PricingSettings {
   // CAC — a kit is an attach on an order you already paid to acquire).
   kitAttachMargin    Float    @default(0.72)
   // Canvas base cost by size tier
+  canvasCostXS       Float    @default(3.0)
   canvasCostSmall    Float    @default(4.0)
   canvasCostMedium   Float    @default(5.0)
   canvasCostLarge    Float    @default(6.0)
   canvasCostXL       Float    @default(6.0)
   // Size-tier cutoffs by area (sq in)
+  xsMaxArea          Float    @default(9)
   smallMaxArea       Float    @default(12)
   mediumMaxArea      Float    @default(20)
   largeMaxArea       Float    @default(30)

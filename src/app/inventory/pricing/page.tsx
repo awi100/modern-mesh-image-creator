@@ -10,8 +10,8 @@ interface Settings {
   skeinCost: number; kitHardwareCost: number; canvasPackCost: number; orderPackCost: number;
   shippingLabelCost: number; shippingCollected: number; feePercent: number; feeFixed: number;
   cacPerOrder: number; targetNetMargin: number; kitAttachMargin: number;
-  canvasCostSmall: number; canvasCostMedium: number; canvasCostLarge: number; canvasCostXL: number;
-  smallMaxArea: number; mediumMaxArea: number; largeMaxArea: number; roundTo: number;
+  canvasCostXS: number; canvasCostSmall: number; canvasCostMedium: number; canvasCostLarge: number; canvasCostXL: number;
+  xsMaxArea: number; smallMaxArea: number; mediumMaxArea: number; largeMaxArea: number; roundTo: number;
 }
 interface Row {
   id: string; name: string; meshCount: number; width: number; height: number; area: number;
@@ -25,6 +25,7 @@ const FIELDS: { key: keyof Settings; label: string; kind: "money" | "percent" | 
   { key: "skeinCost", label: "Skein cost", kind: "money", group: "Thread & kit" },
   { key: "kitHardwareCost", label: "Kit hardware (needles, threader, bags)", kind: "money", group: "Thread & kit" },
   { key: "canvasPackCost", label: "Canvas bag + tape", kind: "money", group: "Canvas & packaging" },
+  { key: "canvasCostXS", label: "Canvas cost — Extra Small", kind: "money", group: "Canvas & packaging" },
   { key: "canvasCostSmall", label: "Canvas cost — Small/Intro", kind: "money", group: "Canvas & packaging" },
   { key: "canvasCostMedium", label: "Canvas cost — Medium", kind: "money", group: "Canvas & packaging" },
   { key: "canvasCostLarge", label: "Canvas cost — Large", kind: "money", group: "Canvas & packaging" },
@@ -38,12 +39,13 @@ const FIELDS: { key: keyof Settings; label: string; kind: "money" | "percent" | 
   { key: "targetNetMargin", label: "Target NET margin (after ads) %", kind: "percent", group: "Targets" },
   { key: "kitAttachMargin", label: "Kit upcharge margin %", kind: "percent", group: "Targets" },
   { key: "roundTo", label: "Round prices up to $", kind: "int", group: "Targets" },
+  { key: "xsMaxArea", label: "Extra Small max area (in²)", kind: "int", group: "Size cutoffs" },
   { key: "smallMaxArea", label: "Small max area (in²)", kind: "int", group: "Size cutoffs" },
   { key: "mediumMaxArea", label: "Medium max area (in²)", kind: "int", group: "Size cutoffs" },
   { key: "largeMaxArea", label: "Large max area (in²)", kind: "int", group: "Size cutoffs" },
 ];
 const GROUPS = ["Thread & kit", "Canvas & packaging", "Per order", "Targets", "Size cutoffs"];
-const TIER_ORDER = ["Intro", "Small", "Medium", "Large", "XL"];
+const TIER_ORDER = ["Intro", "XS", "Small", "Medium", "Large", "XL"];
 
 export default function PricingPage() {
   const { showToast } = useToast();
