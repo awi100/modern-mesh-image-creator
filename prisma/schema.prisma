@@ -212,6 +212,44 @@ model UserSettings {
   @@map("user_settings")
 }
 
+// Editable cost/margin assumptions for the Pricing tool (single row).
+model PricingSettings {
+  id                 String   @id @default("default")
+  // Thread
+  skeinCost          Float    @default(1.25) // $ per full skein
+  // Kit hardware: 2 needles + threader + threader bag + kit bag
+  kitHardwareCost    Float    @default(0.75)
+  // Canvas packaging: bag + tape
+  canvasPackCost     Float    @default(0.30)
+  // Per-order costs
+  orderPackCost      Float    @default(0.50)
+  shippingLabelCost  Float    @default(5.50)
+  shippingCollected  Float    @default(6.00)
+  feePercent         Float    @default(0.029) // payment processing %
+  feeFixed           Float    @default(0.30)  // payment processing flat
+  cacPerOrder        Float    @default(22.0)  // blended ad cost per order
+  targetGrossMargin  Float    @default(0.80)  // deprecated (kept for compat)
+  // Canvas price targets this NET margin AFTER all costs incl. CAC.
+  targetNetMargin    Float    @default(0.35)
+  // The +kit upcharge targets this margin on the incremental kit cost (no extra
+  // CAC — a kit is an attach on an order you already paid to acquire).
+  kitAttachMargin    Float    @default(0.72)
+  // Canvas base cost by size tier
+  canvasCostSmall    Float    @default(4.0)
+  canvasCostMedium   Float    @default(5.0)
+  canvasCostLarge    Float    @default(6.0)
+  canvasCostXL       Float    @default(6.0)
+  // Size-tier cutoffs by area (sq in)
+  smallMaxArea       Float    @default(12)
+  mediumMaxArea      Float    @default(20)
+  largeMaxArea       Float    @default(30)
+  // Round recommended prices up to the nearest this many dollars
+  roundTo            Int      @default(1)
+  updatedAt          DateTime @updatedAt
+
+  @@map("pricing_settings")
+}
+
 // Thread inventory tracking
 model InventoryItem {
   id        String   @id @default(cuid())

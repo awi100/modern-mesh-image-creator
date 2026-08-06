@@ -68,6 +68,13 @@ const TOOLS: Tool[] = [
     icon: icon("M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"),
     accent: "text-rose-300",
   },
+  {
+    href: "/inventory/pricing",
+    title: "Pricing",
+    description: "Cost-up price recommendations by size tier from each design's real thread cost + your margin target.",
+    icon: icon("M9 7h6m0 10v-3m-3 3h.01M9 17h.01M12 17h.01M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3"),
+    accent: "text-emerald-300",
+  },
 ];
 
 export default function InventoryToolsPage() {
