@@ -227,28 +227,37 @@ export default function KitsPage() {
   const handleUpdateInventory = useCallback((dmcNumber: string, meshCount: number, delta: number) => {
     const key = `${dmcNumber}-${meshCount}`;
 
-    // Immediately apply optimistic update to UI
+    // Immediately apply optimistic update to UI. A color can appear both as a
+    // primary color and as another color's backup, so update it everywhere and
+    // recompute effective stock (in stock if primary OR backup covers the need).
     mutateKits((currentKits) => {
       if (!currentKits) return currentKits;
       return currentKits.map(kit => {
         if (kit.meshCount !== meshCount) return kit;
-        return {
-          ...kit,
-          kitContents: kit.kitContents.map(item => {
-            if (item.dmcNumber !== dmcNumber) return item;
+        const newContents = kit.kitContents.map(item => {
+          const primaryMatch = item.dmcNumber === dmcNumber;
+          const backupMatch = item.backup?.dmcNumber === dmcNumber;
+          if (!primaryMatch && !backupMatch) return item;
+
+          let next = { ...item };
+          if (primaryMatch) {
             const newSkeins = Math.max(0, item.inventorySkeins + delta);
-            return {
-              ...item,
-              inventorySkeins: newSkeins,
-              inStock: newSkeins >= item.skeinsNeeded,
+            next.inventorySkeins = newSkeins;
+            next.primaryInStock = newSkeins >= item.skeinsNeeded;
+          }
+          if (backupMatch && next.backup) {
+            const newBackupSkeins = Math.max(0, next.backup.inventorySkeins + delta);
+            next.backup = {
+              ...next.backup,
+              inventorySkeins: newBackupSkeins,
+              inStock: newBackupSkeins >= item.skeinsNeeded,
             };
-          }),
-          allInStock: kit.kitContents.every(item =>
-            item.dmcNumber === dmcNumber
-              ? Math.max(0, item.inventorySkeins + delta) >= item.skeinsNeeded
-              : item.inStock
-          ),
-        };
+          }
+          const primaryInStock = next.primaryInStock ?? (next.inventorySkeins >= next.skeinsNeeded);
+          next.inStock = primaryInStock || (next.backup?.inStock ?? false);
+          return next;
+        });
+        return { ...kit, kitContents: newContents, allInStock: newContents.every(i => i.inStock) };
       });
     }, false);
 
@@ -266,17 +275,16 @@ export default function KitsPage() {
 
   // Set absolute inventory value for a color
   const handleSetInventory = useCallback((dmcNumber: string, meshCount: number, value: number) => {
-    // Find current value from kits data
+    // Find current value from kits data — a color may be a primary color or
+    // another color's backup; both read the same global inventory.
     let currentValue = 0;
     if (kits) {
       for (const kit of kits) {
-        if (kit.meshCount === meshCount) {
-          const item = kit.kitContents.find(i => i.dmcNumber === dmcNumber);
-          if (item) {
-            currentValue = item.inventorySkeins;
-            break;
-          }
-        }
+        if (kit.meshCount !== meshCount) continue;
+        const item = kit.kitContents.find(i => i.dmcNumber === dmcNumber);
+        if (item) { currentValue = item.inventorySkeins; break; }
+        const backupItem = kit.kitContents.find(i => i.backup?.dmcNumber === dmcNumber);
+        if (backupItem?.backup) { currentValue = backupItem.backup.inventorySkeins; break; }
       }
     }
 
@@ -743,6 +751,9 @@ export default function KitsPage() {
                                 {kit.kitContents.map((item) => {
                                   const inventoryKey = `${item.dmcNumber}-${kit.meshCount}`;
                                   const isUpdating = updatingInventory === inventoryKey;
+                                  const backup = item.backup;
+                                  const backupKey = backup ? `${backup.dmcNumber}-${kit.meshCount}` : "";
+                                  const backupUpdating = backup ? updatingInventory === backupKey : false;
                                   const colorUsageKey = `${kit.designId}-${item.dmcNumber}`;
                                   const isColorExpanded = expandedColors.has(colorUsageKey);
                                   // Get other designs using this color (excluding current design)
@@ -842,29 +853,66 @@ export default function KitsPage() {
                                               </svg>
                                             </button>
                                           </div>
-                                          {/* Backup color indicator */}
-                                          {item.backup && (
-                                            <Link
-                                              href={`/inventory/color/${item.backup.dmcNumber}`}
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors"
-                                              title={`Backup: ${item.backup.colorName}`}
+                                          {/* Backup color — inventory editable inline, like the primary */}
+                                          {backup && (
+                                            <div
+                                              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50"
+                                              title={`Backup: DMC ${backup.dmcNumber} ${backup.colorName}`}
                                             >
-                                              <span
-                                                className="w-6 h-6 rounded flex items-center justify-center border border-white/20"
-                                                style={{ backgroundColor: item.backup.hex }}
+                                              <Link
+                                                href={`/inventory/color/${backup.dmcNumber}`}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-6 h-6 rounded flex items-center justify-center border border-white/20 hover:ring-2 hover:ring-amber-400 transition-all flex-shrink-0"
+                                                style={{ backgroundColor: backup.hex }}
                                               >
                                                 <span
                                                   className="text-[7px] font-bold"
-                                                  style={{ color: getContrastTextColor(item.backup.hex) }}
+                                                  style={{ color: getContrastTextColor(backup.hex) }}
                                                 >
-                                                  {item.backup.dmcNumber}
+                                                  {backup.dmcNumber}
                                                 </span>
-                                              </span>
-                                              <span className={`text-[10px] font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                                                {item.backup.inventorySkeins} sk
-                                              </span>
-                                            </Link>
+                                              </Link>
+                                              <span className="text-[9px] font-medium text-amber-300/80 uppercase tracking-wide">bkup</span>
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); handleUpdateInventory(backup.dmcNumber, kit.meshCount, -1); }}
+                                                disabled={backupUpdating || backup.inventorySkeins <= 0}
+                                                className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                title="Remove 1 (backup)"
+                                              >
+                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                                </svg>
+                                              </button>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                value={pendingInventory[backupKey] ?? backup.inventorySkeins}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onChange={(e) => setPendingInventory((prev) => ({ ...prev, [backupKey]: e.target.value }))}
+                                                onBlur={() => {
+                                                  const val = pendingInventory[backupKey];
+                                                  if (val !== undefined) handleSetInventory(backup.dmcNumber, kit.meshCount, Number(val));
+                                                }}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Enter") {
+                                                    const val = pendingInventory[backupKey];
+                                                    if (val !== undefined) handleSetInventory(backup.dmcNumber, kit.meshCount, Number(val));
+                                                    (e.target as HTMLInputElement).blur();
+                                                  }
+                                                }}
+                                                className={`w-9 px-1 py-0.5 bg-slate-700 border border-amber-800/60 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-amber-600 ${backup.inStock ? "text-emerald-400" : "text-red-400"}`}
+                                              />
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); handleUpdateInventory(backup.dmcNumber, kit.meshCount, 1); }}
+                                                disabled={backupUpdating}
+                                                className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                title="Add 1 (backup)"
+                                              >
+                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                </svg>
+                                              </button>
+                                            </div>
                                           )}
                                         </div>
                                       </div>
