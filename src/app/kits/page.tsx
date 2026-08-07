@@ -239,7 +239,7 @@ export default function KitsPage() {
           const backupMatch = item.backup?.dmcNumber === dmcNumber;
           if (!primaryMatch && !backupMatch) return item;
 
-          let next = { ...item };
+          const next = { ...item };
           if (primaryMatch) {
             const newSkeins = Math.max(0, item.inventorySkeins + delta);
             next.inventorySkeins = newSkeins;
