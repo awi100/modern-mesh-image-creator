@@ -12,13 +12,32 @@ interface Settings {
   cacPerOrder: number; targetNetMargin: number; kitAttachMargin: number;
   canvasCostXS: number; canvasCostSmall: number; canvasCostMedium: number; canvasCostLarge: number; canvasCostXL: number;
   xsMaxArea: number; smallMaxArea: number; mediumMaxArea: number; largeMaxArea: number; roundTo: number;
+  introPrice: number;
+  priceCanvasXS: number; priceKitXS: number; priceCanvasSmall: number; priceKitSmall: number;
+  priceCanvasMedium: number; priceKitMedium: number; priceCanvasLarge: number; priceKitLarge: number;
+  priceCanvasXL: number; priceKitXL: number;
 }
 interface Row {
   id: string; name: string; meshCount: number; width: number; height: number; area: number;
   tier: string; yards: number; threadCost: number; canvasCogs: number; kitVerCogs: number;
-  recCanvas: number; recKit: number; netKitAfterCac: number; netKitMarginPct: number; computed: boolean;
+  recCanvas: number; recKit: number; netKitAfterCac: number; netKitMarginPct: number;
+  setCanvas: number; setKit: number; netKitAtSet: number; netKitAtSetPct: number; computed: boolean;
 }
-interface TierRow { tier: string; count: number; canvasCogs: number; recCanvas: number; kitCogsMin: number; kitCogsMax: number; recKitMin: number; recKitMax: number; }
+interface TierRow {
+  tier: string; count: number; canvasCogs: number; recCanvas: number; kitCogsMin: number; kitCogsMax: number;
+  recKitMin: number; recKitMax: number; setCanvas: number; setKit: number; setMarginMin: number; setMarginMax: number;
+}
+
+// Our chosen selling prices, edited in the headline table (keys on Settings).
+const PRICE_ROWS: { tier: string; single?: keyof Settings; canvas?: keyof Settings; kit?: keyof Settings }[] = [
+  { tier: "Intro", single: "introPrice" },
+  { tier: "XS", canvas: "priceCanvasXS", kit: "priceKitXS" },
+  { tier: "Small", canvas: "priceCanvasSmall", kit: "priceKitSmall" },
+  { tier: "Medium", canvas: "priceCanvasMedium", kit: "priceKitMedium" },
+  { tier: "Large", canvas: "priceCanvasLarge", kit: "priceKitLarge" },
+  { tier: "XL", canvas: "priceCanvasXL", kit: "priceKitXL" },
+];
+const PRICE_KEYS = PRICE_ROWS.flatMap((r) => [r.single, r.canvas, r.kit].filter(Boolean) as (keyof Settings)[]);
 
 // field key, label, kind. percent fields are stored 0-1 but edited as 0-100.
 const FIELDS: { key: keyof Settings; label: string; kind: "money" | "percent" | "int"; group: string }[] = [
@@ -88,6 +107,7 @@ export default function PricingPage() {
     if (!settings) return;
     const d: Record<string, string> = {};
     for (const f of FIELDS) d[f.key] = f.kind === "percent" ? String(Math.round((settings[f.key] as number) * 1000) / 10) : String(settings[f.key]);
+    for (const k of PRICE_KEYS) d[k] = String(settings[k]);
     setDraft(d);
   }, [settings]);
 
@@ -99,6 +119,7 @@ export default function PricingPage() {
         const v = Number(draft[f.key]);
         payload[f.key] = f.kind === "percent" ? v / 100 : v;
       }
+      for (const k of PRICE_KEYS) payload[k] = Number(draft[k]);
       const res = await fetch("/api/pricing", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Save failed"); }
       showToast("Assumptions saved — prices recalculated", "success");
@@ -115,8 +136,8 @@ export default function PricingPage() {
   }, [rows, meshFilter, search]);
 
   const copyCsv = () => {
-    const head = ["design", "mesh", "size", "area", "tier", "thread_cost", "canvas_cogs", "rec_canvas_price", "kit_cogs", "rec_kit_price", "net_per_order_after_cac"];
-    const lines = rows.map((r) => [r.name, r.meshCount + "ct", `${r.width}x${r.height}`, r.area, r.tier, r.threadCost, r.canvasCogs, r.recCanvas, r.kitVerCogs, r.recKit, r.netKitAfterCac]
+    const head = ["design", "mesh", "size", "area", "tier", "thread_cost", "canvas_cogs", "kit_cogs", "our_canvas_price", "our_kit_price", "net_at_kit", "net_at_kit_pct", "rec_canvas_price", "rec_kit_price"];
+    const lines = rows.map((r) => [r.name, r.meshCount + "ct", `${r.width}x${r.height}`, r.area, r.tier, r.threadCost, r.canvasCogs, r.kitVerCogs, r.setCanvas, r.setKit, r.netKitAtSet, r.netKitAtSetPct, r.recCanvas, r.recKit]
       .map((v) => { const s = String(v); return /[",]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(","));
     navigator.clipboard.writeText([head.join(","), ...lines].join("\n"));
     showToast("Pricing CSV copied", "success");
@@ -146,6 +167,60 @@ export default function PricingPage() {
           (no extra ad cost). <span className="text-white">Net/order</span> is what&apos;s left on a single-item,
           ad-driven kit order after everything. All editable in Assumptions.
         </p>
+
+        {/* Our prices — the decided, live selling prices */}
+        {settings && (
+          <div className="mb-6 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-700">
+              <div>
+                <h2 className="text-white font-semibold">Our prices</h2>
+                <p className="text-xs text-slate-400">The prices we sell at. Edit and Save; the margin column recalcs from real per-design costs.</p>
+              </div>
+              <button onClick={save} disabled={saving} className="px-4 py-2 text-sm font-medium bg-rose-900 hover:bg-rose-800 disabled:opacity-50 text-white rounded-lg">{saving ? "Saving…" : "Save prices"}</button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-800/60 text-slate-400">
+                  <tr>
+                    <th className="text-left p-3">Tier</th>
+                    <th className="text-right p-3">Canvas</th>
+                    <th className="text-right p-3">+ Kit</th>
+                    <th className="text-right p-3"># Designs</th>
+                    <th className="text-right p-3">Net/order @ kit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PRICE_ROWS.map((pr) => {
+                    const ts = tierSummary.find((t) => t.tier === pr.tier);
+                    const priceInput = (key: keyof Settings) => (
+                      <div className="inline-flex items-center gap-1 justify-end">
+                        <span className="text-slate-500">$</span>
+                        <input type="number" step="any" value={draft[key] ?? ""} onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
+                          className="w-20 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded text-white text-sm text-right" />
+                      </div>
+                    );
+                    const mMin = ts?.setMarginMin, mMax = ts?.setMarginMax;
+                    const marginColor = mMin === undefined ? "text-slate-500" : mMin < 20 ? "text-red-400" : mMin < 30 ? "text-amber-400" : "text-emerald-400";
+                    return (
+                      <tr key={pr.tier} className="border-t border-slate-700/60">
+                        <td className="p-3 text-white font-medium">{pr.tier}{pr.single && <span className="text-slate-500 text-xs ml-1">(kit only)</span>}</td>
+                        <td className="p-3 text-right">{pr.single ? <span className="text-slate-600">—</span> : priceInput(pr.canvas!)}</td>
+                        <td className="p-3 text-right">{pr.single ? priceInput(pr.single) : priceInput(pr.kit!)}</td>
+                        <td className="p-3 text-right text-slate-400">{ts ? ts.count : <span className="text-slate-600">0</span>}</td>
+                        <td className={`p-3 text-right ${marginColor}`}>
+                          {mMin === undefined ? "—" : `${mMin}${mMax !== mMin ? `–${mMax}` : ""}%`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="px-4 py-2 text-xs text-slate-500 border-t border-slate-700/60">
+              Net/order @ kit = what&apos;s left after COGS, payment fees, packaging, shipping shortfall, and the full ${settings.cacPerOrder} ad cost per order — for a single-item order at the kit price. Green ≥30%, amber ≥20%, red below.
+            </p>
+          </div>
+        )}
 
         {/* Assumptions */}
         <div className="mb-5 bg-slate-800 rounded-xl border border-slate-700">
@@ -179,8 +254,8 @@ export default function PricingPage() {
         ) : (
           <>
             {/* Tier summary */}
-            <h2 className="text-white font-semibold mb-2">Recommended by tier</h2>
-            <p className="text-xs text-slate-500 mb-2">Click a tier to see the designs in it.</p>
+            <h2 className="text-white font-semibold mb-2">Model recommendation by tier <span className="text-slate-500 text-sm font-normal">(advisory)</span></h2>
+            <p className="text-xs text-slate-500 mb-2">What the cost model would charge to hit your margin targets — compare against Our prices above. Click a tier to see the designs in it.</p>
             <div className="overflow-x-auto mb-6 rounded-xl border border-slate-700">
               <table className="w-full text-sm">
                 <thead className="bg-slate-800 text-slate-400">

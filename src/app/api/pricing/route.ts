@@ -66,6 +66,23 @@ function kitUpcharge(kitAddonCogs: number, s: Settings): number {
   return roundUp(kitAddonCogs / denom, s);
 }
 
+// Our chosen (set) selling prices for a tier — the prices we actually list at.
+function setPricesForTier(tier: string, s: Settings): { canvas: number; kit: number } {
+  switch (tier) {
+    case "Intro": return { canvas: s.introPrice, kit: s.introPrice }; // Intro is a single-price standalone kit
+    case "XS": return { canvas: s.priceCanvasXS, kit: s.priceKitXS };
+    case "Small": return { canvas: s.priceCanvasSmall, kit: s.priceKitSmall };
+    case "Medium": return { canvas: s.priceCanvasMedium, kit: s.priceKitMedium };
+    case "Large": return { canvas: s.priceCanvasLarge, kit: s.priceKitLarge };
+    default: return { canvas: s.priceCanvasXL, kit: s.priceKitXL };
+  }
+}
+
+// Net left on a single-item, ad-driven order at a given selling price.
+function netAtPrice(price: number, cogs: number, s: Settings): number {
+  return price - cogs - (price * s.feePercent + s.feeFixed) - perOrderFixed(s);
+}
+
 export async function GET() {
   if (!(await isAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
@@ -84,7 +101,9 @@ export async function GET() {
       id: string; name: string; previewImageUrl: string | null; meshCount: number;
       width: number; height: number; area: number; tier: string; yards: number;
       threadCost: number; canvasCogs: number; kitVerCogs: number; recCanvas: number;
-      recKit: number; netKitAfterCac: number; netKitMarginPct: number; computed: boolean;
+      recKit: number; netKitAfterCac: number; netKitMarginPct: number;
+      setCanvas: number; setKit: number; netKitAtSet: number; netKitAtSetPct: number;
+      computed: boolean;
     }[] = [];
     const needsBackfill: string[] = [];
 
@@ -116,7 +135,10 @@ export async function GET() {
       const recCanvas = recommendCanvas(canvasCogs, s);
       const recKit = recCanvas + kitUpcharge(kitAddonCogs, s);
       // Net on a single-item, ad-driven order at the recommended kit price.
-      const netKit = recKit - kitVerCogs - (recKit * s.feePercent + s.feeFixed) - perOrderFixed(s);
+      const netKit = netAtPrice(recKit, kitVerCogs, s);
+      // Same, but at our actual chosen (set) prices.
+      const set = setPricesForTier(tier, s);
+      const netKitAtSet = netAtPrice(set.kit, kitVerCogs, s);
 
       rows.push({
         id: d.id, name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount,
@@ -128,6 +150,9 @@ export async function GET() {
         recCanvas, recKit,
         netKitAfterCac: round2(netKit),
         netKitMarginPct: recKit > 0 ? Math.round((netKit / recKit) * 100) : 0,
+        setCanvas: set.canvas, setKit: set.kit,
+        netKitAtSet: round2(netKitAtSet),
+        netKitAtSetPct: set.kit > 0 ? Math.round((netKitAtSet / set.kit) * 100) : 0,
         computed,
       });
     }
@@ -139,6 +164,7 @@ export async function GET() {
       const g = rows.filter((r) => r.tier === t);
       if (!g.length) return null;
       const kitPrices = g.map((r) => r.recKit);
+      const setMargins = g.map((r) => r.netKitAtSetPct);
       return {
         tier: t,
         count: g.length,
@@ -148,6 +174,11 @@ export async function GET() {
         kitCogsMax: round2(Math.max(...g.map((r) => r.kitVerCogs))),
         recKitMin: Math.min(...kitPrices),
         recKitMax: Math.max(...kitPrices),
+        // Our chosen prices (flat per tier) + the actual net margin they yield.
+        setCanvas: g[0].setCanvas,
+        setKit: g[0].setKit,
+        setMarginMin: Math.min(...setMargins),
+        setMarginMax: Math.max(...setMargins),
       };
     }).filter(Boolean);
 
@@ -164,6 +195,9 @@ const NUMERIC_FIELDS = [
   "targetNetMargin", "kitAttachMargin",
   "canvasCostXS", "canvasCostSmall", "canvasCostMedium", "canvasCostLarge", "canvasCostXL",
   "xsMaxArea", "smallMaxArea", "mediumMaxArea", "largeMaxArea", "roundTo",
+  "introPrice", "priceCanvasXS", "priceKitXS", "priceCanvasSmall", "priceKitSmall",
+  "priceCanvasMedium", "priceKitMedium", "priceCanvasLarge", "priceKitLarge",
+  "priceCanvasXL", "priceKitXL",
 ] as const;
 
 export async function PATCH(request: NextRequest) {

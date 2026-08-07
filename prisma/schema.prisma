@@ -247,6 +247,19 @@ model PricingSettings {
   largeMaxArea       Float    @default(30)
   // Round recommended prices up to the nearest this many dollars
   roundTo            Int      @default(1)
+  // Our chosen (set) prices per tier — canvas-only and +kit. These are the
+  // prices we actually sell at; the recommendations above are advisory.
+  introPrice         Float    @default(40)
+  priceCanvasXS      Float    @default(40)
+  priceKitXS         Float    @default(50)
+  priceCanvasSmall   Float    @default(45)
+  priceKitSmall      Float    @default(57)
+  priceCanvasMedium  Float    @default(50)
+  priceKitMedium     Float    @default(65)
+  priceCanvasLarge   Float    @default(55)
+  priceKitLarge      Float    @default(70)
+  priceCanvasXL      Float    @default(60)
+  priceKitXL         Float    @default(80)
   updatedAt          DateTime @updatedAt
 
   @@map("pricing_settings")
