@@ -217,7 +217,7 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("30", "Medium Light Blueberry", "#6D54D3"),
   createColor("31", "Blueberry", "#5834A3"),
   createColor("32", "Dark Blueberry", "#4D2E8A"),
-  createColor("33", "Fuchsia", "#D9539F"),
+  createColor("33", "Fuchsia", "#C32278"),
   createColor("34", "Dark Fuchsia", "#AE4280"),
   createColor("35", "Very Dark Fuchsia", "#732B55"),
 
