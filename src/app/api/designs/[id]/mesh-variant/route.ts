@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, getKitSkeinCount } from "@/lib/yarn-calculator";
 import pako from "pako";
 
 const VALID_MESH_COUNTS: MeshCount[] = [13, 14, 18];
@@ -89,7 +89,7 @@ export async function POST(
     );
 
     const kitColorCount = yarnUsage.length;
-    const kitSkeinCount = yarnUsage.reduce((sum, u) => sum + (u.usesFullSkein ? u.skeinsNeeded : 0), 0);
+    const kitSkeinCount = getKitSkeinCount(yarnUsage, targetMeshCount as MeshCount);
     const colorsUsed = JSON.stringify(Array.from(stitchCounts.keys()));
 
     // Generate the variant name

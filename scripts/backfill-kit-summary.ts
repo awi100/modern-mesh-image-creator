@@ -9,7 +9,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import pako from "pako";
-import { calculateYarnUsage, type MeshCount, type StitchType } from "../src/lib/yarn-calculator.ts";
+import { calculateYarnUsage, getKitSkeinCount, type MeshCount, type StitchType } from "../src/lib/yarn-calculator.ts";
 
 function countStitchesByColor(grid: (string | null)[][]): Map<string, number> {
   const counts = new Map<string, number>();
@@ -60,10 +60,7 @@ async function backfill() {
           design.bufferPercent
         );
         const kitColorCount = yarnUsage.length;
-        const kitSkeinCount = yarnUsage.reduce(
-          (sum, u) => sum + (u.usesFullSkein ? u.skeinsNeeded : 0),
-          0
-        );
+        const kitSkeinCount = getKitSkeinCount(yarnUsage, design.meshCount as MeshCount);
 
         if (kitColorCount === design.kitColorCount && kitSkeinCount === design.kitSkeinCount) {
           unchanged++;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, getKitSkeinCount } from "@/lib/yarn-calculator";
 import pako from "pako";
 
 // PUT /api/designs/[id]/color-swap - Save print color hex overrides
@@ -103,7 +103,7 @@ export async function POST(
     );
 
     const kitColorCount = yarnUsage.length;
-    const kitSkeinCount = yarnUsage.reduce((sum, u) => sum + (u.usesFullSkein ? u.skeinsNeeded : 0), 0);
+    const kitSkeinCount = getKitSkeinCount(yarnUsage, (design.meshCount || 14) as MeshCount);
     const colorsUsed = JSON.stringify(Array.from(stitchCounts.keys()));
 
     // Update design

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, getKitSkeinCount } from "@/lib/yarn-calculator";
 import pako from "pako";
 
 export async function GET(
@@ -118,7 +118,7 @@ export async function PUT(
           bufferPercent ?? 20
         );
         kitColorCount = yarnUsage.length;
-        kitSkeinCount = yarnUsage.reduce((sum, u) => sum + (u.usesFullSkein ? u.skeinsNeeded : 0), 0);
+        kitSkeinCount = getKitSkeinCount(yarnUsage, (meshCount || 14) as MeshCount);
         // Store the DMC numbers used (stitchCounts is a Map)
         colorsUsed = JSON.stringify(Array.from(stitchCounts.keys()));
       } catch (e) {

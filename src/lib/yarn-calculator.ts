@@ -205,6 +205,32 @@ export function getTotalSkeins(usages: YarnUsage[]): number {
   return usages.reduce((sum, u) => sum + u.skeinsNeeded, 0);
 }
 
+// A small leftover above a whole skein (≤ this many yards) is covered by the
+// buffer rather than bumping up to another full skein.
+const LEFTOVER_THRESHOLD = 5;
+
+// Full skeins one color needs, with the kit's smart bobbin handling: amounts
+// within the bobbin range are wound onto a bobbin (0 full skeins), and a small
+// leftover above a whole skein is buffer-covered rather than adding a skein.
+// This is the count shown per color ("Need N skeins") on the kit pages.
+export function fullSkeinsForColor(yardsWithBuffer: number, meshCount: MeshCount): number {
+  const skeinYards = skeinYardsForMesh(meshCount);
+  const bobbinMax = bobbinThresholdsForMesh(meshCount).max;
+  const y = Math.round(yardsWithBuffer * 10) / 10;
+  if (y <= bobbinMax) return 0;
+  const baseSkeins = Math.floor(y / skeinYards);
+  if (baseSkeins === 0) return 1;
+  const remainder = y - baseSkeins * skeinYards;
+  return remainder <= LEFTOVER_THRESHOLD ? baseSkeins : baseSkeins + 1;
+}
+
+// Total full skeins for a whole kit — matches the kit detail page's
+// totals.skeins. Use this for the cached Design.kitSkeinCount so the summary
+// header and the detail view always agree.
+export function getKitSkeinCount(usages: YarnUsage[], meshCount: MeshCount): number {
+  return usages.reduce((sum, u) => sum + fullSkeinsForColor(u.withBuffer, meshCount), 0);
+}
+
 export function getTotalStitches(usages: YarnUsage[]): number {
   return usages.reduce((sum, u) => sum + u.stitchCount, 0);
 }

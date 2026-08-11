@@ -2,13 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount, threadSizeForMesh, skeinYardsForMesh, bobbinThresholdsForMesh } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, threadSizeForMesh, fullSkeinsForColor } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
-
-// When using skeins, if remainder after whole skeins is <= this, buffer covers it.
-// Same heuristic for both thread sizes.
-const LEFTOVER_THRESHOLD = 5;
 
 // GET - Compute kit contents for a design
 export async function GET(
@@ -54,11 +50,9 @@ export async function GET(
     // Count stitches per color
     const stitchCounts = countStitchesByColor(grid);
 
-    // Thread size, skein size, and bobbin thresholds depend on mesh count
+    // Thread size depends on mesh count
     const meshCount = (design.meshCount || 14) as MeshCount;
     const threadSize = threadSizeForMesh(meshCount);
-    const SKEIN_YARDS = skeinYardsForMesh(meshCount);
-    const BOBBIN_ONLY_MAX = bobbinThresholdsForMesh(meshCount).max;
 
     // Calculate yarn usage
     const stitchType = design.stitchType as "continental" | "basketweave";
@@ -101,32 +95,10 @@ export async function GET(
       const yardsWithoutBuffer = Math.round(usage.yarnYards * 10) / 10;
       const yardsWithBuffer = Math.round(usage.withBuffer * 10) / 10;
 
-      let fullSkeins = 0;
-      let bobbinYards = 0;
-
-      if (yardsWithBuffer <= BOBBIN_ONLY_MAX) {
-        // Small amount (5 yards or less): use bobbin only
-        fullSkeins = 0;
-        bobbinYards = yardsWithBuffer;
-      } else {
-        // More than 5 yards: use full skeins
-        const baseSkeins = Math.floor(yardsWithBuffer / SKEIN_YARDS);
-        const remainder = yardsWithBuffer - (baseSkeins * SKEIN_YARDS);
-
-        if (baseSkeins === 0) {
-          // Between 5 and 27 yards: 1 skein covers it
-          fullSkeins = 1;
-          bobbinYards = 0;
-        } else if (remainder <= LEFTOVER_THRESHOLD) {
-          // Remainder is small (≤5 yards), buffer covers it
-          fullSkeins = baseSkeins;
-          bobbinYards = 0;
-        } else {
-          // Remainder > 5 yards, need another skein
-          fullSkeins = baseSkeins + 1;
-          bobbinYards = 0;
-        }
-      }
+      // Full skeins (and whether it's a bobbin-only color) — shared with the
+      // cached kit summary via fullSkeinsForColor so header and detail agree.
+      const fullSkeins = fullSkeinsForColor(yardsWithBuffer, meshCount);
+      const bobbinYards = fullSkeins === 0 ? yardsWithBuffer : 0;
 
       // Get backup color info if exists
       const backupDmcNumber = backupColors[usage.dmcNumber];

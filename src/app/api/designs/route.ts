@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, getKitSkeinCount } from "@/lib/yarn-calculator";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 
@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
         bufferPercent ?? 20
       );
       kitColorCount = yarnUsage.length;
-      kitSkeinCount = yarnUsage.reduce((sum: number, u: { skeinsNeeded: number; usesFullSkein: boolean }) => sum + (u.usesFullSkein ? u.skeinsNeeded : 0), 0);
+      kitSkeinCount = getKitSkeinCount(yarnUsage, (meshCount || 14) as MeshCount);
     } catch (e) {
       console.error("Error computing kit summary:", e);
     }
