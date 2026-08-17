@@ -16,12 +16,24 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const meshFilter = new URL(request.url).searchParams.get("meshCount");
+    const url = new URL(request.url);
+    const meshFilter = url.searchParams.get("meshCount");
     const meshWhere = meshCountWhere(meshFilter);
+    // Opt-in: include archived designs (e.g. the 14-vs-18 compare page, where
+    // many 14ct designs are archived but still need comparing to their 18ct
+    // versions). Default keeps archived hidden for everyone else.
+    const includeArchived = url.searchParams.get("includeArchived") === "true";
 
     // Fetch non-draft designs (filtered by mesh count if specified)
     const designs = await prisma.design.findMany({
-      where: { isDraft: false, deletedAt: null, archivedAt: null, notLiveAt: null, printVersionOf: null, ...meshWhere },
+      where: {
+        isDraft: false,
+        deletedAt: null,
+        notLiveAt: null,
+        printVersionOf: null,
+        ...(includeArchived ? {} : { archivedAt: null }),
+        ...meshWhere,
+      },
       select: {
         id: true,
         name: true,
@@ -32,6 +44,7 @@ export async function GET(request: NextRequest) {
         stitchType: true,
         bufferPercent: true,
         pixelData: true,
+        archivedAt: true,
         kitsReady: true,
         canvasPrinted: true,
         marketKitsReady: true,
@@ -211,6 +224,7 @@ export async function GET(request: NextRequest) {
           allInStock: kitContents.every((c) => c.inStock),
           kitContents,
           folder: design.folder,
+          archived: design.archivedAt != null,
         });
       } catch (e) {
         console.error(`Error processing design ${design.id}:`, e);

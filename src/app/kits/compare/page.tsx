@@ -27,6 +27,7 @@ interface KitSummary {
   marketKitsReady: number;
   kitContents: KitContent[];
   folder: { id: string; name: string } | null;
+  archived?: boolean;
 }
 
 interface MatchedPair {
@@ -52,7 +53,9 @@ function getBaseName(name: string): string {
 }
 
 export default function KitComparePage() {
-  const { data: allKits = [], isLoading, mutate } = useSWR<KitSummary[]>("/api/kits", {
+  // Include archived designs: many 14ct designs are archived but still need
+  // comparing to their live 18ct versions.
+  const { data: allKits = [], isLoading, mutate } = useSWR<KitSummary[]>("/api/kits?includeArchived=true", {
     revalidateOnFocus: false,
   });
 
@@ -250,6 +253,9 @@ export default function KitComparePage() {
                                   <span className="px-2 py-0.5 rounded text-xs bg-zinc-700 text-zinc-300">
                                     14ct: {pair.kit14.totalColors}c / {pair.kit14.totalSkeins}sk
                                   </span>
+                                  {pair.kit14.archived && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-slate-700 text-slate-400 border border-slate-600" title="This 14ct design is archived">archived</span>
+                                  )}
                                   <ReadyStepper
                                     count={pair.kit14.kitsReady}
                                     onAdjust={(delta) => adjustKitsReady(pair.kit14!.designId, delta)}
@@ -261,6 +267,9 @@ export default function KitComparePage() {
                                   <span className="px-2 py-0.5 rounded text-xs bg-amber-900/60 text-amber-300">
                                     18ct: {pair.kit18.totalColors}c / {pair.kit18.totalSkeins}sk
                                   </span>
+                                  {pair.kit18.archived && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-slate-700 text-slate-400 border border-slate-600" title="This 18ct design is archived">archived</span>
+                                  )}
                                   <ReadyStepper
                                     count={pair.kit18.kitsReady}
                                     onAdjust={(delta) => adjustKitsReady(pair.kit18!.designId, delta)}
