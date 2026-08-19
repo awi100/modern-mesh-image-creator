@@ -24,7 +24,7 @@ import { writeFileSync } from "node:fs";
 
 const DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
 const TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
-const API_VERSION = process.env.SHOPIFY_API_VERSION || "2025-01"; // bump to current stable
+const API_VERSION = process.env.SHOPIFY_API_VERSION || "2026-07"; // set SHOPIFY_API_VERSION to override
 
 if (!DOMAIN || !TOKEN) {
   console.error("Missing SHOPIFY_STORE_DOMAIN and/or SHOPIFY_ADMIN_TOKEN env vars.");

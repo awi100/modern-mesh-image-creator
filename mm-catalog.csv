@@ -66,7 +66,7 @@ DMC Size 5 Pearl Cotton Thread,dmc-size-5-pearl-cotton-thread,ACTIVE,Needlepoint
 Womens Fleece Crewneck - Sand Dune,womens-fleece-crewneck,ACTIVE,,Merch,,HEATHR SAND DUNE / S,MULTI,Color=HEATHR SAND DUNE|Size=S,19g649mlbpe0ul,45.00,,28.08,9999
 Womens Fleece Crewneck - Sand Dune,womens-fleece-crewneck,ACTIVE,,Merch,,HEATHR SAND DUNE / M,MULTI,Color=HEATHR SAND DUNE|Size=M,19g649mlbpe0up,45.00,,28.08,9999
 Womens Fleece Crewneck - Sand Dune,womens-fleece-crewneck,ACTIVE,,Merch,,HEATHR SAND DUNE / L,MULTI,Color=HEATHR SAND DUNE|Size=L,19g649mlbpe0ut,45.00,,28.08,9999
-Womens Fleece Crewneck - Sand Dune,womens-fleece-crewneck,ACTIVE,,Merch,,HEATHR SAND DUNE / XL,MULTI,Color=HEATHR SAND DUNE|Size=XL,19g649mlbpe0ux,45.00,,28.08,11
+Womens Fleece Crewneck - Sand Dune,womens-fleece-crewneck,ACTIVE,,Merch,,HEATHR SAND DUNE / XL,MULTI,Color=HEATHR SAND DUNE|Size=XL,19g649mlbpe0ux,45.00,,28.08,9999
 Womens Fleece Crewneck - Sand Dune,womens-fleece-crewneck,ACTIVE,,Merch,,HEATHR SAND DUNE / 2XL,MULTI,Color=HEATHR SAND DUNE|Size=2XL,19g649mlbpe0v0,45.00,,29.08,9999
 Womens Fleece Crewneck - Bone,women-fleece-crewneck,ACTIVE,,Merch,,Bone / S,MULTI,Color=Bone|Size=S,19g649mlbpg4kf,45.00,,25.35,9999
 Womens Fleece Crewneck - Bone,women-fleece-crewneck,ACTIVE,,Merch,,Bone / M,MULTI,Color=Bone|Size=M,19g649mlbpg4kh,45.00,,25.35,9999
@@ -75,20 +75,20 @@ Womens Fleece Crewneck - Bone,women-fleece-crewneck,ACTIVE,,Merch,,Bone / XL,MUL
 Womens Fleece Crewneck - Bone,women-fleece-crewneck,ACTIVE,,Merch,,Bone / 2XL,MULTI,Color=Bone|Size=2XL,19g649mlbpg4km,45.00,,26.35,9999
 Embroidery Scissors,embroidery-scissors,DRAFT,,Accessories,,Pewter,Color,Pewter,,10.00,,,0
 Embroidery Scissors,embroidery-scissors,DRAFT,,Accessories,,Copper,Color,Copper,,10.00,,,0
-Seam Ripper,seam-ripper,ACTIVE,,Accessories,,Default Title,Title,Default Title,,3.00,,,68
-Project Bag,project-bag,ACTIVE,,Accessories,,Red,Color,Red,,8.00,,,14
-Project Bag,project-bag,ACTIVE,,Accessories,,Yellow,Color,Yellow,,8.00,,,36
-Project Bag,project-bag,ACTIVE,,Accessories,,Blue,Color,Blue,,8.00,,,5
-Project Bag,project-bag,ACTIVE,,Accessories,,Green,Color,Green,,8.00,,,11
+Seam Ripper,seam-ripper,ACTIVE,,Accessories,,Default Title,Title,Default Title,,4.00,,,37
+Project Bag,project-bag,ACTIVE,,Accessories,,Red,Color,Red,,10.00,,,0
+Project Bag,project-bag,ACTIVE,,Accessories,,Yellow,Color,Yellow,,10.00,,,32
+Project Bag,project-bag,ACTIVE,,Accessories,,Blue,Color,Blue,,10.00,,,0
+Project Bag,project-bag,ACTIVE,,Accessories,,Green,Color,Green,,10.00,,,4
 Tapestry Needles,tapestry-needles,ACTIVE,,Accessories,,20,Needle size,20,,5.00,,,0
 Tapestry Needles,tapestry-needles,ACTIVE,,Accessories,,22,Needle size,22,,5.00,,,0
-Tapestry Needles,tapestry-needles,ACTIVE,,Accessories,,24,Needle size,24,,5.00,,,4
+Tapestry Needles,tapestry-needles,ACTIVE,,Accessories,,24,Needle size,24,,5.00,,,3
 Needlework Finisher,needlework-finisher,DRAFT,,Accessories,,Default Title,Title,Default Title,,10.00,,,1
-Whale Intro Kit,whale,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,35.00,,,-197
-Shamrock Intro Kit,shamrock,ACTIVE,Needlepoint Canvas,Canvases|Intro|St. Paddy's Day,,Default Title,Title,Default Title,,35.00,,,-254
-Heart Intro Kit,heart,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,35.00,,,-135
-Horseshoe Intro Kit,horseshoe,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,35.00,,,-143
-Mystery Misprint Bag,mystery-misprint-bag,ACTIVE,Needlepoint Canvas,Canvases,,Default Title,Title,Default Title,,50.00,,,-94
+Whale Intro Kit,whale,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,40.00,,,-210
+Shamrock Intro Kit,shamrock,ACTIVE,Needlepoint Canvas,Canvases|Intro|St. Paddy's Day,,Default Title,Title,Default Title,,40.00,,,-292
+Heart Intro Kit,heart,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,40.00,,,0
+Horseshoe Intro Kit,horseshoe,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,40.00,,,4
+Mystery Misprint Bag (NEW ENGLAND ONLY),mystery-misprint-bag,ACTIVE,Needlepoint Canvas,Canvases,,Default Title,Title,Default Title,,50.00,,,-102
 St. Paddy's Puppy (14),st-paddys-puppy,DRAFT,Needlepoint Canvas,Canvases|St. Paddy's Day,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-4
 St. Paddy's Puppy (14),st-paddys-puppy,DRAFT,Needlepoint Canvas,Canvases|St. Paddy's Day,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-7
 Shamrock Beer (14),shamrock-beer,DRAFT,Needlepoint Canvas,Canvases|St. Paddy's Day,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-6
@@ -99,141 +99,151 @@ St Paddy's Matchbox (14),st-pattys-matchbox,DRAFT,Needlepoint Canvas,Canvases|St
 St Paddy's Matchbox (14),st-pattys-matchbox,DRAFT,Needlepoint Canvas,Canvases|St. Paddy's Day,,Yes,Add kit +$15 (Threads/Needles),Yes,,50.00,,,-3
 Shamrock (14),shamrock-1,DRAFT,Needlepoint Canvas,Canvases|St. Paddy's Day,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-3
 Shamrock (14),shamrock-1,DRAFT,Needlepoint Canvas,Canvases|St. Paddy's Day,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-37
-Paw Print Intro Kit,paw-print-intro-kit,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,35.00,,,-39
-Silver/Gold Embroidery Scissors,embroidery-scissors-1,ACTIVE,,Accessories,,Gold,Color,Gold,,8.00,,,326
-Silver/Gold Embroidery Scissors,embroidery-scissors-1,ACTIVE,,Accessories,,Silver,Color,Silver,,8.00,,,40
+Paw Print Intro Kit,paw-print-intro-kit,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,40.00,,,5
+Silver/Gold Embroidery Scissors,embroidery-scissors-1,ACTIVE,,Accessories,,Gold,Color,Gold,,10.00,,,303
+Silver/Gold Embroidery Scissors,embroidery-scissors-1,ACTIVE,,Accessories,,Silver,Color,Silver,,10.00,,,32
 Easter Basket (14),easter-basket,DRAFT,Needlepoint Canvas,Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,0
 Easter Basket (14),easter-basket,DRAFT,Needlepoint Canvas,Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-1
 Easter Egg (14),easter-egg,DRAFT,Needlepoint Canvas,Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,2
 Easter Egg (14),easter-egg,DRAFT,Needlepoint Canvas,Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,2
-Matcha Needle Minder,matcha-needle-minder,ACTIVE,,Accessories|Needle Minders,,Default Title,Title,Default Title,,10.00,,,384
-Avocado Needle Minder,avocado-needle-minder,ACTIVE,,Accessories|Needle Minders,,Default Title,Title,Default Title,,10.00,,,388
-Balloon Dog Needle Minder,balloon-dog-needle-minder,ACTIVE,,Accessories|Needle Minders,,Default Title,Title,Default Title,,10.00,,,310
-Pearl Shell Needle Minder,pearl-shell-needle-minder,ACTIVE,,Accessories|Needle Minders,,Default Title,Title,Default Title,,10.00,,,337
-Hydrangea Needle Minder,hydrangea-needle-minder,ACTIVE,,Accessories|Needle Minders|Flowers,,Default Title,Title,Default Title,,10.00,,,238
-Needlepoint Bear Needle Minder,needlepoint-bear-needle-minder,ACTIVE,,Accessories|Needle Minders,,Default Title,Title,Default Title,,10.00,,,365
-Blank Canvas,blank-canvas,ACTIVE,Needlepoint Canvas,Canvases,,Default Title,Title,Default Title,,15.00,,,3
-Crab,crab,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-1
-Crab,crab,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-4
-Hydrangea,hydrangeas,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Flowers|Best Sellers,,No,Add kit +$15 (Threads/Needles),No,,50.00,,,-15
-Hydrangea,hydrangeas,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Flowers|Best Sellers,,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,0
-Tulips,tulips,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Flowers,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,0
-Tulips,tulips,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Flowers,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-2
+Matcha Needle Minder,matcha-needle-minder,ACTIVE,,Accessories|Needle Minders,,Default Title,Title,Default Title,,12.00,,,382
+Avocado Needle Minder,avocado-needle-minder,ACTIVE,,Accessories|Needle Minders,,Default Title,Title,Default Title,,12.00,,,387
+Balloon Dog Needle Minder,balloon-dog-needle-minder,ACTIVE,,Accessories|Needle Minders,,Default Title,Title,Default Title,,12.00,,,296
+Pearl Shell Needle Minder,pearl-shell-needle-minder,ACTIVE,,Accessories|Needle Minders,,Default Title,Title,Default Title,,12.00,,,333
+Hydrangea Needle Minder,hydrangea-needle-minder,ACTIVE,,Accessories|Needle Minders|Flowers,,Default Title,Title,Default Title,,12.00,,,214
+Needlepoint Bear Needle Minder,needlepoint-bear-needle-minder,ACTIVE,,Accessories|Needle Minders,,Default Title,Title,Default Title,,12.00,,,360
+Blank Canvas,blank-canvas,ACTIVE,Needlepoint Canvas,Canvases,,Default Title,Title,Default Title,,15.00,,,6
+Crab,crab,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-2
+Crab,crab,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-6
+Hydrangea,hydrangeas,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Flowers|Best Sellers,,No,Add kit +$20 (Threads/Needles),No,,60.00,,,-26
+Hydrangea,hydrangeas,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Flowers|Best Sellers,,Yes,Add kit +$20 (Threads/Needles),Yes,,80.00,,,0
+Tulips,tulips,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Flowers,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,0
+Tulips,tulips,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Flowers,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-2
 World Cup Ball,world-cup-trophy,DRAFT,Needlepoint Canvas,Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-18
 World Cup Ball,world-cup-trophy,DRAFT,Needlepoint Canvas,Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-40
-Watermelon,watermelon,ACTIVE,Needlepoint Canvas,Canvases|Fruit|18 Count Canvases,,No,Add kit +$10 (Threads/Needles),No,,40.00,,,0
-Watermelon,watermelon,ACTIVE,Needlepoint Canvas,Canvases|Fruit|18 Count Canvases,,Yes,Add kit +$10 (Threads/Needles),Yes,,50.00,,,-7
-Citgo Sign,citgo-sign,DRAFT,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-6
-Citgo Sign,citgo-sign,DRAFT,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-34
-Southie Sign,southie-sign,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-6
-Southie Sign,southie-sign,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-15
-Fenway Frank,fenway-frank,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|18 Count Canvases|Best Sellers,Boston|Street Signs,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-22
-Fenway Frank,fenway-frank,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|18 Count Canvases|Best Sellers,Boston|Street Signs,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-55
-Raincoat Pup,raincoat-pup,DRAFT,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,0
-Raincoat Pup,raincoat-pup,DRAFT,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,0
+Watermelon,watermelon,ACTIVE,Needlepoint Canvas,Canvases|Fruit|18 Count Canvases,,No,Add kit +$12 (Threads/Needles),No,,45.00,,,0
+Watermelon,watermelon,ACTIVE,Needlepoint Canvas,Canvases|Fruit|18 Count Canvases,,Yes,Add kit +$12 (Threads/Needles),Yes,,57.00,,,-7
+Citgo Sign,citgo-sign,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-10
+Citgo Sign,citgo-sign,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-40
+Southie Sign,southie-sign,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-8
+Southie Sign,southie-sign,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-16
+Fenway Frank,fenway-frank,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|18 Count Canvases|Best Sellers,Boston|Street Signs,No,Add kit +$15 (Threads/Needles),No,,50.00,,,0
+Fenway Frank,fenway-frank,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|18 Count Canvases|Best Sellers,Boston|Street Signs,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,0
+Raincoat Pup,raincoat-pup,ACTIVE,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$12 (Threads/Needles),No,,45.00,,,-4
+Raincoat Pup,raincoat-pup,ACTIVE,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$12 (Threads/Needles),Yes,,57.00,,,-6
 Boston Terrier,boston-terrier,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$10 (Threads/Needles),No,,40.00,,,-5
-Boston Terrier,boston-terrier,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$10 (Threads/Needles),Yes,,50.00,,,-10
-French Bulldog,farmers-market-pup,DRAFT,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,0
-French Bulldog,farmers-market-pup,DRAFT,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,0
-Cowboy Pup,cowboy-pup,DRAFT,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,0
-Cowboy Pup,cowboy-pup,DRAFT,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,0
-Farmers Market Pup,farmers-market-pup-1,DRAFT,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,0
-Farmers Market Pup,farmers-market-pup-1,DRAFT,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,0
-Corgi,corgi,DRAFT,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,0
-Corgi,corgi,DRAFT,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,0
-Seashell,seashell-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-4
-Seashell,seashell-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-4
-Shamrock,shamrock-18-mesh,ACTIVE,Needlepoint Canvas,Canvases|St. Paddy's Day|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-7
-Shamrock,shamrock-18-mesh,ACTIVE,Needlepoint Canvas,Canvases|St. Paddy's Day|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-16
-Lucky,lucky-18-mesh,ACTIVE,Needlepoint Canvas,Canvases|St. Paddy's Day|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,0
-Lucky,lucky-18-mesh,ACTIVE,Needlepoint Canvas,Canvases|St. Paddy's Day|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-2
+Boston Terrier,boston-terrier,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$10 (Threads/Needles),Yes,,50.00,,,-11
+French Bulldog,farmers-market-pup,ACTIVE,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$12 (Threads/Needles),No,,45.00,,,0
+French Bulldog,farmers-market-pup,ACTIVE,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$12 (Threads/Needles),Yes,,57.00,,,-3
+Cowboy Pup,cowboy-pup,ACTIVE,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$12 (Threads/Needles),No,,45.00,,,-3
+Cowboy Pup,cowboy-pup,ACTIVE,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$12 (Threads/Needles),Yes,,57.00,,,-2
+Farmers Market Pup,farmers-market-pup-1,ACTIVE,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,50.00,,,0
+Farmers Market Pup,farmers-market-pup-1,ACTIVE,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,-3
+Corgi,corgi,ACTIVE,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,50.00,,,0
+Corgi,corgi,ACTIVE,Needlepoint Canvas,Canvases|Playful Pups|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,-3
+Seashell,seashell-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-5
+Seashell,seashell-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-6
+Shamrock,shamrock-18-mesh,ACTIVE,Needlepoint Canvas,Canvases|St. Paddy's Day|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-10
+Shamrock,shamrock-18-mesh,ACTIVE,Needlepoint Canvas,Canvases|St. Paddy's Day|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-21
+Lucky,lucky-18-mesh,ACTIVE,Needlepoint Canvas,Canvases|St. Paddy's Day|18 Count Canvases|Phrases,,No,Add kit +$15 (Threads/Needles),No,,50.00,,,0
+Lucky,lucky-18-mesh,ACTIVE,Needlepoint Canvas,Canvases|St. Paddy's Day|18 Count Canvases|Phrases,,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,-2
 Heart Matchbox,heart-matchbox-18-mesh,ACTIVE,Needlepoint Canvas,Galentine's Day|Canvases|18 Count Canvases,,No,Add kit +$10 (Threads/Needles),No,,40.00,,,-3
-Heart Matchbox,heart-matchbox-18-mesh,ACTIVE,Needlepoint Canvas,Galentine's Day|Canvases|18 Count Canvases,,Yes,Add kit +$10 (Threads/Needles),Yes,,50.00,,,-5
-Pats Matchbox,pats-matchbox-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases,,No,Add kit +$10 (Threads/Needles),No,,40.00,,,-1
-Pats Matchbox,pats-matchbox-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases,,Yes,Add kit +$10 (Threads/Needles),Yes,,50.00,,,-3
-Anchor,anchor-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-5
-Anchor,anchor-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-19
-Boston Marathon Bib,boston-marathon-bib-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-4
-Boston Marathon Bib,boston-marathon-bib-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-11
-Patriot Pl Street Sign,patriot-pl-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|18 Count Canvases,Boston,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-1
-Patriot Pl Street Sign,patriot-pl-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|18 Count Canvases,Boston,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-4
-Pats #10 Jersey,pats-10-jersey-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases,,No,Add kit +$10 (Threads/Needles),No,,40.00,,,-1
-Pats #10 Jersey,pats-10-jersey-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases,,Yes,Add kit +$10 (Threads/Needles),Yes,,50.00,,,-2
-Lighthouse,lighthouse-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,50.00,,,-3
-Lighthouse,lighthouse-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,-10
-New England vs Everyone,new-england-vs-everyone-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-5
-New England vs Everyone,new-england-vs-everyone-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-8
-Newbury Street Sign,newbury-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-8
-Newbury Street Sign,newbury-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-6
-Lobster,lobster-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases|Best Sellers,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-10
-Lobster,lobster-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases|Best Sellers,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-31
-Cosmopolitan,cosmopolitan-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases|Best Sellers,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-2
-Cosmopolitan,cosmopolitan-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases|Best Sellers,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-6
-Espresso Martini,espresso-martini-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-3
-Espresso Martini,espresso-martini-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-14
-Martini,martini-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-2
-Martini,martini-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-8
-Aperol Spritz,aperol-spritz-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases|Best Sellers,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,95
-Aperol Spritz,aperol-spritz-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases|Best Sellers,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-16
-Comm Ave Street Sign,comm-ave-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-1
-Comm Ave Street Sign,comm-ave-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-4
-Green Shamrock Hoodie,green-shamrock-hoodie-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|St. Paddy's Day|18 Count Canvases,Boston,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-3
-Green Shamrock Hoodie,green-shamrock-hoodie-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|St. Paddy's Day|18 Count Canvases,Boston,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-1
-Black & Gold Hockey Jersey,black-gold-hockey-jersey-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,0
-Black & Gold Hockey Jersey,black-gold-hockey-jersey-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-1
-Shamrock Beer,shamrock-beer-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|St. Paddy's Day|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,45.00,,,-5
-Shamrock Beer,shamrock-beer-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|St. Paddy's Day|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,60.00,,,-11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Hydrangea,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Balloon Dog,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Matcha,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Needlepoint Bear,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Pearl Shell,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Avocado,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Hydrangea,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Balloon Dog,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Matcha,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Needlepoint Bear,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Pearl Shell,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Avocado,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Hydrangea,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Balloon Dog,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Matcha,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Needlepoint Bear,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Pearl Shell,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Avocado,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Hydrangea,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Balloon Dog,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Matcha,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Needlepoint Bear,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Pearl Shell,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Avocado,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Hydrangea,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Balloon Dog,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Matcha,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Needlepoint Bear,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Pearl Shell,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Avocado,,20.00,29.00,,14
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Hydrangea,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Balloon Dog,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Matcha,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Needlepoint Bear,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Pearl Shell,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Avocado,,20.00,29.00,,36
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Hydrangea,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Balloon Dog,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Matcha,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Needlepoint Bear,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Pearl Shell,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Avocado,,20.00,29.00,,5
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Hydrangea,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Balloon Dog,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Matcha,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Needlepoint Bear,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Pearl Shell,,20.00,29.00,,11
-The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Avocado,,20.00,29.00,,11
-Needle Minder,needleminder,DRAFT,,Needle Minders,,Hydrangea,Design,Hydrangea,,10.00,,,-6
-Needle Minder,needleminder,DRAFT,,Needle Minders,,Balloon Dog,Design,Balloon Dog,,10.00,,,-1
-Needle Minder,needleminder,DRAFT,,Needle Minders,,Matcha,Design,Matcha,,10.00,,,-1
-Needle Minder,needleminder,DRAFT,,Needle Minders,,Needlepoint Bear,Design,Needlepoint Bear,,10.00,,,-1
-Needle Minder,needleminder,DRAFT,,Needle Minders,,Pearl Shell,Design,Pearl Shell,,10.00,,,-1
-Needle Minder,needleminder,DRAFT,,Needle Minders,,Avocado,Design,Avocado,,10.00,,,0
+Heart Matchbox,heart-matchbox-18-mesh,ACTIVE,Needlepoint Canvas,Galentine's Day|Canvases|18 Count Canvases,,Yes,Add kit +$10 (Threads/Needles),Yes,,50.00,,,-7
+Pats Matchbox,pats-matchbox-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases,,No,Add kit +$12 (Threads/Needles),No,,45.00,,,-1
+Pats Matchbox,pats-matchbox-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases,,Yes,Add kit +$12 (Threads/Needles),Yes,,57.00,,,-3
+Anchor,anchor-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-7
+Anchor,anchor-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-21
+Boston Marathon Bib,boston-marathon-bib-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-4
+Boston Marathon Bib,boston-marathon-bib-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-12
+Patriot Pl Street Sign,patriot-pl-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|18 Count Canvases,Boston,No,Add kit +$15 (Threads/Needles),No,,50.00,,,-1
+Patriot Pl Street Sign,patriot-pl-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|New England Sports|Canvases|18 Count Canvases,Boston,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,-7
+Pats #10 Jersey,pats-10-jersey-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases,,No,Add kit +$12 (Threads/Needles),No,,45.00,,,-2
+Pats #10 Jersey,pats-10-jersey-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases,,Yes,Add kit +$12 (Threads/Needles),Yes,,57.00,,,-3
+Lighthouse,lighthouse-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-4
+Lighthouse,lighthouse-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-12
+New England vs Everyone,new-england-vs-everyone-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases|Phrases,,No,Add kit +$15 (Threads/Needles),No,,50.00,,,-12
+New England vs Everyone,new-england-vs-everyone-18-mesh,ACTIVE,Needlepoint Canvas,New England Sports|Canvases|18 Count Canvases|Phrases,,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,-27
+Newbury Street Sign,newbury-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,No,Add kit +$15 (Threads/Needles),No,,50.00,,,-9
+Newbury Street Sign,newbury-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston|Street Signs,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,-8
+Lobster,lobster-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases|Best Sellers,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-10
+Lobster,lobster-18-mesh,ACTIVE,Needlepoint Canvas,Nautical|Canvases|18 Count Canvases|Best Sellers,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-34
+Cosmopolitan,cosmopolitan-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases|Best Sellers,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-2
+Cosmopolitan,cosmopolitan-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases|Best Sellers,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-12
+Espresso Martini,espresso-martini-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-3
+Espresso Martini,espresso-martini-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-17
+Martini,martini-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-2
+Martini,martini-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-11
+Aperol Spritz,aperol-spritz-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases|Best Sellers,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,92
+Aperol Spritz,aperol-spritz-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|18 Count Canvases|Best Sellers,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-22
+Comm Ave Street Sign,comm-ave-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston,No,Add kit +$15 (Threads/Needles),No,,50.00,,,-1
+Comm Ave Street Sign,comm-ave-street-sign-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,Boston,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,-6
+Green Shamrock Hoodie,green-shamrock-hoodie-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|St. Paddy's Day|18 Count Canvases,Boston,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-4
+Green Shamrock Hoodie,green-shamrock-hoodie-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|St. Paddy's Day|18 Count Canvases,Boston,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-2
+Black & Gold Hockey Jersey,black-gold-hockey-jersey-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,-1
+Black & Gold Hockey Jersey,black-gold-hockey-jersey-18-mesh,ACTIVE,Needlepoint Canvas,Boston|Canvases|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-1
+Shamrock Beer,shamrock-beer-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|St. Paddy's Day|18 Count Canvases,,No,Add kit +$15 (Threads/Needles),No,,50.00,,,-5
+Shamrock Beer,shamrock-beer-18-mesh,ACTIVE,Needlepoint Canvas,Cocktails|Canvases|St. Paddy's Day|18 Count Canvases,,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,-17
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Hydrangea,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Balloon Dog,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Matcha,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Needlepoint Bear,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Pearl Shell,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Red / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Red|Needleminder (Design)=Avocado,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Hydrangea,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Balloon Dog,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Matcha,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Needlepoint Bear,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Pearl Shell,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Yellow / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Yellow|Needleminder (Design)=Avocado,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Hydrangea,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Balloon Dog,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Matcha,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Needlepoint Bear,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Pearl Shell,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Blue / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Blue|Needleminder (Design)=Avocado,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Hydrangea,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Balloon Dog,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Matcha,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Needlepoint Bear,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Pearl Shell,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Gold / Green / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Gold|Project Bag (Color)=Green|Needleminder (Design)=Avocado,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Hydrangea,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Balloon Dog,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Matcha,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Needlepoint Bear,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Pearl Shell,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Red / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Red|Needleminder (Design)=Avocado,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Hydrangea,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Balloon Dog,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Matcha,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Needlepoint Bear,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Pearl Shell,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Yellow / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Yellow|Needleminder (Design)=Avocado,,25.00,36.00,,32
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Hydrangea,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Balloon Dog,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Matcha,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Needlepoint Bear,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Pearl Shell,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Blue / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Blue|Needleminder (Design)=Avocado,,25.00,36.00,,0
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Hydrangea,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Hydrangea,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Balloon Dog,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Balloon Dog,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Matcha,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Matcha,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Needlepoint Bear,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Needlepoint Bear,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Pearl Shell,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Pearl Shell,,25.00,36.00,,4
+The Essentials Bundle,new-to-needlepoint-bundle,ACTIVE,,Accessories,,Silver / Green / Avocado,MULTI,Silver/Gold Embroidery Scissors (Color)=Silver|Project Bag (Color)=Green|Needleminder (Design)=Avocado,,25.00,36.00,,4
+Needle Minder,needleminder,DRAFT,,Needle Minders,,Hydrangea,Design,Hydrangea,,12.00,,,-19
+Needle Minder,needleminder,DRAFT,,Needle Minders,,Balloon Dog,Design,Balloon Dog,,12.00,,,-5
+Needle Minder,needleminder,DRAFT,,Needle Minders,,Matcha,Design,Matcha,,12.00,,,-3
+Needle Minder,needleminder,DRAFT,,Needle Minders,,Needlepoint Bear,Design,Needlepoint Bear,,12.00,,,-4
+Needle Minder,needleminder,DRAFT,,Needle Minders,,Pearl Shell,Design,Pearl Shell,,12.00,,,-7
+Needle Minder,needleminder,DRAFT,,Needle Minders,,Avocado,Design,Avocado,,12.00,,,0
+Ciao Bella,ciao-bella,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Phrases,,No,Add kit +$15 (Threads/Needles),No,,50.00,,,0
+Ciao Bella,ciao-bella,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Phrases,,Yes,Add kit +$15 (Threads/Needles),Yes,,65.00,,,-2
+Tell Your Dog I Say Hi,tell-your-dog-i-say-hi,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Phrases,,No,Add kit +$15 (Threads/Needles),No,,55.00,,,0
+Tell Your Dog I Say Hi,tell-your-dog-i-say-hi,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Phrases,,Yes,Add kit +$15 (Threads/Needles),Yes,,70.00,,,-1
+Summer Should Be Fun,summer-should-be-fun,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Phrases,,No,Add kit +$20 (Threads/Needles),No,,60.00,,,-4
+Summer Should Be Fun,summer-should-be-fun,ACTIVE,Needlepoint Canvas,Canvases|18 Count Canvases|Phrases,,Yes,Add kit +$20 (Threads/Needles),Yes,,80.00,,,-7
+Duck Intro Kit,duck-intro-kit,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,40.00,,,149
+Palm Tree Intro Kit,palm-tree-intro-kit,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,40.00,,,150
+Pretzel Intro Kit,pretzel-intro-kit,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,40.00,,,100
+Lightning Intro Kit,lightning-intro-kit,ACTIVE,Needlepoint Canvas,Canvases|Intro,,Default Title,Title,Default Title,,40.00,,,99

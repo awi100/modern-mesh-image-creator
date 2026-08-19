@@ -234,6 +234,15 @@ export default function DesignInfoPage() {
               </svg>
               Kit Breakdown
             </Link>
+            <Link
+              href={`/design/${design.id}/stitch`}
+              className="px-4 py-2 bg-emerald-800 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 text-sm font-medium"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Stitch-along
+            </Link>
           </div>
         </div>
 
