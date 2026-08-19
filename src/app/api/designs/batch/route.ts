@@ -4,7 +4,7 @@ import { isAuthenticated } from "@/lib/session";
 
 interface BatchRequest {
   designIds: string[];
-  action: "move" | "addTags" | "removeTags" | "delete" | "archive" | "unarchive" | "notlive" | "live";
+  action: "move" | "addTags" | "removeTags" | "delete" | "archive" | "unarchive" | "notlive" | "live" | "excludeFromStockAlerts" | "includeInStockAlerts";
   payload?: {
     folderId?: string | null;
     tagIds?: string[];
@@ -152,6 +152,18 @@ export async function PATCH(request: NextRequest) {
           data,
         });
 
+        result = { success: true, count: updateResult.count };
+        break;
+      }
+
+      case "excludeFromStockAlerts":
+      case "includeInStockAlerts": {
+        // Bulk include/exclude designs from the thread stock-alert calculations.
+        const excludeFromStockAlerts = action === "excludeFromStockAlerts";
+        const updateResult = await prisma.design.updateMany({
+          where: { id: { in: designIds } },
+          data: { excludeFromStockAlerts },
+        });
         result = { success: true, count: updateResult.count };
         break;
       }

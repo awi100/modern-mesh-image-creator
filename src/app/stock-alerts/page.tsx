@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
@@ -94,7 +94,12 @@ export default function StockAlertsPage() {
   const [copiedOrder, setCopiedOrder] = useState(false);
   const [excludedDesigns, setExcludedDesigns] = useState<ExcludedDesign[]>([]);
   const [showExcluded, setShowExcluded] = useState(false);
-  const [togglingExclusion, setTogglingExclusion] = useState<string | null>(null);
+  const [expandedOrder, setExpandedOrder] = useState<Set<string>>(new Set());
+  // Bulk include/exclude manager state
+  const [designSearch, setDesignSearch] = useState("");
+  const [designFilter, setDesignFilter] = useState<"all" | "included" | "excluded">("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
     if (typeof window !== "undefined") {
       return (sessionStorage.getItem("orderBuilderMeshFilter") as MeshFilter) || "order";
@@ -106,26 +111,24 @@ export default function StockAlertsPage() {
     if (typeof window !== "undefined") sessionStorage.setItem("orderBuilderMeshFilter", f);
   };
 
-  useEffect(() => {
-    const fetchAlerts = async () => {
-      setLoading(true);
-      try {
-        const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
-        const response = await fetch(`/api/inventory/alerts${meshParam}`);
-        if (response.ok) {
-          const data = await response.json();
-          setColors(data.mostUsedColors || []);
-          setOrderSuggestions(data.orderSuggestions || []);
-          setGlobalDemand(data.globalDemand);
-          setExcludedDesigns(data.excludedDesigns || []);
-        }
-      } catch (error) {
-        console.error("Error fetching stock alerts:", error);
-      }
-      setLoading(false);
-    };
-    fetchAlerts();
+  const refetchAlerts = useCallback(async () => {
+    const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
+    const response = await fetch(`/api/inventory/alerts${meshParam}`);
+    if (response.ok) {
+      const data = await response.json();
+      setColors(data.mostUsedColors || []);
+      setOrderSuggestions(data.orderSuggestions || []);
+      setGlobalDemand(data.globalDemand);
+      setExcludedDesigns(data.excludedDesigns || []);
+    }
   }, [meshFilter]);
+
+  useEffect(() => {
+    setLoading(true);
+    refetchAlerts()
+      .catch((error) => console.error("Error fetching stock alerts:", error))
+      .finally(() => setLoading(false));
+  }, [refetchAlerts]);
 
   // Keys are composite `${dmcNumber}-${threadSize}` since the same DMC color
   // can appear as both a Size 3 and Size 5 row in the same list.
@@ -208,31 +211,78 @@ export default function StockAlertsPage() {
     return Array.from(designMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [colors]);
 
-  const toggleDesignExclusion = async (designId: string, exclude: boolean) => {
-    setTogglingExclusion(designId);
+  // Apply include/exclude to many designs at once (chunked to the batch limit),
+  // then refetch a single time. Much faster than one request per design.
+  const applyExclusion = async (ids: string[], exclude: boolean) => {
+    if (ids.length === 0) return;
+    setBulkBusy(true);
     try {
-      const res = await fetch(`/api/designs/${designId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ excludeFromStockAlerts: exclude }),
-      });
-      if (res.ok) {
-        // Refetch alerts data
-        const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
-        const response = await fetch(`/api/inventory/alerts${meshParam}`);
-        if (response.ok) {
-          const data = await response.json();
-          setColors(data.mostUsedColors || []);
-          setOrderSuggestions(data.orderSuggestions || []);
-          setGlobalDemand(data.globalDemand);
-          setExcludedDesigns(data.excludedDesigns || []);
-        }
+      for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i + 50);
+        const res = await fetch(`/api/designs/batch`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            designIds: chunk,
+            action: exclude ? "excludeFromStockAlerts" : "includeInStockAlerts",
+          }),
+        });
+        if (!res.ok) throw new Error("Batch exclusion failed");
       }
+      await refetchAlerts();
+      setSelectedIds(new Set());
     } catch (error) {
-      console.error("Error toggling design exclusion:", error);
+      console.error("Error updating design exclusions:", error);
     }
-    setTogglingExclusion(null);
+    setBulkBusy(false);
   };
+
+  // Combined design list (included + excluded) for the manager.
+  const allDesigns = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; previewImageUrl: string | null; excluded: boolean }>();
+    for (const d of allIncludedDesigns) map.set(d.id, { ...d, excluded: false });
+    for (const d of excludedDesigns) map.set(d.id, { id: d.id, name: d.name, previewImageUrl: d.previewImageUrl, excluded: true });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [allIncludedDesigns, excludedDesigns]);
+
+  const visibleDesigns = useMemo(() => {
+    const q = designSearch.trim().toLowerCase();
+    return allDesigns.filter((d) => {
+      if (designFilter === "included" && d.excluded) return false;
+      if (designFilter === "excluded" && !d.excluded) return false;
+      if (q && !d.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [allDesigns, designFilter, designSearch]);
+
+  const selectedList = useMemo(() => allDesigns.filter((d) => selectedIds.has(d.id)), [allDesigns, selectedIds]);
+  const selectedExcludable = selectedList.filter((d) => !d.excluded).length;
+  const selectedIncludable = selectedList.filter((d) => d.excluded).length;
+
+  const toggleSelect = (id: string) => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const selectAllVisible = () => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    const allSelected = visibleDesigns.every((d) => next.has(d.id));
+    if (allSelected) { for (const d of visibleDesigns) next.delete(d.id); }
+    else { for (const d of visibleDesigns) next.add(d.id); }
+    return next;
+  });
+
+  // Look up the full color record (with its designs) for an order row.
+  const colorByKey = useMemo(() => {
+    const m = new Map<string, MostUsedColor>();
+    for (const c of colors) m.set(`${c.dmcNumber}-${c.threadSize}`, c);
+    return m;
+  }, [colors]);
+  const toggleOrderExpand = (key: string) => setExpandedOrder((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -616,27 +666,62 @@ export default function StockAlertsPage() {
                       const sizeBadge = item.threadSize === 3
                         ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
                         : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
+                      const key = `${item.dmcNumber}-${item.threadSize}`;
+                      const colorRec = colorByKey.get(key);
+                      const rowDesigns = colorRec?.designs ?? [];
+                      const isOpen = expandedOrder.has(key);
                       return (
-                        <div key={`${item.dmcNumber}-${item.threadSize}`} className="p-3 flex items-center gap-3">
-                          <div
-                            className="w-6 h-6 rounded border border-slate-300 dark:border-slate-600 flex-shrink-0"
-                            style={{ backgroundColor: item.hex }}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-slate-900 dark:text-white text-sm font-medium">{item.dmcNumber}</span>
-                              <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${sizeBadge}`} title={`Pearl Cotton Size ${item.threadSize}`}>
-                                Size {item.threadSize}
-                              </span>
+                        <div key={key}>
+                          <button
+                            onClick={() => toggleOrderExpand(key)}
+                            className="w-full p-3 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
+                          >
+                            <div
+                              className="w-6 h-6 rounded border border-slate-300 dark:border-slate-600 flex-shrink-0"
+                              style={{ backgroundColor: item.hex }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-slate-900 dark:text-white text-sm font-medium">{item.dmcNumber}</span>
+                                <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${sizeBadge}`} title={`Pearl Cotton Size ${item.threadSize}`}>
+                                  Size {item.threadSize}
+                                </span>
+                              </div>
+                              <div className="text-slate-500 dark:text-slate-400 text-xs truncate">
+                                {item.colorName}
+                                {rowDesigns.length > 0 && (
+                                  <span className="text-slate-400 dark:text-slate-500"> · {rowDesigns.length} design{rowDesigns.length !== 1 ? "s" : ""}</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-slate-500 dark:text-slate-400 text-xs truncate">{item.colorName}</div>
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <div className="text-slate-900 dark:text-white font-bold">{item.orderQty}</div>
-                            <div className="text-slate-400 dark:text-slate-500 text-xs">
-                              {item.currentStock} → {item.currentStock + item.orderQty}
+                            <div className="text-right flex-shrink-0">
+                              <div className="text-slate-900 dark:text-white font-bold">{item.orderQty}</div>
+                              <div className="text-slate-400 dark:text-slate-500 text-xs">
+                                {item.currentStock} → {item.currentStock + item.orderQty}
+                              </div>
                             </div>
-                          </div>
+                            {rowDesigns.length > 0 && (
+                              <svg className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            )}
+                          </button>
+                          {isOpen && rowDesigns.length > 0 && (
+                            <div className="px-3 pb-3 pt-0 bg-slate-50 dark:bg-slate-800/50">
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Demand from (per kit)</div>
+                              <div className="space-y-1">
+                                {rowDesigns.map((d) => (
+                                  <Link key={d.id} href={`/design/${d.id}/kit`} className="flex items-center gap-2 text-xs p-1.5 rounded bg-white dark:bg-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                    <span className="flex-1 min-w-0 truncate text-slate-700 dark:text-slate-200">{d.name}</span>
+                                    <span className="flex-shrink-0 text-slate-500 dark:text-slate-400">
+                                      {d.usesFullSkein ? `${d.skeinsNeeded} sk` : "bobbin"}
+                                      <span className="text-slate-400 dark:text-slate-500"> · {d.yardsNeeded} yd</span>
+                                    </span>
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -645,23 +730,21 @@ export default function StockAlertsPage() {
               </div>
             </div>
 
-            {/* Excluded Designs */}
+            {/* Include / Exclude manager */}
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
               <button
                 onClick={() => setShowExcluded(!showExcluded)}
                 className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
               >
                 <div>
-                  <h2 className="text-slate-900 dark:text-white font-semibold text-left">Excluded Designs</h2>
+                  <h2 className="text-slate-900 dark:text-white font-semibold text-left">Include / Exclude Designs</h2>
                   <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
                     {excludedDesigns.length} excluded, {allIncludedDesigns.length} included
                   </p>
                 </div>
                 <svg
                   className={`w-5 h-5 text-slate-400 transition-transform ${showExcluded ? "rotate-180" : ""}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -669,54 +752,100 @@ export default function StockAlertsPage() {
 
               {showExcluded && (
                 <div className="border-t border-slate-200 dark:border-slate-700">
-                  {/* Currently excluded */}
-                  {excludedDesigns.length > 0 && (
-                    <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Excluded from calculations</div>
-                      <div className="space-y-1">
-                        {excludedDesigns.map((design) => (
-                          <div key={design.id} className="flex items-center gap-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                            {design.previewImageUrl ? (
-                              <img src={design.previewImageUrl} alt={design.name} className="w-6 h-6 object-cover rounded border border-slate-200 dark:border-slate-600" />
-                            ) : (
-                              <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded" />
-                            )}
-                            <span className="text-slate-900 dark:text-white text-sm flex-1 truncate">{design.name}</span>
-                            <button
-                              onClick={() => toggleDesignExclusion(design.id, false)}
-                              disabled={togglingExclusion === design.id}
-                              className="text-xs px-2 py-1 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900 disabled:opacity-50"
-                            >
-                              {togglingExclusion === design.id ? "..." : "Include"}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                  {/* Search + filter */}
+                  <div className="p-3 border-b border-slate-200 dark:border-slate-700 space-y-2">
+                    <input
+                      value={designSearch}
+                      onChange={(e) => setDesignSearch(e.target.value)}
+                      placeholder="Search designs…"
+                      className="w-full px-3 py-1.5 text-sm rounded-lg bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white placeholder:text-slate-400"
+                    />
+                    <div className="flex gap-1">
+                      {(["all", "included", "excluded"] as const).map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => setDesignFilter(f)}
+                          className={`flex-1 py-1 rounded-lg text-xs font-medium capitalize transition-colors ${
+                            designFilter === f
+                              ? "bg-rose-900 text-white"
+                              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                          }`}
+                        >
+                          {f}{f !== "all" ? ` (${f === "excluded" ? excludedDesigns.length : allIncludedDesigns.length})` : ""}
+                        </button>
+                      ))}
                     </div>
-                  )}
+                  </div>
 
-                  {/* Currently included (can exclude) */}
-                  <div className="p-4 max-h-64 overflow-y-auto">
-                    <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Included designs</div>
-                    <div className="space-y-1">
-                      {allIncludedDesigns.map((design) => (
-                        <div key={design.id} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                  {/* Selection + bulk action bar */}
+                  <div className="p-3 border-b border-slate-200 dark:border-slate-700 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <button onClick={selectAllVisible} className="text-rose-600 dark:text-rose-400 hover:underline font-medium">
+                        {visibleDesigns.length > 0 && visibleDesigns.every((d) => selectedIds.has(d.id)) ? "Deselect" : "Select"} all ({visibleDesigns.length})
+                      </button>
+                      {selectedIds.size > 0 && (
+                        <button onClick={() => setSelectedIds(new Set())} className="text-slate-500 dark:text-slate-400 hover:underline">
+                          Clear ({selectedIds.size})
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => applyExclusion(selectedList.filter((d) => !d.excluded).map((d) => d.id), true)}
+                        disabled={bulkBusy || selectedExcludable === 0}
+                        className="flex-1 py-1.5 text-xs font-medium rounded-lg bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {bulkBusy ? "…" : `Exclude${selectedExcludable ? ` ${selectedExcludable}` : ""}`}
+                      </button>
+                      <button
+                        onClick={() => applyExclusion(selectedList.filter((d) => d.excluded).map((d) => d.id), false)}
+                        disabled={bulkBusy || selectedIncludable === 0}
+                        className="flex-1 py-1.5 text-xs font-medium rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {bulkBusy ? "…" : `Include${selectedIncludable ? ` ${selectedIncludable}` : ""}`}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Design list */}
+                  <div className="p-2 max-h-80 overflow-y-auto space-y-0.5">
+                    {visibleDesigns.length === 0 ? (
+                      <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-4">No designs match.</p>
+                    ) : visibleDesigns.map((design) => {
+                      const checked = selectedIds.has(design.id);
+                      return (
+                        <div
+                          key={design.id}
+                          onClick={() => toggleSelect(design.id)}
+                          className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                            checked ? "bg-rose-50 dark:bg-rose-900/20 ring-1 ring-rose-300 dark:ring-rose-800" : "hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                          }`}
+                        >
+                          <input type="checkbox" checked={checked} onChange={() => toggleSelect(design.id)} onClick={(e) => e.stopPropagation()} className="flex-shrink-0" />
                           {design.previewImageUrl ? (
                             <img src={design.previewImageUrl} alt={design.name} className="w-6 h-6 object-cover rounded border border-slate-200 dark:border-slate-600" />
                           ) : (
                             <div className="w-6 h-6 bg-slate-200 dark:bg-slate-600 rounded" />
                           )}
                           <span className="text-slate-900 dark:text-white text-sm flex-1 truncate">{design.name}</span>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0 ${
+                            design.excluded
+                              ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                          }`}>
+                            {design.excluded ? "Excluded" : "Included"}
+                          </span>
                           <button
-                            onClick={() => toggleDesignExclusion(design.id, true)}
-                            disabled={togglingExclusion === design.id}
-                            className="text-xs px-2 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900 disabled:opacity-50"
+                            onClick={(e) => { e.stopPropagation(); applyExclusion([design.id], !design.excluded); }}
+                            disabled={bulkBusy}
+                            className="text-xs px-2 py-1 rounded flex-shrink-0 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-40"
+                            title={design.excluded ? "Include this design" : "Exclude this design"}
                           >
-                            {togglingExclusion === design.id ? "..." : "Exclude"}
+                            {design.excluded ? "Include" : "Exclude"}
                           </button>
                         </div>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
