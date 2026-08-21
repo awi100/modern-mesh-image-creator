@@ -19,9 +19,18 @@ interface DesignUsage {
   bobbinYards: number;
 }
 
+interface BackupUsage {
+  id: string;
+  name: string;
+  previewImageUrl: string | null;
+  meshCount: number;
+  primaryDmcNumbers: string[];
+}
+
 interface ColorUsage {
   dmcNumber: string;
   designs: DesignUsage[];
+  backupFor: BackupUsage[];
 }
 
 interface InventoryItem {
@@ -540,6 +549,69 @@ export default function ColorDetailPage() {
                   </svg>
                 </Link>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Designs Using This Color as a Backup */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+          <h2 className="text-lg font-semibold text-white mb-1">
+            Designs Using This as a Backup
+          </h2>
+          <p className="text-slate-400 text-sm mb-4">
+            Designs where this color stands in if the primary runs out.
+          </p>
+
+          {loadingUsage ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-slate-600 border-t-rose-500" />
+            </div>
+          ) : !colorUsage || (colorUsage.backupFor?.length ?? 0) === 0 ? (
+            <p className="text-slate-400 text-center py-8">
+              This color isn&apos;t set as a backup for any design
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {colorUsage.backupFor.map((design) => {
+                const primaries = design.primaryDmcNumbers
+                  .map((p) => {
+                    const c = getDmcColorByNumber(p);
+                    return c ? `${p} ${c.name}` : p;
+                  })
+                  .join(", ");
+                return (
+                  <Link
+                    key={design.id}
+                    href={`/design/${design.id}/info`}
+                    className="flex items-center gap-4 p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
+                  >
+                    {design.previewImageUrl ? (
+                      <img
+                        src={design.previewImageUrl}
+                        alt={design.name}
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-lg bg-slate-600 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-6 h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">{design.name}</p>
+                      <p className="text-slate-400 text-sm">{design.meshCount} mesh</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-amber-300/90 text-sm font-medium">Backup for</p>
+                      <p className="text-slate-300 text-sm truncate max-w-[10rem]">{primaries}</p>
+                    </div>
+                    <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
