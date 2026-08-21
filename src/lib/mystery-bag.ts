@@ -11,9 +11,12 @@ export const PICKS_PER_BAG = 2;
 
 const NORMALIZED_TITLE = normalizeTitle(MYSTERY_BAG_TITLE);
 
+// Match on the base title as a prefix so Shopify suffixes still resolve — e.g.
+// "Mystery Misprint Bag (NEW ENGLAND ONLY)" — without needing a code change
+// each time the parenthetical is tweaked.
 export function isMysteryBagTitle(productTitle: string | null | undefined): boolean {
   if (!productTitle) return false;
-  return normalizeTitle(productTitle) === NORMALIZED_TITLE;
+  return normalizeTitle(productTitle).startsWith(NORMALIZED_TITLE);
 }
 
 // Total picks needed for an order's mystery-bag line items.

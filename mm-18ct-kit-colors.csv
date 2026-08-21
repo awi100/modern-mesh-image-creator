@@ -1,0 +1,67 @@
+dmc,color_name,hex,thread_size,design_count,skeins_per_set,yards_per_set,used_as_bobbin_somewhere,designs
+BLANC,White,#FCFCFC,5,31,22,351.9,yes,Anchor | Beer with Lime | Black & Gold Hockey Jersey | Boston Marathon Bib | Citgo Sign | Comm Ave Street Sign | Cowboy pup | Farmers Market Pup | French Bulldog | Good Times and Tan Lines | Green Shamrock Hoodie | Heart Matchbox | Honey Duece | Hugo Spritz | Lemon Fob | Lemon Stamp | Lighthouse | Lucky | Margarita | Martini | New England vs Everyone | Newbury Street Sign | Old Fashioned | Patriot Pl Street Sign | Pats #10 Jersey | Pats Matchbox | Raincoat Pup | Shamrock | Spritzing Away | Surf’s Up | Tequila Made Me Do It
+310,Black,#000000,5,15,6,129.4,yes,Black & Gold Hockey Jersey | Boston Terrier | Comm Ave Street Sign | Corgi | Cowboy pup | Farmers Market Pup | French Bulldog | Green Shamrock Hoodie | Lighthouse | Newbury Street Sign | Patriot Pl Street Sign | Pats #10 Jersey | Raincoat Pup | Shamrock Beer | Watermelon
+604,Light Cranberry,#F793B2,5,8,6,120,yes,Ciao Bella | Corgi | Cosmopolitan | Cowboy pup | Farmers Market Pup | Lemon Fob | Surf’s Up | Tell your dog I say hi
+909,Very Dark Emerald Green,#106038,5,7,7,156.8,yes,Comm Ave Street Sign | Hydrangea | Lucky | Newbury Street Sign | Shamrock Beer | Southie Sign | Tequila Made Me Do It
+815,Medium Garnet,#7B1B25,5,7,5,75.9,yes,Fenway Frank | Heart Matchbox | Lobster | Lobster matchbox | Old Fashioned | Pats #10 Jersey | Pats Matchbox
+01,White Tin,#EFEEF0,5,7,3,31,yes,Aperol Spritz | Beer with Lime | Boston Terrier | Corgi | Cosmopolitan | Honey Duece | Shamrock Beer
+3753,Ultra Very Light Antique Blue,#D8E8F0,5,6,6,75.2,yes,Anchor | Honey Duece | Hugo Spritz | Hydrangea | Margarita | Old Fashioned
+336,Navy Blue,#182858,5,6,5,74.5,yes,Anchor | Beer with Lime | Boston Terrier | Citgo Sign | Crab | Seashell
+741,Medium Tangerine,#F79848,5,6,2,38.6,yes,Aperol Spritz | Corgi | Cowboy pup | Lemon Stamp | Old Fashioned | Spritzing Away
+03,Medium Tin,#B0B0B5,5,6,2,28.7,yes,Honey Duece | Hydrangea Bike | Lighthouse | New England vs Everyone | Old Fashioned | Pats Matchbox
+817,Very Dark Coral Red,#B41C2D,5,5,3,44.4,yes,Boston Terrier | Citgo Sign | Lobster | New England vs Everyone | Patriot Pl Street Sign
+3325,Light Baby Blue,#B8D0E8,5,5,3,44.1,yes,Hydrangea | Hydrangea Bike | Lighthouse | Lobster matchbox | Martini
+801,Dark Coffee Brown,#402818,5,5,2,22.1,yes,Cowboy pup | Espresso Martini | Hydrangea Bike | Lighthouse | Raincoat Pup
+444,Dark Lemon,#F7D718,5,5,1,16.6,yes,Fenway Frank | Honey Duece | Lemon Fob | Lemon Stamp | Lighthouse
+739,Ultra Very Light Tan,#F0E0C8,5,4,5,95.8,no,Corgi | Cowboy pup | Sailboat | Southie Sign
+311,Medium Navy Blue,#183868,5,4,5,80.6,no,New England vs Everyone | Patriot Pl Street Sign | Pats #10 Jersey | Pats Matchbox
+726,Light Topaz,#F7E078,5,4,3,67.6,yes,Beer with Lime | Boston Marathon Bib | Raincoat Pup | Tequila Made Me Do It
+823,Dark Navy Blue,#101848,5,4,3,69.8,yes,Honey Duece | Lobster matchbox | Sailboat | This is why w can’t have nice things
+500,Very Dark Blue Green,#1D362A,5,4,3,44.5,yes,Lemon Stamp | Margarita | Shamrock | Tulips
+437,Light Tan,#D0A068,5,4,2,43.1,yes,Fenway Frank | French Bulldog | Hydrangea Bike | Old Fashioned
+904,Very Dark Parrot Green,#285830,5,4,1,13.7,yes,Aperol Spritz | Beer with Lime | Hugo Spritz | Tulips
+738,Very Light Tan,#E0C098,5,4,1,19.7,yes,Farmers Market Pup | Heart Matchbox | Lobster matchbox | Pats Matchbox
+905,Dark Parrot Green,#388040,5,4,0,6.7,yes,Hugo Spritz | Hydrangea Bike | Spritzing Away | Watermelon
+794,Light Cornflower Blue,#88A0C8,5,3,10,242.2,no,Ciao Bella | Martini | Tequila Made Me Do It
+33,Fuchsia,#C32278,5,3,10,252.1,no,Good Times and Tan Lines | Summer should be fun | This is why w can’t have nice things
+519,Sky Blue,#78B8D8,5,3,9,217.1,no,Good Times and Tan Lines | Hydrangea Bike | Surf’s Up
+320,Medium Pistachio Green,#588858,5,3,4,83.7,yes,Farmers Market Pup | Green Shamrock Hoodie | Spritzing Away
+799,Medium Delft Blue,#5078B0,5,3,4,78.5,yes,Hydrangea Bike | Old Fashioned | This is why w can’t have nice things
+725,Medium Light Topaz,#F7D058,5,3,2,26.8,yes,Beer with Lime | Black & Gold Hockey Jersey | Raincoat Pup
+472,Ultra Light Avocado Green,#D1DE75,5,3,1,17.5,yes,Honey Duece | Hugo Spritz | Watermelon
+900,Dark Burnt Orange,#CF4010,5,3,0,10.2,yes,Aperol Spritz | Old Fashioned | Spritzing Away
+813,Light Blue,#78A8C8,5,2,4,84,no,Aperol Spritz | Hydrangea
+503,Medium Blue Green,#89B89F,5,2,4,85.7,no,Cosmopolitan | Shamrock
+820,Very Dark Royal Blue,#101870,5,2,3,44.6,no,Boston Marathon Bib | Surf’s Up
+3348,Light Yellow Green,#98B088,5,2,3,73.2,yes,Cosmopolitan | Margarita
+319,Very Dark Pistachio Green,#184828,5,2,3,51.8,no,Green Shamrock Hoodie | Hydrangea
+3799,Very Dark Pewter Gray,#383838,5,2,2,15.3,no,Boston Terrier | Farmers Market Pup
+798,Dark Delft Blue,#3858A0,5,2,2,28.2,no,Ciao Bella | Crab
+816,Garnet,#971E2A,5,2,2,22.1,no,Citgo Sign | Tulips
+938,Ultra Dark Coffee Brown,#301810,5,2,2,32.8,no,Espresso Martini | Shamrock Beer
+608,Bright Orange,#F85B20,5,2,1,6.9,yes,Aperol Spritz | Lighthouse
+996,Medium Electric Blue,#30B0E8,5,2,1,13.1,yes,Aperol Spritz | Good Times and Tan Lines
+316,Medium Antique Mauve,#B7737F,5,2,1,6.6,yes,Boston Terrier | Heart Matchbox
+814,Dark Garnet,#5C1420,5,2,1,14.4,yes,Citgo Sign | Tulips
+3033,Very Light Mocha Brown,#C8B8A8,5,2,1,13.3,yes,Espresso Martini | Shamrock Beer
+3685,Very Dark Mauve,#79263B,5,2,1,30.2,yes,Honey Duece | Tell your dog I say hi
+3823,Ultra Pale Yellow,#F8F0D0,5,2,0,6.4,yes,Cosmopolitan | Hugo Spritz
+824,Very Dark Blue,#183858,5,2,0,6.3,yes,Fenway Frank | Good Times and Tan Lines
+318,Light Steel Gray,#989898,5,2,0,2.7,yes,French Bulldog | Hydrangea Bike
+209,Dark Lavender,#7858B0,5,1,3,68.4,no,Espresso Martini
+504,Very Light Blue Green,#C4DECC,5,1,3,69.5,no,Hugo Spritz
+3688,Medium Mauve,#DC7C86,5,1,2,51.8,no,Honey Duece
+B5200,Snow White,#FFFFFF,5,1,2,36.6,no,Seashell
+966,Medium Baby Green,#94D28A,5,1,2,39.2,no,Summer should be fun
+834,Very Light Golden Olive,#D2B468,5,1,1,7.4,no,Lucky
+745,Very Light Pale Yellow,#F8E8A8,5,1,1,6.7,no,Margarita
+906,Medium Parrot Green,#48A050,5,1,1,11.4,no,Surf’s Up
+666,Bright Red,#E31D3D,5,1,1,11.3,no,Watermelon
+469,Avocado Green,#5B6533,5,1,0,1.1,yes,Cosmopolitan
+778,Very Light Antique Mauve,#DCA6A4,5,1,0,1.1,yes,French Bulldog
+3042,Light Antique Violet,#B79DA7,5,1,0,1.2,yes,Heart Matchbox
+3743,Very Light Antique Violet,#CFC2C9,5,1,0,4.4,yes,Martini
+471,Very Light Avocado Green,#9EB357,5,1,0,2.6,yes,Martini
+433,Medium Brown,#583018,5,1,0,0.7,yes,Martini
+937,Medium Avocado Green,#434F2C,5,1,0,0.6,yes,Martini
+898,Very Dark Coffee Brown,#382010,5,1,0,2.3,yes,Sailboat
