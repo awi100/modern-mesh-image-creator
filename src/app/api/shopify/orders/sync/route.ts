@@ -255,10 +255,13 @@ export async function POST() {
               customerName: shopifyOrder.billingAddress?.name || null,
               sourceName: shopifyOrder.sourceName || null,
               fulfilledAt: new Date(),
+              // Real order-placed date (not our sync time) so velocity buckets correctly.
+              orderDate: shopifyOrder.createdAt ? new Date(shopifyOrder.createdAt) : null,
             },
             update: {
               sourceName: shopifyOrder.sourceName || null,
               fulfilledAt: new Date(),
+              orderDate: shopifyOrder.createdAt ? new Date(shopifyOrder.createdAt) : undefined,
             },
           });
 

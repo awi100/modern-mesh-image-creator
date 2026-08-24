@@ -327,7 +327,8 @@ model ShopifyOrder {
   sourceName      String?  // Shopify order source ("pos" = Point of Sale, "web"/checkout = online).
                            // Determines which inventory bucket the order deducts from / restores to.
   fulfilledAt     DateTime? // When we processed the fulfillment
-  createdAt       DateTime @default(now())
+  createdAt       DateTime @default(now()) // when WE created the local row (sync time)
+  orderDate       DateTime? // the real Shopify order-placed date (for velocity/sales-rate)
   items           ShopifyOrderItem[]
   mysteryBagPicks MysteryBagPick[]
 

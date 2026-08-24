@@ -57,11 +57,18 @@ export async function GET(request: NextRequest) {
     // Units sold per design within the trailing window, from processed Shopify
     // orders (same source the velocity job uses). Order date = when it sold.
     const orders = await prisma.shopifyOrder.findMany({
-      where: { createdAt: { gte: windowStart } },
+      // Window by the real order date (fallback to row createdAt for legacy rows)
+      // so a batch/backfill sync doesn't dump historical orders into the window.
+      where: {
+        OR: [
+          { orderDate: { gte: windowStart } },
+          { orderDate: null, createdAt: { gte: windowStart } },
+        ],
+      },
       select: {
         createdAt: true,
         items: {
-          where: { designId: { not: null } },
+          where: { designId: { not: null }, processed: true },
           select: { designId: true, quantity: true },
         },
       },

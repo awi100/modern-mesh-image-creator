@@ -25,6 +25,7 @@ interface ShopifyWebhookPayload {
   name: string; // Order number like "#1001"
   admin_graphql_api_id: string; // "gid://shopify/Order/123"
   source_name?: string | null; // "pos" = Point of Sale, "web"/checkout = online
+  created_at?: string | null; // real order-placed date
   cancelled_at?: string | null;
   financial_status?: string | null; // "refunded" | "voided" | "paid" | ...
   current_total_price?: string | null;
@@ -262,10 +263,12 @@ export async function POST(request: NextRequest) {
           customerName: payload.billing_address?.name || null,
           sourceName: payload.source_name || null,
           fulfilledAt: new Date(),
+          orderDate: payload.created_at ? new Date(payload.created_at) : null,
         },
         update: {
           sourceName: payload.source_name || null,
           fulfilledAt: new Date(),
+          orderDate: payload.created_at ? new Date(payload.created_at) : undefined,
         },
       });
 

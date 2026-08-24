@@ -66,11 +66,20 @@ export async function POST(request: NextRequest) {
     const recentOrders = await prisma.shopifyOrder.findMany({
       where: {
         fulfilledAt: { not: null },
-        createdAt: { gte: fourWeeksAgo },
+        // Window by the REAL order date; fall back to our row createdAt only for
+        // legacy rows that predate the orderDate column (else a batch/backfill
+        // sync would dump every historical order into the current week).
+        OR: [
+          { orderDate: { gte: fourWeeksAgo } },
+          { orderDate: null, createdAt: { gte: fourWeeksAgo } },
+        ],
       },
       include: {
         items: {
-          where: { designId: { not: null } },
+          // processed:true only — an undo sets items processed=false but keeps
+          // the rows, and a re-fulfill adds a fresh set; without this filter a
+          // re-fulfilled order's line items are counted twice.
+          where: { designId: { not: null }, processed: true },
           select: {
             designId: true,
             quantity: true,
@@ -87,9 +96,9 @@ export async function POST(request: NextRequest) {
       designWeeklySales.set(design.id, [0, 0, 0, 0]);
     }
 
-    // Bucket orders into weeks
+    // Bucket orders into weeks by the real order date (fallback: row createdAt)
     for (const order of recentOrders) {
-      const orderDate = order.createdAt;
+      const orderDate = order.orderDate ?? order.createdAt;
       const weekIndex = Math.floor((now.getTime() - orderDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
 
       if (weekIndex >= 0 && weekIndex < 4) {

@@ -6,15 +6,23 @@ import { calculateYarnUsage, MeshCount, getKitSkeinCount } from "@/lib/yarn-calc
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 
-// Recursively get all descendant folder IDs
+// All descendant folder IDs. Fetches the folder tree once and walks it in
+// memory (avoids a serialized DB query per folder — the old N+1 pattern).
 async function getDescendantFolderIds(folderId: string): Promise<string[]> {
-  const children = await prisma.folder.findMany({
-    where: { parentId: folderId },
-    select: { id: true },
-  });
-  const ids = children.map(c => c.id);
-  for (const child of children) {
-    ids.push(...await getDescendantFolderIds(child.id));
+  const all = await prisma.folder.findMany({ select: { id: true, parentId: true } });
+  const childrenByParent = new Map<string, string[]>();
+  for (const f of all) {
+    if (!f.parentId) continue;
+    const arr = childrenByParent.get(f.parentId);
+    if (arr) arr.push(f.id); else childrenByParent.set(f.parentId, [f.id]);
+  }
+  const ids: string[] = [];
+  const stack = [...(childrenByParent.get(folderId) || [])];
+  while (stack.length) {
+    const id = stack.pop()!;
+    ids.push(id);
+    const kids = childrenByParent.get(id);
+    if (kids) stack.push(...kids);
   }
   return ids;
 }
