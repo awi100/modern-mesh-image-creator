@@ -113,7 +113,6 @@ export async function POST(
         isDraft: original.isDraft,
         kitsReady: 0,
         canvasPrinted: 0,
-        canvasPrintedMaddie: 0,
         kitColorCount,
         kitSkeinCount,
         colorsUsed,

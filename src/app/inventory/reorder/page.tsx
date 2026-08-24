@@ -18,7 +18,6 @@ interface ReorderRow {
   here: number;
   market: number;
   andover: number;
-  maddie: number;
   unitsInWindow: number;
   weeklyVelocity: number;
   weeksOfSupply: number | null;

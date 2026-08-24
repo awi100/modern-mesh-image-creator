@@ -50,7 +50,6 @@ export async function GET(request: NextRequest) {
         canvasPrinted: true,
         marketCanvasPrinted: true,
         canvasAndover: true,
-        canvasPrintedMaddie: true,
         totalSold: true,
       },
     });
@@ -81,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     const rows = designs.map((d) => {
       const onHand =
-        d.canvasPrinted + (d.marketCanvasPrinted || 0) + (d.canvasAndover || 0) + (d.canvasPrintedMaddie || 0);
+        d.canvasPrinted + (d.marketCanvasPrinted || 0) + (d.canvasAndover || 0);
 
       // Rate over the window, but never divide by more days than the design has
       // existed (so a 2-week-old design isn't averaged over 90 days).
@@ -122,7 +121,6 @@ export async function GET(request: NextRequest) {
         here: d.canvasPrinted,
         market: d.marketCanvasPrinted || 0,
         andover: d.canvasAndover || 0,
-        maddie: d.canvasPrintedMaddie || 0,
         unitsInWindow: units,
         weeklyVelocity: Math.round(weeklyVelocity * 100) / 100,
         weeksOfSupply: weeksOfSupply === null ? null : Math.round(weeksOfSupply * 10) / 10,

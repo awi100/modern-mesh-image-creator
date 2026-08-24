@@ -306,9 +306,9 @@ export async function PATCH(
     // Prisma atomic increments and Math.max clamps; a string or NaN would
     // corrupt the stored count (e.g. 3 + "5" -> "35") or throw a 500.
     const numericFields = [
-      "kitsReady", "canvasPrinted", "canvasPrintedMaddie",
+      "kitsReady", "canvasPrinted",
       "marketKitsReady", "marketCanvasPrinted", "canvasAndover",
-      "canvasPrintedDelta", "kitsReadyDelta", "canvasPrintedMaddieDelta",
+      "canvasPrintedDelta", "kitsReadyDelta",
       "marketTransferKitsDelta", "marketTransferCanvasDelta",
       "andoverTransferDelta", "canvasAndoverDelta",
     ] as const;
@@ -389,8 +389,44 @@ export async function PATCH(
       data.canvasPrinted = Math.max(0, body.canvasPrinted);
     }
 
-    if (body.canvasPrintedMaddie !== undefined) {
-      data.canvasPrintedMaddie = Math.max(0, body.canvasPrintedMaddie);
+    // Move canvases between storage locations (home / market / andover),
+    // atomically and clamped to what's available at the source. { from, to, qty }
+    if (body.canvasMove !== undefined) {
+      const LOC_FIELD: Record<string, "canvasPrinted" | "marketCanvasPrinted" | "canvasAndover"> = {
+        home: "canvasPrinted",
+        market: "marketCanvasPrinted",
+        andover: "canvasAndover",
+      };
+      const from = body.canvasMove?.from;
+      const to = body.canvasMove?.to;
+      const qty = Math.floor(Number(body.canvasMove?.qty));
+      if (!LOC_FIELD[from] || !LOC_FIELD[to] || from === to) {
+        return NextResponse.json({ error: "Move needs distinct from/to locations (home, market, andover)" }, { status: 400 });
+      }
+      if (!Number.isFinite(qty) || qty <= 0) {
+        return NextResponse.json({ error: "Move quantity must be a positive number" }, { status: 400 });
+      }
+      const fromField = LOC_FIELD[from];
+      const toField = LOC_FIELD[to];
+      const moved = await prisma.$transaction(async (tx) => {
+        const current = await tx.design.findUnique({
+          where: { id },
+          select: { canvasPrinted: true, marketCanvasPrinted: true, canvasAndover: true },
+        });
+        if (!current) throw new Error("Design not found");
+        const available = (current as Record<string, number>)[fromField];
+        const m = Math.min(qty, available);
+        if (m > 0) {
+          const moveData: Record<string, unknown> = {
+            [fromField]: { increment: -m },
+            [toField]: { increment: m },
+          };
+          await tx.design.update({ where: { id }, data: moveData });
+        }
+        return m;
+      });
+      const updated = await prisma.design.findUnique({ where: { id }, include: { folder: true } });
+      return NextResponse.json({ ...updated, moved });
     }
 
     // Direct set of the market-tote counts (does NOT touch online stock).
@@ -424,7 +460,6 @@ export async function PATCH(
 
     const hasDeltaUpdates = body.canvasPrintedDelta !== undefined ||
                             body.kitsReadyDelta !== undefined ||
-                            body.canvasPrintedMaddieDelta !== undefined ||
                             hasMarketTransfer ||
                             hasAndoverUpdate;
 
@@ -437,7 +472,6 @@ export async function PATCH(
           select: {
             canvasPrinted: true,
             kitsReady: true,
-            canvasPrintedMaddie: true,
             marketKitsReady: true,
             marketCanvasPrinted: true,
             canvasAndover: true,
@@ -499,15 +533,6 @@ export async function PATCH(
             data.canvasPrinted = 0;
           } else {
             data.canvasPrinted = { increment: body.canvasPrintedDelta };
-          }
-        }
-
-        if (body.canvasPrintedMaddieDelta !== undefined) {
-          const newVal = current.canvasPrintedMaddie + body.canvasPrintedMaddieDelta;
-          if (newVal < 0) {
-            data.canvasPrintedMaddie = 0;
-          } else {
-            data.canvasPrintedMaddie = { increment: body.canvasPrintedMaddieDelta };
           }
         }
 
