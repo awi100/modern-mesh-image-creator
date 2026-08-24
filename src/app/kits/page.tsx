@@ -688,18 +688,16 @@ export default function KitsPage() {
                                     }}
                                     onBlur={() => {
                                       const val = pendingKitsReady[kit.designId];
-                                      if (val !== undefined) {
+                                      if (val !== undefined && val !== "") {
                                         handleSetKitsReady(kit.designId, Number(val));
+                                      } else if (val === "") {
+                                        // Blank input: clear pending without zeroing the count.
+                                        setPendingKitsReady((prev) => { const next = { ...prev }; delete next[kit.designId]; return next; });
                                       }
                                     }}
                                     onKeyDown={(e) => {
-                                      if (e.key === "Enter") {
-                                        const val = pendingKitsReady[kit.designId];
-                                        if (val !== undefined) {
-                                          handleSetKitsReady(kit.designId, Number(val));
-                                        }
-                                        (e.target as HTMLInputElement).blur();
-                                      }
+                                      // Enter just blurs; onBlur is the single commit path (avoids a double-apply).
+                                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                                     }}
                                     className="w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
                                   />
@@ -823,19 +821,14 @@ export default function KitsPage() {
                                               onBlur={() => {
                                                 const key = `${item.dmcNumber}-${kit.meshCount}`;
                                                 const val = pendingInventory[key];
-                                                if (val !== undefined) {
+                                                if (val !== undefined && val !== "") {
                                                   handleSetInventory(item.dmcNumber, kit.meshCount, Number(val));
+                                                } else if (val === "") {
+                                                  setPendingInventory((prev) => { const next = { ...prev }; delete next[key]; return next; });
                                                 }
                                               }}
                                               onKeyDown={(e) => {
-                                                if (e.key === "Enter") {
-                                                  const key = `${item.dmcNumber}-${kit.meshCount}`;
-                                                  const val = pendingInventory[key];
-                                                  if (val !== undefined) {
-                                                    handleSetInventory(item.dmcNumber, kit.meshCount, Number(val));
-                                                  }
-                                                  (e.target as HTMLInputElement).blur();
-                                                }
+                                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                                               }}
                                               className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.primaryInStock !== false ? "text-emerald-400" : "text-red-400"}`}
                                             />
@@ -891,14 +884,11 @@ export default function KitsPage() {
                                                 onChange={(e) => setPendingInventory((prev) => ({ ...prev, [backupKey]: e.target.value }))}
                                                 onBlur={() => {
                                                   const val = pendingInventory[backupKey];
-                                                  if (val !== undefined) handleSetInventory(backup.dmcNumber, kit.meshCount, Number(val));
+                                                  if (val !== undefined && val !== "") handleSetInventory(backup.dmcNumber, kit.meshCount, Number(val));
+                                                  else if (val === "") setPendingInventory((prev) => { const next = { ...prev }; delete next[backupKey]; return next; });
                                                 }}
                                                 onKeyDown={(e) => {
-                                                  if (e.key === "Enter") {
-                                                    const val = pendingInventory[backupKey];
-                                                    if (val !== undefined) handleSetInventory(backup.dmcNumber, kit.meshCount, Number(val));
-                                                    (e.target as HTMLInputElement).blur();
-                                                  }
+                                                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                                                 }}
                                                 className={`w-9 px-1 py-0.5 bg-slate-700 border border-amber-800/60 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-amber-600 ${backup.inStock ? "text-emerald-400" : "text-red-400"}`}
                                               />

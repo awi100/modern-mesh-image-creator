@@ -1195,15 +1195,8 @@ export default function OrdersPage() {
                                                   }
                                                 }}
                                                 onKeyDown={(e) => {
-                                                  if (e.key === "Enter") {
-                                                    const val = pendingKits[kit.designId!];
-                                                    if (val !== undefined && val !== "") {
-                                                      handleSetValue(kit.designId!, "kitsReady", Number(val));
-                                                    } else if (val === "") {
-                                                      setPendingKits((prev) => { const next = { ...prev }; delete next[kit.designId!]; return next; });
-                                                    }
-                                                    (e.target as HTMLInputElement).blur();
-                                                  }
+                                                  // Enter just blurs; onBlur is the single commit path (avoids a double-apply).
+                                                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                                                 }}
                                                 className={`w-14 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-emerald-600 ${hasEnough ? "text-emerald-400" : "text-red-400"}`}
                                               />
@@ -1313,16 +1306,8 @@ export default function OrdersPage() {
                                                             }
                                                           }}
                                                           onKeyDown={(e) => {
-                                                            if (e.key === "Enter") {
-                                                              const val = pendingInventory[`${item.dmcNumber}-${item.threadSize}`];
-                                                              if (val !== undefined && val !== "") {
-                                                                handleSetInventory(item.dmcNumber, Number(val), item.threadSize);
-                                                              } else if (val === "") {
-                                                                setPendingInventory((prev) => { const next = { ...prev }; delete next[`${item.dmcNumber}-${item.threadSize}`]; return next; });
-                                                              }
-                                                              (e.target as HTMLInputElement).blur();
-                                                          }
-                                                        }}
+                                                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                                          }}
                                                         className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
                                                       />
                                                       <button
@@ -1601,15 +1586,7 @@ export default function OrdersPage() {
                                           }
                                         }}
                                         onKeyDown={(e) => {
-                                          if (e.key === "Enter") {
-                                            const val = pendingCanvases[canvas.designId!];
-                                            if (val !== undefined && val !== "") {
-                                              handleSetValue(canvas.designId!, "canvasPrinted", Number(val));
-                                            } else if (val === "") {
-                                              setPendingCanvases((prev) => { const next = { ...prev }; delete next[canvas.designId!]; return next; });
-                                            }
-                                            (e.target as HTMLInputElement).blur();
-                                          }
+                                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                                         }}
                                         className={`w-14 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 ${hasEnough ? "text-emerald-400" : "text-red-400"}`}
                                       />
