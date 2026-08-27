@@ -108,10 +108,11 @@ model Design {
   marketKitsReady       Int     @default(0)  // assembled kits in the market tote
   marketCanvasPrinted   Int     @default(0)  // printed canvases in the market tote
 
-  // Bulk canvas storage at Andover. Canvases are ordered in bulk and kept here
-  // (limited space at home), then moved to canvasPrinted (home) as needed.
-  // Never deducted by sales — it's upstream of home/market.
+  // Bulk storage at Andover. Ordered in bulk and kept here (limited space at
+  // home), then moved to home as needed. Never deducted by sales — it's
+  // upstream of home/market. Canvas and kits are tracked separately.
   canvasAndover         Int     @default(0)
+  kitsAndover           Int     @default(0)  // assembled kits in bulk storage at Andover
 
   // Sales tracking (from Shopify fulfilled orders)
   totalSold             Int     @default(0)  // total units sold (kits + canvas-only)

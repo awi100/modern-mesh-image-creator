@@ -45,7 +45,8 @@ async function main() {
     where: { meshCount: 18, deletedAt: null, archivedAt: null, printVersionOf: null },
     select: {
       id: true, name: true, pixelData: true, stitchType: true, bufferPercent: true,
-      kitsReady: true, marketKitsReady: true, canvasPrinted: true, marketCanvasPrinted: true, canvasAndover: true,
+      kitsReady: true, marketKitsReady: true, kitsAndover: true,
+      canvasPrinted: true, marketCanvasPrinted: true, canvasAndover: true,
     },
   });
 
@@ -67,7 +68,7 @@ async function main() {
 
   for (const d of designs) {
     const onHand = d.canvasPrinted + (d.marketCanvasPrinted || 0) + (d.canvasAndover || 0);
-    const made = d.kitsReady + (d.marketKitsReady || 0);
+    const made = d.kitsReady + (d.marketKitsReady || 0) + (d.kitsAndover || 0); // Andover = assembled kits in bulk storage
     const onOrder = onOrderFor(d.name);
     if (onHand + made + onOrder === 0) continue;
     const velocity = (sold.get(d.id) || 0) / (WINDOW_DAYS / 7);

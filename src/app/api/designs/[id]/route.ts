@@ -307,10 +307,10 @@ export async function PATCH(
     // corrupt the stored count (e.g. 3 + "5" -> "35") or throw a 500.
     const numericFields = [
       "kitsReady", "canvasPrinted",
-      "marketKitsReady", "marketCanvasPrinted", "canvasAndover",
+      "marketKitsReady", "marketCanvasPrinted", "canvasAndover", "kitsAndover",
       "canvasPrintedDelta", "kitsReadyDelta",
       "marketTransferKitsDelta", "marketTransferCanvasDelta",
-      "andoverTransferDelta", "canvasAndoverDelta",
+      "andoverTransferDelta", "canvasAndoverDelta", "kitsAndoverDelta",
     ] as const;
     for (const field of numericFields) {
       if (body[field] !== undefined) {
@@ -389,14 +389,16 @@ export async function PATCH(
       data.canvasPrinted = Math.max(0, body.canvasPrinted);
     }
 
-    // Move canvases between storage locations (home / market / andover),
-    // atomically and clamped to what's available at the source. { from, to, qty }
+    // Move stock between storage locations (home / market / andover), atomically
+    // and clamped to what's available at the source.
+    // { canvasMove: { kind?: "canvas"|"kit", from, to, qty } } (kind defaults to canvas).
     if (body.canvasMove !== undefined) {
-      const LOC_FIELD: Record<string, "canvasPrinted" | "marketCanvasPrinted" | "canvasAndover"> = {
-        home: "canvasPrinted",
-        market: "marketCanvasPrinted",
-        andover: "canvasAndover",
-      };
+      const kind = body.canvasMove?.kind === "kit" ? "kit" : "canvas";
+      const FIELDS = {
+        canvas: { home: "canvasPrinted", market: "marketCanvasPrinted", andover: "canvasAndover" },
+        kit: { home: "kitsReady", market: "marketKitsReady", andover: "kitsAndover" },
+      } as const;
+      const LOC_FIELD: Record<string, string> = FIELDS[kind];
       const from = body.canvasMove?.from;
       const to = body.canvasMove?.to;
       const qty = Math.floor(Number(body.canvasMove?.qty));
@@ -411,7 +413,7 @@ export async function PATCH(
       const moved = await prisma.$transaction(async (tx) => {
         const current = await tx.design.findUnique({
           where: { id },
-          select: { canvasPrinted: true, marketCanvasPrinted: true, canvasAndover: true },
+          select: { canvasPrinted: true, marketCanvasPrinted: true, canvasAndover: true, kitsReady: true, marketKitsReady: true, kitsAndover: true },
         });
         if (!current) throw new Error("Design not found");
         const available = (current as Record<string, number>)[fromField];
@@ -439,9 +441,12 @@ export async function PATCH(
       data.marketCanvasPrinted = Math.max(0, body.marketCanvasPrinted);
     }
 
-    // Direct set of Andover bulk-storage canvases (e.g. logging a bulk order).
+    // Direct set of Andover bulk storage (e.g. logging a bulk order).
     if (body.canvasAndover !== undefined) {
       data.canvasAndover = Math.max(0, Math.floor(body.canvasAndover));
+    }
+    if (body.kitsAndover !== undefined) {
+      data.kitsAndover = Math.max(0, Math.floor(body.kitsAndover));
     }
 
     // Handle delta updates for counters using atomic increment
@@ -456,7 +461,8 @@ export async function PATCH(
     // conserving the total. Positive = Andover -> home ("restock from Andover");
     // negative = home -> Andover ("return to storage").
     const hasAndoverUpdate = body.andoverTransferDelta !== undefined ||
-                             body.canvasAndoverDelta !== undefined;
+                             body.canvasAndoverDelta !== undefined ||
+                             body.kitsAndoverDelta !== undefined;
 
     const hasDeltaUpdates = body.canvasPrintedDelta !== undefined ||
                             body.kitsReadyDelta !== undefined ||
@@ -475,6 +481,7 @@ export async function PATCH(
             marketKitsReady: true,
             marketCanvasPrinted: true,
             canvasAndover: true,
+            kitsAndover: true,
           },
         });
 
@@ -499,6 +506,10 @@ export async function PATCH(
         if (body.canvasAndoverDelta !== undefined) {
           const newVal = current.canvasAndover + body.canvasAndoverDelta;
           data.canvasAndover = newVal < 0 ? 0 : { increment: body.canvasAndoverDelta };
+        }
+        if (body.kitsAndoverDelta !== undefined) {
+          const newVal = current.kitsAndover + body.kitsAndoverDelta;
+          data.kitsAndover = newVal < 0 ? 0 : { increment: body.kitsAndoverDelta };
         }
 
         // Market transfers: clamp the moved quantity so neither side goes below 0.

@@ -11,7 +11,7 @@ Computes, per active 18ct design, **how many kits to order from the kit supplier
 
 ```
 onHand   = canvasPrinted + marketCanvasPrinted + canvasAndover   # bare canvas, all locations
-made     = kitsReady + marketKitsReady                           # kits already assembled
+made     = kitsReady + marketKitsReady + kitsAndover             # kits already assembled (incl. Andover bulk)
 onOrder  = canvas already coming (canvas order sheet + outstanding POs)
 velocity = units sold / week over a trailing 90-day Shopify window
 
