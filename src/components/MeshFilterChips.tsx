@@ -9,18 +9,19 @@ interface MeshFilterChipsProps {
   onChange: (filter: MeshFilter) => void;
 }
 
+// 14ct intro kits are retired. The active mesh counts are 18ct (canvases) and
+// 13ct (intro kits); "Order View" = both. Archived 14ct designs are still
+// reachable via "All" (and the Misprints tab, which fetches 14ct directly).
 const OPTIONS: { value: MeshFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "18", label: "18ct" },
-  { value: "14", label: "14ct" },
   { value: "13", label: "13ct" },
-  { value: "order14", label: "Order View 14" },
-  { value: "order13", label: "Order View 13" },
+  { value: "order13", label: "Order View" },
 ];
 
 export default function MeshFilterChips({ value, onChange }: MeshFilterChipsProps) {
-  // Map legacy "order" value to "order14" for display
-  const displayValue = value === "order" ? "order14" : value;
+  // Map legacy order-view values ("order", "order14") to the current "order13".
+  const displayValue = value === "order" || value === "order14" ? "order13" : value;
   return (
     <div className="flex flex-wrap gap-2">
       {OPTIONS.map((opt) => (
@@ -29,7 +30,7 @@ export default function MeshFilterChips({ value, onChange }: MeshFilterChipsProp
           onClick={() => onChange(opt.value)}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
             displayValue === opt.value
-              ? opt.value === "order14" || opt.value === "order13"
+              ? opt.value === "order13"
                 ? "bg-emerald-600 text-white"
                 : opt.value === "13"
                   ? "bg-purple-700 text-white"

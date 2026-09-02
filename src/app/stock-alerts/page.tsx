@@ -56,11 +56,11 @@ interface ExcludedDesign {
 }
 
 // Which mesh counts contribute Size 5 thread under the current mesh filter.
-// Size 5 is used by 14ct and 18ct (13ct uses Size 3), so when the filter is
-// 18ct-only — or order13, whose Size-5 designs are all 18ct — the label is
-// just "18ct"; 14ct-only is "14ct"; everything else mixes both.
+// Size 5 is used by 14ct and 18ct (13ct uses Size 3). The order view (18+13)
+// and 18ct-only both have an all-18ct Size 5 set; 14ct-only is "14ct";
+// everything else mixes both.
 function size5MeshLabel(meshFilter: string | null): string {
-  if (meshFilter === "18" || meshFilter === "order13") return "18ct";
+  if (meshFilter === "18" || meshFilter === "order" || meshFilter === "order13" || meshFilter === "order14") return "18ct";
   if (meshFilter === "14") return "14ct";
   return "14ct / 18ct";
 }

@@ -33,17 +33,23 @@ The app supports three canvas mesh counts. Each has a specific thread size:
 
 | Mesh | Thread Size | Skein Yards | Usage |
 |------|-------------|-------------|-------|
-| 13ct | Size 3 Pearl Cotton | 16 yards | All intro designs going forward |
-| 14ct | Size 5 Pearl Cotton | 27 yards | Original intro designs |
-| 18ct | Size 5 Pearl Cotton | 27 yards | Main design line going forward |
+| 13ct | Size 3 Pearl Cotton | 16 yards | All intro kits |
+| 14ct | Size 5 Pearl Cotton | 27 yards | RETIRED — original intro kits, archived designs only |
+| 18ct | Size 5 Pearl Cotton | 27 yards | Main design line (all canvases) |
+
+The active mesh counts are **18ct** (canvases) and **13ct** (intro kits). 14ct intro
+kits are retired; those designs are kept as archives but dropped from the active
+mesh filters.
 
 **Thread sizes never mix.** A 13ct design's DMC 209 demand is tracked separately from a 14ct/18ct DMC 209 demand because the inventory items are different (Size 3 vs Size 5 skeins). The app uses the helper `threadSizeForMesh(meshCount)` from `src/lib/yarn-calculator.ts` to derive thread size from mesh count.
 
 **Bobbin inventory** is keyed by `(dmcNumber, length, threadSize)`. A 3-yard Size 3 bobbin is a different SKU from a 3-yard Size 5 bobbin.
 
-**Mesh filter "Order View"** has two variants:
-- `order14`: 18ct + 14ct intro designs (Size 5 set)
-- `order13`: 18ct + 13ct designs (Size 5 + Size 3 set — note this set has mixed thread sizes)
+**Mesh filter "Order View"** = 18ct canvases + 13ct intro kits (the current product
+line). In code this is `order13` (the chip is labeled "Order View"); the legacy
+values `order` and `order14` both resolve to the same 18+13 set (`order14` is
+deprecated since 14ct intro kits are retired). Individual `13`/`14`/`18` filters
+still work — `14` is only useful for viewing archived designs.
 
 ## Project Overview
 

@@ -4,34 +4,26 @@
 export type MeshFilter =
   | "all"
   | "13"
-  | "14"
+  | "14"      // 14ct is retired (kept only for archived designs)
   | "18"
-  | "order14"  // 18ct + 14ct intro designs
-  | "order13"  // 18ct + all 13ct designs (all 13ct are intro)
-  | "order";   // alias of order14 (kept for backward compat with sessionStorage)
+  | "order14" // deprecated — we stopped making 14ct intro kits; resolves to 18+13
+  | "order13" // 18ct canvases + 13ct intro kits — the current product line
+  | "order";  // alias of the current order view (18+13)
 
 /**
  * Build a Prisma `where` clause for filtering designs by mesh count.
  *
  * - "all": no filter
  * - "13" | "14" | "18": only that mesh count
- * - "order14": 18ct + 14ct designs with "intro" in the name (Size 5 thread set)
- * - "order13": 18ct + all 13ct designs (all 13ct are intro — Size 3 thread set)
- * - "order": alias for "order14" (preserved for older sessionStorage values)
+ * - "order" | "order13" | "order14": the current order/planning view — 18ct
+ *   canvases + 13ct intro kits. ("order14" is deprecated: 14ct intro kits are
+ *   retired, so it now resolves to the same 18+13 set.)
  */
 export function meshCountWhere(meshFilter: string | null): Record<string, unknown> {
   if (meshFilter === "13") return { meshCount: 13 };
   if (meshFilter === "14") return { meshCount: 14 };
   if (meshFilter === "18") return { meshCount: 18 };
-  if (meshFilter === "order" || meshFilter === "order14") {
-    return {
-      OR: [
-        { meshCount: 18 },
-        { meshCount: 14, name: { contains: "intro", mode: "insensitive" } },
-      ],
-    };
-  }
-  if (meshFilter === "order13") {
+  if (meshFilter === "order" || meshFilter === "order13" || meshFilter === "order14") {
     return {
       OR: [
         { meshCount: 18 },
