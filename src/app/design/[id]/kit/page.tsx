@@ -12,6 +12,7 @@ import {
 } from "@/lib/shopping-list-export";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import MeshConvertDialog from "@/components/MeshConvertDialog";
+import { skeinYardsForMesh, MeshCount } from "@/lib/yarn-calculator";
 import { searchDmcColors, getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { exportPrintOrderPdf } from "@/lib/pdf-export";
 import { meshBadgeClassLight } from "@/lib/mesh-badge";
@@ -94,9 +95,6 @@ interface ColorUsage {
   designs: ColorDesignUsage[];
 }
 
-const SKEIN_YARDS = 27;
-const BOBBIN_ONLY_MAX = 5;
-
 function getContrastTextColor(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -105,21 +103,31 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
-// Calculate actual skeins needed for a given quantity, with smart bobbin handling
-function calculateSkeinsForQuantity(kitContents: KitItem[], quantity: number): { totalSkeins: number; bobbinSavings: number } {
+// Calculate actual skeins needed for a given quantity, with smart bobbin handling.
+// Non-bobbin colors use `fullSkeins` (the same per-color count shown as "Need N
+// skeins" / "Skeins to buy") so this can't disagree with the kit header. Bobbin
+// colors combine across kits at the mesh's real skein length (Size 3 = 16yd for
+// 13ct, Size 5 = 27yd otherwise) — not a hardcoded 27.
+function calculateSkeinsForQuantity(
+  kitContents: KitItem[],
+  quantity: number,
+  meshCount: number,
+): { totalSkeins: number; bobbinSavings: number } {
+  const skeinYards = skeinYardsForMesh((meshCount || 18) as MeshCount);
   let totalSkeins = 0;
   let naiveSkeins = 0; // What we'd deduct without smart bobbin handling
 
   for (const item of kitContents) {
     const isBobbin = item.bobbinYards > 0 && item.fullSkeins === 0;
-    naiveSkeins += item.skeinsNeeded * quantity;
 
     if (isBobbin) {
-      // Accumulate bobbin yards across kits
-      const totalBobbinYards = item.bobbinYards * quantity;
-      totalSkeins += Math.ceil(totalBobbinYards / SKEIN_YARDS);
+      // Without cross-kit combining you'd open one skein per kit for this color.
+      naiveSkeins += quantity;
+      totalSkeins += Math.ceil((item.bobbinYards * quantity) / skeinYards);
     } else {
-      totalSkeins += item.skeinsNeeded * quantity;
+      const skeins = item.fullSkeins * quantity;
+      naiveSkeins += skeins;
+      totalSkeins += skeins;
     }
   }
 
@@ -1568,7 +1576,7 @@ export default function KitPage() {
 
       {/* Assemble Kit Dialog */}
       {showSellDialog && (() => {
-        const calc = calculateSkeinsForQuantity(kitContents, assemblyQuantity);
+        const calc = calculateSkeinsForQuantity(kitContents, assemblyQuantity, design.meshCount);
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
             <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-md mx-4 p-6">

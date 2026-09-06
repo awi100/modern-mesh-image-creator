@@ -49,6 +49,8 @@ export async function GET(request: NextRequest) {
         canvasPrinted: true,
         marketKitsReady: true,
         marketCanvasPrinted: true,
+        kitsAndover: true,
+        canvasAndover: true,
         backupColors: true,
         folder: {
           select: {
@@ -150,6 +152,12 @@ export async function GET(request: NextRequest) {
             }
           }
 
+          // Skeins that must be on hand to make one kit of this color. Match the
+          // displayed "Need N skeins" (fullSkeins) so the stock indicator can't
+          // contradict the stated requirement; a bobbin color shows 0 full skeins
+          // but still needs one skein opened to wind the bobbin.
+          const skeinsToStock = fullSkeins > 0 ? fullSkeins : bobbinYards > 0 ? 1 : 0;
+
           // Get backup color info if exists
           const backupDmcNumber = backupColors[usage.dmcNumber];
           let backup = null;
@@ -161,13 +169,13 @@ export async function GET(request: NextRequest) {
               colorName: backupColor?.name ?? "Unknown",
               hex: backupColor?.hex ?? "#888888",
               inventorySkeins: backupInventorySkeins,
-              inStock: backupInventorySkeins >= usage.skeinsNeeded,
+              inStock: backupInventorySkeins >= skeinsToStock,
               threadSize,
             };
           }
 
           // Color is "in stock" if primary OR backup has enough
-          const primaryInStock = inventorySkeins >= usage.skeinsNeeded;
+          const primaryInStock = inventorySkeins >= skeinsToStock;
           const backupInStock = backup?.inStock ?? false;
           const effectiveInStock = primaryInStock || backupInStock;
 
@@ -219,6 +227,8 @@ export async function GET(request: NextRequest) {
           canvasPrinted: design.canvasPrinted ?? 0,
           marketKitsReady: design.marketKitsReady ?? 0,
           marketCanvasPrinted: design.marketCanvasPrinted ?? 0,
+          kitsAndover: design.kitsAndover ?? 0,
+          canvasAndover: design.canvasAndover ?? 0,
           totalColors: kitContents.length,
           totalSkeins,
           allInStock: kitContents.every((c) => c.inStock),

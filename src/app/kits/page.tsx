@@ -7,8 +7,7 @@ import useSWR, { mutate } from "swr";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { meshBadgeClassLight } from "@/lib/mesh-badge";
 import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
-
-const SKEIN_YARDS = 27;
+import { skeinYardsForMesh, MeshCount } from "@/lib/yarn-calculator";
 
 interface BackupColorInfo {
   dmcNumber: string;
@@ -52,6 +51,8 @@ interface KitSummary {
   canvasPrinted: number;
   marketKitsReady: number;
   marketCanvasPrinted: number;
+  kitsAndover: number;
+  canvasAndover: number;
   totalColors: number;
   totalSkeins: number;
   allInStock: boolean;
@@ -90,20 +91,31 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
-// Calculate actual skeins needed for a given quantity, with smart bobbin handling
-function calculateSkeinsForQuantity(kitContents: KitItem[], quantity: number): { totalSkeins: number; bobbinSavings: number } {
+// Calculate actual skeins needed for a given quantity, with smart bobbin handling.
+// Non-bobbin colors use `fullSkeins` (the same per-color count shown as "Need N
+// skeins" / "Skeins to buy") so the assembly dialog can't disagree with the kit
+// header. Bobbin colors are combined across kits and use the mesh's real skein
+// length (Size 3 = 16yd for 13ct, Size 5 = 27yd otherwise) — not a hardcoded 27.
+function calculateSkeinsForQuantity(
+  kitContents: KitItem[],
+  quantity: number,
+  meshCount: number,
+): { totalSkeins: number; bobbinSavings: number } {
+  const skeinYards = skeinYardsForMesh((meshCount || 18) as MeshCount);
   let totalSkeins = 0;
   let naiveSkeins = 0;
 
   for (const item of kitContents) {
     const isBobbin = item.bobbinYards > 0 && item.fullSkeins === 0;
-    naiveSkeins += item.skeinsNeeded * quantity;
 
     if (isBobbin) {
-      const totalBobbinYards = item.bobbinYards * quantity;
-      totalSkeins += Math.ceil(totalBobbinYards / SKEIN_YARDS);
+      // Without cross-kit combining you'd open one skein per kit for this color.
+      naiveSkeins += quantity;
+      totalSkeins += Math.ceil((item.bobbinYards * quantity) / skeinYards);
     } else {
-      totalSkeins += item.skeinsNeeded * quantity;
+      const skeins = item.fullSkeins * quantity;
+      naiveSkeins += skeins;
+      totalSkeins += skeins;
     }
   }
 
@@ -664,7 +676,7 @@ export default function KitsPage() {
                             }`}>
                               {kit.allInStock ? "In Stock" : "Out of Stock"}
                             </div>
-                            {/* Counts: Here (online, editable) · Market (tote) · Total */}
+                            {/* Counts: Here (online, editable) · Market (tote) · Andover (bulk) · Total */}
                             <div className="flex items-center gap-2 md:gap-3" onClick={(e) => e.stopPropagation()}>
                               {/* Here — online stock, editable */}
                               <div className="flex items-center gap-1">
@@ -719,9 +731,16 @@ export default function KitsPage() {
                                 <p className="text-lg font-bold text-emerald-400">{kit.marketKitsReady}</p>
                                 <p className="text-xs text-slate-400">Market</p>
                               </div>
-                              {/* Total — here + market */}
+                              {/* Andover — bulk storage (manage on the Inventory → Kits tab) */}
+                              {kit.kitsAndover > 0 && (
+                                <div className="text-center min-w-[2.5rem]" title="Assembled kits in bulk storage at Andover — manage on Inventory → Kits">
+                                  <p className="text-lg font-bold text-sky-400">{kit.kitsAndover}</p>
+                                  <p className="text-xs text-slate-400">Andover</p>
+                                </div>
+                              )}
+                              {/* Total — here + market + Andover */}
                               <div className="text-center min-w-[2.5rem] border-l border-slate-700 pl-2 md:pl-3">
-                                <p className="text-lg font-bold text-white">{kit.kitsReady + kit.marketKitsReady}</p>
+                                <p className="text-lg font-bold text-white">{kit.kitsReady + kit.marketKitsReady + kit.kitsAndover}</p>
                                 <p className="text-xs text-slate-400">Total</p>
                               </div>
                             </div>
@@ -1030,7 +1049,7 @@ export default function KitsPage() {
 
       {/* Assembly Dialog */}
       {assemblingKit && (() => {
-        const calc = calculateSkeinsForQuantity(assemblingKit.kitContents, assemblyQuantity);
+        const calc = calculateSkeinsForQuantity(assemblingKit.kitContents, assemblyQuantity, assemblingKit.meshCount);
         const bobbinCount = assemblingKit.kitContents.filter(i => i.bobbinYards > 0 && i.fullSkeins === 0).length;
 
         return (

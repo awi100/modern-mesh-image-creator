@@ -57,9 +57,13 @@ export async function GET(request: NextRequest) {
     // Units sold per design within the trailing window, from processed Shopify
     // orders (same source the velocity job uses). Order date = when it sold.
     const orders = await prisma.shopifyOrder.findMany({
-      // Window by the real order date (fallback to row createdAt for legacy rows)
-      // so a batch/backfill sync doesn't dump historical orders into the window.
+      // Match the velocity job's population exactly: only fulfilled orders,
+      // windowed by the real order date (fallback to row createdAt for legacy
+      // rows) so a batch/backfill sync doesn't dump historical orders into the
+      // window. Without the fulfilledAt filter, processed items on draft/
+      // unfulfilled orders would inflate the reorder rate vs the velocity view.
       where: {
+        fulfilledAt: { not: null },
         OR: [
           { orderDate: { gte: windowStart } },
           { orderDate: null, createdAt: { gte: windowStart } },
