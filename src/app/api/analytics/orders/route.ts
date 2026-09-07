@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
-import { fetchRecentlyFulfilledOrders, ShopifyOrderNode, parseNeedsKit, normalizeTitle } from "@/lib/shopify";
+import { fetchRecentlyFulfilledOrders, fetchUnfulfilledOrders, ShopifyOrderNode, parseNeedsKit, normalizeTitle } from "@/lib/shopify";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
 interface DesignAnalytics {
@@ -127,9 +127,16 @@ function processOrders(orders: ShopifyOrderNode[], designByName: Map<string, { i
   for (const order of orders) {
     totalOrders++;
 
-    // Track customer by billing name (more reliable than city)
-    const customerKey = order.billingAddress?.name?.toLowerCase().trim() || order.name;
-    customerOrders.set(customerKey, (customerOrders.get(customerKey) || 0) + 1);
+    // Identify the customer. Prefer the stable Shopify customer id (only present
+    // when read_customers is enabled); otherwise fall back to billing name.
+    // Orders with NEITHER (e.g. nameless POS sales) are excluded from the
+    // repeat-customer metric entirely — previously each got keyed on the unique
+    // order number, so every one counted as a brand-new customer and deflated
+    // the repeat rate.
+    const customerKey = order.customer?.id ?? (order.billingAddress?.name?.toLowerCase().trim() || null);
+    if (customerKey) {
+      customerOrders.set(customerKey, (customerOrders.get(customerKey) || 0) + 1);
+    }
 
     // Track state — only bucket US orders by province. A non-US provinceCode
     // like "WA" (Western Australia) would otherwise collide with a US state
@@ -241,6 +248,17 @@ export async function GET(request: NextRequest) {
       try {
         const data = await fetchRecentlyFulfilledOrders(previousPeriodStart);
         allOrders = data.orders.nodes;
+        // Also include recent UNFULFILLED orders. The fulfilled feed misses the
+        // current period's newest, not-yet-shipped orders, which biased the
+        // period-over-period comparison downward (recent window immature vs a
+        // fully-mature previous window). Merge and dedupe by id. Refunded/
+        // cancelled/$0 orders are already dropped inside the fetch helpers, and
+        // the createdAt window filter below keeps only in-range orders.
+        const unfulfilled = await fetchUnfulfilledOrders();
+        const seen = new Set(allOrders.map((o) => o.id));
+        for (const o of unfulfilled.orders.nodes) {
+          if (!seen.has(o.id)) allOrders.push(o);
+        }
       } catch (e) {
         console.error("Error fetching from Shopify:", e);
       }
@@ -277,9 +295,21 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Map normalized design name -> design. Design.name has no unique constraint,
+    // so guard against two live designs sharing a name: keep the first and warn,
+    // rather than silently letting the second capture ALL of the other's sales.
     const designByName = new Map<string, typeof designs[0]>();
     for (const design of designs) {
-      designByName.set(design.name.toLowerCase().trim(), design);
+      const key = normalizeTitle(design.name);
+      const existing = designByName.get(key);
+      if (existing) {
+        console.warn(
+          `Analytics: duplicate design name "${design.name}" (${existing.id} and ${design.id}); ` +
+          `sales for this title attribute to ${existing.id} only. Rename one to disambiguate.`
+        );
+        continue;
+      }
+      designByName.set(key, design);
     }
 
     // Process current period

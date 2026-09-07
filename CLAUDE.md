@@ -222,6 +222,13 @@ SESSION_PASSWORD=your-32-char-secret
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
+
+# Analytics: set to "true" ONLY after the Shopify token is granted the
+# read_customers scope. When true, order queries fetch `customer { id }` and the
+# repeat-customer metric keys on the real per-person id instead of billing name.
+# Leave unset/false otherwise — requesting the field without the scope errors the
+# whole Shopify query and breaks the analytics dashboard.
+SHOPIFY_READ_CUSTOMERS=false
 ```
 
 ## Common Commands

@@ -80,7 +80,10 @@ export interface ShopifyOrderNode {
   currentTotalPriceSet: {
     shopMoney: { amount: string } | null;
   } | null;
-  // Note: customer field requires read_customers scope
+  // Stable per-person identifier. Only populated when the Shopify token has the
+  // read_customers scope AND SHOPIFY_READ_CUSTOMERS=true (see customerIdField());
+  // otherwise absent and callers fall back to billing name.
+  customer?: { id: string } | null;
   billingAddress: {
     name: string | null;
     city: string | null;
@@ -152,6 +155,13 @@ export interface OrdersQueryResult {
   };
 }
 
+// The `customer { id }` selection is protected data and errors the whole query
+// if the token lacks read_customers. Only include it when explicitly enabled so
+// the default deployment can never break; callers fall back to billing name.
+export function customerIdField(): string {
+  return process.env.SHOPIFY_READ_CUSTOMERS === "true" ? "customer { id }" : "";
+}
+
 // Fetch unfulfilled orders from Shopify (with pagination, capped at 200)
 export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
   const query = `
@@ -167,6 +177,7 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
           id
           name
           createdAt
+          ${customerIdField()}
           cancelledAt
           sourceName
           displayFulfillmentStatus
@@ -262,6 +273,7 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
           id
           name
           createdAt
+          ${customerIdField()}
           cancelledAt
           sourceName
           displayFulfillmentStatus

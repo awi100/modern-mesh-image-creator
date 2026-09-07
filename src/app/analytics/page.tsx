@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import useSWR from "swr";
@@ -198,15 +198,22 @@ export default function AnalyticsPage() {
   // before the first load.
   const dataPeriodDays = analytics?.summary.periodDays ?? periodDays;
   const periodLabel = dataPeriodDays === 365 ? "last year" : `last ${dataPeriodDays} days`;
+  // Tick every 30s so "updated X ago" keeps counting up between revalidations
+  // (SWR only refetches on focus/stale, so without this the label can freeze).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
   const generatedAgo = useMemo(() => {
     if (!analytics?.generatedAt) return null;
-    const secs = Math.max(0, Math.round((Date.now() - new Date(analytics.generatedAt).getTime()) / 1000));
+    const secs = Math.max(0, Math.round((now - new Date(analytics.generatedAt).getTime()) / 1000));
     if (secs < 60) return "just now";
     const mins = Math.round(secs / 60);
     if (mins < 60) return `${mins}m ago`;
     const hrs = Math.round(mins / 60);
     return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
-  }, [analytics?.generatedAt]);
+  }, [analytics?.generatedAt, now]);
 
   // Sort design performance
   const sortedDesigns = useMemo(() => {
@@ -240,6 +247,10 @@ export default function AnalyticsPage() {
 
   const maxStitches = useMemo(() => {
     return Math.max(...filteredStitchDesigns.map((d) => d.totalStitches), 1);
+  }, [filteredStitchDesigns]);
+
+  const maxGrid = useMemo(() => {
+    return Math.max(...filteredStitchDesigns.map((d) => d.gridWidth * d.gridHeight), 1);
   }, [filteredStitchDesigns]);
 
   // Compute bar maxima over the FULL array (the tables render all rows). Using
@@ -873,7 +884,17 @@ export default function AnalyticsPage() {
                           </Link>
                         </td>
                         <td className="p-3 text-right text-slate-400 text-sm">{design.meshCount}ct</td>
-                        <td className="p-3 text-right text-slate-400 text-sm">{design.gridWidth} × {design.gridHeight}</td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="w-16 bg-slate-700 rounded-full h-1.5 hidden sm:block">
+                              <div
+                                className="bg-sky-500 h-1.5 rounded-full"
+                                style={{ width: `${((design.gridWidth * design.gridHeight) / maxGrid) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-slate-400 text-sm w-16">{design.gridWidth} × {design.gridHeight}</span>
+                          </div>
+                        </td>
                         <td className="p-3 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <div className="w-24 bg-slate-700 rounded-full h-1.5">
