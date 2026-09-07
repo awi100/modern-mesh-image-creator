@@ -458,19 +458,6 @@ export default function KitPage() {
     fetchPrintVersion();
   }, [designId]);
 
-  const handleMarkSold = async () => {
-    try {
-      const res = await fetch(`/api/designs/${designId}/kit/mark-sold`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        setKitsReady((prev) => Math.max(0, prev - 1));
-      }
-    } catch (error) {
-      console.error("Error marking sold:", error);
-    }
-  };
-
   // Export shopping list as CSV
   const handleExportCSV = useCallback(() => {
     if (!design || kitContents.length === 0) return;
@@ -666,16 +653,6 @@ export default function KitPage() {
                 </svg>
               </button>
             </Tooltip>
-            <div className="w-px h-6 bg-slate-700 mx-1" />
-            {kitsReady > 0 && (
-              <button
-                onClick={handleMarkSold}
-                className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-all text-sm"
-                title="Mark one kit as sold to customer"
-              >
-                Mark Sold
-              </button>
-            )}
           </div>
         </div>
       </header>
