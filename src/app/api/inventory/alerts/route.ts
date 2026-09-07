@@ -61,14 +61,14 @@ interface MostUsedColor {
   totalSkeinsNeeded: number; // Combined skeins needed for all designs (1 kit each)
   totalYardsNeeded: number; // Combined yards needed for all designs
   inventorySkeins: number;
-  skeinsReservedInKits: number; // Skeins already used in assembled kits
-  effectiveInventory: number; // inventorySkeins - skeinsReservedInKits
+  stock: number; // On-hand skeins. Thread is deducted by hand as kits are made,
+                 // so this is already net of assembled kits — no separate reserve.
   threadSize: 3 | 5;
   designs: ColorDesignUsage[]; // Which designs use this color with usage details
   // Aggregate demand metrics
   coverageRounds: number; // How many complete rounds (1 kit of each design) can be made
   skeinsToNextRound: number; // Skeins needed to complete one more round
-  isCritical: boolean; // Coverage < 1 round
+  isCritical: boolean; // Coverage < 3 rounds
   // Backup color info
   backupDmcNumber: string | null;
   backupColorName: string | null;
@@ -77,9 +77,9 @@ interface MostUsedColor {
 
 interface GlobalDemandSummary {
   totalColors: number;
-  criticalColors: number; // Colors with < 1 round coverage
-  lowColors: number; // Colors with 1-2 rounds coverage
-  healthyColors: number; // Colors with 3+ rounds coverage
+  criticalColors: number; // Colors with < 3 rounds coverage
+  lowColors: number; // Colors with 3-6 rounds coverage
+  healthyColors: number; // Colors with 7+ rounds coverage
 }
 
 interface OrderSuggestion {
@@ -165,7 +165,6 @@ export async function GET(request: NextRequest) {
       totalYards: number;
       designs: ColorDesignUsage[];
       skeinsNeeded: number;
-      skeinsReservedInKits: number; // Skeins already used in assembled kits
     }>();
 
     for (const design of designs) {
@@ -202,7 +201,6 @@ export async function GET(request: NextRequest) {
           const skeinsNeeded = usage?.skeinsNeeded ?? 0;
           const usesFullSkein = usage?.usesFullSkein ?? false;
           const yardsNeeded = usage?.withBuffer ?? 0;
-          const skeinsReserved = usesFullSkein ? skeinsNeeded * kitsReady : 0;
 
           const designUsage: ColorDesignUsage = {
             id: design.id,
@@ -222,7 +220,6 @@ export async function GET(request: NextRequest) {
             existing.totalYards += yardsNeeded;
             existing.designs.push(designUsage);
             existing.skeinsNeeded += fullSkeinsCount;
-            existing.skeinsReservedInKits += skeinsReserved;
           } else {
             colorUsageMap.set(aggKey, {
               dmcNumber,
@@ -231,7 +228,6 @@ export async function GET(request: NextRequest) {
               totalYards: yardsNeeded,
               designs: [designUsage],
               skeinsNeeded: fullSkeinsCount,
-              skeinsReservedInKits: skeinsReserved,
             });
           }
         }
@@ -239,12 +235,11 @@ export async function GET(request: NextRequest) {
         // Get inventory for THIS design's thread size
         const inventoryMap = inventoryBySize[threadSize];
 
-        // Calculate fulfillment capacity for each color
-        // Inventory already reflects deductions from assembled kits, so use it directly
+        // How many kits this color's on-hand stock can cover. Thread is deducted
+        // by hand as kits are made, so on-hand stock is already net — use it directly.
         const colorRequirements: ColorRequirement[] = yarnUsage.map((usage) => {
           const dmcColor = getDmcColorByNumber(usage.dmcNumber);
           const inventorySkeins = inventoryMap.get(usage.dmcNumber) ?? 0;
-          // Inventory is already reduced when kits are assembled, no need to subtract again
           const fulfillmentCapacity = usage.skeinsNeeded > 0
             ? Math.floor(inventorySkeins / usage.skeinsNeeded)
             : Infinity;
@@ -351,14 +346,15 @@ export async function GET(request: NextRequest) {
         ? 0
         : Math.ceil(data.totalYards / effectivePerSkein);
       const inventorySkeins = inventoryBySize[threadSize]?.get(dmcNumber) ?? 0;
-      const skeinsReservedInKits = data.skeinsReservedInKits;
-      const effectiveInventory = inventorySkeins;
+      // On-hand stock is already net of made kits (thread is subtracted by hand
+      // when kits are made), so coverage is computed straight from it.
+      const stock = inventorySkeins;
 
       const coverageRounds = totalSkeinsNeeded > 0
-        ? Math.floor(effectiveInventory / totalSkeinsNeeded)
+        ? Math.floor(stock / totalSkeinsNeeded)
         : Infinity;
       const remainder = totalSkeinsNeeded > 0
-        ? effectiveInventory % totalSkeinsNeeded
+        ? stock % totalSkeinsNeeded
         : 0;
       const skeinsToNextRound = totalSkeinsNeeded > 0
         ? totalSkeinsNeeded - remainder
@@ -379,8 +375,7 @@ export async function GET(request: NextRequest) {
         totalSkeinsNeeded,
         totalYardsNeeded,
         inventorySkeins,
-        skeinsReservedInKits,
-        effectiveInventory,
+        stock,
         threadSize,
         designs: sortedDesigns,
         coverageRounds: coverageRounds === Infinity ? 999 : coverageRounds,
@@ -432,11 +427,12 @@ export async function GET(request: NextRequest) {
     // already has `kitsReady` kits only needs thread for `N - kitsReady` more.
     // Demand is summed across designs in YARDS (accounting for each design's
     // kitsReady) and then converted to skeins, so shared thread isn't double
-    // ordered. `currentStock` already excludes thread consumed by made kits.
+    // ordered. `currentStock` already excludes thread consumed by made kits
+    // (you subtract thread by hand as you make kits).
     const orderSuggestions: OrderSuggestion[] = mostUsedColors
       .filter((c) => c.totalSkeinsNeeded > 0)
       .map((c) => {
-        const currentStock = c.effectiveInventory;
+        const currentStock = c.stock;
         const currentCoverage = c.coverageRounds;
         const effectivePerSkein = effectiveYardsPerSkein(c.threadSize);
         const fullSkeinThreshold = bobbinThresholdsForThread(c.threadSize).max;

@@ -24,8 +24,7 @@ interface MostUsedColor {
   totalSkeinsNeeded: number;
   totalYardsNeeded: number;
   inventorySkeins: number;
-  skeinsReservedInKits: number;
-  effectiveInventory: number;
+  stock: number;
   threadSize: 3 | 5;
   designs: ColorDesignUsage[];
   coverageRounds: number;
@@ -478,7 +477,7 @@ export default function StockAlertsPage() {
                         <div className="flex items-center gap-4 flex-shrink-0">
                           <div className="text-right">
                             <div className="text-slate-500 dark:text-slate-400 text-xs">Stock</div>
-                            <div className="text-slate-900 dark:text-white font-medium">{color.effectiveInventory}</div>
+                            <div className="text-slate-900 dark:text-white font-medium">{color.stock}</div>
                           </div>
                           <div className="text-right">
                             <div className="text-slate-500 dark:text-slate-400 text-xs">Per Round</div>

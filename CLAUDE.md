@@ -137,7 +137,9 @@ src/
 - See which colors are in stock when picking colors
 - Shopping list generation for low stock
 - **Stock Alerts**: Shows fulfillment capacity per design
-  - Accounts for "kits ready" (effective inventory = stock - reserved in kits)
+  - Thread stock is managed **manually** — you subtract skeins by hand as you
+    make kits, so on-hand stock is already net (there is no automatic deduction
+    and no separate "reserved in kits" figure)
   - Critical/Low/Healthy status indicators
   - Filter by alert status
   - Most Used Colors table across all designs
@@ -150,7 +152,8 @@ src/
 - View kit requirements for each design
 - Track "kits ready" (assembled kits)
 - Track "canvases printed"
-- Record kit sales with automatic inventory deduction
+- Thread inventory is managed **manually** on the inventory page — making a kit
+  does not auto-deduct thread (there is no in-app "assemble kit" flow)
 
 ## Database Schema
 
@@ -244,10 +247,10 @@ npm run db:studio    # Open Prisma Studio
 2. Add thread stock by DMC number
 3. Colors in stock show green dot in color picker
 
-### Recording a Kit Sale
-1. Go to design → Kit page
-2. Click "Record Sale"
-3. Inventory automatically deducted
+### Making Kits
+1. Assemble kits by hand, then bump "Kits Ready" on the Kits or Inventory page
+2. Subtract the thread you used from the Inventory page (thread is manual —
+   nothing auto-deducts it)
 
 ### Batch Operations
 1. Click "Select" to enter selection mode
@@ -284,9 +287,8 @@ When modifying these files, **update both projects**:
 - `src/lib/shopping-list-export.ts` - Shopping list export
 - `src/app/api/inventory/` - Inventory management
   - `route.ts` - CRUD for inventory items
-  - `alerts/route.ts` - Stock alerts with effective inventory calculation
+  - `alerts/route.ts` - Stock alerts (coverage vs on-hand stock, which is manual)
   - `bobbin-analysis/route.ts` - Bobbin pre-make analysis
-- `src/app/api/kit-sales/` - Kit sale tracking
 - `src/app/api/folders/` - Folder management
 - `src/app/api/tags/` - Tag management
 - `src/app/inventory/` - Inventory page (threads, kits, alerts, bobbins tabs)
@@ -312,8 +314,8 @@ These features exist in the public app but NOT in this internal app:
 | Multi-user | No | Yes |
 | Payments | None | Stripe subscriptions |
 | Folders/Tags | Yes | No |
-| Inventory | Yes | No |
-| Kit Sales | Yes | No |
+| Inventory | Yes (manual thread stock) | No |
+| Kit tracking | Yes (kits ready / canvases) | No |
 | AI Features | No | Yes (Creator plan) |
 | Watermarks | No | Yes (free tier) |
 
