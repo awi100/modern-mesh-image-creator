@@ -20,6 +20,7 @@ interface DesignAnalytics {
   canvasPrinted: number;
   marketKitsReady: number;
   marketCanvasPrinted: number;
+  canvasAndover: number;
   velocityCategory: string | null;
   stockAlert: "critical" | "low" | "ok" | null;
 }
@@ -75,6 +76,7 @@ interface StockAlert {
   canvasPrinted: number;
   marketKitsReady: number;
   marketCanvasPrinted: number;
+  canvasAndover: number;
   daysOfStock: number;
   alertLevel: "critical" | "low";
 }
@@ -189,7 +191,13 @@ export default function AnalyticsPage() {
     { revalidateOnFocus: true, revalidateIfStale: true, dedupingInterval: 60_000, focusThrottleInterval: 60_000, keepPreviousData: true }
   );
 
-  const periodLabel = periodDays === 365 ? "last year" : `last ${periodDays} days`;
+  // Label the period the DISPLAYED data actually covers, not the selector.
+  // With keepPreviousData, the selector changes instantly but `analytics` still
+  // holds the previous period until the refetch lands — deriving the label from
+  // the payload keeps label and numbers in sync. Fall back to the selector
+  // before the first load.
+  const dataPeriodDays = analytics?.summary.periodDays ?? periodDays;
+  const periodLabel = dataPeriodDays === 365 ? "last year" : `last ${dataPeriodDays} days`;
   const generatedAgo = useMemo(() => {
     if (!analytics?.generatedAt) return null;
     const secs = Math.max(0, Math.round((Date.now() - new Date(analytics.generatedAt).getTime()) / 1000));
@@ -210,7 +218,7 @@ export default function AnalyticsPage() {
         case "units": aVal = a.totalUnitsSold; bVal = b.totalUnitsSold; break;
         case "kits": aVal = a.totalKitsSold; bVal = b.totalKitsSold; break;
         case "kitRate": aVal = a.kitAttachmentRate; bVal = b.kitAttachmentRate; break;
-        case "stock": aVal = a.kitsReady + a.canvasPrinted + a.marketKitsReady + a.marketCanvasPrinted; bVal = b.kitsReady + b.canvasPrinted + b.marketKitsReady + b.marketCanvasPrinted; break;
+        case "stock": aVal = a.kitsReady + a.canvasPrinted + a.marketKitsReady + a.marketCanvasPrinted + a.canvasAndover; bVal = b.kitsReady + b.canvasPrinted + b.marketKitsReady + b.marketCanvasPrinted + b.canvasAndover; break;
         default: aVal = a.totalUnitsSold; bVal = b.totalUnitsSold;
       }
       return sortDir === "desc" ? bVal - aVal : aVal - bVal;
@@ -234,14 +242,17 @@ export default function AnalyticsPage() {
     return Math.max(...filteredStitchDesigns.map((d) => d.totalStitches), 1);
   }, [filteredStitchDesigns]);
 
+  // Compute bar maxima over the FULL array (the tables render all rows). Using
+  // the top-10 only happened to work because the server sorts desc; if that
+  // ever changed, bars past #10 would overflow past 100%.
   const maxUnits = useMemo(() => {
     if (!analytics) return 0;
-    return Math.max(...analytics.designPerformance.slice(0, 10).map((d) => d.totalUnitsSold), 1);
+    return Math.max(...analytics.designPerformance.map((d) => d.totalUnitsSold), 1);
   }, [analytics]);
 
   const maxStateOrders = useMemo(() => {
     if (!analytics) return 0;
-    return Math.max(...analytics.geographicDistribution.slice(0, 10).map((s) => s.orderCount), 1);
+    return Math.max(...analytics.geographicDistribution.map((s) => s.orderCount), 1);
   }, [analytics]);
 
   const handleSort = (field: SortField) => {
@@ -437,9 +448,12 @@ export default function AnalyticsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm truncate">{alert.designName}</p>
                         <p className="text-xs text-slate-400">
-                          {alert.salesLast30Days}/mo · {alert.kitsReady + alert.canvasPrinted + alert.marketKitsReady + alert.marketCanvasPrinted} in stock
+                          {alert.salesLast30Days}/mo · {alert.kitsReady + alert.canvasPrinted + alert.marketKitsReady + alert.marketCanvasPrinted + alert.canvasAndover} in stock
                           {(alert.marketKitsReady + alert.marketCanvasPrinted) > 0 && (
                             <span className="text-emerald-400" title="includes market-tote stock"> (incl. {alert.marketKitsReady + alert.marketCanvasPrinted} market)</span>
+                          )}
+                          {alert.canvasAndover > 0 && (
+                            <span className="text-sky-400" title="includes Andover bulk storage"> (incl. {alert.canvasAndover} Andover)</span>
                           )}
                         </p>
                       </div>
@@ -656,6 +670,11 @@ export default function AnalyticsPage() {
                         {(design.marketKitsReady + design.marketCanvasPrinted) > 0 && (
                           <span className="block text-[10px] text-emerald-400" title="in the market tote">
                             +{design.marketKitsReady} kit / {design.marketCanvasPrinted} canvas market
+                          </span>
+                        )}
+                        {design.canvasAndover > 0 && (
+                          <span className="block text-[10px] text-sky-400" title="in Andover bulk storage">
+                            +{design.canvasAndover} canvas Andover
                           </span>
                         )}
                       </td>

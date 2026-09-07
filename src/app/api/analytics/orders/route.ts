@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
-import { fetchRecentlyFulfilledOrders, ShopifyOrderNode } from "@/lib/shopify";
+import { fetchRecentlyFulfilledOrders, ShopifyOrderNode, parseNeedsKit, normalizeTitle } from "@/lib/shopify";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
 interface DesignAnalytics {
@@ -131,18 +131,24 @@ function processOrders(orders: ShopifyOrderNode[], designByName: Map<string, { i
     const customerKey = order.billingAddress?.name?.toLowerCase().trim() || order.name;
     customerOrders.set(customerKey, (customerOrders.get(customerKey) || 0) + 1);
 
-    // Track state
-    const stateCode = order.billingAddress?.provinceCode ?? "Unknown";
+    // Track state — only bucket US orders by province. A non-US provinceCode
+    // like "WA" (Western Australia) would otherwise collide with a US state
+    // (Washington). Non-US orders fall into "Unknown" and are dropped from the
+    // US-state geography view.
+    const stateCode = order.billingAddress?.countryCodeV2 === "US"
+      ? (order.billingAddress?.provinceCode ?? "Unknown")
+      : "Unknown";
     if (!stateStats.has(stateCode)) {
       stateStats.set(stateCode, { orders: new Set(), units: 0, kitUnits: 0 });
     }
     const stateStat = stateStats.get(stateCode)!;
     stateStat.orders.add(order.id);
 
-    // Track weekly
+    // Track weekly — compute the week bucket entirely in UTC (zero the time,
+    // snap back to Sunday) so bucketing is host-timezone-independent.
     const orderDate = new Date(order.createdAt);
-    const weekStart = new Date(orderDate);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekStart = new Date(Date.UTC(orderDate.getUTCFullYear(), orderDate.getUTCMonth(), orderDate.getUTCDate()));
+    weekStart.setUTCDate(weekStart.getUTCDate() - weekStart.getUTCDay());
     const weekKey = weekStart.toISOString().split("T")[0];
     if (!weeklyStats.has(weekKey)) {
       weeklyStats.set(weekKey, { orders: 0, units: 0, kitUnits: 0 });
@@ -153,13 +159,22 @@ function processOrders(orders: ShopifyOrderNode[], designByName: Map<string, { i
     const orderDesignSet = new Set<string>();
 
     for (const item of order.lineItems.nodes) {
-      const productTitle = item.title;
-      const normalizedTitle = productTitle.toLowerCase().trim();
+      // Match on product.title (mirrors the sync route — line titles can carry
+      // extra variant/customization text that would miss the design).
+      const productTitle = item.product?.title || item.title;
+      const normalizedTitle = normalizeTitle(productTitle);
       const matchedDesign = designByName.get(normalizedTitle);
 
-      const variantTitle = item.variantTitle?.toLowerCase() || "";
+      // Only DESIGN line items count toward sales/kit metrics — accessories
+      // (needleminders, mystery bags, supplies) are neither canvases nor kits,
+      // and counting them here diluted the kit-attach rate. Kit detection uses
+      // the same parseNeedsKit() the sync route uses, so analytics and the
+      // inventory deductions agree (a naked variantTitle.includes("yes") false-
+      // matched values like "Blue eyes / No").
+      if (!matchedDesign) continue;
+
       const isIntro = normalizedTitle.includes("intro") || normalizedTitle.includes("beginner");
-      const needsKit = isIntro || variantTitle.includes("yes");
+      const needsKit = isIntro || parseNeedsKit(item.variantTitle);
 
       totalUnits += item.quantity;
       stateStat.units += item.quantity;
@@ -171,17 +186,14 @@ function processOrders(orders: ShopifyOrderNode[], designByName: Map<string, { i
         weekStat.kitUnits += item.quantity;
       }
 
-      if (matchedDesign) {
-        orderDesignSet.add(matchedDesign.name);
-
-        if (!designStats.has(matchedDesign.id)) {
-          designStats.set(matchedDesign.id, { units: 0, kitUnits: 0 });
-        }
-        const dStat = designStats.get(matchedDesign.id)!;
-        dStat.units += item.quantity;
-        if (needsKit) {
-          dStat.kitUnits += item.quantity;
-        }
+      orderDesignSet.add(matchedDesign.name);
+      if (!designStats.has(matchedDesign.id)) {
+        designStats.set(matchedDesign.id, { units: 0, kitUnits: 0 });
+      }
+      const dStat = designStats.get(matchedDesign.id)!;
+      dStat.units += item.quantity;
+      if (needsKit) {
+        dStat.kitUnits += item.quantity;
       }
     }
 
@@ -339,6 +351,7 @@ export async function GET(request: NextRequest) {
           canvasPrinted: design.canvasPrinted,
           marketKitsReady: design.marketKitsReady,
           marketCanvasPrinted: design.marketCanvasPrinted,
+          canvasAndover: design.canvasAndover,
           velocityCategory: design.velocityCategory,
           stockAlert,
         };
@@ -365,6 +378,7 @@ export async function GET(request: NextRequest) {
           canvasPrinted: design.canvasPrinted,
           marketKitsReady: design.marketKitsReady,
           marketCanvasPrinted: design.marketCanvasPrinted,
+          canvasAndover: design.canvasAndover,
           daysOfStock: daysOfStock === Infinity ? 999 : daysOfStock,
           alertLevel: daysOfStock < 14 ? "critical" as const : "low" as const,
         };
