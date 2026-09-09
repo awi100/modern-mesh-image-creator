@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
@@ -128,6 +129,9 @@ export default function StockAlertsPage() {
       .catch((error) => console.error("Error fetching stock alerts:", error))
       .finally(() => setLoading(false));
   }, [refetchAlerts]);
+
+  // Self-heal when this tab regains focus (inventory changed on another page).
+  useRefetchOnFocus(refetchAlerts);
 
   // Keys are composite `${dmcNumber}-${threadSize}` since the same DMC color
   // can appear as both a Size 3 and Size 5 row in the same list.

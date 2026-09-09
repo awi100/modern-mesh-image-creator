@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useRef } from "react";
+import { invalidateInventory } from "@/lib/invalidate-inventory";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import useSWR, { mutate } from "swr";
@@ -90,6 +91,15 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
+
+// On a successful inventory-changing request, invalidate every page's SWR cache
+// so edits here appear immediately elsewhere (no manual refresh).
+async function mutApi(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (res.ok) invalidateInventory();
+  return res;
+}
+
 export default function KitsPage() {
   const [expandedKit, setExpandedKit] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "in-stock" | "out-of-stock">("all");
@@ -169,7 +179,7 @@ export default function KitsPage() {
     setUpdatingInventory(key);
 
     try {
-      const res = await fetch("/api/inventory", {
+      const res = await mutApi("/api/inventory", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dmcNumber, size, delta }),
@@ -288,7 +298,7 @@ export default function KitsPage() {
 
     setUpdatingKitsReady(designId);
     try {
-      const res = await fetch(`/api/designs/${designId}`, {
+      const res = await mutApi(`/api/designs/${designId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kitsReadyDelta: delta }),
@@ -326,7 +336,7 @@ export default function KitsPage() {
 
     setUpdatingKitsReady(designId);
     try {
-      const res = await fetch(`/api/designs/${designId}`, {
+      const res = await mutApi(`/api/designs/${designId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kitsReady: newVal }),

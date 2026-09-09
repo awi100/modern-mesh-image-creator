@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { invalidateInventory } from "@/lib/invalidate-inventory";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/route";
@@ -179,6 +180,15 @@ function calculateFulfillableOrders(orders: Order[]) {
   return fulfillableOrders;
 }
 
+
+// On a successful inventory-changing request, invalidate every page's SWR cache
+// so edits here appear immediately elsewhere (no manual refresh).
+async function mutApi(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (res.ok) invalidateInventory();
+  return res;
+}
+
 export default function OrdersPage() {
   const [data, setData] = useState<OrdersResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -287,7 +297,7 @@ export default function OrdersPage() {
     setSyncing(true);
     setSyncResult(null);
     try {
-      const res = await fetch("/api/shopify/orders/sync", { method: "POST" });
+      const res = await mutApi("/api/shopify/orders/sync", { method: "POST" });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Failed to sync orders");
@@ -318,7 +328,7 @@ export default function OrdersPage() {
     setUndoing(shopifyOrderId);
     setError(null);
     try {
-      const res = await fetch(`/api/shopify/orders/fulfill?shopifyOrderId=${encodeURIComponent(shopifyOrderId)}`, {
+      const res = await mutApi(`/api/shopify/orders/fulfill?shopifyOrderId=${encodeURIComponent(shopifyOrderId)}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -443,7 +453,7 @@ export default function OrdersPage() {
         return;
       }
 
-      const res = await fetch("/api/shopify/orders/fulfill", {
+      const res = await mutApi("/api/shopify/orders/fulfill", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -475,11 +485,15 @@ export default function OrdersPage() {
           }),
         };
       });
+      // Fulfillment deducted kits/canvas/supplies server-side — refresh this
+      // page's own order/design counts so they update immediately too (mutApi
+      // already fanned the change out to the other pages' SWR caches).
+      await fetchOrders();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fulfill failed");
     }
     setFulfilling(null);
-  }, []);
+  }, [fetchOrders]);
 
   // Fetch inventory when backup picker opens, using the editing design's
   // thread size so a 13ct design shows Size 3 stock (not Size 5).
@@ -510,7 +524,7 @@ export default function OrdersPage() {
         ? { kitsReadyDelta: totalDelta }
         : { canvasPrintedDelta: totalDelta };
 
-      const res = await fetch(`/api/designs/${designId}`, {
+      const res = await mutApi(`/api/designs/${designId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -654,7 +668,7 @@ export default function OrdersPage() {
     });
 
     try {
-      const res = await fetch("/api/inventory", {
+      const res = await mutApi("/api/inventory", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dmcNumber, size, delta }),

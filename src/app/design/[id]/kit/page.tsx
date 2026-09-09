@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { invalidateInventory } from "@/lib/invalidate-inventory";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -168,6 +169,15 @@ function CounterStatCard({
   );
 }
 
+
+// On a successful inventory-changing request, invalidate every page's SWR cache
+// so edits here appear immediately elsewhere (no manual refresh).
+async function mutApi(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (res.ok) invalidateInventory();
+  return res;
+}
+
 export default function KitPage() {
   const params = useParams();
   const router = useRouter();
@@ -240,7 +250,7 @@ export default function KitPage() {
     const setter = field === "kitsReady" ? setKitsReady : setCanvasPrinted;
     setter((prev) => Math.max(0, prev + delta));
     try {
-      const res = await fetch(`/api/designs/${designId}`, {
+      const res = await mutApi(`/api/designs/${designId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [`${field}Delta`]: delta }),
@@ -257,7 +267,7 @@ export default function KitPage() {
     const setter = field === "kitsReady" ? setKitsReady : setCanvasPrinted;
     setter(newVal);
     try {
-      const res = await fetch(`/api/designs/${designId}`, {
+      const res = await mutApi(`/api/designs/${designId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: newVal }),
@@ -394,7 +404,7 @@ export default function KitPage() {
     });
 
     try {
-      const res = await fetch("/api/inventory", {
+      const res = await mutApi("/api/inventory", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dmcNumber, size, delta }),
@@ -440,7 +450,7 @@ export default function KitPage() {
   const handleCreatePrintVersion = async () => {
     setCreatingPrintVersion(true);
     try {
-      const res = await fetch(`/api/designs/${designId}/print-version`, { method: "POST" });
+      const res = await mutApi(`/api/designs/${designId}/print-version`, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
         router.push(`/design/${data.id}/colors`);

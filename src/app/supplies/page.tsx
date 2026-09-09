@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
+import { invalidateInventory } from "@/lib/invalidate-inventory";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
 
@@ -14,6 +16,15 @@ interface Supply {
   marketQuantity: number;
   createdAt: string;
   updatedAt: string;
+}
+
+
+// On a successful inventory-changing request, invalidate every page's SWR cache
+// so edits here appear immediately elsewhere (no manual refresh).
+async function mutApi(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (res.ok) invalidateInventory();
+  return res;
 }
 
 export default function SuppliesPage() {
@@ -47,6 +58,8 @@ export default function SuppliesPage() {
   useEffect(() => {
     fetchSupplies();
   }, [fetchSupplies]);
+
+  useRefetchOnFocus(fetchSupplies);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +109,7 @@ export default function SuppliesPage() {
     if (!confirm("Are you sure you want to delete this supply?")) return;
 
     try {
-      const res = await fetch(`/api/supplies/${id}`, { method: "DELETE" });
+      const res = await mutApi(`/api/supplies/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete supply");
       setSupplies(supplies.filter((s) => s.id !== id));
     } catch (err) {
@@ -113,7 +126,7 @@ export default function SuppliesPage() {
     );
 
     try {
-      const res = await fetch(`/api/supplies/${id}`, {
+      const res = await mutApi(`/api/supplies/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quantityDelta: delta }),

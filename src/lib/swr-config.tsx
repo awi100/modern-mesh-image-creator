@@ -12,10 +12,12 @@ export function SWRProvider({ children }: { children: ReactNode }) {
     <SWRConfig
       value={{
         fetcher,
-        revalidateOnFocus: false, // Don't refetch when window regains focus
-        revalidateOnReconnect: false, // Don't refetch on reconnect
-        dedupingInterval: 5000, // Dedupe requests within 5 seconds
-        keepPreviousData: true, // Keep showing old data while fetching new
+        revalidateOnFocus: true, // Refetch when the window/tab regains focus, so
+        // a page left open self-heals after an edit made elsewhere.
+        revalidateOnReconnect: true,
+        dedupingInterval: 2000, // Dedupe bursts, but low enough that navigating
+        // between pages a couple seconds after an edit still refetches.
+        keepPreviousData: true, // Avoid a spinner flash; the fresh value lands right after.
       }}
     >
       {children}

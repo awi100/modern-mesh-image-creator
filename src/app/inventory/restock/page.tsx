@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { invalidateInventory } from "@/lib/invalidate-inventory";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { meshBadgeClassLight } from "@/lib/mesh-badge";
@@ -18,6 +19,15 @@ interface Design {
   canvasPrinted: number;
   marketCanvasPrinted: number;
   canvasAndover: number;
+}
+
+
+// On a successful inventory-changing request, invalidate every page's SWR cache
+// so edits here appear immediately elsewhere (no manual refresh).
+async function mutApi(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (res.ok) invalidateInventory();
+  return res;
 }
 
 export default function RestockPage() {
@@ -66,7 +76,7 @@ export default function RestockPage() {
       ? { ...x, canvasAndover: x.canvasAndover - qty, canvasPrinted: x.canvasPrinted + qty }
       : x));
     try {
-      const res = await fetch(`/api/designs/${d.id}`, {
+      const res = await mutApi(`/api/designs/${d.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ andoverTransferDelta: qty }),

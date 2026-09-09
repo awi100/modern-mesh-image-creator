@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import { Breadcrumb } from "@/components/Breadcrumb";
@@ -67,6 +68,7 @@ export default function MarketPrepPage() {
   }, [buffer]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useRefetchOnFocus(fetchData);
 
   const toggle = (name: string) =>
     setChecked((prev) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { invalidateInventory } from "@/lib/invalidate-inventory";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
@@ -50,6 +51,15 @@ function getContrastTextColor(hex: string): string {
   const b = parseInt(hex.slice(5, 7), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
+}
+
+
+// On a successful inventory-changing request, invalidate every page's SWR cache
+// so edits here appear immediately elsewhere (no manual refresh).
+async function mutApi(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (res.ok) invalidateInventory();
+  return res;
 }
 
 export default function ColorDetailPage() {
@@ -114,7 +124,7 @@ export default function ColorDetailPage() {
     setUpdatingInventory(5);
 
     try {
-      const res = await fetch("/api/inventory", {
+      const res = await mutApi("/api/inventory", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dmcNumber, size: 5, delta }),
@@ -143,7 +153,7 @@ export default function ColorDetailPage() {
   const handleSetBackup = async (newBackupDmc: string) => {
     setSavingBackup(true);
     try {
-      const res = await fetch("/api/color-backups", {
+      const res = await mutApi("/api/color-backups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
