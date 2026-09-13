@@ -1696,10 +1696,13 @@ export default function OrdersPage() {
                         suppliesByKey.set(key, entry);
                       }
                       entry.quantity += item.quantity;
-                      // Track the variant (color/style) unless it just echoes the
-                      // product name (e.g. a needle minder variant = its own name).
+                      // Track the variant (color/style). Skip only Shopify's
+                      // generic single-variant label ("Default Title"). NOTE: do
+                      // NOT skip variants that appear in the product name — that
+                      // wrongly dropped "Silver"/"Gold" for the product
+                      // "Silver/Gold Embroidery Scissors".
                       const variant = (item.variantTitle || "").trim();
-                      if (variant && !entry.productTitle.toLowerCase().includes(variant.toLowerCase())) {
+                      if (variant && !/^default(\s*title)?$/i.test(variant)) {
                         entry.variants.set(variant, (entry.variants.get(variant) || 0) + item.quantity);
                       }
                     }
@@ -2327,8 +2330,7 @@ function OrderItemRow({ item, demandByDesign }: { item: OrderItem; demandByDesig
             {item.supplyName || item.productTitle}
           </p>
         )}
-        {item.variantTitle &&
-          !(item.supplyName && item.supplyName.toLowerCase().includes(item.variantTitle.toLowerCase())) && (
+        {item.variantTitle && !/^default(\s*title)?$/i.test(item.variantTitle.trim()) && (
           <p className="text-sm text-slate-400 truncate">{item.variantTitle}</p>
         )}
         {item.isBundle ? (
