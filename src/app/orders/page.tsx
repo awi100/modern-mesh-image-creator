@@ -1665,13 +1665,17 @@ export default function OrdersPage() {
                   </Link>
                 </div>
                 {(() => {
-                  // Aggregate supply items by supply ID or product title
+                  // Aggregate supply items by supply ID or product title, and
+                  // tally per-variant counts (e.g. Project Bag colors, scissor
+                  // styles). Stock is one shared pool per supply, so we keep a
+                  // single row but show the variant breakdown for prep/ordering.
                   const suppliesByKey = new Map<string, {
                     supplyId: string | null;
                     productTitle: string;
                     productType: string | null;
                     quantity: number;
                     inStock: number;
+                    variants: Map<string, number>;
                   }>();
 
                   for (const order of data.orders) {
@@ -1679,17 +1683,24 @@ export default function OrdersPage() {
                       if (item.itemType !== "supply") continue;
 
                       const key = item.supplyId || item.productTitle;
-                      const existing = suppliesByKey.get(key);
-                      if (existing) {
-                        existing.quantity += item.quantity;
-                      } else {
-                        suppliesByKey.set(key, {
+                      let entry = suppliesByKey.get(key);
+                      if (!entry) {
+                        entry = {
                           supplyId: item.supplyId,
                           productTitle: item.productTitle,
                           productType: item.productType,
-                          quantity: item.quantity,
+                          quantity: 0,
                           inStock: item.supplyQuantity,
-                        });
+                          variants: new Map<string, number>(),
+                        };
+                        suppliesByKey.set(key, entry);
+                      }
+                      entry.quantity += item.quantity;
+                      // Track the variant (color/style) unless it just echoes the
+                      // product name (e.g. a needle minder variant = its own name).
+                      const variant = (item.variantTitle || "").trim();
+                      if (variant && !entry.productTitle.toLowerCase().includes(variant.toLowerCase())) {
+                        entry.variants.set(variant, (entry.variants.get(variant) || 0) + item.quantity);
                       }
                     }
                   }
@@ -1724,6 +1735,20 @@ export default function OrdersPage() {
                                 <p className="text-white font-medium truncate">{supply.productTitle}</p>
                                 {supply.productType && (
                                   <p className="text-xs text-purple-400">{supply.productType}</p>
+                                )}
+                                {supply.variants.size > 0 && (
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {Array.from(supply.variants.entries())
+                                      .sort((a, b) => b[1] - a[1])
+                                      .map(([variant, qty]) => (
+                                        <span
+                                          key={variant}
+                                          className="text-xs px-1.5 py-0.5 rounded bg-purple-900/40 border border-purple-700/50 text-purple-200"
+                                        >
+                                          {variant} <span className="font-semibold text-white">×{qty}</span>
+                                        </span>
+                                      ))}
+                                  </div>
                                 )}
                                 {!supply.supplyId && (
                                   <p className="text-xs text-yellow-500">Not matched to a supply</p>
