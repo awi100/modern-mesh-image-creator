@@ -41,10 +41,10 @@ const TOOLS: Tool[] = [
     accent: "text-red-300",
   },
   {
-    href: "/inventory/restock",
-    title: "Restock",
-    description: "Designs low on canvases at home — pull more from your Andover bulk storage.",
-    icon: icon("M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"),
+    href: "/inventory/andover-pickup",
+    title: "Andover Pickup",
+    description: "What canvases and kits to grab from your Andover bulk storage to restock on-hand — with one-tap “picked up”.",
+    icon: icon("M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"),
     accent: "text-sky-300",
   },
   {
@@ -125,7 +125,7 @@ export default function InventoryToolsPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-white font-semibold">{t.title}</h2>
-                  {t.href === "/inventory/restock" && lowCount > 0 && (
+                  {t.href === "/inventory/andover-pickup" && lowCount > 0 && (
                     <span
                       className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-[10px] font-bold rounded-full bg-red-600 text-white"
                       title={`${lowCount} designs low on hand`}
