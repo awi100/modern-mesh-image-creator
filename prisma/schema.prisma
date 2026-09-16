@@ -420,8 +420,9 @@ model Supply {
   sku         String?  // Optional SKU
   description String?
   imageUrl    String?
-  quantity    Int      @default(0) // Stock count (online/storage)
+  quantity    Int      @default(0) // Stock count (online/storage, at home)
   marketQuantity Int   @default(0) // Stock in the craft-market tote (POS sales deduct from here)
+  andoverQuantity Int  @default(0) // Bulk stock kept at Andover storage (pick up to restock home)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   shopifyOrderItems ShopifyOrderItem[]

@@ -46,7 +46,7 @@ export async function PATCH(
     const body = await request.json();
 
     // Validate numeric fields up front (a string/NaN would corrupt the count).
-    for (const field of ["quantity", "quantityDelta", "marketQuantity", "marketTransferDelta"] as const) {
+    for (const field of ["quantity", "quantityDelta", "marketQuantity", "marketTransferDelta", "andoverQuantity", "andoverQuantityDelta", "andoverTransferDelta"] as const) {
       if (body[field] !== undefined && !Number.isFinite(Number(body[field]))) {
         return NextResponse.json({ error: `${field} must be a number` }, { status: 400 });
       }
@@ -75,16 +75,20 @@ export async function PATCH(
     if (body.marketQuantity !== undefined) {
       updateData.marketQuantity = Math.max(0, Math.floor(Number(body.marketQuantity)));
     }
+    if (body.andoverQuantity !== undefined) {
+      updateData.andoverQuantity = Math.max(0, Math.floor(Number(body.andoverQuantity)));
+    }
 
     // Delta / transfer operations depend on the current row, so read and write
     // them inside a transaction to avoid lost updates under concurrency.
-    const hasDelta = body.quantityDelta !== undefined || body.marketTransferDelta !== undefined;
+    const hasDelta = body.quantityDelta !== undefined || body.marketTransferDelta !== undefined ||
+                     body.andoverQuantityDelta !== undefined || body.andoverTransferDelta !== undefined;
 
     const supply = await prisma.$transaction(async (tx) => {
       if (hasDelta) {
         const current = await tx.supply.findUnique({
           where: { id },
-          select: { quantity: true, marketQuantity: true },
+          select: { quantity: true, marketQuantity: true, andoverQuantity: true },
         });
         if (!current) {
           throw new Error("Record to update not found");
@@ -92,6 +96,11 @@ export async function PATCH(
         if (body.quantityDelta !== undefined) {
           const delta = Math.floor(Number(body.quantityDelta));
           updateData.quantity = Math.max(0, current.quantity + delta);
+        }
+        // Adjust the Andover bulk count directly.
+        if (body.andoverQuantityDelta !== undefined) {
+          const delta = Math.floor(Number(body.andoverQuantityDelta));
+          updateData.andoverQuantity = Math.max(0, current.andoverQuantity + delta);
         }
         // Market transfer: move stock between main and the market tote,
         // conserving the total; clamped so neither side goes below 0.
@@ -104,6 +113,20 @@ export async function PATCH(
           if (moved !== 0) {
             updateData.quantity = Math.max(0, base - moved);
             updateData.marketQuantity = Math.max(0, current.marketQuantity + moved);
+          }
+        }
+        // Andover transfer: positive = Andover -> home (pick up to restock),
+        // negative = home -> Andover (return to bulk). Conserves the total.
+        if (body.andoverTransferDelta !== undefined) {
+          const requested = Math.trunc(Number(body.andoverTransferDelta));
+          const homeBase = updateData.quantity !== undefined ? (updateData.quantity as number) : current.quantity;
+          const andoverBase = updateData.andoverQuantity !== undefined ? (updateData.andoverQuantity as number) : current.andoverQuantity;
+          const moved = requested >= 0
+            ? Math.min(requested, andoverBase)
+            : -Math.min(-requested, homeBase);
+          if (moved !== 0) {
+            updateData.andoverQuantity = Math.max(0, andoverBase - moved);
+            updateData.quantity = Math.max(0, homeBase + moved);
           }
         }
       }

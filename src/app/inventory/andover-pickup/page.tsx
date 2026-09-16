@@ -28,188 +28,220 @@ interface Design {
   kitsAndover: number;
 }
 
-type Kind = "canvas" | "kit";
+interface Supply {
+  id: string;
+  name: string;
+  quantity: number;
+  marketQuantity: number;
+  andoverQuantity: number;
+}
 
-// On a successful move, invalidate every page's SWR cache so counts update
-// everywhere immediately.
+type Section = "canvas" | "kit" | "supply";
+
+interface Row {
+  key: string;
+  id: string;
+  section: Section;
+  name: string;
+  previewImageUrl: string | null;
+  meshCount: number | null;
+  onHand: number;
+  andover: number;
+  suggest: number;
+}
+
 async function mutApi(url: string, init: RequestInit): Promise<Response> {
   const res = await fetch(url, init);
   if (res.ok) invalidateInventory();
   return res;
 }
 
+const suggestQty = (andover: number, onHand: number) => Math.min(andover, Math.max(0, TARGET - onHand));
+
 export default function AndoverPickupPage() {
   const [designs, setDesigns] = useState<Design[]>([]);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
   const [moving, setMoving] = useState<string | null>(null);
-  const [pickupQty, setPickupQty] = useState<Record<string, string>>({});
+  const [qtyOverride, setQtyOverride] = useState<Record<string, string>>({});
 
-  const fetchDesigns = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/designs");
-      if (res.ok) {
-        const data: Design[] = await res.json();
-        setDesigns(data.filter((d) => !d.isDraft && !d.archivedAt));
+      const [dr, sr] = await Promise.all([fetch("/api/designs"), fetch("/api/supplies")]);
+      if (dr.ok) {
+        const d: Design[] = await dr.json();
+        setDesigns(d.filter((x) => !x.isDraft && !x.archivedAt));
       }
+      if (sr.ok) setSupplies(await sr.json());
     } catch (e) {
-      console.error("Failed to load designs:", e);
+      console.error("Failed to load Andover data:", e);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchDesigns();
-  }, [fetchDesigns]);
-  useRefetchOnFocus(fetchDesigns);
+    fetchData();
+  }, [fetchData]);
+  useRefetchOnFocus(fetchData);
 
-  const onHand = (d: Design, kind: Kind) =>
-    kind === "canvas" ? d.canvasPrinted + (d.marketCanvasPrinted || 0) : d.kitsReady + (d.marketKitsReady || 0);
-  const atAndover = (d: Design, kind: Kind) => (kind === "canvas" ? d.canvasAndover || 0 : d.kitsAndover || 0);
-  const suggested = (d: Design, kind: Kind) => Math.min(atAndover(d, kind), Math.max(0, TARGET - onHand(d, kind)));
+  const allRows: Row[] = useMemo(() => {
+    const rows: Row[] = [];
+    for (const d of designs) {
+      const cOn = d.canvasPrinted + (d.marketCanvasPrinted || 0);
+      if ((d.canvasAndover || 0) > 0)
+        rows.push({ key: `${d.id}-canvas`, id: d.id, section: "canvas", name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount, onHand: cOn, andover: d.canvasAndover, suggest: suggestQty(d.canvasAndover, cOn) });
+      const kOn = d.kitsReady + (d.marketKitsReady || 0);
+      if ((d.kitsAndover || 0) > 0)
+        rows.push({ key: `${d.id}-kit`, id: d.id, section: "kit", name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount, onHand: kOn, andover: d.kitsAndover, suggest: suggestQty(d.kitsAndover, kOn) });
+    }
+    for (const s of supplies) {
+      const on = s.quantity + (s.marketQuantity || 0);
+      if ((s.andoverQuantity || 0) > 0)
+        rows.push({ key: `${s.id}-supply`, id: s.id, section: "supply", name: s.name, previewImageUrl: null, meshCount: null, onHand: on, andover: s.andoverQuantity, suggest: suggestQty(s.andoverQuantity, on) });
+    }
+    return rows;
+  }, [designs, supplies]);
 
-  const buildRows = useCallback(
-    (kind: Kind) =>
-      designs
-        .filter((d) => atAndover(d, kind) > 0)
-        .filter((d) => showAll || suggested(d, kind) > 0)
-        .map((d) => ({ d, onHand: onHand(d, kind), andover: atAndover(d, kind), suggest: suggested(d, kind) }))
+  const sectionRows = useCallback(
+    (section: Section) =>
+      allRows
+        .filter((r) => r.section === section)
+        .filter((r) => showAll || r.suggest > 0)
         .sort((a, b) => b.suggest - a.suggest || a.onHand - b.onHand),
-    [designs, showAll],
+    [allRows, showAll],
   );
 
-  const canvasRows = useMemo(() => buildRows("canvas"), [buildRows]);
-  const kitRows = useMemo(() => buildRows("kit"), [buildRows]);
+  const canvasRows = useMemo(() => sectionRows("canvas"), [sectionRows]);
+  const kitRows = useMemo(() => sectionRows("kit"), [sectionRows]);
+  const supplyRows = useMemo(() => sectionRows("supply"), [sectionRows]);
 
-  const qtyFor = (id: string, kind: Kind, suggest: number, max: number) => {
-    const raw = pickupQty[`${id}-${kind}`];
-    if (raw === undefined || raw === "") return suggest;
-    return Math.max(0, Math.min(max, parseInt(raw, 10) || 0));
+  const qtyFor = (r: Row) => {
+    const raw = qtyOverride[r.key];
+    if (raw === undefined || raw === "") return r.suggest;
+    return Math.max(0, Math.min(r.andover, parseInt(raw, 10) || 0));
   };
 
-  const setQty = (id: string, kind: Kind, value: string) =>
-    setPickupQty((p) => ({ ...p, [`${id}-${kind}`]: value }));
-
-  const pickup = async (d: Design, kind: Kind, qty: number) => {
+  const pickup = async (r: Row, qty: number) => {
     if (qty <= 0) return;
-    const key = `${d.id}-${kind}`;
-    setMoving(key);
-    // Optimistic: move Andover -> home
-    setDesigns((prev) =>
-      prev.map((x) =>
-        x.id !== d.id
-          ? x
-          : kind === "canvas"
-            ? { ...x, canvasAndover: x.canvasAndover - qty, canvasPrinted: x.canvasPrinted + qty }
-            : { ...x, kitsAndover: x.kitsAndover - qty, kitsReady: x.kitsReady + qty },
-      ),
-    );
-    setPickupQty((p) => {
+    setMoving(r.key);
+    // Optimistic move Andover -> home
+    if (r.section === "supply") {
+      setSupplies((prev) => prev.map((s) => (s.id === r.id ? { ...s, andoverQuantity: s.andoverQuantity - qty, quantity: s.quantity + qty } : s)));
+    } else {
+      setDesigns((prev) =>
+        prev.map((d) =>
+          d.id !== r.id
+            ? d
+            : r.section === "canvas"
+              ? { ...d, canvasAndover: d.canvasAndover - qty, canvasPrinted: d.canvasPrinted + qty }
+              : { ...d, kitsAndover: d.kitsAndover - qty, kitsReady: d.kitsReady + qty },
+        ),
+      );
+    }
+    setQtyOverride((p) => {
       const n = { ...p };
-      delete n[key];
+      delete n[r.key];
       return n;
     });
     try {
-      const res = await mutApi(`/api/designs/${d.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canvasMove: { kind, from: "andover", to: "home", qty } }),
-      });
-      if (!res.ok) await fetchDesigns();
+      const res =
+        r.section === "supply"
+          ? await mutApi(`/api/supplies/${r.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ andoverTransferDelta: qty }),
+            })
+          : await mutApi(`/api/designs/${r.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ canvasMove: { kind: r.section, from: "andover", to: "home", qty } }),
+            });
+      if (!res.ok) await fetchData();
     } catch {
-      await fetchDesigns();
+      await fetchData();
     }
     setMoving(null);
   };
 
-  const pickupAll = async (kind: Kind, rows: { d: Design; suggest: number; andover: number }[]) => {
+  const pickupAll = async (rows: Row[]) => {
     for (const r of rows) {
-      const q = qtyFor(r.d.id, kind, r.suggest, r.andover);
-      if (q > 0) await pickup(r.d, kind, q);
+      const q = qtyFor(r);
+      if (q > 0) await pickup(r, q);
     }
   };
 
-  const totalFor = (kind: Kind, rows: { d: Design; suggest: number; andover: number }[]) =>
-    rows.reduce((s, r) => s + qtyFor(r.d.id, kind, r.suggest, r.andover), 0);
+  const totalFor = (rows: Row[]) => rows.reduce((s, r) => s + qtyFor(r), 0);
 
-  const canvasTotal = totalFor("canvas", canvasRows);
-  const kitTotal = totalFor("kit", kitRows);
-
-  const renderSection = (
-    kind: Kind,
-    label: string,
-    rows: { d: Design; onHand: number; andover: number; suggest: number }[],
-    accent: string,
-  ) => (
+  const renderSection = (label: string, rows: Row[], accentBtn: string) => (
     <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
       <div className="p-4 border-b border-slate-700 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-white">{label}</h2>
           <span className="text-xs text-slate-400">
-            {rows.length} design{rows.length !== 1 ? "s" : ""} · {totalFor(kind, rows)} to grab
+            {rows.length} item{rows.length !== 1 ? "s" : ""} · {totalFor(rows)} to grab
           </span>
         </div>
-        {rows.some((r) => qtyFor(r.d.id, kind, r.suggest, r.andover) > 0) && (
-          <button
-            onClick={() => pickupAll(kind, rows)}
-            disabled={moving !== null}
-            className={`text-xs font-medium px-3 py-1.5 rounded-lg ${accent} disabled:opacity-50`}
-          >
+        {rows.some((r) => qtyFor(r) > 0) && (
+          <button onClick={() => pickupAll(rows)} disabled={moving !== null} className={`text-xs font-medium px-3 py-1.5 rounded-lg ${accentBtn} disabled:opacity-50`}>
             Mark all picked up
           </button>
         )}
       </div>
       {rows.length === 0 ? (
         <div className="p-8 text-center text-slate-500 text-sm">
-          {showAll ? `Nothing in Andover ${label.toLowerCase()}.` : `Nothing to pick up — on-hand ${label.toLowerCase()} are all topped up.`}
+          {showAll ? `Nothing in Andover for ${label.toLowerCase()}.` : `Nothing to pick up — on-hand ${label.toLowerCase()} are all topped up.`}
         </div>
       ) : (
         <div className="divide-y divide-slate-700/50">
-          {rows.map(({ d, onHand: oh, andover, suggest }) => {
-            const key = `${d.id}-${kind}`;
-            const qty = qtyFor(d.id, kind, suggest, andover);
-            const isMoving = moving === key;
-            const urgent = oh < LOW;
+          {rows.map((r) => {
+            const qty = qtyFor(r);
+            const isMoving = moving === r.key;
+            const urgent = r.onHand < LOW;
             return (
-              <div key={key} className="p-3 flex items-center gap-3">
-                {d.previewImageUrl ? (
+              <div key={r.key} className="p-3 flex items-center gap-3">
+                {r.previewImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={d.previewImageUrl} alt="" className="w-11 h-11 rounded object-cover flex-shrink-0" />
+                  <img src={r.previewImageUrl} alt="" className="w-11 h-11 rounded object-cover flex-shrink-0" />
                 ) : (
-                  <div className="w-11 h-11 rounded bg-slate-700 flex-shrink-0" />
+                  <div className="w-11 h-11 rounded bg-purple-900/30 border border-purple-700/40 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  </div>
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <Link href={`/design/${d.id}/kit`} className="text-white text-sm font-medium truncate hover:text-rose-400">
-                      {d.name}
-                    </Link>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${meshBadgeClassLight(d.meshCount)}`}>
-                      {d.meshCount}ct
-                    </span>
+                    {r.section === "supply" ? (
+                      <span className="text-white text-sm font-medium truncate">{r.name}</span>
+                    ) : (
+                      <Link href={`/design/${r.id}/kit`} className="text-white text-sm font-medium truncate hover:text-rose-400">
+                        {r.name}
+                      </Link>
+                    )}
+                    {r.meshCount != null && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${meshBadgeClassLight(r.meshCount)}`}>{r.meshCount}ct</span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-400">
-                    <span className={urgent ? "text-red-400 font-medium" : ""}>{oh} on hand</span>
+                    <span className={urgent ? "text-red-400 font-medium" : ""}>{r.onHand} on hand</span>
                     {" · "}
-                    <span className="text-sky-400">{andover} at Andover</span>
+                    <span className="text-sky-400">{r.andover} at Andover</span>
                   </p>
                 </div>
                 <div className="text-center">
                   <input
                     type="number"
                     min={0}
-                    max={andover}
-                    value={pickupQty[key] ?? suggest}
-                    onChange={(e) => setQty(d.id, kind, e.target.value)}
+                    max={r.andover}
+                    value={qtyOverride[r.key] ?? r.suggest}
+                    onChange={(e) => setQtyOverride((p) => ({ ...p, [r.key]: e.target.value }))}
                     onFocus={(e) => e.target.select()}
                     className="w-14 px-1 py-1 bg-slate-900 border border-slate-600 rounded text-center text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
                   />
                   <p className="text-[10px] text-slate-500">grab</p>
                 </div>
-                <button
-                  onClick={() => pickup(d, kind, qty)}
-                  disabled={isMoving || qty <= 0}
-                  className="px-3 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 flex-shrink-0"
-                >
+                <button onClick={() => pickup(r, qty)} disabled={isMoving || qty <= 0} className="px-3 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 flex-shrink-0">
                   {isMoving ? "…" : "Picked up"}
                 </button>
               </div>
@@ -217,6 +249,16 @@ export default function AndoverPickupPage() {
           })}
         </div>
       )}
+    </div>
+  );
+
+  const card = (title: string, rows: Row[]) => (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+      <p className="text-xs uppercase tracking-wider text-slate-400">{title}</p>
+      <p className="text-2xl font-bold text-white">
+        {totalFor(rows)}
+        <span className="text-sm text-slate-500 font-normal"> across {rows.length}</span>
+      </p>
     </div>
   );
 
@@ -243,28 +285,22 @@ export default function AndoverPickupPage() {
           </label>
         </div>
 
-        {/* Summary */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-            <p className="text-xs uppercase tracking-wider text-slate-400">Canvases to grab</p>
-            <p className="text-2xl font-bold text-white">{canvasTotal}<span className="text-sm text-slate-500 font-normal"> across {canvasRows.length}</span></p>
-          </div>
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-            <p className="text-xs uppercase tracking-wider text-slate-400">Kits to grab</p>
-            <p className="text-2xl font-bold text-white">{kitTotal}<span className="text-sm text-slate-500 font-normal"> across {kitRows.length}</span></p>
-          </div>
+        <div className="grid grid-cols-3 gap-3">
+          {card("Canvases", canvasRows)}
+          {card("Kits", kitRows)}
+          {card("Supplies", supplyRows)}
         </div>
 
         {loading ? (
           <div className="p-12 text-center text-slate-500">Loading…</div>
         ) : (
           <>
-            {renderSection("canvas", "Canvases", canvasRows, "bg-sky-600 text-white hover:bg-sky-700")}
-            {renderSection("kit", "Kits", kitRows, "bg-emerald-600 text-white hover:bg-emerald-700")}
+            {renderSection("Canvases", canvasRows, "bg-sky-600 text-white hover:bg-sky-700")}
+            {renderSection("Kits", kitRows, "bg-emerald-600 text-white hover:bg-emerald-700")}
+            {renderSection("Supplies", supplyRows, "bg-purple-600 text-white hover:bg-purple-700")}
             <p className="text-xs text-slate-500">
-              Marking something &ldquo;picked up&rdquo; moves it from Andover into your Home stock. Supplies (project bags,
-              scissors, needle minders) aren&rsquo;t location-tracked at Andover yet — ask to add that if you store bulk
-              supplies there too.
+              &ldquo;Picked up&rdquo; moves stock from Andover into your Home count. Set how much of each supply is at Andover
+              on the Inventory → Supplies tab (the sky &ldquo;Andover&rdquo; field).
             </p>
           </>
         )}
