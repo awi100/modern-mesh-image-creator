@@ -435,6 +435,35 @@ export default function KitPage() {
     setPendingInventory((prev) => { const next = { ...prev }; delete next[dmcNumber]; return next; });
   }, [kitContents, handleUpdateInventory]);
 
+  // Adjust the on-hand skeins of a BACKUP color. The backup isn't a row in
+  // kitContents (it lives on item.backup), so we update every item that uses
+  // this backup and patch the shared inventory SKU. Same thread size as the
+  // design (a backup for an 18ct color is Size 5, a 13ct backup is Size 3).
+  const handleUpdateBackupInventory = useCallback(async (backupDmc: string, delta: number) => {
+    if (updatingInventory === backupDmc || !design) return;
+    setUpdatingInventory(backupDmc);
+    const size = design.meshCount === 13 ? 3 : 5;
+
+    setKitContents(prev => prev.map(item => {
+      if (item.backup?.dmcNumber !== backupDmc) return item;
+      const newSkeins = Math.max(0, item.backup.inventorySkeins + delta);
+      return { ...item, backup: { ...item.backup, inventorySkeins: newSkeins, inStock: newSkeins >= item.skeinsNeeded } };
+    }));
+
+    try {
+      const res = await mutApi("/api/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dmcNumber: backupDmc, size, delta }),
+      });
+      if (!res.ok) throw new Error("Failed to update backup inventory");
+    } catch (error) {
+      console.error("Error updating backup inventory:", error);
+      fetchKit();
+    }
+    setUpdatingInventory(null);
+  }, [updatingInventory, design]);
+
   const fetchPrintVersion = async () => {
     try {
       const res = await fetch(`/api/designs/${designId}/print-version`);
@@ -983,29 +1012,51 @@ export default function KitPage() {
                             )}
                           </div>
                         ) : item.backup ? (
-                          <button
-                            onClick={() => {
-                              setEditingBackup(item.dmcNumber);
-                              setPendingBackup(item.backup?.dmcNumber || "");
-                            }}
-                            className="flex items-center gap-1.5 mt-1 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors"
-                            title={`Backup: ${item.backup.colorName}. Click to edit.`}
-                          >
-                            <span
-                              className="w-6 h-6 rounded flex items-center justify-center border border-white/20"
-                              style={{ backgroundColor: item.backup.hex }}
+                          <div className="flex items-center gap-1 mt-1">
+                            <button
+                              onClick={() => {
+                                setEditingBackup(item.dmcNumber);
+                                setPendingBackup(item.backup?.dmcNumber || "");
+                              }}
+                              className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors"
+                              title={`Backup: ${item.backup.colorName}. Click to change.`}
                             >
                               <span
-                                className="text-[7px] font-bold"
-                                style={{ color: getContrastTextColor(item.backup.hex) }}
+                                className="w-6 h-6 rounded flex items-center justify-center border border-white/20"
+                                style={{ backgroundColor: item.backup.hex }}
                               >
-                                {item.backup.dmcNumber}
+                                <span
+                                  className="text-[7px] font-bold"
+                                  style={{ color: getContrastTextColor(item.backup.hex) }}
+                                >
+                                  {item.backup.dmcNumber}
+                                </span>
                               </span>
-                            </span>
-                            <span className={`text-xs font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                              {item.backup.inventorySkeins} sk
-                            </span>
-                          </button>
+                              <span className={`text-xs font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                                {item.backup.inventorySkeins} sk
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => handleUpdateBackupInventory(item.backup!.dmcNumber, -1)}
+                              disabled={updatingInventory === item.backup.dmcNumber || item.backup.inventorySkeins <= 0}
+                              className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={`Remove 1 skein of backup ${item.backup.dmcNumber}`}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleUpdateBackupInventory(item.backup!.dmcNumber, 1)}
+                              disabled={updatingInventory === item.backup.dmcNumber}
+                              className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={`Add 1 skein of backup ${item.backup.dmcNumber}`}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                          </div>
                         ) : (
                           <button
                             onClick={() => {
@@ -1233,28 +1284,50 @@ export default function KitPage() {
                       )}
                     </div>
                   ) : item.backup ? (
-                    <button
-                      onClick={() => {
-                        setEditingBackup(`mobile-${item.dmcNumber}`);
-                        setPendingBackup(item.backup?.dmcNumber || "");
-                      }}
-                      className="flex items-center gap-1.5 mt-0.5 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50"
-                    >
-                      <span
-                        className="w-5 h-5 rounded flex items-center justify-center border border-white/20"
-                        style={{ backgroundColor: item.backup.hex }}
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <button
+                        onClick={() => {
+                          setEditingBackup(`mobile-${item.dmcNumber}`);
+                          setPendingBackup(item.backup?.dmcNumber || "");
+                        }}
+                        className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50"
                       >
                         <span
-                          className="text-[6px] font-bold"
-                          style={{ color: getContrastTextColor(item.backup.hex) }}
+                          className="w-5 h-5 rounded flex items-center justify-center border border-white/20"
+                          style={{ backgroundColor: item.backup.hex }}
                         >
-                          {item.backup.dmcNumber}
+                          <span
+                            className="text-[6px] font-bold"
+                            style={{ color: getContrastTextColor(item.backup.hex) }}
+                          >
+                            {item.backup.dmcNumber}
+                          </span>
                         </span>
-                      </span>
-                      <span className={`text-[10px] font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                        {item.backup.inventorySkeins} sk
-                      </span>
-                    </button>
+                        <span className={`text-[10px] font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
+                          {item.backup.inventorySkeins} sk
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => handleUpdateBackupInventory(item.backup!.dmcNumber, -1)}
+                        disabled={updatingInventory === item.backup.dmcNumber || item.backup.inventorySkeins <= 0}
+                        className="p-0.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={`Remove 1 skein of backup ${item.backup.dmcNumber}`}
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleUpdateBackupInventory(item.backup!.dmcNumber, 1)}
+                        disabled={updatingInventory === item.backup.dmcNumber}
+                        className="p-0.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={`Add 1 skein of backup ${item.backup.dmcNumber}`}
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
+                    </div>
                   ) : (
                     <button
                       onClick={() => {
