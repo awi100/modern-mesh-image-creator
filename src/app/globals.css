@@ -77,3 +77,16 @@ body {
     border-radius: 2px;
   }
 }
+
+/* iOS zooms the whole page when you focus an input under 16px. That was
+   previously "fixed" by disabling pinch-zoom entirely (user-scalable=no), which
+   also stopped you zooming into the pixel grid and the dense inventory tables.
+   Zoom is back on; this removes the reason it was turned off. Touch devices
+   only, so dense tables keep their 14px text on a desktop. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

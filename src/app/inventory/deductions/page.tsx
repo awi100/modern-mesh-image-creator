@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import SectionNav from "@/components/SectionNav";
 import { Breadcrumb } from "@/components/Breadcrumb";
 
 interface Deduction {
@@ -55,6 +56,7 @@ export default function DeductionLogPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40 safe-area-top">
+        <div className="max-w-5xl mx-auto px-3 md:px-4 pt-2"><SectionNav /></div>
         <div className="max-w-5xl mx-auto px-3 md:px-4 py-3 md:py-4 flex items-center justify-between gap-3">
           <h1 className="text-white font-semibold">Inventory Deduction Log</h1>
           <Link href="/inventory" className="text-sm text-slate-400 hover:text-white">← Inventory</Link>

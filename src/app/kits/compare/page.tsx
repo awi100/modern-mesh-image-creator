@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import SectionNav from "@/components/SectionNav";
 import useSWR from "swr";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { Breadcrumb } from "@/components/Breadcrumb";
@@ -135,6 +136,7 @@ export default function KitComparePage() {
   return (
     <div className="min-h-screen bg-slate-900">
       <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40 safe-area-top">
+        <div className="max-w-6xl mx-auto px-3 md:px-4 pt-2"><SectionNav /></div>
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/kits" className="text-slate-400 hover:text-white">

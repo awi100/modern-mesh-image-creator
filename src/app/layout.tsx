@@ -66,8 +66,10 @@ export const viewport: Viewport = {
   themeColor: "#881337",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Pinch-zoom stays enabled (WCAG 1.4.4). This was disabled to stop iOS
+  // auto-zooming into small inputs on focus, but that is a font-size problem —
+  // iOS only zooms below 16px — and blocking zoom outright also blocks zooming
+  // into the pixel grid and the dense inventory tables on a phone.
   viewportFit: "cover",
 };
 
