@@ -5,7 +5,7 @@ import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { meshBadgeClassLight } from "@/lib/mesh-badge";
-import { invalidateInventory } from "@/lib/invalidate-inventory";
+import { mutApi } from "@/lib/mut-api";
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 
 import { TARGET_FOR, suggestPickup, isLowOnHand, type StockKind } from "@/lib/stock-targets";
@@ -47,11 +47,6 @@ interface Row {
   suggest: number;
 }
 
-async function mutApi(url: string, init: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
-  if (res.ok) invalidateInventory();
-  return res;
-}
 
 // Per-kind: canvases/kits top up toward 30, supplies have no universal target
 // (you might keep 3 project bags at home and 200 at Andover), so they list

@@ -10,21 +10,13 @@ import MeshFilterChips from "@/components/MeshFilterChips";
 import { useMeshFilter } from "@/lib/use-mesh-filter";
 import { meshBadgeClassLight } from "@/lib/mesh-badge";
 import { threadSizeForMesh, skeinYardsForThread, MeshCount, ThreadSize } from "@/lib/yarn-calculator";
-import { invalidateInventory } from "@/lib/invalidate-inventory";
+import { mutApi } from "@/lib/mut-api";
 import CountStepper from "@/components/inventory/CountStepper";
 import { rowInStock } from "@/lib/kit-stock";
 import { LOW_ON_HAND, RESTOCK_TARGET } from "@/lib/stock-targets";
 
 
 
-// Wrap any inventory-changing fetch so that on success we invalidate every
-// page's SWR cache — this is what makes an edit here show up immediately on the
-// Kits/Home/Color/Orders pages instead of only after a manual refresh.
-async function mutApi(url: string, init: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
-  if (res.ok) invalidateInventory();
-  return res;
-}
 
 interface InventoryItem {
   id: string;
@@ -288,6 +280,16 @@ export default function InventoryPage() {
   // is only re-registered on meshFilter changes, so it cannot read the state.
   const hasFetchedSuppliesRef = useRef(false);
   const hasFetchedBobbinsRef = useRef(false);
+  // Always holds the mesh filter of the CURRENT render. Every mesh-dependent
+  // fetch captures the filter it was issued for and drops its response if this
+  // has moved on since: flipping the chip twice quickly can land two responses
+  // out of order, and last-write-wins on setState would leave rows for one mesh
+  // count sitting under a chip reading another. Assigned during render (not in
+  // an effect) so it is already correct when a fetch started by the same render
+  // resolves. Several fetchers share it, which is why it is the filter value
+  // rather than a counter — a counter would have them invalidate each other.
+  const currentMeshRef = useRef(meshFilter);
+  currentMeshRef.current = meshFilter;
   // Predicted "bring to next market" quantity per design (from Market Prep),
   // shown on the Market tab. Keyed by designId.
   const [marketPrediction, setMarketPrediction] = useState<Map<string, number>>(new Map());
@@ -307,6 +309,12 @@ export default function InventoryPage() {
   // it was pinned to 5, which made Size 3 stock unaddable from the one dialog
   // whose whole job is adding stock.
   const [addSize, setAddSize] = useState<ThreadSize>(5);
+  // Opens the Add Thread dialog on the size currently being viewed.
+  const openAddForm = (color?: DmcColor) => {
+    if (color) setSelectedColor(color);
+    setAddSize(sizeFilter ?? 5);
+    setShowAddForm(true);
+  };
   const [addSkeins, setAddSkeins] = useState("1");
   const [adding, setAdding] = useState(false);
 
@@ -401,10 +409,12 @@ export default function InventoryPage() {
   };
 
   const fetchColorUsage = async () => {
+    const forMesh = meshFilter;
     try {
       const response = await fetch(`/api/colors/usage${meshFilter !== "all" ? `?meshCount=${meshFilter}` : ""}`);
       if (response.ok) {
         const data: ColorUsage[] = await response.json();
+        if (currentMeshRef.current !== forMesh) return; // a newer filter won
         const usageMap = new Map<string, ColorUsageDesign[]>();
         for (const item of data) {
           usageMap.set(item.dmcNumber, item.designs);
@@ -430,17 +440,19 @@ export default function InventoryPage() {
   };
 
   const fetchDesigns = async () => {
+    const forMesh = meshFilter;
     try {
       const response = await fetch(`/api/designs${meshFilter !== "all" ? `?meshCount=${meshFilter}` : ""}`);
       if (response.ok) {
         const data = await response.json();
+        if (currentMeshRef.current !== forMesh) return; // a newer filter won
         // Filter out drafts
         setDesigns(data.filter((d: Design) => !d.isDraft));
       }
     } catch (error) {
       console.error("Error fetching designs:", error);
     } finally {
-      setDesignsLoading(false);
+      if (currentMeshRef.current === forMesh) setDesignsLoading(false);
     }
   };
 
@@ -608,12 +620,12 @@ export default function InventoryPage() {
     // and flipping to a spinner when we already have rows made returning to the
     // tab flash: content → spinner → content.
     if (!hasFetchedSuppliesRef.current) setSuppliesLoading(true);
-    hasFetchedSuppliesRef.current = true;
     try {
       const response = await fetch("/api/supplies");
       if (response.ok) {
         const data = await response.json();
         setSupplies(data);
+        hasFetchedSuppliesRef.current = true;
       }
     } catch (error) {
       console.error("Error fetching supplies:", error);
@@ -632,17 +644,19 @@ export default function InventoryPage() {
 
   const fetchBobbins = async () => {
     if (!hasFetchedBobbinsRef.current) setBobbinsLoading(true);
-    hasFetchedBobbinsRef.current = true;
+    const forMesh = meshFilter;
     try {
       const response = await fetch(`/api/inventory/bobbin-analysis${meshFilter !== "all" ? `?meshCount=${meshFilter}` : ""}`);
       if (response.ok) {
         const data = await response.json();
+        if (currentMeshRef.current !== forMesh) return; // a newer filter won
         setBobbinData(data);
+        hasFetchedBobbinsRef.current = true;
       }
     } catch (error) {
       console.error("Error fetching bobbin analysis:", error);
     }
-    setBobbinsLoading(false);
+    if (currentMeshRef.current === forMesh) setBobbinsLoading(false);
   };
 
   // Fetch bobbins when tab changes to bobbins or mesh filter changes
@@ -1598,7 +1612,7 @@ export default function InventoryPage() {
           <div className="flex items-center gap-2 md:gap-4">
             {activeTab === "threads" && (
               <button
-                onClick={() => setShowAddForm(true)}
+                onClick={() => openAddForm()}
                 className="px-3 md:px-4 py-2 bg-gradient-to-r from-rose-900 to-rose-800 text-white rounded-lg hover:from-rose-950 hover:to-rose-900 transition-all flex items-center gap-2 text-sm md:text-base"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1847,7 +1861,7 @@ export default function InventoryPage() {
                 </p>
                 {items.length === 0 && (
                   <button
-                    onClick={() => setShowAddForm(true)}
+                    onClick={() => openAddForm()}
                     className="inline-flex items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-rose-900 to-rose-800 text-white rounded-lg hover:from-rose-950 hover:to-rose-900 transition-all text-sm md:text-base"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1871,7 +1885,7 @@ export default function InventoryPage() {
                           >
                             <div className="flex items-center gap-3">
                               <Link
-                                href={`/inventory/color/${color.dmcNumber}`}
+                                href={`/inventory/color/${color.dmcNumber}?size=${sizeFilter ?? 5}`}
                                 className="w-10 h-10 rounded-lg border border-white/20 flex-shrink-0 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                                 style={{ backgroundColor: color.hex }}
                                 title={`View DMC ${color.dmcNumber} details`}
@@ -1884,7 +1898,7 @@ export default function InventoryPage() {
                                 </span>
                               </Link>
                               <div className="flex-1 text-left min-w-0">
-                                <Link href={`/inventory/color/${color.dmcNumber}`} className="text-white text-sm font-medium hover:text-rose-400 transition-colors">DMC {color.dmcNumber}</Link>
+                                <Link href={`/inventory/color/${color.dmcNumber}?size=${sizeFilter ?? 5}`} className="text-white text-sm font-medium hover:text-rose-400 transition-colors">DMC {color.dmcNumber}</Link>
                                 <p className="text-slate-400 text-xs">{color.name}</p>
                               </div>
                               {usedInDesigns.length > 0 && (
@@ -1894,9 +1908,8 @@ export default function InventoryPage() {
                               )}
                               <button
                                 onClick={() => {
-                                  setSelectedColor(color);
                                   setAddSearch("");
-                                  setShowAddForm(true);
+                                  openAddForm(color);
                                 }}
                                 className="px-3 py-1.5 bg-rose-900 text-white text-xs font-medium rounded-lg hover:bg-rose-950 transition-colors flex-shrink-0"
                               >

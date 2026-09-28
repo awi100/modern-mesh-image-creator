@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { invalidateInventory } from "@/lib/invalidate-inventory";
+import { mutApi } from "@/lib/mut-api";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/route";
@@ -183,13 +183,6 @@ function calculateFulfillableOrders(orders: Order[]) {
 }
 
 
-// On a successful inventory-changing request, invalidate every page's SWR cache
-// so edits here appear immediately elsewhere (no manual refresh).
-async function mutApi(url: string, init: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
-  if (res.ok) invalidateInventory();
-  return res;
-}
 
 export default function OrdersPage() {
   const [data, setData] = useState<OrdersResponse | null>(null);
@@ -1083,7 +1076,7 @@ export default function OrdersPage() {
                                 const kitDelta = isIntroKit ? 2 : 1;
 
                                 return (
-                                  <div key={idx}>
+                                  <div key={kit.designId ?? `row-${idx}`}>
                                     <div className="p-4 flex items-center gap-4">
                                       {kit.designId ? (
                                         <Link
@@ -1430,7 +1423,7 @@ export default function OrdersPage() {
                           const isIntroCanvas = canvas.productTitle.toLowerCase().includes("intro") || canvas.productTitle.toLowerCase().includes("beginner");
                           const canvasDelta = isIntroCanvas ? 2 : 1;
                           return (
-                            <div key={idx} className="p-4 flex items-center gap-4">
+                            <div key={canvas.designId ?? `row-${idx}`} className="p-4 flex items-center gap-4">
                               {canvas.designId ? (
                                 <Link href={`/design/${canvas.designId}/info`} className="flex-shrink-0">
                                   {canvas.previewImageUrl ? (

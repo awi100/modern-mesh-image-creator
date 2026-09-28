@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import CountStepper from "@/components/inventory/CountStepper";
+import { mutApi } from "@/lib/mut-api";
 import SectionNav from "@/components/SectionNav";
 import useSWR from "swr";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
@@ -74,7 +75,7 @@ export default function KitComparePage() {
       false
     );
     try {
-      const res = await fetch(`/api/designs/${designId}`, {
+      const res = await mutApi(`/api/designs/${designId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kitsReadyDelta: delta }),
@@ -259,14 +260,19 @@ export default function KitComparePage() {
                                   {pair.kit14.archived && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-slate-700 text-slate-400 border border-slate-600" title="This 14ct design is archived">archived</span>
                                   )}
-                                  <CountStepper
-                                    value={pair.kit14.kitsReady}
-                                    onCommit={(next) => adjustKitsReady(pair.kit14!.designId, next - pair.kit14!.kitsReady)}
-                                    onDelta={(d) => adjustKitsReady(pair.kit14!.designId, d)}
-                                    size="sm"
-                                    tone="home"
-                                    ariaLabel={`Kits ready for the 14ct version`}
-                                  />
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    onKeyDown={(e) => e.stopPropagation()}
+                                  >
+                                    <CountStepper
+                                      value={pair.kit14.kitsReady}
+                                      onCommit={(next) => adjustKitsReady(pair.kit14!.designId, next - pair.kit14!.kitsReady)}
+                                      onDelta={(d) => adjustKitsReady(pair.kit14!.designId, d)}
+                                      size="sm"
+                                      tone="home"
+                                      ariaLabel={`Kits ready for the 14ct version`}
+                                    />
+                                  </div>
                                 </>
                               )}
                               {pair.kit18 && (
@@ -277,14 +283,19 @@ export default function KitComparePage() {
                                   {pair.kit18.archived && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-slate-700 text-slate-400 border border-slate-600" title="This 18ct design is archived">archived</span>
                                   )}
-                                  <CountStepper
-                                    value={pair.kit18.kitsReady}
-                                    onCommit={(next) => adjustKitsReady(pair.kit18!.designId, next - pair.kit18!.kitsReady)}
-                                    onDelta={(d) => adjustKitsReady(pair.kit18!.designId, d)}
-                                    size="sm"
-                                    tone="home"
-                                    ariaLabel={`Kits ready for the 18ct version`}
-                                  />
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    onKeyDown={(e) => e.stopPropagation()}
+                                  >
+                                    <CountStepper
+                                      value={pair.kit18.kitsReady}
+                                      onCommit={(next) => adjustKitsReady(pair.kit18!.designId, next - pair.kit18!.kitsReady)}
+                                      onDelta={(d) => adjustKitsReady(pair.kit18!.designId, d)}
+                                      size="sm"
+                                      tone="home"
+                                      ariaLabel={`Kits ready for the 18ct version`}
+                                    />
+                                  </div>
                                 </>
                               )}
                             </div>

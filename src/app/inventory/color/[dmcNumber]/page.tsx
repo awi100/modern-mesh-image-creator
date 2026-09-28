@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { invalidateInventory } from "@/lib/invalidate-inventory";
+import { mutApi } from "@/lib/mut-api";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
@@ -56,13 +56,6 @@ function getContrastTextColor(hex: string): string {
 }
 
 
-// On a successful inventory-changing request, invalidate every page's SWR cache
-// so edits here appear immediately elsewhere (no manual refresh).
-async function mutApi(url: string, init: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
-  if (res.ok) invalidateInventory();
-  return res;
-}
 
 export default function ColorDetailPage() {
   const params = useParams();

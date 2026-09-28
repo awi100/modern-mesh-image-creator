@@ -34,17 +34,30 @@ export function useMeshFilter(
   const [meshFilter, setFilter] = useState<MeshFilter>(defaultFilter);
   const [ready, setReady] = useState(false);
 
+  // sessionStorage THROWS (rather than returning null) in Safari private mode,
+  // with site data blocked, and in a cross-origin iframe. Callers gate their
+  // fetches on `ready`, so letting that throw escape would leave every one of
+  // them waiting forever on a page that never loads. Always become ready.
   useEffect(() => {
-    const stored = sessionStorage.getItem(storageKey) as MeshFilter | null;
-    if (stored) setFilter(stored);
-    setReady(true);
+    try {
+      const stored = sessionStorage.getItem(storageKey) as MeshFilter | null;
+      if (stored) setFilter(stored);
+    } catch {
+      // No persistence available — the default filter is a fine fallback.
+    } finally {
+      setReady(true);
+    }
   }, [storageKey]);
 
   // Stable identity so a caller can safely put it in a dependency array.
   const setMeshFilter = useCallback(
     (f: MeshFilter) => {
       setFilter(f);
-      sessionStorage.setItem(storageKey, f);
+      try {
+        sessionStorage.setItem(storageKey, f);
+      } catch {
+        // Filter still applies for this visit; it just won't be remembered.
+      }
     },
     [storageKey],
   );

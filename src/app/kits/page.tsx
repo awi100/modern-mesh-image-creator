@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useRef } from "react";
-import { invalidateInventory } from "@/lib/invalidate-inventory";
+import { mutApi } from "@/lib/mut-api";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import useSWR from "swr";
@@ -96,13 +96,6 @@ function getContrastTextColor(hex: string): string {
 }
 
 
-// On a successful inventory-changing request, invalidate every page's SWR cache
-// so edits here appear immediately elsewhere (no manual refresh).
-async function mutApi(url: string, init: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
-  if (res.ok) invalidateInventory();
-  return res;
-}
 
 export default function KitsPage() {
   const [expandedKit, setExpandedKit] = useState<string | null>(null);
@@ -386,7 +379,10 @@ export default function KitsPage() {
     });
   };
 
-  if (loading) {
+  // `!filterReady` matters: SWR reports isLoading === false while its key is
+  // null, so during the pre-adoption window the page had no data AND no loading
+  // flag, and rendered "No kits found." before the first request even went out.
+  if (loading || !filterReady) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-white flex items-center gap-3">

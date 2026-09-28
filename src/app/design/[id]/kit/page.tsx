@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { invalidateInventory } from "@/lib/invalidate-inventory";
+import { mutApi } from "@/lib/mut-api";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -194,13 +194,6 @@ function CounterStatCard({
 }
 
 
-// On a successful inventory-changing request, invalidate every page's SWR cache
-// so edits here appear immediately elsewhere (no manual refresh).
-async function mutApi(url: string, init: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
-  if (res.ok) invalidateInventory();
-  return res;
-}
 
 export default function KitPage() {
   const params = useParams();
@@ -451,11 +444,17 @@ export default function KitPage() {
     setUpdatingInventory(null);
   }, [updatingInventory, design, kitContents]);
 
+  // The lookup is safe here (a DMC number appears at most once in one design's
+  // kit contents, so this IS the edited row) unlike the same shape on the
+  // inventory/kits/orders pages, where it could resolve to a different row.
   const handleSetInventory = useCallback(async (dmcNumber: string, value: number) => {
     const item = kitContents.find((i) => i.dmcNumber === dmcNumber);
     if (!item) return;
+    // Guard here as well as in CountStepper: this is the layer that talks to
+    // the API, and every sibling absolute setter guards at this level.
+    if (!Number.isFinite(value)) return;
 
-    const newVal = Math.max(0, value);
+    const newVal = Math.max(0, Math.floor(value));
     const delta = newVal - item.inventorySkeins;
 
     if (delta !== 0) {
