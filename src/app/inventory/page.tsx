@@ -304,7 +304,6 @@ export default function InventoryPage() {
   const [moveModal, setMoveModal] = useState<{ kind: MoveKind; designId: string; from: CanvasLoc; to: CanvasLoc; qty: string } | null>(null);
   const [movingCanvas, setMovingCanvas] = useState(false);
   const [matchingAllMarket, setMatchingAllMarket] = useState(false);
-  const [pendingMisprints, setPendingMisprints] = useState<Record<string, string>>({});
 
   // Kit contents expansion state
   const [expandedKits, setExpandedKits] = useState<Set<string>>(new Set());
@@ -1409,11 +1408,6 @@ export default function InventoryPage() {
     if (delta !== 0) {
       await handleMisprintDelta(designId, delta);
     }
-    setPendingMisprints((prev) => {
-      const next = { ...prev };
-      delete next[designId];
-      return next;
-    });
   };
 
   // Group designs by collection (folder)
@@ -3197,53 +3191,15 @@ export default function InventoryPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleMisprintDelta(design.id, -1)}
-                          disabled={design.misprintCount <= 0}
-                          className="w-8 h-8 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Remove one misprint"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="number"
-                          min="0"
-                          value={pendingMisprints[design.id] ?? design.misprintCount}
-                          onChange={(e) =>
-                            setPendingMisprints((prev) => ({ ...prev, [design.id]: e.target.value }))
-                          }
-                          onBlur={() => {
-                            const val = pendingMisprints[design.id];
-                            if (val !== undefined && val !== "") {
-                              handleSetMisprintValue(design.id, Number(val));
-                            } else if (val === "") {
-                              // empty input → clear pending
-                              setPendingMisprints((prev) => {
-                                const next = { ...prev };
-                                delete next[design.id];
-                                return next;
-                              });
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          onFocus={(e) => e.currentTarget.select()}
-                          className={`w-14 px-1 py-1 bg-slate-900 border rounded text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-600 ${
-                            design.misprintCount > 0
-                              ? "text-purple-300 border-purple-700/50"
-                              : "text-slate-400 border-slate-700"
-                          }`}
+                        <CountStepper
+                          value={design.misprintCount}
+                          onCommit={(next) => handleSetMisprintValue(design.id, next)}
+                          onDelta={(d) => handleMisprintDelta(design.id, d)}
+                          ariaLabel={`Misprints for ${design.name}`}
+                          valueClassName={design.misprintCount > 0 ? "text-purple-300" : "text-slate-400"}
+                          decrementTitle="Remove one misprint"
+                          incrementTitle="Add one misprint"
                         />
-                        <button
-                          onClick={() => handleMisprintDelta(design.id, 1)}
-                          className="w-8 h-8 rounded bg-purple-700 text-white hover:bg-purple-600"
-                          title="Add one misprint"
-                        >
-                          +
-                        </button>
                       </div>
                     </div>
                   ))}

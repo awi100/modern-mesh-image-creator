@@ -1011,26 +1011,15 @@ export default function KitPage() {
                                 {item.backup.inventorySkeins} sk
                               </span>
                             </button>
-                            <button
-                              onClick={() => handleUpdateBackupInventory(item.backup!.dmcNumber, -1)}
-                              disabled={updatingInventory === item.backup.dmcNumber || item.backup.inventorySkeins <= 0}
-                              className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={`Remove 1 skein of backup ${item.backup.dmcNumber}`}
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleUpdateBackupInventory(item.backup!.dmcNumber, 1)}
-                              disabled={updatingInventory === item.backup.dmcNumber}
-                              className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={`Add 1 skein of backup ${item.backup.dmcNumber}`}
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
+                            <CountStepper
+                              value={item.backup.inventorySkeins}
+                              onCommit={(next) => handleUpdateBackupInventory(item.backup!.dmcNumber, next - item.backup!.inventorySkeins)}
+                              onDelta={(d) => handleUpdateBackupInventory(item.backup!.dmcNumber, d)}
+                              busy={updatingInventory === item.backup.dmcNumber}
+                              ariaLabel={`Skeins on hand of backup DMC ${item.backup.dmcNumber} ${item.backup.colorName}`}
+                              decrementTitle={`Remove 1 skein of backup ${item.backup.dmcNumber}`}
+                              incrementTitle={`Add 1 skein of backup ${item.backup.dmcNumber}`}
+                            />
                           </div>
                         ) : (
                           <button
@@ -1248,26 +1237,15 @@ export default function KitPage() {
                           {item.backup.inventorySkeins} sk
                         </span>
                       </button>
-                      <button
-                        onClick={() => handleUpdateBackupInventory(item.backup!.dmcNumber, -1)}
-                        disabled={updatingInventory === item.backup.dmcNumber || item.backup.inventorySkeins <= 0}
-                        className="p-0.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                        title={`Remove 1 skein of backup ${item.backup.dmcNumber}`}
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleUpdateBackupInventory(item.backup!.dmcNumber, 1)}
-                        disabled={updatingInventory === item.backup.dmcNumber}
-                        className="p-0.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                        title={`Add 1 skein of backup ${item.backup.dmcNumber}`}
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </button>
+                      <CountStepper
+                        value={item.backup.inventorySkeins}
+                        onCommit={(next) => handleUpdateBackupInventory(item.backup!.dmcNumber, next - item.backup!.inventorySkeins)}
+                        onDelta={(d) => handleUpdateBackupInventory(item.backup!.dmcNumber, d)}
+                        busy={updatingInventory === item.backup.dmcNumber}
+                        ariaLabel={`Skeins on hand of backup DMC ${item.backup.dmcNumber} ${item.backup.colorName}`}
+                        decrementTitle={`Remove 1 skein of backup ${item.backup.dmcNumber}`}
+                        incrementTitle={`Add 1 skein of backup ${item.backup.dmcNumber}`}
+                      />
                     </div>
                   ) : (
                     <button
