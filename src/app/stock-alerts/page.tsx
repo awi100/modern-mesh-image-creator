@@ -4,7 +4,8 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
-import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
+import MeshFilterChips from "@/components/MeshFilterChips";
+import { useMeshFilter } from "@/lib/use-mesh-filter";
 
 interface ColorDesignUsage {
   id: string;
@@ -100,16 +101,7 @@ export default function StockAlertsPage() {
   const [designFilter, setDesignFilter] = useState<"all" | "included" | "excluded">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
-    if (typeof window !== "undefined") {
-      return (sessionStorage.getItem("orderBuilderMeshFilter") as MeshFilter) || "order";
-    }
-    return "order";
-  });
-  const handleMeshFilterChange = (f: MeshFilter) => {
-    setMeshFilter(f);
-    if (typeof window !== "undefined") sessionStorage.setItem("orderBuilderMeshFilter", f);
-  };
+  const [meshFilter, handleMeshFilterChange] = useMeshFilter("orderBuilderMeshFilter");
 
   const refetchAlerts = useCallback(async () => {
     const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";

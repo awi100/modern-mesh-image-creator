@@ -828,7 +828,7 @@ export default function KitPage() {
                   <tr className="border-b border-slate-700/50 hover:bg-slate-700/30">
                     <td className="px-4 py-3">
                       <Link
-                        href={`/inventory/color/${item.dmcNumber}`}
+                        href={`/inventory/color/${item.dmcNumber}?size=${threadSize}`}
                         className="w-8 h-8 rounded border border-white/20 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                         style={{ backgroundColor: item.hex }}
                         title={`View DMC ${item.dmcNumber} details`}
@@ -842,7 +842,7 @@ export default function KitPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/inventory/color/${item.dmcNumber}`} className="text-white font-mono text-sm hover:text-rose-400 transition-colors">{item.dmcNumber}</Link>
+                      <Link href={`/inventory/color/${item.dmcNumber}?size=${threadSize}`} className="text-white font-mono text-sm hover:text-rose-400 transition-colors">{item.dmcNumber}</Link>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-slate-300 text-sm">{item.colorName}</span>
@@ -1089,7 +1089,7 @@ export default function KitPage() {
               <div key={item.dmcNumber}>
                 <div className="p-3 flex items-center gap-3">
                   <Link
-                    href={`/inventory/color/${item.dmcNumber}`}
+                    href={`/inventory/color/${item.dmcNumber}?size=${threadSize}`}
                     className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-rose-500 transition-all"
                     style={{ backgroundColor: item.hex }}
                     title={`View DMC ${item.dmcNumber} details`}
@@ -1102,7 +1102,7 @@ export default function KitPage() {
                     </span>
                   </Link>
                   <div className="flex-1 min-w-0">
-                    <Link href={`/inventory/color/${item.dmcNumber}`} className="text-white text-sm font-medium truncate hover:text-rose-400 transition-colors block">
+                    <Link href={`/inventory/color/${item.dmcNumber}?size=${threadSize}`} className="text-white text-sm font-medium truncate hover:text-rose-400 transition-colors block">
                       DMC {item.dmcNumber} - {item.colorName}
                     </Link>
                     <p className="text-slate-400 text-xs">

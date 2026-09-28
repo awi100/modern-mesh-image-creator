@@ -4,10 +4,14 @@ import React, { useState, useMemo, useCallback, useRef } from "react";
 import { invalidateInventory } from "@/lib/invalidate-inventory";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
-import useSWR, { mutate } from "swr";
+import useSWR from "swr";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { meshBadgeClassLight } from "@/lib/mesh-badge";
-import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
+import MeshFilterChips from "@/components/MeshFilterChips";
+import { useMeshFilter } from "@/lib/use-mesh-filter";
+import { threadSizeForMesh, MeshCount, ThreadSize } from "@/lib/yarn-calculator";
+import { rowInStock } from "@/lib/kit-stock";
+import CountStepper from "@/components/inventory/CountStepper";
 
 interface BackupColorInfo {
   dmcNumber: string;
@@ -106,27 +110,20 @@ export default function KitsPage() {
   // Folders start collapsed; only folders in this set are expanded
   const [expandedFolders, setExpandedFolders] = useState<Set<string | null>>(new Set());
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
-  const [pendingInventory, setPendingInventory] = useState<Record<string, string>>({});
   const [pendingKitsReady, setPendingKitsReady] = useState<Record<string, string>>({});
   const [updatingKitsReady, setUpdatingKitsReady] = useState<string | null>(null);
   const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
 
-  // Track pending deltas for each color to handle rapid clicks
-  // Key: "dmcNumber-meshCount", Value: accumulated delta not yet sent to server
+  // Track pending deltas for each color to handle rapid clicks.
+  // Key: "dmcNumber-threadSize", Value: accumulated delta not yet sent to server.
+  // Keyed by THREAD SIZE, not mesh count: 14ct and 18ct both use Size 5, so a
+  // mesh-keyed map treated one SKU as two and let an 18ct edit leave a visible
+  // 14ct kit showing the old number.
   const pendingDeltasRef = useRef<Map<string, number>>(new Map());
   // Track which colors are currently being processed
   const processingRef = useRef<Set<string>>(new Set());
 
-  const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
-    if (typeof window !== "undefined") {
-      return (sessionStorage.getItem("kitsMeshFilter") as MeshFilter) || "all";
-    }
-    return "all";
-  });
-  const handleMeshFilterChange = (f: MeshFilter) => {
-    setMeshFilter(f);
-    if (typeof window !== "undefined") sessionStorage.setItem("kitsMeshFilter", f);
-  };
+  const [meshFilter, handleMeshFilterChange] = useMeshFilter("kitsMeshFilter");
 
   const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
 
@@ -156,8 +153,8 @@ export default function KitsPage() {
   }, [colorUsage]);
 
   // Process pending deltas for a specific color
-  const processInventoryUpdate = useCallback(async (dmcNumber: string, meshCount: number) => {
-    const key = `${dmcNumber}-${meshCount}`;
+  const processInventoryUpdate = useCallback(async (dmcNumber: string, size: ThreadSize) => {
+    const key = `${dmcNumber}-${size}`;
 
     // If already processing this color, skip (the current process will pick up accumulated delta)
     if (processingRef.current.has(key)) {
@@ -174,8 +171,6 @@ export default function KitsPage() {
     processingRef.current.add(key);
     pendingDeltasRef.current.delete(key);
 
-    // 13ct uses Size 3 thread; 14/18ct use Size 5
-    const size = meshCount === 13 ? 3 : 5;
     setUpdatingInventory(key);
 
     try {
@@ -189,8 +184,6 @@ export default function KitsPage() {
         throw new Error("Failed to update inventory");
       }
 
-      // Revalidate all inventory-related data
-      mutate("/api/inventory?size=5");
     } catch (error) {
       console.error("Error updating inventory:", error);
       // Revert by refetching
@@ -201,14 +194,14 @@ export default function KitsPage() {
 
       // Check if more deltas accumulated while we were processing
       if (pendingDeltasRef.current.has(key)) {
-        processInventoryUpdate(dmcNumber, meshCount);
+        processInventoryUpdate(dmcNumber, size);
       }
     }
   }, [mutateKits]);
 
   // Update inventory for a specific color - accumulates clicks and processes them
-  const handleUpdateInventory = useCallback((dmcNumber: string, meshCount: number, delta: number) => {
-    const key = `${dmcNumber}-${meshCount}`;
+  const handleUpdateInventory = useCallback((dmcNumber: string, size: ThreadSize, delta: number) => {
+    const key = `${dmcNumber}-${size}`;
 
     // Immediately apply optimistic update to UI. A color can appear both as a
     // primary color and as another color's backup, so update it everywhere and
@@ -216,7 +209,7 @@ export default function KitsPage() {
     mutateKits((currentKits) => {
       if (!currentKits) return currentKits;
       return currentKits.map(kit => {
-        if (kit.meshCount !== meshCount) return kit;
+        if (threadSizeForMesh(kit.meshCount as MeshCount) !== size) return kit;
         const newContents = kit.kitContents.map(item => {
           const primaryMatch = item.dmcNumber === dmcNumber;
           const backupMatch = item.backup?.dmcNumber === dmcNumber;
@@ -224,20 +217,22 @@ export default function KitsPage() {
 
           const next = { ...item };
           if (primaryMatch) {
-            const newSkeins = Math.max(0, item.inventorySkeins + delta);
-            next.inventorySkeins = newSkeins;
-            next.primaryInStock = newSkeins >= item.skeinsNeeded;
+            next.inventorySkeins = Math.max(0, item.inventorySkeins + delta);
           }
           if (backupMatch && next.backup) {
-            const newBackupSkeins = Math.max(0, next.backup.inventorySkeins + delta);
             next.backup = {
               ...next.backup,
-              inventorySkeins: newBackupSkeins,
-              inStock: newBackupSkeins >= item.skeinsNeeded,
+              inventorySkeins: Math.max(0, next.backup.inventorySkeins + delta),
             };
           }
-          const primaryInStock = next.primaryInStock ?? (next.inventorySkeins >= next.skeinsNeeded);
-          next.inStock = primaryInStock || (next.backup?.inStock ?? false);
+          // rowInStock is the server's rule (fullSkeins, else 1 if any bobbin
+          // yardage). Comparing against skeinsNeeded — a different, legacy
+          // heuristic — disagreed with the API on ~19% of yardages, so a stepper
+          // click could flip a genuinely stocked colour red until the next fetch.
+          const stock = rowInStock(next, next.inventorySkeins, next.backup?.inventorySkeins ?? null);
+          next.primaryInStock = stock.primaryInStock;
+          if (next.backup) next.backup = { ...next.backup, inStock: stock.backupInStock };
+          next.inStock = stock.inStock;
           return next;
         });
         return { ...kit, kitContents: newContents, allInStock: newContents.every(i => i.inStock) };
@@ -252,35 +247,27 @@ export default function KitsPage() {
     // Use setTimeout to batch rapid clicks, but the processInventoryUpdate
     // will handle any clicks that come in while it's running
     setTimeout(() => {
-      processInventoryUpdate(dmcNumber, meshCount);
+      processInventoryUpdate(dmcNumber, size);
     }, 150);
   }, [mutateKits, processInventoryUpdate]);
 
   // Set absolute inventory value for a color
-  const handleSetInventory = useCallback((dmcNumber: string, meshCount: number, value: number) => {
-    // Find current value from kits data — a color may be a primary color or
-    // another color's backup; both read the same global inventory.
-    let currentValue = 0;
-    if (kits) {
-      for (const kit of kits) {
-        if (kit.meshCount !== meshCount) continue;
-        const item = kit.kitContents.find(i => i.dmcNumber === dmcNumber);
-        if (item) { currentValue = item.inventorySkeins; break; }
-        const backupItem = kit.kitContents.find(i => i.backup?.dmcNumber === dmcNumber);
-        if (backupItem?.backup) { currentValue = backupItem.backup.inventorySkeins; break; }
-      }
-    }
-
-    const newVal = Math.max(0, value);
-    const delta = newVal - currentValue;
-
+  // `currentValue` MUST be the value shown in the row the user typed into.
+  // Deriving it by scanning for the first kit holding that DMC computed the
+  // delta against a different row, so confirming the number you could see
+  // silently moved stock by the difference between the two.
+  const handleSetInventory = useCallback((
+    dmcNumber: string,
+    size: ThreadSize,
+    value: number,
+    currentValue: number,
+  ) => {
+    if (!Number.isFinite(value)) return;
+    const delta = Math.max(0, Math.floor(value)) - currentValue;
     if (delta !== 0) {
-      handleUpdateInventory(dmcNumber, meshCount, delta);
+      handleUpdateInventory(dmcNumber, size, delta);
     }
-    // Clear pending value
-    const key = `${dmcNumber}-${meshCount}`;
-    setPendingInventory((prev) => { const next = { ...prev }; delete next[key]; return next; });
-  }, [kits, handleUpdateInventory]);
+  }, [handleUpdateInventory]);
 
   // Update kits ready count with delta
   const handleUpdateKitsReady = useCallback(async (designId: string, delta: number) => {
@@ -693,10 +680,11 @@ export default function KitsPage() {
                             <div className="p-4 bg-slate-700/30">
                               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                                 {kit.kitContents.map((item) => {
-                                  const inventoryKey = `${item.dmcNumber}-${kit.meshCount}`;
+                                  const size = threadSizeForMesh(kit.meshCount as MeshCount);
+                                  const inventoryKey = `${item.dmcNumber}-${size}`;
                                   const isUpdating = updatingInventory === inventoryKey;
                                   const backup = item.backup;
-                                  const backupKey = backup ? `${backup.dmcNumber}-${kit.meshCount}` : "";
+                                  const backupKey = backup ? `${backup.dmcNumber}-${size}` : "";
                                   const backupUpdating = backup ? updatingInventory === backupKey : false;
                                   const colorUsageKey = `${kit.designId}-${item.dmcNumber}`;
                                   const isColorExpanded = expandedColors.has(colorUsageKey);
@@ -713,7 +701,7 @@ export default function KitsPage() {
                                     >
                                       <div className="flex items-center gap-2 p-2">
                                         <Link
-                                          href={`/inventory/color/${item.dmcNumber}`}
+                                          href={`/inventory/color/${item.dmcNumber}?size=${size}`}
                                           className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                                           style={{ backgroundColor: item.hex }}
                                           title={`View DMC ${item.dmcNumber} inventory`}
@@ -727,7 +715,7 @@ export default function KitsPage() {
                                         </Link>
                                         <div className="min-w-0 flex-1">
                                           <Link
-                                            href={`/inventory/color/${item.dmcNumber}`}
+                                            href={`/inventory/color/${item.dmcNumber}?size=${size}`}
                                             className="text-white text-xs font-medium truncate hover:text-rose-400 transition-colors block"
                                           >
                                             {item.dmcNumber}
@@ -741,56 +729,15 @@ export default function KitsPage() {
                                         </div>
                                         {/* Inventory with +/- buttons and editable input */}
                                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                          <div className="flex items-center gap-1">
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleUpdateInventory(item.dmcNumber, kit.meshCount, -1);
-                                              }}
-                                              disabled={isUpdating || item.inventorySkeins <= 0}
-                                              className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                              title="Remove 1"
-                                            >
-                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                              </svg>
-                                            </button>
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              value={pendingInventory[`${item.dmcNumber}-${kit.meshCount}`] ?? item.inventorySkeins}
-                                              onClick={(e) => e.stopPropagation()}
-                                              onChange={(e) => {
-                                                const key = `${item.dmcNumber}-${kit.meshCount}`;
-                                                setPendingInventory((prev) => ({ ...prev, [key]: e.target.value }));
-                                              }}
-                                              onBlur={() => {
-                                                const key = `${item.dmcNumber}-${kit.meshCount}`;
-                                                const val = pendingInventory[key];
-                                                if (val !== undefined && val !== "") {
-                                                  handleSetInventory(item.dmcNumber, kit.meshCount, Number(val));
-                                                } else if (val === "") {
-                                                  setPendingInventory((prev) => { const next = { ...prev }; delete next[key]; return next; });
-                                                }
-                                              }}
-                                              onKeyDown={(e) => {
-                                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                                              }}
-                                              className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.primaryInStock !== false ? "text-emerald-400" : "text-red-400"}`}
+                                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                            <CountStepper
+                                              value={item.inventorySkeins}
+                                              onCommit={(next) => handleSetInventory(item.dmcNumber, size, next, item.inventorySkeins)}
+                                              onDelta={(d) => handleUpdateInventory(item.dmcNumber, size, d)}
+                                              busy={isUpdating}
+                                              ariaLabel={`Skeins of DMC ${item.dmcNumber} (Size ${size})`}
+                                              valueClassName={item.primaryInStock !== false ? "text-emerald-400" : "text-red-400"}
                                             />
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleUpdateInventory(item.dmcNumber, kit.meshCount, 1);
-                                              }}
-                                              disabled={isUpdating}
-                                              className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                              title="Add 1"
-                                            >
-                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                              </svg>
-                                            </button>
                                           </div>
                                           {/* Backup color — inventory editable inline, like the primary */}
                                           {backup && (
@@ -799,7 +746,7 @@ export default function KitsPage() {
                                               title={`Backup: DMC ${backup.dmcNumber} ${backup.colorName}`}
                                             >
                                               <Link
-                                                href={`/inventory/color/${backup.dmcNumber}`}
+                                                href={`/inventory/color/${backup.dmcNumber}?size=${size}`}
                                                 onClick={(e) => e.stopPropagation()}
                                                 className="w-6 h-6 rounded flex items-center justify-center border border-white/20 hover:ring-2 hover:ring-amber-400 transition-all flex-shrink-0"
                                                 style={{ backgroundColor: backup.hex }}
@@ -812,42 +759,16 @@ export default function KitsPage() {
                                                 </span>
                                               </Link>
                                               <span className="text-[9px] font-medium text-amber-300/80 uppercase tracking-wide">bkup</span>
-                                              <button
-                                                onClick={(e) => { e.stopPropagation(); handleUpdateInventory(backup.dmcNumber, kit.meshCount, -1); }}
-                                                disabled={backupUpdating || backup.inventorySkeins <= 0}
-                                                className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                                title="Remove 1 (backup)"
-                                              >
-                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                                </svg>
-                                              </button>
-                                              <input
-                                                type="number"
-                                                min="0"
-                                                value={pendingInventory[backupKey] ?? backup.inventorySkeins}
-                                                onClick={(e) => e.stopPropagation()}
-                                                onChange={(e) => setPendingInventory((prev) => ({ ...prev, [backupKey]: e.target.value }))}
-                                                onBlur={() => {
-                                                  const val = pendingInventory[backupKey];
-                                                  if (val !== undefined && val !== "") handleSetInventory(backup.dmcNumber, kit.meshCount, Number(val));
-                                                  else if (val === "") setPendingInventory((prev) => { const next = { ...prev }; delete next[backupKey]; return next; });
-                                                }}
-                                                onKeyDown={(e) => {
-                                                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                                                }}
-                                                className={`w-9 px-1 py-0.5 bg-slate-700 border border-amber-800/60 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-amber-600 ${backup.inStock ? "text-emerald-400" : "text-red-400"}`}
-                                              />
-                                              <button
-                                                onClick={(e) => { e.stopPropagation(); handleUpdateInventory(backup.dmcNumber, kit.meshCount, 1); }}
-                                                disabled={backupUpdating}
-                                                className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                                title="Add 1 (backup)"
-                                              >
-                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                                </svg>
-                                              </button>
+                                              <div onClick={(e) => e.stopPropagation()}>
+                                                <CountStepper
+                                                  value={backup.inventorySkeins}
+                                                  onCommit={(next) => handleSetInventory(backup.dmcNumber, size, next, backup.inventorySkeins)}
+                                                  onDelta={(d) => handleUpdateInventory(backup.dmcNumber, size, d)}
+                                                  busy={backupUpdating}
+                                                  ariaLabel={`Backup skeins of DMC ${backup.dmcNumber} (Size ${size})`}
+                                                  valueClassName={backup.inStock ? "text-emerald-400" : "text-red-400"}
+                                                />
+                                              </div>
                                             </div>
                                           )}
                                         </div>

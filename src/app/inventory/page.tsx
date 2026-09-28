@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import SectionNav from "@/components/SectionNav";
 import { DmcColor, searchDmcColors, getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { Breadcrumb } from "@/components/Breadcrumb";
-import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
+import MeshFilterChips from "@/components/MeshFilterChips";
+import { useMeshFilter } from "@/lib/use-mesh-filter";
 import { meshBadgeClassLight } from "@/lib/mesh-badge";
 import { threadSizeForMesh, skeinYardsForThread, MeshCount, ThreadSize } from "@/lib/yarn-calculator";
 import { invalidateInventory } from "@/lib/invalidate-inventory";
@@ -241,22 +242,22 @@ export default function InventoryPage() {
     const t = new URLSearchParams(window.location.search).get("tab");
     if (t && TAB_TYPES.includes(t as TabType)) setActiveTab(t as TabType);
   }, []);
+  // Tab clicks write the URL back, so reloading or sharing keeps the tab you
+  // were on. Without this, deep-linking worked one way only: you could arrive
+  // on ?tab=supplies, switch to Bobbins, reload, and land on Supplies again.
+  const selectTab = (t: TabType) => {
+    setActiveTab(t);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", t);
+    window.history.replaceState(null, "", url.toString());
+  };
   // Market view sub-tab: "current" shows designs that have market canvases in
   // stock; "zero" shows designs with 0 market canvases (sold out / to restock).
   const [marketSubTab, setMarketSubTab] = useState<"current" | "zero">("current");
   // Sort by total inventory count on the kits/canvases/supplies tabs.
   // "default" keeps the collection grouping / original order.
   const [sortMode, setSortMode] = useState<"default" | "high" | "low">("default");
-  const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
-    if (typeof window !== "undefined") {
-      return (sessionStorage.getItem("inventoryMeshFilter") as MeshFilter) || "order";
-    }
-    return "all";
-  });
-  const handleMeshFilterChange = (f: MeshFilter) => {
-    setMeshFilter(f);
-    if (typeof window !== "undefined") sessionStorage.setItem("inventoryMeshFilter", f);
-  };
+  const [meshFilter, handleMeshFilterChange] = useMeshFilter("inventoryMeshFilter");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [designs, setDesigns] = useState<Design[]>([]);
   // Misprints are 14ct-only and must NOT be constrained by the mesh filter
@@ -271,17 +272,25 @@ export default function InventoryPage() {
   const [designsLoading, setDesignsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [supplies, setSupplies] = useState<Supply[]>([]);
-  const [suppliesLoading, setSuppliesLoading] = useState(false);
+  // Starts true for the same reason as `designsLoading`: the tab's fetch runs in
+  // an effect, i.e. after the first paint, so a false start asserted "No supplies
+  // added yet" as fact for a frame. /supplies now redirects here, which makes
+  // that flash the first thing a deep link shows.
+  const [suppliesLoading, setSuppliesLoading] = useState(true);
   const [showAddSupply, setShowAddSupply] = useState(false);
   const [supplyForm, setSupplyForm] = useState({ name: "", sku: "", description: "", quantity: 0 });
   const [editingSupplyId, setEditingSupplyId] = useState<string | null>(null);
   const [savingSupply, setSavingSupply] = useState(false);
   const [bobbinData, setBobbinData] = useState<BobbinAnalysisData | null>(null);
-  const [bobbinsLoading, setBobbinsLoading] = useState(false);
+  const [bobbinsLoading, setBobbinsLoading] = useState(true);
+  // Whether each of those tabs has ever been fetched. The focus listener below
+  // is only re-registered on meshFilter changes, so it cannot read the state.
+  const hasFetchedSuppliesRef = useRef(false);
+  const hasFetchedBobbinsRef = useRef(false);
   // Predicted "bring to next market" quantity per design (from Market Prep),
   // shown on the Market tab. Keyed by designId.
   const [marketPrediction, setMarketPrediction] = useState<Map<string, number>>(new Map());
-  const sizeFilter = null; // Size 5 only in internal app
+  const sizeFilter = null; // Threads tab lists both SKUs; rows carry their own size
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedColor, setExpandedColor] = useState<string | null>(null);
 
@@ -289,7 +298,11 @@ export default function InventoryPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [addSearch, setAddSearch] = useState("");
   const [selectedColor, setSelectedColor] = useState<DmcColor | null>(null);
-  const addSize = 5; // Size 5 only in internal app
+  // Which SKU "Add Thread" creates. 13ct intro kits use Size 3 and 18ct uses
+  // Size 5, and they are separate inventory rows, so this has to be a choice —
+  // it was pinned to 5, which made Size 3 stock unaddable from the one dialog
+  // whose whole job is adding stock.
+  const [addSize, setAddSize] = useState<ThreadSize>(5);
   const [addSkeins, setAddSkeins] = useState("1");
   const [adding, setAdding] = useState(false);
 
@@ -342,8 +355,12 @@ export default function InventoryPage() {
         // the old number indefinitely (and a later edit computed its delta from
         // that stale base). This page holds local state, so invalidateInventory()
         // from other pages can't reach it; it has to refetch itself.
-        if (supplies.length > 0) fetchSupplies();
-        if (bobbinData) fetchBobbins();
+        //
+        // These read refs, not state: this listener is only re-registered when
+        // meshFilter changes, so a state read would be frozen at [] / null from
+        // that render and neither refetch would ever fire.
+        if (hasFetchedSuppliesRef.current) fetchSupplies();
+        if (hasFetchedBobbinsRef.current) fetchBobbins();
       }
     };
     window.addEventListener("focus", refetch);
@@ -358,13 +375,16 @@ export default function InventoryPage() {
   const handleRefresh = async () => {
     setRefreshing(true);
     // Cached kit panels were never invalidated, so an expanded panel could hold
-    // a stale skein count indefinitely. Drop them and refetch what's open.
-    setKitContentsCache(new Map());
+    // a stale skein count indefinitely. Refetch what's open rather than clearing
+    // the cache: clearing it emptied every expanded panel and nothing refilled
+    // them, so they sat on "Failed to load kit contents" until you collapsed and
+    // re-expanded. `force` bypasses the cache guard, so no clear is needed.
     await Promise.all([
       fetchInventory(),
       fetchDesigns(),
       fetchColorUsage(),
       fetchMisprintDesigns(),
+      ...Array.from(expandedKits).map((designId) => fetchKitContents(designId, true)),
       supplies.length > 0 ? fetchSupplies() : Promise.resolve(),
       bobbinData ? fetchBobbins() : Promise.resolve(),
     ]);
@@ -567,6 +587,7 @@ export default function InventoryPage() {
     size: number,
     currentValue: number,
   ) => {
+    if (!Number.isFinite(value)) return;
     const delta = Math.max(0, Math.floor(value)) - currentValue;
     if (delta !== 0) {
       await handleKitInventoryUpdate(dmcNumber, delta, size);
@@ -574,6 +595,7 @@ export default function InventoryPage() {
   };
 
   const fetchSupplies = async () => {
+    hasFetchedSuppliesRef.current = true;
     setSuppliesLoading(true);
     try {
       const response = await fetch("/api/supplies");
@@ -597,6 +619,7 @@ export default function InventoryPage() {
   }, [activeTab]);
 
   const fetchBobbins = async () => {
+    hasFetchedBobbinsRef.current = true;
     setBobbinsLoading(true);
     try {
       const response = await fetch(`/api/inventory/bobbin-analysis${meshFilter !== "all" ? `?meshCount=${meshFilter}` : ""}`);
@@ -756,13 +779,17 @@ export default function InventoryPage() {
     const supply = supplies.find((s) => s.id === id);
     if (!supply) return;
 
-    const newVal = Math.max(0, value);
+    // Guard against `Number("")` = 0 / NaN silently zeroing a count. CountStepper
+    // already discards a non-finite draft, but every sibling setter guards here
+    // too and this is the layer that talks to the API.
+    if (!Number.isFinite(value)) return;
+
+    const newVal = Math.max(0, Math.floor(value));
     const delta = newVal - supply.quantity;
 
     if (delta !== 0) {
       await handleSupplyQuantityChange(id, delta);
     }
-    // Clear pending value
   };
 
   // Adjust the market supply tote.
@@ -993,7 +1020,6 @@ export default function InventoryPage() {
 
     if (delta !== 0) {
       await handleUpdateDesign(id, field, delta);
-    } else {
     }
   };
 
@@ -1403,6 +1429,7 @@ export default function InventoryPage() {
   const handleSetMisprintValue = async (designId: string, value: number) => {
     const design = misprintDesigns.find((d) => d.id === designId);
     if (!design) return;
+    if (!Number.isFinite(value)) return;
     const newVal = Math.max(0, Math.floor(value));
     const delta = newVal - design.misprintCount;
     if (delta !== 0) {
@@ -1604,7 +1631,7 @@ export default function InventoryPage() {
         <div className="overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0 mb-6">
           <div className="flex gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 w-fit min-w-fit">
             <button
-              onClick={() => setActiveTab("threads")}
+              onClick={() => selectTab("threads")}
               className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === "threads"
                   ? "bg-rose-900 text-white"
@@ -1615,7 +1642,7 @@ export default function InventoryPage() {
               <span className="ml-1 text-xs opacity-75">({items.length})</span>
             </button>
             <button
-              onClick={() => setActiveTab("kits")}
+              onClick={() => selectTab("kits")}
               className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === "kits"
                   ? "bg-rose-900 text-white"
@@ -1626,7 +1653,7 @@ export default function InventoryPage() {
               <span className="ml-1 text-xs opacity-75">({totalKitsOverall})</span>
             </button>
             <button
-              onClick={() => setActiveTab("canvases")}
+              onClick={() => selectTab("canvases")}
               className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === "canvases"
                   ? "bg-rose-900 text-white"
@@ -1637,7 +1664,7 @@ export default function InventoryPage() {
               <span className="ml-1 text-xs opacity-75">({allCanvases})</span>
             </button>
             <button
-              onClick={() => setActiveTab("market")}
+              onClick={() => selectTab("market")}
               className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
                 activeTab === "market"
                   ? "bg-emerald-800 text-white"
@@ -1651,7 +1678,7 @@ export default function InventoryPage() {
               <span className="ml-1 text-xs opacity-75">({marketKitsReady + marketCanvases})</span>
             </button>
             <button
-              onClick={() => setActiveTab("supplies")}
+              onClick={() => selectTab("supplies")}
               className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
                 activeTab === "supplies"
                   ? "bg-rose-900 text-white"
@@ -1667,7 +1694,7 @@ export default function InventoryPage() {
               )}
             </button>
             <button
-              onClick={() => setActiveTab("bobbins")}
+              onClick={() => selectTab("bobbins")}
               className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
                 activeTab === "bobbins"
                   ? "bg-rose-900 text-white"
@@ -1683,7 +1710,7 @@ export default function InventoryPage() {
               )}
             </button>
             <button
-              onClick={() => setActiveTab("misprints")}
+              onClick={() => selectTab("misprints")}
               className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
                 activeTab === "misprints"
                   ? "bg-purple-800 text-white"
@@ -1919,7 +1946,7 @@ export default function InventoryPage() {
                           <tr className="hover:bg-slate-750 transition-colors">
                             <td className="px-4 py-3">
                               <Link
-                                href={`/inventory/color/${item.dmcNumber}`}
+                                href={`/inventory/color/${item.dmcNumber}?size=${item.size}`}
                                 className="w-10 h-10 rounded-lg border border-white/20 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                                 style={{ backgroundColor: color?.hex || "#666" }}
                                 title={`View DMC ${item.dmcNumber} details`}
@@ -1933,7 +1960,7 @@ export default function InventoryPage() {
                               </Link>
                             </td>
                             <td className="px-4 py-3">
-                              <Link href={`/inventory/color/${item.dmcNumber}`} className="text-white font-medium hover:text-rose-400 transition-colors">{item.dmcNumber}</Link>
+                              <Link href={`/inventory/color/${item.dmcNumber}?size=${item.size}`} className="text-white font-medium hover:text-rose-400 transition-colors">{item.dmcNumber}</Link>
                             </td>
                             <td className="px-4 py-3 hidden sm:table-cell">
                               <span className="text-slate-300">{color?.name || "Unknown"}</span>
@@ -2285,7 +2312,7 @@ export default function InventoryPage() {
                                         >
                                           <div className="flex items-center gap-2 p-2">
                                             <Link
-                                              href={`/inventory/color/${item.dmcNumber}`}
+                                              href={`/inventory/color/${item.dmcNumber}?size=${size}`}
                                               className="w-8 h-8 rounded flex-shrink-0 flex items-center justify-center hover:ring-2 hover:ring-rose-500 transition-all"
                                               style={{ backgroundColor: item.hex }}
                                               title={`View DMC ${item.dmcNumber} inventory`}
@@ -2299,7 +2326,7 @@ export default function InventoryPage() {
                                             </Link>
                                             <div className="min-w-0 flex-1">
                                               <Link
-                                                href={`/inventory/color/${item.dmcNumber}`}
+                                                href={`/inventory/color/${item.dmcNumber}?size=${size}`}
                                                 className="text-white text-xs font-medium truncate hover:text-rose-400 transition-colors block"
                                               >
                                                 {item.dmcNumber}
@@ -2326,7 +2353,7 @@ export default function InventoryPage() {
                                               {/* Backup color indicator */}
                                               {item.backup && (
                                                 <Link
-                                                  href={`/inventory/color/${item.backup.dmcNumber}`}
+                                                  href={`/inventory/color/${item.backup.dmcNumber}?size=${size}`}
                                                   className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors"
                                                   title={`Backup: ${item.backup.colorName}`}
                                                   onClick={(e) => e.stopPropagation()}
@@ -3016,7 +3043,7 @@ export default function InventoryPage() {
                       <tr key={`${s.dmcNumber}-${s.length}-${s.threadSize}`} className="hover:bg-slate-700/30">
                         <td className="p-3">
                           <Link
-                            href={`/inventory/color/${s.dmcNumber}`}
+                            href={`/inventory/color/${s.dmcNumber}?size=${s.threadSize}`}
                             className="flex items-center gap-2 hover:text-rose-400"
                           >
                             <div
@@ -3395,12 +3422,28 @@ export default function InventoryPage() {
                 </>
               )}
 
-              {/* Thread size - Size 5 only in internal app */}
+              {/* Thread size — a different SKU per size, not a label */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Thread Size</label>
-                <div className="py-2 px-4 rounded-lg border border-slate-600 bg-slate-700/50 text-slate-300 text-center">
-                  <span className="text-sm font-medium">Size 5</span>
-                  <span className="text-xs text-slate-400 ml-2">(all mesh counts)</span>
+                <div className="grid grid-cols-2 gap-2" role="group" aria-label="Thread size">
+                  {([3, 5] as const).map((sz) => (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => setAddSize(sz)}
+                      aria-pressed={addSize === sz}
+                      className={`py-2 px-4 rounded-lg border text-center transition-colors ${
+                        addSize === sz
+                          ? "border-rose-700 bg-rose-900/40 text-white"
+                          : "border-slate-600 bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+                      }`}
+                    >
+                      <span className="text-sm font-medium">Size {sz}</span>
+                      <span className="block text-xs text-slate-400">
+                        {sz === 3 ? "13ct intro kits" : "18ct canvases"}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -3408,7 +3451,7 @@ export default function InventoryPage() {
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">
                   Number of Skeins
-                  <span className="text-slate-500 font-normal ml-1">(1 skein = 27 yards)</span>
+                  <span className="text-slate-500 font-normal ml-1">(1 skein = {skeinYardsForThread(addSize)} yards)</span>
                 </label>
                 <div className="flex items-center gap-3">
                   <button
@@ -3435,7 +3478,7 @@ export default function InventoryPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                   </button>
-                  <span className="text-slate-400 text-sm">{(Number(addSkeins) || 0) * 27} yards</span>
+                  <span className="text-slate-400 text-sm">{(Number(addSkeins) || 0) * skeinYardsForThread(addSize)} yards</span>
                 </div>
               </div>
             </div>

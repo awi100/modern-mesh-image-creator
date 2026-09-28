@@ -7,6 +7,7 @@ import SectionNav from "@/components/SectionNav";
 import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/route";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
+import { useMeshFilter } from "@/lib/use-mesh-filter";
 import MysteryBagPickerDialog from "@/components/MysteryBagPickerDialog";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 
@@ -194,15 +195,9 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
-  const [meshFilter, setMeshFilter] = useState<MeshFilter>(() => {
-    if (typeof window !== "undefined") {
-      return (sessionStorage.getItem("ordersMeshFilter") as MeshFilter) || "order";
-    }
-    return "all";
-  });
+  const [meshFilter, setStoredMeshFilter] = useMeshFilter("ordersMeshFilter");
   const handleMeshFilterChange = (f: MeshFilter) => {
-    setMeshFilter(f);
-    if (typeof window !== "undefined") sessionStorage.setItem("ordersMeshFilter", f);
+    setStoredMeshFilter(f);
     // Reset cached data so it refetches with the new filter
     setKitData(new Map());
     setColorUsage(new Map());

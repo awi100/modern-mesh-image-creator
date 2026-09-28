@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { invalidateInventory } from "@/lib/invalidate-inventory";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
+import { threadSizeForMesh, MeshCount, ThreadSize } from "@/lib/yarn-calculator";
+import CountStepper from "@/components/inventory/CountStepper";
 
 interface DesignUsage {
   id: string;
@@ -80,10 +82,25 @@ export default function ColorDetailPage() {
   // number. This page used to be hardcoded to Size 5 ("all mesh counts use
   // Size 5", which stopped being true when 13ct went live), so following a
   // Size 3 link from Stock Alerts showed and edited the WRONG SKU.
-  const sizeParam = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("size")
-    : null;
-  const [threadSize, setThreadSize] = useState<3 | 5>(sizeParam === "3" ? 3 : 5);
+  //
+  // Adopted AFTER mount, not in the useState initialiser: this is a client
+  // component but it is still server-rendered, and the server has no URL to
+  // read, so initialising from the query string made the server say 5 while a
+  // ?size=3 client said 3 — a hydration mismatch that makes React throw the
+  // server tree away.
+  const [threadSize, setThreadSize] = useState<ThreadSize>(5);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("size") === "3") setThreadSize(3);
+  }, []);
+
+  // Keep the URL in step with the toggle so a reload or a shared link keeps the
+  // SKU you were looking at.
+  const selectThreadSize = (sz: ThreadSize) => {
+    setThreadSize(sz);
+    const url = new URL(window.location.href);
+    url.searchParams.set("size", String(sz));
+    window.history.replaceState(null, "", url.toString());
+  };
 
   const { data: inventoryRows, mutate: mutateInventoryRows } = useSWR<InventoryItem[]>(
     `/api/inventory?size=${threadSize}`,
@@ -97,7 +114,6 @@ export default function ColorDetailPage() {
   );
 
   const [updatingInventory, setUpdatingInventory] = useState<number | null>(null);
-  const [pendingValue, setPendingValue] = useState<string>("");
   const [editingBackup, setEditingBackup] = useState(false);
   const [pendingBackup, setPendingBackup] = useState("");
   const [savingBackup, setSavingBackup] = useState(false);
@@ -126,7 +142,7 @@ export default function ColorDetailPage() {
   }, [colorUsageData, dmcNumber]);
 
   // Find inventory for this color at the selected thread size
-  const inventorySize5 = inventoryRows?.find(i => i.dmcNumber === dmcNumber);
+  const inventoryRow = inventoryRows?.find(i => i.dmcNumber === dmcNumber);
 
   const handleUpdateInventory = async (delta: number) => {
     setUpdatingInventory(threadSize);
@@ -150,11 +166,10 @@ export default function ColorDetailPage() {
 
   // Handle setting inventory to a specific value
   const handleSetInventory = async (newValue: number) => {
-    const currentValue = inventorySize5?.skeins || 0;
+    const currentValue = inventoryRow?.skeins || 0;
     const delta = newValue - currentValue;
     if (delta === 0) return;
     await handleUpdateInventory(delta);
-    setPendingValue("");
   };
 
   // Handle setting backup color
@@ -206,11 +221,14 @@ export default function ColorDetailPage() {
     );
   }
 
-  const totalDesigns = colorUsage?.designs.length || 0;
-  const totalSkeinsNeeded = colorUsage?.designs.reduce(
-    (sum, d) => sum + d.skeinsNeeded,
-    0
-  ) || 0;
+  // Demand has to be filtered to the SKU on screen. Showing "2 in stock
+  // (Size 3)" next to a total that silently included 18ct Size 5 designs made
+  // the comparison worse than before the page knew about sizes at all.
+  const sizedDesigns = (colorUsage?.designs || []).filter(
+    (d) => threadSizeForMesh(d.meshCount as MeshCount) === threadSize
+  );
+  const totalDesigns = sizedDesigns.length;
+  const totalSkeinsNeeded = sizedDesigns.reduce((sum, d) => sum + d.skeinsNeeded, 0);
 
   return (
     <div className="min-h-screen bg-slate-900 p-6">
@@ -282,7 +300,7 @@ export default function ColorDetailPage() {
                 <button
                   key={sz}
                   type="button"
-                  onClick={() => { setThreadSize(sz); setPendingValue(""); }}
+                  onClick={() => selectThreadSize(sz)}
                   aria-pressed={threadSize === sz}
                   className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                     threadSize === sz
@@ -299,56 +317,16 @@ export default function ColorDetailPage() {
           <div className="bg-slate-700/50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
               <span className="text-slate-300">Current Stock</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleUpdateInventory(-1)}
-                  disabled={updatingInventory === threadSize || (inventorySize5?.skeins || 0) <= 0}
-                  className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
-                >
-                  −
-                </button>
-                <input
-                  type="number"
-                  min="0"
-                  value={pendingValue !== "" ? pendingValue : (inventorySize5?.skeins || 0)}
-                  onChange={(e) => setPendingValue(e.target.value)}
-                  onBlur={() => {
-                    if (pendingValue !== "") {
-                      const val = parseInt(pendingValue, 10);
-                      if (!isNaN(val) && val >= 0) {
-                        handleSetInventory(val);
-                      } else {
-                        setPendingValue("");
-                      }
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const val = parseInt(pendingValue, 10);
-                      if (!isNaN(val) && val >= 0) {
-                        handleSetInventory(val);
-                      } else {
-                        setPendingValue("");
-                      }
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                  onFocus={(e) => {
-                    setPendingValue(String(inventorySize5?.skeins || 0));
-                    e.target.select();
-                  }}
-                  className={`w-20 h-10 px-3 rounded-lg bg-slate-800 border border-slate-600 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-rose-800 ${
-                    (inventorySize5?.skeins || 0) > 0 ? "text-emerald-400" : "text-slate-400"
-                  }`}
-                />
-                <button
-                  onClick={() => handleUpdateInventory(1)}
-                  disabled={updatingInventory === threadSize}
-                  className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
-                >
-                  +
-                </button>
-              </div>
+              <CountStepper
+                key={threadSize}
+                value={inventoryRow?.skeins || 0}
+                onCommit={handleSetInventory}
+                onDelta={handleUpdateInventory}
+                busy={updatingInventory === threadSize}
+                size="md"
+                ariaLabel={`Skeins of DMC ${dmcNumber} (Size ${threadSize})`}
+                valueClassName={(inventoryRow?.skeins || 0) > 0 ? "text-emerald-400" : "text-slate-400"}
+              />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-slate-400 text-sm mr-2">Quick add:</span>
@@ -491,7 +469,7 @@ export default function ColorDetailPage() {
             <div className="bg-slate-700/50 rounded-lg p-4">
               <div className="flex items-center gap-4">
                 <Link
-                  href={`/inventory/color/${backupDmcNumber}`}
+                  href={`/inventory/color/${backupDmcNumber}?size=${threadSize}`}
                   className="w-16 h-16 rounded-lg flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-amber-500 transition-all"
                   style={{ backgroundColor: backupColorInfo.hex }}
                 >
@@ -504,7 +482,7 @@ export default function ColorDetailPage() {
                 </Link>
                 <div className="flex-1">
                   <Link
-                    href={`/inventory/color/${backupDmcNumber}`}
+                    href={`/inventory/color/${backupDmcNumber}?size=${threadSize}`}
                     className="text-white font-medium hover:text-amber-400 transition-colors"
                   >
                     DMC {backupDmcNumber}
@@ -545,13 +523,13 @@ export default function ColorDetailPage() {
             <div className="text-center py-8">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-slate-600 border-t-rose-500" />
             </div>
-          ) : !colorUsage || colorUsage.designs.length === 0 ? (
+          ) : sizedDesigns.length === 0 ? (
             <p className="text-slate-400 text-center py-8">
-              This color is not used in any completed designs
+              No Size {threadSize} designs use this color
             </p>
           ) : (
             <div className="space-y-3">
-              {colorUsage.designs.map((design) => (
+              {sizedDesigns.map((design) => (
                 <Link
                   key={design.id}
                   href={`/design/${design.id}/info`}
