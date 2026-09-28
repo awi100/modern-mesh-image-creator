@@ -294,17 +294,10 @@ export default function InventoryPage() {
   const [adding, setAdding] = useState(false);
 
   // Track pending values being typed
-  const [pendingSkeins, setPendingSkeins] = useState<Record<string, string>>({});
-  const [pendingKits, setPendingKits] = useState<Record<string, string>>({});
-  const [pendingCanvases, setPendingCanvases] = useState<Record<string, string>>({});
-  const [pendingMarketKits, setPendingMarketKits] = useState<Record<string, string>>({});
-  const [pendingMarketCanvases, setPendingMarketCanvases] = useState<Record<string, string>>({});
   // Guards against a set-market value being committed twice in the same tick
   // (e.g. Enter fires the handler, then .blur() fires onBlur before re-render),
   // which would double the market transfer. Keyed by `${type}-${id}`.
   const marketSetBusyRef = useRef<Set<string>>(new Set());
-  const [pendingAndover, setPendingAndover] = useState<Record<string, string>>({});
-  const [pendingKitsAndover, setPendingKitsAndover] = useState<Record<string, string>>({});
   // "Move" modal — move a quantity of canvases OR kits between home/market/andover.
   type CanvasLoc = "home" | "market" | "andover";
   type MoveKind = "canvas" | "kit";
@@ -312,9 +305,6 @@ export default function InventoryPage() {
   const [movingCanvas, setMovingCanvas] = useState(false);
   const [matchingAllMarket, setMatchingAllMarket] = useState(false);
   const [pendingMisprints, setPendingMisprints] = useState<Record<string, string>>({});
-  const [pendingSupplyQuantity, setPendingSupplyQuantity] = useState<Record<string, string>>({});
-  const [pendingSupplyMarket, setPendingSupplyMarket] = useState<Record<string, string>>({});
-  const [pendingSupplyAndover, setPendingSupplyAndover] = useState<Record<string, string>>({});
 
   // Kit contents expansion state
   const [expandedKits, setExpandedKits] = useState<Set<string>>(new Set());
@@ -325,7 +315,6 @@ export default function InventoryPage() {
   const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
 
   // Inventory update state
-  const [pendingInventoryValues, setPendingInventoryValues] = useState<Record<string, string>>({});
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
 
   useEffect(() => {
@@ -775,7 +764,6 @@ export default function InventoryPage() {
       await handleSupplyQuantityChange(id, delta);
     }
     // Clear pending value
-    setPendingSupplyQuantity((prev) => { const next = { ...prev }; delete next[id]; return next; });
   };
 
   // Adjust the market supply tote.
@@ -785,7 +773,6 @@ export default function InventoryPage() {
   const handleSupplyMarketTransfer = async (id: string, delta: number) => {
     const supply = supplies.find((s) => s.id === id);
     if (!supply || delta === 0) return;
-    setPendingSupplyMarket((p) => { const n = { ...p }; delete n[id]; return n; });
 
     if (delta > 0) {
       const moved = Math.min(delta, supply.quantity);
@@ -830,13 +817,9 @@ export default function InventoryPage() {
   const handleSetSupplyMarket = async (id: string, value: number) => {
     const supply = supplies.find((s) => s.id === id);
     if (!supply) return;
-    if (!Number.isFinite(value)) {
-      setPendingSupplyMarket((p) => { const n = { ...p }; delete n[id]; return n; });
-      return;
-    }
+    if (!Number.isFinite(value)) return;
     const delta = Math.max(0, Math.floor(value)) - supply.marketQuantity;
     if (delta !== 0) await handleSupplyMarketTransfer(id, delta);
-    else setPendingSupplyMarket((p) => { const n = { ...p }; delete n[id]; return n; });
   };
 
   // Adjust the Andover bulk count directly (e.g. logging a bulk shipment that
@@ -864,7 +847,6 @@ export default function InventoryPage() {
       const delta = Math.max(0, Math.floor(value)) - (supply.andoverQuantity || 0);
       if (delta !== 0) await handleSupplyAndoverDelta(id, delta);
     }
-    setPendingSupplyAndover((p) => { const n = { ...p }; delete n[id]; return n; });
   };
 
   const filteredItems = useMemo(() => {
@@ -953,7 +935,6 @@ export default function InventoryPage() {
   const handleUpdateSkeins = async (id: string, skeins: number) => {
     const clamped = Math.max(0, skeins);
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, skeins: clamped } : item)));
-    setPendingSkeins((prev) => { const next = { ...prev }; delete next[id]; return next; });
     try {
       const response = await mutApi(`/api/inventory/${id}`, {
         method: "PATCH",
@@ -979,13 +960,6 @@ export default function InventoryPage() {
     // Optimistic update
     setDesigns((prev) => prev.map((d) => (d.id === id ? { ...d, [field]: newVal } : d)));
 
-    // Clear pending
-    if (field === "kitsReady") {
-      setPendingKits((prev) => { const next = { ...prev }; delete next[id]; return next; });
-    } else {
-      setPendingCanvases((prev) => { const next = { ...prev }; delete next[id]; return next; });
-    }
-
     try {
       const body = field === "kitsReady"
         ? { kitsReadyDelta: delta }
@@ -1009,17 +983,8 @@ export default function InventoryPage() {
     const design = designs.find((d) => d.id === id);
     if (!design) return;
 
-    const clearPending = () => {
-      if (field === "kitsReady") {
-        setPendingKits((prev) => { const next = { ...prev }; delete next[id]; return next; });
-      } else {
-        setPendingCanvases((prev) => { const next = { ...prev }; delete next[id]; return next; });
-      }
-    };
-
     // Guard against `Number("")` = 0 / NaN silently zeroing a count.
     if (!Number.isFinite(value)) {
-      clearPending();
       return;
     }
 
@@ -1030,7 +995,6 @@ export default function InventoryPage() {
     if (delta !== 0) {
       await handleUpdateDesign(id, field, delta);
     } else {
-      clearPending();
     }
   };
 
@@ -1046,22 +1010,16 @@ export default function InventoryPage() {
     const main = type === "kits" ? design.kitsReady : design.canvasPrinted;
     const market = type === "kits" ? design.marketKitsReady : design.marketCanvasPrinted;
 
-    const clearPending = () => {
-      if (type === "kits") setPendingMarketKits((p) => { const n = { ...p }; delete n[id]; return n; });
-      else setPendingMarketCanvases((p) => { const n = { ...p }; delete n[id]; return n; });
-    };
-
     if (delta > 0) {
       // Bring stock from home -> market (clamped to available home stock).
       const moved = Math.min(delta, main);
-      if (moved === 0) { clearPending(); return; }
+      if (moved === 0) return;
       setDesigns((prev) => prev.map((d) => {
         if (d.id !== id) return d;
         return type === "kits"
           ? { ...d, kitsReady: d.kitsReady - moved, marketKitsReady: d.marketKitsReady + moved }
           : { ...d, canvasPrinted: d.canvasPrinted - moved, marketCanvasPrinted: d.marketCanvasPrinted + moved };
       }));
-      clearPending();
       try {
         const body = type === "kits"
           ? { marketTransferKitsDelta: moved }
@@ -1081,7 +1039,7 @@ export default function InventoryPage() {
 
     // delta < 0: remove from the market tote outright (does not touch home).
     const removed = Math.min(-delta, market);
-    if (removed === 0) { clearPending(); return; }
+    if (removed === 0) return;
     const newMarket = market - removed;
     setDesigns((prev) => prev.map((d) => {
       if (d.id !== id) return d;
@@ -1089,7 +1047,6 @@ export default function InventoryPage() {
         ? { ...d, marketKitsReady: newMarket }
         : { ...d, marketCanvasPrinted: newMarket };
     }));
-    clearPending();
     try {
       const body = type === "kits"
         ? { marketKitsReady: newMarket }
@@ -1118,16 +1075,11 @@ export default function InventoryPage() {
     try {
       const design = designs.find((d) => d.id === id);
       if (!design) return;
-      const clearPending = () => {
-        if (type === "kits") setPendingMarketKits((p) => { const n = { ...p }; delete n[id]; return n; });
-        else setPendingMarketCanvases((p) => { const n = { ...p }; delete n[id]; return n; });
-      };
-      if (!Number.isFinite(value)) { clearPending(); return; }
+      if (!Number.isFinite(value)) return;
       const current = type === "kits" ? design.marketKitsReady : design.marketCanvasPrinted;
       const newVal = Math.max(0, Math.floor(value));
       const delta = newVal - current;
       if (delta !== 0) await handleMarketTransfer(id, type, delta);
-      else clearPending();
     } finally {
       marketSetBusyRef.current.delete(busyKey);
     }
@@ -1141,7 +1093,6 @@ export default function InventoryPage() {
     const newVal = Math.max(0, design.canvasAndover + delta);
     if (newVal === design.canvasAndover) return;
     setDesigns((prev) => prev.map((d) => (d.id === id ? { ...d, canvasAndover: newVal } : d)));
-    setPendingAndover((p) => { const n = { ...p }; delete n[id]; return n; });
     try {
       const res = await mutApi(`/api/designs/${id}`, {
         method: "PATCH",
@@ -1158,13 +1109,9 @@ export default function InventoryPage() {
   const handleSetAndover = async (id: string, value: number) => {
     const design = designs.find((d) => d.id === id);
     if (!design) return;
-    if (!Number.isFinite(value)) {
-      setPendingAndover((p) => { const n = { ...p }; delete n[id]; return n; });
-      return;
-    }
+    if (!Number.isFinite(value)) return;
     const newVal = Math.max(0, Math.floor(value));
     setDesigns((prev) => prev.map((d) => (d.id === id ? { ...d, canvasAndover: newVal } : d)));
-    setPendingAndover((p) => { const n = { ...p }; delete n[id]; return n; });
     try {
       const res = await mutApi(`/api/designs/${id}`, {
         method: "PATCH",
@@ -1210,7 +1157,6 @@ export default function InventoryPage() {
     const newVal = Math.max(0, (design.kitsAndover || 0) + delta);
     if (newVal === (design.kitsAndover || 0)) return;
     setDesigns((prev) => prev.map((d) => (d.id === id ? { ...d, kitsAndover: newVal } : d)));
-    setPendingKitsAndover((p) => { const n = { ...p }; delete n[id]; return n; });
     try {
       const res = await mutApi(`/api/designs/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -1226,13 +1172,9 @@ export default function InventoryPage() {
   const handleSetKitAndover = async (id: string, value: number) => {
     const design = designs.find((d) => d.id === id);
     if (!design) return;
-    if (!Number.isFinite(value)) {
-      setPendingKitsAndover((p) => { const n = { ...p }; delete n[id]; return n; });
-      return;
-    }
+    if (!Number.isFinite(value)) return;
     const newVal = Math.max(0, Math.floor(value));
     setDesigns((prev) => prev.map((d) => (d.id === id ? { ...d, kitsAndover: newVal } : d)));
-    setPendingKitsAndover((p) => { const n = { ...p }; delete n[id]; return n; });
     try {
       const res = await mutApi(`/api/designs/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -1416,7 +1358,6 @@ export default function InventoryPage() {
     (sum, item) => sum + item.skeins * skeinYardsForThread(item.size as ThreadSize),
     0,
   );
-  const size5Count = items.filter((i) => i.size === 5).length;
   const totalKitsReady = designs.reduce((sum, d) => sum + d.kitsReady, 0);
 
   // Market tote stats (in-person/craft-market stock, not available online)
@@ -2667,7 +2608,7 @@ export default function InventoryPage() {
                               {(design.canvasAndover || 0) > 0 && (design.canvasPrinted + design.marketCanvasPrinted) < RESTOCK_TARGET && (
                                 <button
                                   onClick={() => handleAndoverTransfer(design.id, Math.min(design.canvasAndover, RESTOCK_TARGET - (design.canvasPrinted + design.marketCanvasPrinted)))}
-                                  className="ml-1 px-2 py-1 text-[10px] font-medium bg-sky-700 hover:bg-sky-600 text-white rounded whitespace-nowrap"
+                                  className="ml-1 mt-[18px] px-2 py-1 text-[10px] font-medium bg-sky-700 hover:bg-sky-600 text-white rounded whitespace-nowrap"
                                   title={`Move ${Math.min(design.canvasAndover, RESTOCK_TARGET - (design.canvasPrinted + design.marketCanvasPrinted))} from Andover to home`}
                                 >
                                   → Home
@@ -2675,7 +2616,11 @@ export default function InventoryPage() {
                               )}
                             </div>
 
-                            {/* Move canvases between locations */}
+                            {/* Move canvases between locations. Wrapped with a
+                                spacer caption so it lines up with the labelled
+                                steppers beside it (same shape as the Kits tab). */}
+                            <div className="flex flex-col items-center gap-1">
+                              <span aria-hidden="true" className="text-[10px] uppercase tracking-wider text-transparent select-none">.</span>
                             <button
                               onClick={() => setMoveModal({ kind: "canvas", designId: design.id, from: "andover", to: "home", qty: "" })}
                               className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors"
@@ -2684,6 +2629,7 @@ export default function InventoryPage() {
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m4 6H4m0 0l4 4m-4-4l4-4" /></svg>
                               Move
                             </button>
+                            </div>
                           </div>
                         </div>
                       ))}
