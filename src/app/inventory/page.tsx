@@ -3507,30 +3507,15 @@ export default function InventoryPage() {
                   <span className="text-slate-500 font-normal ml-1">(1 skein = {skeinYardsForThread(addSize)} yards)</span>
                 </label>
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setAddSkeins(String(Math.max(1, (Number(addSkeins) || 1) - 1)))}
-                    className="p-2 bg-slate-700 rounded-lg text-slate-300 hover:bg-slate-600"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                    </svg>
-                  </button>
-                  <input
-                    type="number"
-                    min="1"
-                    value={addSkeins}
-                    onChange={(e) => setAddSkeins(e.target.value)}
-                    onBlur={() => setAddSkeins(String(Math.max(1, Number(addSkeins) || 1)))}
-                    className="w-20 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-800"
+                  {/* No onDelta: this edits local form state, so the buttons can
+                      route through onCommit as an absolute value like any typed one. */}
+                  <CountStepper
+                    value={Math.max(1, Number(addSkeins) || 1)}
+                    onCommit={(next) => setAddSkeins(String(next))}
+                    min={1}
+                    size="md"
+                    ariaLabel="Number of skeins to add"
                   />
-                  <button
-                    onClick={() => setAddSkeins(String((Number(addSkeins) || 0) + 1))}
-                    className="p-2 bg-slate-700 rounded-lg text-slate-300 hover:bg-slate-600"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
                   <span className="text-slate-400 text-sm">{(Number(addSkeins) || 0) * skeinYardsForThread(addSize)} yards</span>
                 </div>
               </div>
