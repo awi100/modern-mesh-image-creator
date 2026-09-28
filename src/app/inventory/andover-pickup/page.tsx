@@ -8,10 +8,7 @@ import { meshBadgeClassLight } from "@/lib/mesh-badge";
 import { invalidateInventory } from "@/lib/invalidate-inventory";
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 
-// On-hand (Home + Market tote) target. We suggest picking up enough from Andover
-// to bring on-hand up to this; below LOW it's flagged urgent.
-const TARGET = 30;
-const LOW = 20;
+import { TARGET_FOR, suggestPickup, isLowOnHand, type StockKind } from "@/lib/stock-targets";
 
 interface Design {
   id: string;
@@ -56,7 +53,10 @@ async function mutApi(url: string, init: RequestInit): Promise<Response> {
   return res;
 }
 
-const suggestQty = (andover: number, onHand: number) => Math.min(andover, Math.max(0, TARGET - onHand));
+// Per-kind: canvases/kits top up toward 30, supplies have no universal target
+// (you might keep 3 project bags at home and 200 at Andover), so they list
+// whenever there's Andover stock and you type the quantity.
+const suggestQty = (kind: StockKind, andover: number, onHand: number) => suggestPickup(kind, andover, onHand);
 
 export default function AndoverPickupPage() {
   const [designs, setDesigns] = useState<Design[]>([]);
@@ -90,15 +90,15 @@ export default function AndoverPickupPage() {
     for (const d of designs) {
       const cOn = d.canvasPrinted + (d.marketCanvasPrinted || 0);
       if ((d.canvasAndover || 0) > 0)
-        rows.push({ key: `${d.id}-canvas`, id: d.id, section: "canvas", name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount, onHand: cOn, andover: d.canvasAndover, suggest: suggestQty(d.canvasAndover, cOn) });
+        rows.push({ key: `${d.id}-canvas`, id: d.id, section: "canvas", name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount, onHand: cOn, andover: d.canvasAndover, suggest: suggestQty("canvas", d.canvasAndover, cOn) });
       const kOn = d.kitsReady + (d.marketKitsReady || 0);
       if ((d.kitsAndover || 0) > 0)
-        rows.push({ key: `${d.id}-kit`, id: d.id, section: "kit", name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount, onHand: kOn, andover: d.kitsAndover, suggest: suggestQty(d.kitsAndover, kOn) });
+        rows.push({ key: `${d.id}-kit`, id: d.id, section: "kit", name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount, onHand: kOn, andover: d.kitsAndover, suggest: suggestQty("kit", d.kitsAndover, kOn) });
     }
     for (const s of supplies) {
       const on = s.quantity + (s.marketQuantity || 0);
       if ((s.andoverQuantity || 0) > 0)
-        rows.push({ key: `${s.id}-supply`, id: s.id, section: "supply", name: s.name, previewImageUrl: null, meshCount: null, onHand: on, andover: s.andoverQuantity, suggest: suggestQty(s.andoverQuantity, on) });
+        rows.push({ key: `${s.id}-supply`, id: s.id, section: "supply", name: s.name, previewImageUrl: null, meshCount: null, onHand: on, andover: s.andoverQuantity, suggest: suggestQty("supply", s.andoverQuantity, on) });
     }
     return rows;
   }, [designs, supplies]);
@@ -107,7 +107,9 @@ export default function AndoverPickupPage() {
     (section: Section) =>
       allRows
         .filter((r) => r.section === section)
-        .filter((r) => showAll || r.suggest > 0)
+        // Supplies have no target, so they'd never pass a suggest>0 filter —
+        // list them whenever there is stock at Andover and let the user type a qty.
+        .filter((r) => showAll || r.suggest > 0 || r.section === "supply")
         .sort((a, b) => b.suggest - a.suggest || a.onHand - b.onHand),
     [allRows, showAll],
   );
@@ -118,7 +120,8 @@ export default function AndoverPickupPage() {
 
   const qtyFor = (r: Row) => {
     const raw = qtyOverride[r.key];
-    if (raw === undefined || raw === "") return r.suggest;
+    if (raw === undefined) return r.suggest;
+    if (raw === "") return 0; // cleared box means 0, not "use the suggestion"
     return Math.max(0, Math.min(r.andover, parseInt(raw, 10) || 0));
   };
 
@@ -164,11 +167,16 @@ export default function AndoverPickupPage() {
     setMoving(null);
   };
 
-  const pickupAll = async (rows: Row[]) => {
-    for (const r of rows) {
-      const q = qtyFor(r);
-      if (q > 0) await pickup(r, q);
-    }
+  const pickupAll = async (rows: Row[], label: string) => {
+    // Moving stock is irreversible from here (you'd have to move it back by
+    // hand), so a bulk move gets a confirm — every other irreversible action in
+    // the app does. Snapshot the quantities first so a mid-loop refetch can't
+    // change what we're applying.
+    const work = rows.map((r) => ({ r, q: qtyFor(r) })).filter((x) => x.q > 0);
+    if (work.length === 0) return;
+    const total = work.reduce((s, x) => s + x.q, 0);
+    if (!confirm(`Move ${total} ${label.toLowerCase()} from Andover to Home, across ${work.length} item${work.length === 1 ? "" : "s"}?`)) return;
+    for (const { r, q } of work) await pickup(r, q);
   };
 
   const totalFor = (rows: Row[]) => rows.reduce((s, r) => s + qtyFor(r), 0);
@@ -183,7 +191,7 @@ export default function AndoverPickupPage() {
           </span>
         </div>
         {rows.some((r) => qtyFor(r) > 0) && (
-          <button onClick={() => pickupAll(rows)} disabled={moving !== null} className={`text-xs font-medium px-3 py-1.5 rounded-lg ${accentBtn} disabled:opacity-50`}>
+          <button onClick={() => pickupAll(rows, label)} disabled={moving !== null} className={`text-xs font-medium px-3 py-1.5 rounded-lg ${accentBtn} disabled:opacity-50`}>
             Mark all picked up
           </button>
         )}
@@ -197,7 +205,7 @@ export default function AndoverPickupPage() {
           {rows.map((r) => {
             const qty = qtyFor(r);
             const isMoving = moving === r.key;
-            const urgent = r.onHand < LOW;
+            const urgent = isLowOnHand(r.section, r.onHand);
             return (
               <div key={r.key} className="p-3 flex items-center gap-3">
                 {r.previewImageUrl ? (
@@ -276,7 +284,7 @@ export default function AndoverPickupPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">Andover Pickup</h1>
             <p className="text-sm text-slate-400 mt-1">
-              What to grab from Andover to restock your on-hand stock (Home + Market) toward {TARGET}.
+              What to grab from Andover to restock your on-hand stock (Home + Market) toward {TARGET_FOR.canvas}.
             </p>
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">

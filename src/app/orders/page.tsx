@@ -1658,7 +1658,7 @@ export default function OrdersPage() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-white">Supplies Ordered</h2>
                   <Link
-                    href="/supplies"
+                    href="/inventory?tab=supplies"
                     className="text-sm text-purple-400 hover:text-purple-300"
                   >
                     Manage Supplies →

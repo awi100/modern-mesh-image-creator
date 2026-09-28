@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { LOW_ON_HAND } from "@/lib/stock-targets";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import { Breadcrumb } from "@/components/Breadcrumb";
@@ -9,7 +10,6 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 // alongside the stock views — grouped here so the tab bar stays about "what
 // stock do I have" and these stay about "what should I do / order".
 
-const LOW_ON_HAND = 20; // matches the Restock page's low-canvas threshold
 
 interface Tool {
   href: string;
