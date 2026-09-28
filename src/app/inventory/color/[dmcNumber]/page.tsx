@@ -166,8 +166,9 @@ export default function ColorDetailPage() {
 
   // Handle setting inventory to a specific value
   const handleSetInventory = async (newValue: number) => {
+    if (!Number.isFinite(newValue)) return;
     const currentValue = inventoryRow?.skeins || 0;
-    const delta = newValue - currentValue;
+    const delta = Math.max(0, Math.floor(newValue)) - currentValue;
     if (delta === 0) return;
     await handleUpdateInventory(delta);
   };
@@ -229,6 +230,11 @@ export default function ColorDetailPage() {
   );
   const totalDesigns = sizedDesigns.length;
   const totalSkeinsNeeded = sizedDesigns.reduce((sum, d) => sum + d.skeinsNeeded, 0);
+  // Backups are the same SKU story as primaries: a Size 3 row standing in for a
+  // Size 5 colour is not a backup you can actually use.
+  const sizedBackupFor = (colorUsage?.backupFor || []).filter(
+    (d) => threadSizeForMesh(d.meshCount as MeshCount) === threadSize
+  );
 
   return (
     <div className="min-h-screen bg-slate-900 p-6">
@@ -586,13 +592,13 @@ export default function ColorDetailPage() {
             <div className="text-center py-8">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-slate-600 border-t-rose-500" />
             </div>
-          ) : !colorUsage || (colorUsage.backupFor?.length ?? 0) === 0 ? (
+          ) : sizedBackupFor.length === 0 ? (
             <p className="text-slate-400 text-center py-8">
-              This color isn&apos;t set as a backup for any design
+              This color isn&apos;t a backup for any Size {threadSize} design
             </p>
           ) : (
             <div className="space-y-3">
-              {colorUsage.backupFor.map((design) => {
+              {sizedBackupFor.map((design) => {
                 const primaries = design.primaryDmcNumbers
                   .map((p) => {
                     const c = getDmcColorByNumber(p);

@@ -8,6 +8,7 @@ import type { OrdersResponse, Order, OrderItem } from "@/app/api/shopify/orders/
 import { Breadcrumb } from "@/components/Breadcrumb";
 import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
 import { useMeshFilter } from "@/lib/use-mesh-filter";
+import CountStepper from "@/components/inventory/CountStepper";
 import MysteryBagPickerDialog from "@/components/MysteryBagPickerDialog";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 
@@ -195,7 +196,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
-  const [meshFilter, setStoredMeshFilter] = useMeshFilter("ordersMeshFilter");
+  const { meshFilter, setMeshFilter: setStoredMeshFilter } = useMeshFilter("ordersMeshFilter");
   const handleMeshFilterChange = (f: MeshFilter) => {
     setStoredMeshFilter(f);
     // Reset cached data so it refetches with the new filter
@@ -209,7 +210,6 @@ export default function OrdersPage() {
   // Track pending values being typed
   const [pendingKits, setPendingKits] = useState<Record<string, string>>({});
   const [pendingCanvases, setPendingCanvases] = useState<Record<string, string>>({});
-  const [pendingInventory, setPendingInventory] = useState<Record<string, string>>({});
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
 
   // Kit data for showing what's needed to make each kit
@@ -682,26 +682,22 @@ export default function OrdersPage() {
   }, [updatingInventory, fetchKits]);
 
   // Set absolute inventory value for a kit color at a specific thread size.
-  const handleSetInventory = useCallback(async (dmcNumber: string, value: number, threadSize: number) => {
-    // Find current value from kitData for this exact (dmc, size).
-    let currentValue = 0;
-    for (const kit of kitData.values()) {
-      const item = kit.kitContents.find(i => i.dmcNumber === dmcNumber && i.threadSize === threadSize);
-      if (item) {
-        currentValue = item.inventorySkeins;
-        break;
-      }
-    }
-
-    const newVal = Math.max(0, value);
-    const delta = newVal - currentValue;
-
+  // `currentValue` MUST be the number shown in the row the user typed into.
+  // This used to scan kitData for the first kit holding that (dmc, size), which
+  // is a different row that can hold a different, staler number — so confirming
+  // the value you could see moved stock by the difference between the two.
+  const handleSetInventory = useCallback(async (
+    dmcNumber: string,
+    value: number,
+    threadSize: number,
+    currentValue: number,
+  ) => {
+    if (!Number.isFinite(value)) return;
+    const delta = Math.max(0, Math.floor(value)) - currentValue;
     if (delta !== 0) {
       await handleUpdateInventory(dmcNumber, delta, threadSize);
     }
-    // Clear pending value
-    setPendingInventory((prev) => { const next = { ...prev }; delete next[`${dmcNumber}-${threadSize}`]; return next; });
-  }, [kitData, handleUpdateInventory]);
+  }, [handleUpdateInventory]);
 
   // Save backup color for a design
   const handleSaveBackup = useCallback(async (backupDmcNumber: string) => {
@@ -1279,7 +1275,7 @@ export default function OrdersPage() {
                                                   >
                                                     <div className="flex items-center gap-2 p-2">
                                                       <Link
-                                                        href={`/inventory/color/${item.dmcNumber}`}
+                                                        href={`/inventory/color/${item.dmcNumber}?size=${item.threadSize}`}
                                                         className="w-6 h-6 rounded flex-shrink-0 border border-slate-600 hover:ring-1 hover:ring-rose-500"
                                                         style={{ backgroundColor: item.hex }}
                                                         title={`View DMC ${item.dmcNumber}`}
@@ -1290,45 +1286,15 @@ export default function OrdersPage() {
                                                           {item.fullSkeins > 0 ? `${item.fullSkeins} sk needed` : `${item.bobbinYards}y bobbin`}
                                                         </p>
                                                       </div>
-                                                      <div className="flex items-center gap-1 flex-shrink-0">
-                                                        <button
-                                                          onClick={() => handleUpdateInventory(item.dmcNumber, -1, item.threadSize)}
-                                                          disabled={updatingInventory === `${item.dmcNumber}-${item.threadSize}` || item.inventorySkeins <= 0}
-                                                          className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                                          title="Remove 1"
-                                                        >
-                                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                                          </svg>
-                                                        </button>
-                                                        <input
-                                                          type="number"
-                                                          min="0"
-                                                          value={pendingInventory[`${item.dmcNumber}-${item.threadSize}`] ?? item.inventorySkeins}
-                                                          onChange={(e) => setPendingInventory((prev) => ({ ...prev, [`${item.dmcNumber}-${item.threadSize}`]: e.target.value }))}
-                                                          onBlur={() => {
-                                                            const val = pendingInventory[`${item.dmcNumber}-${item.threadSize}`];
-                                                            if (val !== undefined && val !== "") {
-                                                              handleSetInventory(item.dmcNumber, Number(val), item.threadSize);
-                                                            } else if (val === "") {
-                                                              setPendingInventory((prev) => { const next = { ...prev }; delete next[`${item.dmcNumber}-${item.threadSize}`]; return next; });
-                                                            }
-                                                          }}
-                                                          onKeyDown={(e) => {
-                                                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                                                          }}
-                                                        className={`w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs text-center font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 ${item.inStock ? "text-emerald-400" : "text-red-400"}`}
-                                                      />
-                                                      <button
-                                                        onClick={() => handleUpdateInventory(item.dmcNumber, 1, item.threadSize)}
-                                                        disabled={updatingInventory === `${item.dmcNumber}-${item.threadSize}`}
-                                                        className="p-0.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                                        title="Add 1"
-                                                      >
-                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                                        </svg>
-                                                      </button>
+                                                      <div className="flex-shrink-0">
+                                                        <CountStepper
+                                                          value={item.inventorySkeins}
+                                                          onCommit={(next) => handleSetInventory(item.dmcNumber, next, item.threadSize, item.inventorySkeins)}
+                                                          onDelta={(d) => handleUpdateInventory(item.dmcNumber, d, item.threadSize)}
+                                                          busy={updatingInventory === `${item.dmcNumber}-${item.threadSize}`}
+                                                          ariaLabel={`Skeins of DMC ${item.dmcNumber} (Size ${item.threadSize})`}
+                                                          valueClassName={item.inStock ? "text-emerald-400" : "text-red-400"}
+                                                        />
                                                       </div>
                                                       {/* Backup color indicator - clickable to change */}
                                                       {item.backup ? (

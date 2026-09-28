@@ -101,7 +101,8 @@ export default function StockAlertsPage() {
   const [designFilter, setDesignFilter] = useState<"all" | "included" | "excluded">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [meshFilter, handleMeshFilterChange] = useMeshFilter("orderBuilderMeshFilter");
+  const { meshFilter, setMeshFilter: handleMeshFilterChange, ready: filterReady } =
+    useMeshFilter("orderBuilderMeshFilter");
 
   const refetchAlerts = useCallback(async () => {
     const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
@@ -116,11 +117,14 @@ export default function StockAlertsPage() {
   }, [meshFilter]);
 
   useEffect(() => {
+    // Wait for the stored filter. Fetching before it is adopted issues the same
+    // request twice with different filters and nothing orders the responses.
+    if (!filterReady) return;
     setLoading(true);
     refetchAlerts()
       .catch((error) => console.error("Error fetching stock alerts:", error))
       .finally(() => setLoading(false));
-  }, [refetchAlerts]);
+  }, [refetchAlerts, filterReady]);
 
   // Self-heal when this tab regains focus (inventory changed on another page).
   useRefetchOnFocus(refetchAlerts);

@@ -257,7 +257,8 @@ export default function InventoryPage() {
   // Sort by total inventory count on the kits/canvases/supplies tabs.
   // "default" keeps the collection grouping / original order.
   const [sortMode, setSortMode] = useState<"default" | "high" | "low">("default");
-  const [meshFilter, handleMeshFilterChange] = useMeshFilter("inventoryMeshFilter");
+  const { meshFilter, setMeshFilter: handleMeshFilterChange, ready: filterReady } =
+    useMeshFilter("inventoryMeshFilter");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [designs, setDesigns] = useState<Design[]>([]);
   // Misprints are 14ct-only and must NOT be constrained by the mesh filter
@@ -290,7 +291,10 @@ export default function InventoryPage() {
   // Predicted "bring to next market" quantity per design (from Market Prep),
   // shown on the Market tab. Keyed by designId.
   const [marketPrediction, setMarketPrediction] = useState<Map<string, number>>(new Map());
-  const sizeFilter = null; // Threads tab lists both SKUs; rows carry their own size
+  // null = both SKUs. This was a hardcoded null next to a box that said
+  // "Size 5": the table listed Size 3 and Size 5 rows together and totalled
+  // them into one "Total Skeins" figure under a label naming one size.
+  const [sizeFilter, setSizeFilter] = useState<ThreadSize | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedColor, setExpandedColor] = useState<string | null>(null);
 
@@ -330,10 +334,15 @@ export default function InventoryPage() {
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
 
   useEffect(() => {
+    // Wait for the stored filter to be adopted. Firing before that sends every
+    // request twice — once for the default, once for the stored filter — and
+    // none of these fetches carry a sequence token, so if the default's larger
+    // payload lands second it wins and the rows disagree with the chip.
+    if (!filterReady) return;
     fetchInventory();
     fetchDesigns();
     fetchColorUsage();
-  }, [meshFilter]);
+  }, [meshFilter, filterReady]);
 
   // Misprint designs (all 14ct) load once, independent of the mesh filter.
   useEffect(() => {
@@ -385,8 +394,8 @@ export default function InventoryPage() {
       fetchColorUsage(),
       fetchMisprintDesigns(),
       ...Array.from(expandedKits).map((designId) => fetchKitContents(designId, true)),
-      supplies.length > 0 ? fetchSupplies() : Promise.resolve(),
-      bobbinData ? fetchBobbins() : Promise.resolve(),
+      hasFetchedSuppliesRef.current ? fetchSupplies() : Promise.resolve(),
+      hasFetchedBobbinsRef.current ? fetchBobbins() : Promise.resolve(),
     ]);
     setRefreshing(false);
   };
@@ -635,10 +644,11 @@ export default function InventoryPage() {
 
   // Fetch bobbins when tab changes to bobbins or mesh filter changes
   useEffect(() => {
+    if (!filterReady) return;
     if (activeTab === "bobbins") {
       fetchBobbins();
     }
-  }, [activeTab, meshFilter]);
+  }, [activeTab, meshFilter, filterReady]);
 
   // Predicted market bring-quantities (balanced buffer) for the Market tab.
   const fetchMarketPrediction = async () => {
@@ -950,6 +960,7 @@ export default function InventoryPage() {
         setSelectedColor(null);
         setAddSearch("");
         setAddSkeins("1");
+        setAddSize(5);
         setShowAddForm(false);
       }
     } catch (error) {
@@ -1378,6 +1389,12 @@ export default function InventoryPage() {
   };
 
   const totalSkeins = filteredItems.reduce((sum, item) => sum + item.skeins, 0);
+  // Broken out because a single skein count across two SKUs is not orderable:
+  // 400 skeins tells you nothing about how many Size 3 to buy.
+  const skeinsBySize = {
+    3: filteredItems.reduce((sum, i) => (i.size === 3 ? sum + i.skeins : sum), 0),
+    5: filteredItems.reduce((sum, i) => (i.size === 5 ? sum + i.skeins : sum), 0),
+  };
   // Size 3 skeins are 16yd, Size 5 are 27yd — sum per item, don't assume Size 5.
   const totalYards = filteredItems.reduce(
     (sum, item) => sum + item.skeins * skeinYardsForThread(item.size as ThreadSize),
@@ -1758,6 +1775,11 @@ export default function InventoryPage() {
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <p className="text-xs text-slate-400 uppercase tracking-wider">Total Skeins</p>
                 <p className="text-xl font-bold text-white">{totalSkeins}</p>
+                {sizeFilter === null && skeinsBySize[3] > 0 && skeinsBySize[5] > 0 && (
+                  <p className="text-xs text-slate-400">
+                    {skeinsBySize[3]} Size 3 · {skeinsBySize[5]} Size 5
+                  </p>
+                )}
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <p className="text-xs text-slate-400 uppercase tracking-wider">Total Yards</p>
@@ -1774,9 +1796,23 @@ export default function InventoryPage() {
                 placeholder="Search by DMC number or name..."
                 className="flex-1 px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-800"
               />
-              {/* Size 5 only in internal app */}
-              <div className="px-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-sm">
-                Size 5
+              {/* Size 3 and Size 5 are different SKUs, so this has to be filterable */}
+              <div className="flex gap-2" role="group" aria-label="Thread size filter">
+                {([null, 3, 5] as const).map((sz) => (
+                  <button
+                    key={String(sz)}
+                    type="button"
+                    onClick={() => setSizeFilter(sz)}
+                    aria-pressed={sizeFilter === sz}
+                    className={`px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                      sizeFilter === sz
+                        ? "bg-rose-900 border-rose-800 text-white"
+                        : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+                    }`}
+                  >
+                    {sz === null ? "All sizes" : `Size ${sz}`}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -3338,6 +3374,7 @@ export default function InventoryPage() {
                   setSelectedColor(null);
                   setAddSearch("");
                   setAddSkeins("1");
+                  setAddSize(5);
                 }}
                 className="p-1 text-slate-400 hover:text-white"
               >
@@ -3490,6 +3527,7 @@ export default function InventoryPage() {
                   setSelectedColor(null);
                   setAddSearch("");
                   setAddSkeins("1");
+                  setAddSize(5);
                 }}
                 className="flex-1 py-2.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm font-medium"
               >

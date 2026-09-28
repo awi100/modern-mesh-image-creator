@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { MeshFilter } from "@/components/MeshFilterChips";
 
 /**
@@ -17,24 +17,37 @@ import type { MeshFilter } from "@/components/MeshFilterChips";
  * client's first render disagree with the server HTML and React threw the
  * server tree away.
  *
+ * That leaves a window where the filter is still the default, so the hook also
+ * returns `ready`. Callers MUST gate their fetches on it: without that gate a
+ * page whose stored filter isn't the default fires every request twice, once
+ * per filter, and none of these fetches carry a sequence token — so if the
+ * stale response lands second it wins, and you get rows for one mesh count
+ * under a chip reading another.
+ *
  * `storageKey` stays per-page on purpose: the filter is a view preference, and
  * sharing one key would make changing it on Kits silently re-filter Inventory.
  */
 export function useMeshFilter(
   storageKey: string,
   defaultFilter: MeshFilter = "order",
-): [MeshFilter, (f: MeshFilter) => void] {
-  const [meshFilter, setMeshFilter] = useState<MeshFilter>(defaultFilter);
+): { meshFilter: MeshFilter; setMeshFilter: (f: MeshFilter) => void; ready: boolean } {
+  const [meshFilter, setFilter] = useState<MeshFilter>(defaultFilter);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem(storageKey) as MeshFilter | null;
-    if (stored) setMeshFilter(stored);
+    if (stored) setFilter(stored);
+    setReady(true);
   }, [storageKey]);
 
-  const change = (f: MeshFilter) => {
-    setMeshFilter(f);
-    sessionStorage.setItem(storageKey, f);
-  };
+  // Stable identity so a caller can safely put it in a dependency array.
+  const setMeshFilter = useCallback(
+    (f: MeshFilter) => {
+      setFilter(f);
+      sessionStorage.setItem(storageKey, f);
+    },
+    [storageKey],
+  );
 
-  return [meshFilter, change];
+  return { meshFilter, setMeshFilter, ready };
 }

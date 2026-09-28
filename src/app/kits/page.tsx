@@ -123,20 +123,23 @@ export default function KitsPage() {
   // Track which colors are currently being processed
   const processingRef = useRef<Set<string>>(new Set());
 
-  const [meshFilter, handleMeshFilterChange] = useMeshFilter("kitsMeshFilter");
+  const { meshFilter, setMeshFilter: handleMeshFilterChange, ready: filterReady } =
+    useMeshFilter("kitsMeshFilter");
 
   const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
 
   // Use SWR for caching - data persists across navigations.
   // Revalidate on focus so kit/market counts reflect POS sales that came in
   // while this tab was in the background (otherwise the numbers look stale).
-  const { data: kits, isLoading: loading, mutate: mutateKits } = useSWR<KitSummary[]>(`/api/kits${meshParam}`, {
+  // Keys are null until the stored filter is adopted, so we fetch once with the
+  // right filter instead of once per filter with no ordering guarantee.
+  const { data: kits, isLoading: loading, mutate: mutateKits } = useSWR<KitSummary[]>(filterReady ? `/api/kits${meshParam}` : null, {
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
   });
 
   // Fetch color usage data to show which designs use each color
-  const { data: colorUsage } = useSWR<ColorUsage[]>(`/api/colors/usage${meshParam}`, {
+  const { data: colorUsage } = useSWR<ColorUsage[]>(filterReady ? `/api/colors/usage${meshParam}` : null, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
@@ -304,7 +307,8 @@ export default function KitsPage() {
 
   // Set absolute kits ready value
   const handleSetKitsReady = useCallback(async (designId: string, value: number) => {
-    const newVal = Math.max(0, value);
+    if (!Number.isFinite(value)) return;
+    const newVal = Math.max(0, Math.floor(value));
 
     // Optimistic update
     mutateKits((currentKits) => {
