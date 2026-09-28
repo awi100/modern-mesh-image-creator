@@ -208,8 +208,6 @@ export default function OrdersPage() {
   const [mysteryPickerOrder, setMysteryPickerOrder] = useState<Order | null>(null); // Order whose Mystery Bag picker is open
 
   // Track pending values being typed
-  const [pendingKits, setPendingKits] = useState<Record<string, string>>({});
-  const [pendingCanvases, setPendingCanvases] = useState<Record<string, string>>({});
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
 
   // Kit data for showing what's needed to make each kit
@@ -589,34 +587,22 @@ export default function OrdersPage() {
   }, [sendUpdate]);
 
   // Set an absolute value for kitsReady or canvasPrinted.
-  // Bail (no PATCH) on non-finite input — guards against `Number("")` = 0
+  //
+  // `currentValue` is the number shown in the row the user typed into. It used
+  // to be found by scanning every order for the first item with this designId —
+  // and the inner `break` only left the inner loop, so a later order could
+  // overwrite it — which computes the delta against a row other than the one
+  // being edited.
+  //
+  // Bails (no PATCH) on non-finite input, guarding against `Number("")` = 0
   // silently zeroing a count when the user blurs an empty input.
-  const handleSetValue = useCallback((designId: string, field: "kitsReady" | "canvasPrinted", value: number) => {
-    const clearPending = () => {
-      if (field === "kitsReady") {
-        setPendingKits((prev) => { const next = { ...prev }; delete next[designId]; return next; });
-      } else {
-        setPendingCanvases((prev) => { const next = { ...prev }; delete next[designId]; return next; });
-      }
-    };
-
-    if (!Number.isFinite(value)) {
-      clearPending();
-      return;
-    }
-
-    // Find current value from data
-    let currentValue = 0;
-    if (data) {
-      for (const order of data.orders) {
-        for (const item of order.items) {
-          if (item.designId === designId) {
-            currentValue = field === "kitsReady" ? item.kitsReady : item.canvasPrinted;
-            break;
-          }
-        }
-      }
-    }
+  const handleSetValue = useCallback((
+    designId: string,
+    field: "kitsReady" | "canvasPrinted",
+    value: number,
+    currentValue: number,
+  ) => {
+    if (!Number.isFinite(value)) return;
 
     const newVal = Math.max(0, Math.floor(value));
     const delta = newVal - currentValue;
@@ -624,9 +610,7 @@ export default function OrdersPage() {
     if (delta !== 0) {
       handleUpdateCount(designId, field, delta);
     }
-
-    clearPending();
-  }, [data, handleUpdateCount]);
+  }, [handleUpdateCount]);
 
   // Update thread inventory for a kit color. Inventory is keyed by
   // (dmcNumber, threadSize) — 13ct designs use Size 3, 14/18ct use Size 5 —
@@ -1170,61 +1154,28 @@ export default function OrdersPage() {
                                         <p className="text-xs text-slate-400">needed</p>
                                       </div>
                                       <div className="text-center px-4">
-                                        <div className="flex items-center gap-1">
-                                          {kit.designId && (
-                                            <button
-                                              onClick={() => handleUpdateCount(kit.designId!, "kitsReady", -kitDelta)}
-                                              disabled={updating === kit.designId || kit.kitsReady <= 0}
-                                              className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                              title={`Remove ${kitDelta}`}
-                                            >
-                                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                              </svg>
-                                            </button>
-                                          )}
+                                        {kit.designId ? (
+                                          <CountStepper
+                                            value={kit.kitsReady}
+                                            onCommit={(next) => handleSetValue(kit.designId!, "kitsReady", next, kit.kitsReady)}
+                                            onDelta={(d) => handleUpdateCount(kit.designId!, "kitsReady", d)}
+                                            step={kitDelta}
+                                            busy={updating === kit.designId}
+                                            tone="home"
+                                            label="ready"
+                                            ariaLabel={`Kits ready for ${kit.designName}`}
+                                            valueClassName={hasEnough ? "text-emerald-400" : "text-red-400"}
+                                            decrementTitle={`Remove ${kitDelta}`}
+                                            incrementTitle={`Add ${kitDelta}`}
+                                          />
+                                        ) : (
                                           <div className="text-center">
-                                            {kit.designId ? (
-                                              <input
-                                                type="number"
-                                                min="0"
-                                                value={pendingKits[kit.designId] ?? kit.kitsReady}
-                                                onChange={(e) => setPendingKits((prev) => ({ ...prev, [kit.designId!]: e.target.value }))}
-                                                onBlur={() => {
-                                                  const val = pendingKits[kit.designId!];
-                                                  if (val !== undefined && val !== "") {
-                                                    handleSetValue(kit.designId!, "kitsReady", Number(val));
-                                                  } else if (val === "") {
-                                                    // Clear pending without zeroing the count
-                                                    setPendingKits((prev) => { const next = { ...prev }; delete next[kit.designId!]; return next; });
-                                                  }
-                                                }}
-                                                onKeyDown={(e) => {
-                                                  // Enter just blurs; onBlur is the single commit path (avoids a double-apply).
-                                                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                                                }}
-                                                className={`w-14 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-emerald-600 ${hasEnough ? "text-emerald-400" : "text-red-400"}`}
-                                              />
-                                            ) : (
-                                              <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
-                                                {kit.kitsReady}
-                                              </p>
-                                            )}
+                                            <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                              {kit.kitsReady}
+                                            </p>
                                             <p className="text-xs text-slate-400">ready</p>
                                           </div>
-                                          {kit.designId && (
-                                            <button
-                                              onClick={() => handleUpdateCount(kit.designId!, "kitsReady", kitDelta)}
-                                              disabled={updating === kit.designId}
-                                              className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                              title={`Add ${kitDelta}`}
-                                            >
-                                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                              </svg>
-                                            </button>
-                                          )}
-                                        </div>
+                                        )}
                                       </div>
                                       {!hasEnough && (
                                         <div className="text-center px-4">
@@ -1532,59 +1483,28 @@ export default function OrdersPage() {
                                 <p className="text-xs text-slate-400">canvases</p>
                               </div>
                               <div className="text-center px-4">
-                                <div className="flex items-center gap-1">
-                                  {canvas.designId && (
-                                    <button
-                                      onClick={() => handleUpdateCount(canvas.designId!, "canvasPrinted", -canvasDelta)}
-                                      disabled={updating === canvas.designId || canvas.canvasPrinted <= 0}
-                                      className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                      title={`Remove ${canvasDelta}`}
-                                    >
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                      </svg>
-                                    </button>
-                                  )}
+                                {canvas.designId ? (
+                                  <CountStepper
+                                    value={canvas.canvasPrinted}
+                                    onCommit={(next) => handleSetValue(canvas.designId!, "canvasPrinted", next, canvas.canvasPrinted)}
+                                    onDelta={(d) => handleUpdateCount(canvas.designId!, "canvasPrinted", d)}
+                                    step={canvasDelta}
+                                    busy={updating === canvas.designId}
+                                    tone="home"
+                                    label="printed"
+                                    ariaLabel={`Canvases printed for ${canvas.designName}`}
+                                    valueClassName={hasEnough ? "text-emerald-400" : "text-red-400"}
+                                    decrementTitle={`Remove ${canvasDelta}`}
+                                    incrementTitle={`Add ${canvasDelta}`}
+                                  />
+                                ) : (
                                   <div className="text-center">
-                                    {canvas.designId ? (
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={pendingCanvases[canvas.designId] ?? canvas.canvasPrinted}
-                                        onChange={(e) => setPendingCanvases((prev) => ({ ...prev, [canvas.designId!]: e.target.value }))}
-                                        onBlur={() => {
-                                          const val = pendingCanvases[canvas.designId!];
-                                          if (val !== undefined && val !== "") {
-                                            handleSetValue(canvas.designId!, "canvasPrinted", Number(val));
-                                          } else if (val === "") {
-                                            setPendingCanvases((prev) => { const next = { ...prev }; delete next[canvas.designId!]; return next; });
-                                          }
-                                        }}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                                        }}
-                                        className={`w-14 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 ${hasEnough ? "text-emerald-400" : "text-red-400"}`}
-                                      />
-                                    ) : (
-                                      <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
-                                        {canvas.canvasPrinted}
-                                      </p>
-                                    )}
+                                    <p className={`text-2xl font-bold ${hasEnough ? "text-emerald-400" : "text-red-400"}`}>
+                                      {canvas.canvasPrinted}
+                                    </p>
                                     <p className="text-xs text-slate-400">printed</p>
                                   </div>
-                                  {canvas.designId && (
-                                    <button
-                                      onClick={() => handleUpdateCount(canvas.designId!, "canvasPrinted", canvasDelta)}
-                                      disabled={updating === canvas.designId}
-                                      className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                      title={`Add ${canvasDelta}`}
-                                    >
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                      </svg>
-                                    </button>
-                                  )}
-                                </div>
+                                )}
                               </div>
                               {!hasEnough && (
                                 <div className="text-center px-4">

@@ -604,8 +604,11 @@ export default function InventoryPage() {
   };
 
   const fetchSupplies = async () => {
+    // Spinner only on the first load. This refetches on every entry to the tab,
+    // and flipping to a spinner when we already have rows made returning to the
+    // tab flash: content → spinner → content.
+    if (!hasFetchedSuppliesRef.current) setSuppliesLoading(true);
     hasFetchedSuppliesRef.current = true;
-    setSuppliesLoading(true);
     try {
       const response = await fetch("/api/supplies");
       if (response.ok) {
@@ -628,8 +631,8 @@ export default function InventoryPage() {
   }, [activeTab]);
 
   const fetchBobbins = async () => {
+    if (!hasFetchedBobbinsRef.current) setBobbinsLoading(true);
     hasFetchedBobbinsRef.current = true;
-    setBobbinsLoading(true);
     try {
       const response = await fetch(`/api/inventory/bobbin-analysis${meshFilter !== "all" ? `?meshCount=${meshFilter}` : ""}`);
       if (response.ok) {

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import CountStepper from "@/components/inventory/CountStepper";
 import SectionNav from "@/components/SectionNav";
 import useSWR from "swr";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
@@ -258,9 +259,13 @@ export default function KitComparePage() {
                                   {pair.kit14.archived && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-slate-700 text-slate-400 border border-slate-600" title="This 14ct design is archived">archived</span>
                                   )}
-                                  <ReadyStepper
-                                    count={pair.kit14.kitsReady}
-                                    onAdjust={(delta) => adjustKitsReady(pair.kit14!.designId, delta)}
+                                  <CountStepper
+                                    value={pair.kit14.kitsReady}
+                                    onCommit={(next) => adjustKitsReady(pair.kit14!.designId, next - pair.kit14!.kitsReady)}
+                                    onDelta={(d) => adjustKitsReady(pair.kit14!.designId, d)}
+                                    size="sm"
+                                    tone="home"
+                                    ariaLabel={`Kits ready for the 14ct version`}
                                   />
                                 </>
                               )}
@@ -272,9 +277,13 @@ export default function KitComparePage() {
                                   {pair.kit18.archived && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-slate-700 text-slate-400 border border-slate-600" title="This 18ct design is archived">archived</span>
                                   )}
-                                  <ReadyStepper
-                                    count={pair.kit18.kitsReady}
-                                    onAdjust={(delta) => adjustKitsReady(pair.kit18!.designId, delta)}
+                                  <CountStepper
+                                    value={pair.kit18.kitsReady}
+                                    onCommit={(next) => adjustKitsReady(pair.kit18!.designId, next - pair.kit18!.kitsReady)}
+                                    onDelta={(d) => adjustKitsReady(pair.kit18!.designId, d)}
+                                    size="sm"
+                                    tone="home"
+                                    ariaLabel={`Kits ready for the 18ct version`}
                                   />
                                 </>
                               )}
@@ -295,79 +304,6 @@ export default function KitComparePage() {
           })
         )}
       </div>
-    </div>
-  );
-}
-
-// Editable "kits in stock" control: − / + steppers plus click-to-type the exact count.
-// stopPropagation keeps clicks from toggling the surrounding expand/collapse row.
-function ReadyStepper({ count, onAdjust }: { count: number; onAdjust: (delta: number) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(count));
-
-  useEffect(() => {
-    if (!editing) setDraft(String(count));
-  }, [count, editing]);
-
-  const commit = () => {
-    setEditing(false);
-    // Discard a cleared / non-numeric box rather than committing it as 0 —
-    // `parseInt("") || 0` used to zero a real kits-ready count.
-    const parsed = parseInt(draft, 10);
-    if (!Number.isFinite(parsed)) {
-      setDraft(String(count));
-      return;
-    }
-    const next = Math.max(0, parsed);
-    if (next !== count) onAdjust(next - count);
-  };
-
-  return (
-    <div
-      className="flex items-center rounded overflow-hidden border border-slate-600"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); if (count > 0) onAdjust(-1); }}
-        disabled={count <= 0}
-        className="px-2 py-0.5 text-slate-300 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
-        aria-label="Decrease kits ready"
-      >
-        −
-      </button>
-      {editing ? (
-        <input
-          autoFocus
-          type="number"
-          min={0}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
-            if (e.key === "Escape") { setDraft(String(count)); setEditing(false); }
-          }}
-          className="w-12 px-1 py-0.5 text-xs text-center bg-slate-900 text-white outline-none"
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-          className={`px-2 py-0.5 text-xs font-semibold min-w-[3.75rem] text-center ${count > 0 ? "bg-emerald-900/60 text-emerald-300" : "bg-slate-700 text-slate-400"}`}
-          title="Click to edit kits in stock"
-        >
-          {count} ready
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onAdjust(1); }}
-        className="px-2 py-0.5 text-slate-300 hover:bg-slate-600"
-        aria-label="Increase kits ready"
-      >
-        +
-      </button>
     </div>
   );
 }

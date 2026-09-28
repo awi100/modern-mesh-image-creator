@@ -110,7 +110,6 @@ export default function KitsPage() {
   // Folders start collapsed; only folders in this set are expanded
   const [expandedFolders, setExpandedFolders] = useState<Set<string | null>>(new Set());
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
-  const [pendingKitsReady, setPendingKitsReady] = useState<Record<string, string>>({});
   const [updatingKitsReady, setUpdatingKitsReady] = useState<string | null>(null);
   const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
 
@@ -321,9 +320,6 @@ export default function KitsPage() {
         };
       });
     }, false);
-
-    // Clear pending value
-    setPendingKitsReady((prev) => { const next = { ...prev }; delete next[designId]; return next; });
 
     setUpdatingKitsReady(designId);
     try {
@@ -597,53 +593,17 @@ export default function KitsPage() {
                             {/* Counts: Here (online, editable) · Market (tote) · Andover (bulk) · Total */}
                             <div className="flex items-center gap-2 md:gap-3" onClick={(e) => e.stopPropagation()}>
                               {/* Here — online stock, editable */}
-                              <div className="flex items-center gap-1">
-                                <button
-                                  onClick={() => handleUpdateKitsReady(kit.designId, -1)}
-                                  disabled={updatingKitsReady === kit.designId || kit.kitsReady <= 0}
-                                  className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                  title="Remove 1 kit (online)"
-                                >
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                  </svg>
-                                </button>
-                                <div className="text-center">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={pendingKitsReady[kit.designId] ?? kit.kitsReady}
-                                    onChange={(e) => {
-                                      setPendingKitsReady((prev) => ({ ...prev, [kit.designId]: e.target.value }));
-                                    }}
-                                    onBlur={() => {
-                                      const val = pendingKitsReady[kit.designId];
-                                      if (val !== undefined && val !== "") {
-                                        handleSetKitsReady(kit.designId, Number(val));
-                                      } else if (val === "") {
-                                        // Blank input: clear pending without zeroing the count.
-                                        setPendingKitsReady((prev) => { const next = { ...prev }; delete next[kit.designId]; return next; });
-                                      }
-                                    }}
-                                    onKeyDown={(e) => {
-                                      // Enter just blurs; onBlur is the single commit path (avoids a double-apply).
-                                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                                    }}
-                                    className="w-12 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                                  />
-                                  <p className="text-xs text-slate-400">Here</p>
-                                </div>
-                                <button
-                                  onClick={() => handleUpdateKitsReady(kit.designId, 1)}
-                                  disabled={updatingKitsReady === kit.designId}
-                                  className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                  title="Add 1 kit (online)"
-                                >
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                  </svg>
-                                </button>
-                              </div>
+                              <CountStepper
+                                value={kit.kitsReady}
+                                onCommit={(next) => handleSetKitsReady(kit.designId, next)}
+                                onDelta={(d) => handleUpdateKitsReady(kit.designId, d)}
+                                busy={updatingKitsReady === kit.designId}
+                                tone="home"
+                                label="Home"
+                                ariaLabel={`Kits at home for ${kit.designName}`}
+                                decrementTitle="Remove 1 kit (home)"
+                                incrementTitle="Add 1 kit (home)"
+                              />
                               {/* Market — tote stock (manage on the Market tab) */}
                               <div className="text-center min-w-[2.5rem]" title="Kits in the craft-market tote — manage on Inventory → Market">
                                 <p className="text-lg font-bold text-emerald-400">{kit.marketKitsReady}</p>
