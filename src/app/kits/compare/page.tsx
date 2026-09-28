@@ -309,7 +309,14 @@ function ReadyStepper({ count, onAdjust }: { count: number; onAdjust: (delta: nu
 
   const commit = () => {
     setEditing(false);
-    const next = Math.max(0, parseInt(draft, 10) || 0);
+    // Discard a cleared / non-numeric box rather than committing it as 0 —
+    // `parseInt("") || 0` used to zero a real kits-ready count.
+    const parsed = parseInt(draft, 10);
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(count));
+      return;
+    }
+    const next = Math.max(0, parsed);
     if (next !== count) onAdjust(next - count);
   };
 
