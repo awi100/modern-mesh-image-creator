@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 import Link from "next/link";
+import { mutApi } from "@/lib/mut-api";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import MeshFilterChips from "@/components/MeshFilterChips";
 import { useMeshFilter } from "@/lib/use-mesh-filter";
@@ -104,11 +105,21 @@ export default function StockAlertsPage() {
   const { meshFilter, setMeshFilter: handleMeshFilterChange, ready: filterReady } =
     useMeshFilter("orderBuilderMeshFilter");
 
+  // Same ordering hazard as the inventory page: flipping the chip twice quickly
+  // can land the two responses out of order, leaving alert rows for one mesh
+  // count under a chip reading another. Drop a response whose filter is stale.
+  const currentMeshRef = useRef(meshFilter);
+  useEffect(() => {
+    currentMeshRef.current = meshFilter;
+  }, [meshFilter]);
+
   const refetchAlerts = useCallback(async () => {
+    const forMesh = meshFilter;
     const meshParam = meshFilter !== "all" ? `?meshCount=${meshFilter}` : "";
     const response = await fetch(`/api/inventory/alerts${meshParam}`);
     if (response.ok) {
       const data = await response.json();
+      if (currentMeshRef.current !== forMesh) return;
       setColors(data.mostUsedColors || []);
       setOrderSuggestions(data.orderSuggestions || []);
       setGlobalDemand(data.globalDemand);
@@ -218,7 +229,7 @@ export default function StockAlertsPage() {
     try {
       for (let i = 0; i < ids.length; i += 50) {
         const chunk = ids.slice(i, i + 50);
-        const res = await fetch(`/api/designs/batch`, {
+        const res = await mutApi(`/api/designs/batch`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

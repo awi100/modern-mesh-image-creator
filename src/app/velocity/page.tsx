@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { mutApi } from "@/lib/mut-api";
 import { Breadcrumb } from "@/components/Breadcrumb";
 
 interface DesignVelocity {
@@ -89,7 +90,7 @@ export default function VelocityPage() {
   const handleRecalculateVelocities = async () => {
     setRecalculating(true);
     try {
-      const response = await fetch("/api/inventory/velocity", { method: "POST" });
+      const response = await mutApi("/api/inventory/velocity", { method: "POST" });
       if (response.ok) {
         await fetchData();
       }

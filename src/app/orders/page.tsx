@@ -705,7 +705,7 @@ export default function OrdersPage() {
         delete newBackups[dmcNumber];
       }
 
-      const res = await fetch(`/api/designs/${designId}/backup-colors`, {
+      const res = await mutApi(`/api/designs/${designId}/backup-colors`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ backupColors: newBackups }),

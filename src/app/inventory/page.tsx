@@ -280,6 +280,9 @@ export default function InventoryPage() {
   // is only re-registered on meshFilter changes, so it cannot read the state.
   const hasFetchedSuppliesRef = useRef(false);
   const hasFetchedBobbinsRef = useRef(false);
+  // The focus listener is only re-registered on meshFilter changes, so it has to
+  // read the tab from a ref rather than the state it captured.
+  const activeTabRef = useRef<TabType>("threads");
   // Always holds the mesh filter of the CURRENT render. Every mesh-dependent
   // fetch captures the filter it was issued for and drops its response if this
   // has moved on since: flipping the chip twice quickly can land two responses
@@ -289,7 +292,6 @@ export default function InventoryPage() {
   // resolves. Several fetchers share it, which is why it is the filter value
   // rather than a counter — a counter would have them invalidate each other.
   const currentMeshRef = useRef(meshFilter);
-  currentMeshRef.current = meshFilter;
   // Predicted "bring to next market" quantity per design (from Market Prep),
   // shown on the Market tab. Keyed by designId.
   const [marketPrediction, setMarketPrediction] = useState<Map<string, number>>(new Map());
@@ -313,9 +315,14 @@ export default function InventoryPage() {
   const openAddForm = (color?: DmcColor) => {
     if (color) setSelectedColor(color);
     setAddSize(sizeFilter ?? 5);
+    setAddSkeinsDraft(null);
     setShowAddForm(true);
   };
   const [addSkeins, setAddSkeins] = useState("1");
+  // Mirrors what is being typed into the skeins stepper so the yards preview
+  // stays live. CountStepper keeps its draft internally and commits on blur, so
+  // without this the one number the user is checking froze mid-edit.
+  const [addSkeinsDraft, setAddSkeinsDraft] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
   // Track pending values being typed
@@ -340,6 +347,13 @@ export default function InventoryPage() {
 
   // Inventory update state
   const [updatingInventory, setUpdatingInventory] = useState<string | null>(null);
+
+  // Declared BEFORE the fetch effects so it runs first: by the time they issue a
+  // request the ref already names the filter being fetched for.
+  useEffect(() => {
+    currentMeshRef.current = meshFilter;
+    activeTabRef.current = activeTab;
+  }, [meshFilter, activeTab]);
 
   useEffect(() => {
     // Wait for the stored filter to be adopted. Firing before that sends every
@@ -376,8 +390,8 @@ export default function InventoryPage() {
         // These read refs, not state: this listener is only re-registered when
         // meshFilter changes, so a state read would be frozen at [] / null from
         // that render and neither refetch would ever fire.
-        if (hasFetchedSuppliesRef.current) fetchSupplies();
-        if (hasFetchedBobbinsRef.current) fetchBobbins();
+        if (hasFetchedSuppliesRef.current || activeTabRef.current === "supplies") fetchSupplies();
+        if (hasFetchedBobbinsRef.current || activeTabRef.current === "bobbins") fetchBobbins();
       }
     };
     window.addEventListener("focus", refetch);
@@ -402,8 +416,8 @@ export default function InventoryPage() {
       fetchColorUsage(),
       fetchMisprintDesigns(),
       ...Array.from(expandedKits).map((designId) => fetchKitContents(designId, true)),
-      hasFetchedSuppliesRef.current ? fetchSupplies() : Promise.resolve(),
-      hasFetchedBobbinsRef.current ? fetchBobbins() : Promise.resolve(),
+      hasFetchedSuppliesRef.current || activeTab === "supplies" ? fetchSupplies() : Promise.resolve(),
+      hasFetchedBobbinsRef.current || activeTab === "bobbins" ? fetchBobbins() : Promise.resolve(),
     ]);
     setRefreshing(false);
   };
@@ -977,6 +991,7 @@ export default function InventoryPage() {
         setSelectedColor(null);
         setAddSearch("");
         setAddSkeins("1");
+        setAddSkeinsDraft(null);
         setAddSize(5);
         setShowAddForm(false);
       }
@@ -1404,6 +1419,11 @@ export default function InventoryPage() {
     router.push("/login");
     router.refresh();
   };
+
+  // What the Add Thread dialog's yards preview should reflect: the half-typed
+  // draft if there is one, otherwise the committed value.
+  const previewSkeins =
+    addSkeinsDraft !== null ? Math.max(0, Number(addSkeinsDraft) || 0) : Number(addSkeins) || 0;
 
   const totalSkeins = filteredItems.reduce((sum, item) => sum + item.skeins, 0);
   // Broken out because a single skein count across two SKUs is not orderable:
@@ -3390,6 +3410,7 @@ export default function InventoryPage() {
                   setSelectedColor(null);
                   setAddSearch("");
                   setAddSkeins("1");
+                  setAddSkeinsDraft(null);
                   setAddSize(5);
                 }}
                 className="p-1 text-slate-400 hover:text-white"
@@ -3512,11 +3533,12 @@ export default function InventoryPage() {
                   <CountStepper
                     value={Math.max(1, Number(addSkeins) || 1)}
                     onCommit={(next) => setAddSkeins(String(next))}
+                    onDraftChange={(draft) => setAddSkeinsDraft(draft)}
                     min={1}
                     size="md"
                     ariaLabel="Number of skeins to add"
                   />
-                  <span className="text-slate-400 text-sm">{(Number(addSkeins) || 0) * skeinYardsForThread(addSize)} yards</span>
+                  <span className="text-slate-400 text-sm">{previewSkeins * skeinYardsForThread(addSize)} yards</span>
                 </div>
               </div>
             </div>
@@ -3528,6 +3550,7 @@ export default function InventoryPage() {
                   setSelectedColor(null);
                   setAddSearch("");
                   setAddSkeins("1");
+                  setAddSkeinsDraft(null);
                   setAddSize(5);
                 }}
                 className="flex-1 py-2.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm font-medium"

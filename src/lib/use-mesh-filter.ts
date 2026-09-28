@@ -34,8 +34,8 @@ export function useMeshFilter(
   const [meshFilter, setFilter] = useState<MeshFilter>(defaultFilter);
   const [ready, setReady] = useState(false);
 
-  // sessionStorage THROWS (rather than returning null) in Safari private mode,
-  // with site data blocked, and in a cross-origin iframe. Callers gate their
+  // sessionStorage THROWS (rather than returning null) when site data is
+  // blocked and inside a sandboxed cross-origin iframe. Callers gate their
   // fetches on `ready`, so letting that throw escape would leave every one of
   // them waiting forever on a page that never loads. Always become ready.
   useEffect(() => {

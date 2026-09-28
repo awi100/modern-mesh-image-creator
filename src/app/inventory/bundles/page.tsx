@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { mutApi } from "@/lib/mut-api";
 import SectionNav from "@/components/SectionNav";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { useToast } from "@/components/Toast";
@@ -75,7 +76,7 @@ export default function BundlesPage() {
   const remove = async (bundle: Bundle) => {
     if (!confirm(`Delete bundle "${bundle.title}"?`)) return;
     try {
-      const res = await fetch(`/api/bundles?id=${bundle.id}`, { method: "DELETE" });
+      const res = await mutApi(`/api/bundles?id=${bundle.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       showToast("Bundle deleted", "success");
       load();

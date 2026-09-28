@@ -69,6 +69,13 @@ export interface CountStepperProps {
   label?: string;
   /** Tooltip for the caption (e.g. explaining market semantics). */
   labelTitle?: string;
+  /**
+   * Reports the in-progress draft (null when there is none) for callers that
+   * render something derived from the value as you type — e.g. a live "N yards"
+   * preview beside the box. Purely for display; the committed value still only
+   * arrives via onCommit/onDelta.
+   */
+  onDraftChange?: (draft: string | null) => void;
   /** Disables both buttons while a mutation is in flight. */
   busy?: boolean;
   disabled?: boolean;
@@ -104,8 +111,16 @@ export default function CountStepper({
   valueClassName = "",
   decrementTitle,
   incrementTitle,
+  onDraftChange,
 }: CountStepperProps) {
-  const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraftState] = useState<string | null>(null);
+  // Single choke point so every path that clears or updates the draft (commit,
+  // wheel, Escape, typing) reports it — a caller's live preview must never be
+  // left showing a draft that has already been discarded.
+  const setDraft = (next: string | null) => {
+    setDraftState(next);
+    onDraftChange?.(next);
+  };
   const t = TONE[tone];
   const s = SIZE[size];
 
