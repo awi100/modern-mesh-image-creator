@@ -54,6 +54,10 @@ interface DesignInfo {
   heightInches: number;
   kitsReady: number;
   canvasPrinted: number;
+  marketKitsReady: number;
+  marketCanvasPrinted: number;
+  kitsAndover: number;
+  canvasAndover: number;
   totalSold: number;
   totalKitsSold: number;
 }
@@ -98,6 +102,7 @@ function CounterStatCard({
   valueClass,
   onAdjust,
   onSet,
+  elsewhere,
 }: {
   value: number;
   label: string;
@@ -105,6 +110,8 @@ function CounterStatCard({
   valueClass: string;
   onAdjust: (delta: number) => void;
   onSet: (value: number) => void;
+  /** Counts held at other locations, so a Home-only number never reads as the total. */
+  elsewhere?: { market: number; andover: number };
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
@@ -175,6 +182,13 @@ function CounterStatCard({
         </div>
       </div>
       <p className="text-sm text-slate-400">{label}</p>
+      {elsewhere && (elsewhere.market > 0 || elsewhere.andover > 0) && (
+        <p className="text-[11px] mt-0.5">
+          {elsewhere.market > 0 && <span className="text-emerald-400">{elsewhere.market} market</span>}
+          {elsewhere.market > 0 && elsewhere.andover > 0 && <span className="text-slate-600"> · </span>}
+          {elsewhere.andover > 0 && <span className="text-sky-400">{elsewhere.andover} Andover</span>}
+        </p>
+      )}
     </div>
   );
 }
@@ -568,8 +582,8 @@ export default function KitPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-        <div className="text-slate-600 dark:text-white flex items-center gap-3">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white flex items-center gap-3">
           <svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -582,10 +596,10 @@ export default function KitPage() {
 
   if (!design) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-slate-900 dark:text-white text-lg mb-4">Design not found</p>
-          <Link href="/" className="text-rose-600 dark:text-rose-400 hover:text-rose-500 dark:hover:text-rose-300">
+          <p className="text-white text-lg mb-4">Design not found</p>
+          <Link href="/" className="text-rose-400 hover:text-rose-300">
             Back to designs
           </Link>
         </div>
@@ -597,9 +611,9 @@ export default function KitPage() {
   const threadSize = design.meshCount === 13 ? 3 : 5;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-slate-900">
       {/* Header */}
-      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-40 safe-area-top">
+      <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40 safe-area-top">
         <div className="max-w-5xl mx-auto px-3 md:px-4 py-3 md:py-4 flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link
@@ -733,19 +747,21 @@ export default function KitPage() {
             </div>
             <CounterStatCard
               value={canvasPrinted}
-              label="Printed"
-              cardClass="bg-blue-900/20 border-blue-800"
-              valueClass="text-blue-400"
+              label="Canvases at Home"
+              cardClass="bg-slate-800 border-slate-700"
+              valueClass="text-white"
               onAdjust={(delta) => adjustCounter("canvasPrinted", delta)}
               onSet={(value) => setCounter("canvasPrinted", value)}
+              elsewhere={{ market: design.marketCanvasPrinted ?? 0, andover: design.canvasAndover ?? 0 }}
             />
             <CounterStatCard
               value={kitsReady}
-              label="Kits Ready"
-              cardClass="bg-emerald-900/20 border-emerald-800"
-              valueClass="text-emerald-400"
+              label="Kits at Home"
+              cardClass="bg-slate-800 border-slate-700"
+              valueClass="text-white"
               onAdjust={(delta) => adjustCounter("kitsReady", delta)}
               onSet={(value) => setCounter("kitsReady", value)}
+              elsewhere={{ market: design.marketKitsReady ?? 0, andover: design.kitsAndover ?? 0 }}
             />
           </div>
         )}
@@ -1339,9 +1355,9 @@ export default function KitPage() {
       </div>
 
       {/* Finishing Projects Section */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white">Finishing</h2>
+      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-white">Finishing</h2>
           <Link
             href="/finishing"
             className="text-xs text-rose-400 hover:text-rose-300"
@@ -1352,7 +1368,7 @@ export default function KitPage() {
         {loadingFinishing ? (
           <div className="p-4 text-center text-slate-500 text-sm">Loading...</div>
         ) : finishingProjects.length > 0 ? (
-          <div className="divide-y divide-slate-200 dark:divide-slate-700">
+          <div className="divide-y divide-slate-700">
             {finishingProjects.map((project) => (
               <div key={project.id} className="px-4 py-3 flex items-center justify-between">
                 <div>

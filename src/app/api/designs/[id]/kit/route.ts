@@ -31,6 +31,13 @@ export async function GET(
         heightInches: true,
         kitsReady: true,
         canvasPrinted: true,
+        // Kits/canvases also live in the market tote and at Andover. Without
+        // these the page reported home-only counts as if they were the whole
+        // picture — "Kits Ready 3" while 5 sat in the tote and 12 at Andover.
+        marketKitsReady: true,
+        marketCanvasPrinted: true,
+        kitsAndover: true,
+        canvasAndover: true,
         totalSold: true,
         totalKitsSold: true,
         backupColors: true,
@@ -169,6 +176,10 @@ export async function GET(
         heightInches: design.heightInches,
         kitsReady: design.kitsReady,
         canvasPrinted: design.canvasPrinted,
+        marketKitsReady: design.marketKitsReady,
+        marketCanvasPrinted: design.marketCanvasPrinted,
+        kitsAndover: design.kitsAndover,
+        canvasAndover: design.canvasAndover,
         totalSold: design.totalSold,
         totalKitsSold: design.totalKitsSold,
       },
