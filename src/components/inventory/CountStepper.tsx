@@ -66,6 +66,13 @@ export interface CountStepperProps {
   /** Disables both buttons while a mutation is in flight. */
   busy?: boolean;
   disabled?: boolean;
+  /**
+   * Disable one direction independently of the value — e.g. a Market "+" pulls
+   * stock from Home, so it must be disabled when Home is empty even though the
+   * market count itself is nowhere near its max.
+   */
+  disableIncrement?: boolean;
+  disableDecrement?: boolean;
   /** Extra classes for the input text (e.g. red when out of stock). */
   valueClassName?: string;
   decrementTitle?: string;
@@ -86,6 +93,8 @@ export default function CountStepper({
   labelTitle,
   busy = false,
   disabled = false,
+  disableIncrement = false,
+  disableDecrement = false,
   valueClassName = "",
   decrementTitle,
   incrementTitle,
@@ -140,7 +149,7 @@ export default function CountStepper({
         <button
           type="button"
           onClick={() => bump(-step)}
-          disabled={disabled || busy || atMin}
+          disabled={disabled || busy || atMin || disableDecrement}
           aria-label={`Remove one — ${ariaLabel}`}
           title={decrementTitle ?? "Remove 1"}
           className={`${btnBase} ${s.btn}`}
@@ -179,7 +188,7 @@ export default function CountStepper({
         <button
           type="button"
           onClick={() => bump(step)}
-          disabled={disabled || busy || atMax}
+          disabled={disabled || busy || atMax || disableIncrement}
           aria-label={`Add one — ${ariaLabel}`}
           title={incrementTitle ?? "Add 1"}
           className={`${btnBase} ${s.btn}`}
