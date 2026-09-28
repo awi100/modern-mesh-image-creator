@@ -18,6 +18,7 @@ import { exportPrintOrderPdf } from "@/lib/pdf-export";
 import { meshBadgeClassLight } from "@/lib/mesh-badge";
 import Tooltip from "@/components/Tooltip";
 import CountStepper from "@/components/inventory/CountStepper";
+import { skeinsToStock } from "@/lib/kit-stock";
 
 interface BackupColorInfo {
   dmcNumber: string;
@@ -79,16 +80,6 @@ interface ColorDesignUsage {
 interface ColorUsage {
   dmcNumber: string;
   designs: ColorDesignUsage[];
-}
-
-/**
- * Skeins you must have on hand for this colour to count as stocked — the same
- * rule the server uses (`skeinsToStock` in the kit route). NOT `skeinsNeeded`,
- * which is a different, legacy heuristic that disagrees on ~19% of yardages:
- * the card would display "Need 1 skein" while the colouring tested against 2.
- */
-function skeinsToStock(item: { fullSkeins: number; bobbinYards: number }): number {
-  return item.fullSkeins > 0 ? item.fullSkeins : item.bobbinYards > 0 ? 1 : 0;
 }
 
 function getContrastTextColor(hex: string): string {

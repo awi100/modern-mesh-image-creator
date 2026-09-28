@@ -21,6 +21,12 @@ import React, { useState } from "react";
  *  - The wheel is ignored: scrolling the page with the pointer over a focused
  *    number input used to silently edit stock.
  *  - `busy` disables both buttons so a double-tap can't fire two mutations.
+ *
+ * Draft state is per-instance rather than keyed by row id, which is safe only
+ * because every list that renders this uses a stable React key (design id, DMC
+ * number, or dmc+length+size) and freezes sort order while editing. If a list
+ * ever re-keys rows mid-edit, the open draft would follow the position instead
+ * of the row.
  */
 
 export type StepperTone = "neutral" | "home" | "market" | "andover" | "supply";
@@ -170,8 +176,12 @@ export default function CountStepper({
           onChange={(e) => setDraft(e.target.value)}
           onFocus={(e) => e.currentTarget.select()}
           // Scrolling the page with the pointer over a focused number input
-          // would otherwise silently change stock.
-          onWheel={(e) => e.currentTarget.blur()}
+          // would otherwise silently change stock. Discard any open draft first
+          // so the scroll can't commit a half-typed value via the blur.
+          onWheel={(e) => {
+            setDraft(null);
+            e.currentTarget.blur();
+          }}
           onBlur={commitDraft}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
