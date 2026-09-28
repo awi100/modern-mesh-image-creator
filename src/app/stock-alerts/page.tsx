@@ -434,7 +434,7 @@ export default function StockAlertsPage() {
                       >
                         {/* Color swatch - clickable link to color page */}
                         <Link
-                          href={`/inventory/color/${color.dmcNumber}`}
+                          href={`/inventory/color/${color.dmcNumber}?size=${color.threadSize}`}
                           onClick={(e) => e.stopPropagation()}
                           className="w-10 h-10 rounded-lg border border-slate-300 dark:border-slate-600 flex-shrink-0 flex items-center justify-center text-xs font-bold hover:ring-2 hover:ring-rose-400 transition-shadow"
                           style={{ backgroundColor: color.hex, color: getContrastTextColor(color.hex) }}
@@ -446,7 +446,7 @@ export default function StockAlertsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <Link
-                              href={`/inventory/color/${color.dmcNumber}`}
+                              href={`/inventory/color/${color.dmcNumber}?size=${color.threadSize}`}
                               onClick={(e) => e.stopPropagation()}
                               className="text-slate-900 dark:text-white font-medium truncate hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
                             >
@@ -463,7 +463,7 @@ export default function StockAlertsPage() {
                             </span>
                             {color.backupDmcNumber && (
                               <Link
-                                href={`/inventory/color/${color.backupDmcNumber}`}
+                                href={`/inventory/color/${color.backupDmcNumber}?size=${color.threadSize}`}
                                 onClick={(e) => e.stopPropagation()}
                                 className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
                               >

@@ -75,9 +75,18 @@ export default function ColorDetailPage() {
     { revalidateOnFocus: false }
   );
 
-  // Fetch inventory data (Size 5 only - all mesh counts use Size 5)
-  const { data: inventory5, mutate: mutateInventory5 } = useSWR<InventoryItem[]>(
-    "/api/inventory?size=5",
+  // Which SKU are we looking at? 13ct designs use Size 3 pearl cotton and
+  // 14/18ct use Size 5 — they are DIFFERENT inventory rows for the same DMC
+  // number. This page used to be hardcoded to Size 5 ("all mesh counts use
+  // Size 5", which stopped being true when 13ct went live), so following a
+  // Size 3 link from Stock Alerts showed and edited the WRONG SKU.
+  const sizeParam = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("size")
+    : null;
+  const [threadSize, setThreadSize] = useState<3 | 5>(sizeParam === "3" ? 3 : 5);
+
+  const { data: inventoryRows, mutate: mutateInventoryRows } = useSWR<InventoryItem[]>(
+    `/api/inventory?size=${threadSize}`,
     { revalidateOnFocus: false }
   );
 
@@ -96,7 +105,7 @@ export default function ColorDetailPage() {
   // Get backup color for this DMC number
   const backupDmcNumber = backupData?.backupMap?.[dmcNumber] || null;
   const backupColorInfo = backupDmcNumber ? getDmcColorByNumber(backupDmcNumber) : null;
-  const backupInventory = backupDmcNumber ? inventory5?.find(i => i.dmcNumber === backupDmcNumber) : null;
+  const backupInventory = backupDmcNumber ? inventoryRows?.find(i => i.dmcNumber === backupDmcNumber) : null;
 
   // Search for backup color suggestions
   const backupColorSuggestions = useMemo(() => {
@@ -116,23 +125,22 @@ export default function ColorDetailPage() {
     return colorUsageData.find(c => c.dmcNumber === dmcNumber);
   }, [colorUsageData, dmcNumber]);
 
-  // Find inventory for this color (Size 5 only)
-  const inventorySize5 = inventory5?.find(i => i.dmcNumber === dmcNumber);
+  // Find inventory for this color at the selected thread size
+  const inventorySize5 = inventoryRows?.find(i => i.dmcNumber === dmcNumber);
 
-  // Handle inventory update (Size 5 only)
   const handleUpdateInventory = async (delta: number) => {
-    setUpdatingInventory(5);
+    setUpdatingInventory(threadSize);
 
     try {
       const res = await mutApi("/api/inventory", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dmcNumber, size: 5, delta }),
+        body: JSON.stringify({ dmcNumber, size: threadSize, delta }),
       });
 
       if (!res.ok) throw new Error("Failed to update");
 
-      mutateInventory5();
+      mutateInventoryRows();
     } catch (error) {
       console.error("Error updating inventory:", error);
     } finally {
@@ -263,14 +271,38 @@ export default function ColorDetailPage() {
 
         {/* Inventory Section */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Inventory (Size 5 Pearl Cotton)</h2>
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <h2 className="text-lg font-semibold text-white">
+              Inventory <span className="text-slate-400 font-normal">(Size {threadSize} Pearl Cotton)</span>
+            </h2>
+            {/* Size 3 and Size 5 are different SKUs of the same DMC colour.
+                Make it explicit which one you're editing, and switchable. */}
+            <div className="flex items-center gap-1" role="group" aria-label="Thread size">
+              {([3, 5] as const).map((sz) => (
+                <button
+                  key={sz}
+                  type="button"
+                  onClick={() => { setThreadSize(sz); setPendingValue(""); }}
+                  aria-pressed={threadSize === sz}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    threadSize === sz
+                      ? "bg-rose-900 text-white"
+                      : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                  }`}
+                  title={sz === 3 ? "Size 3 — used by 13ct intro kits" : "Size 5 — used by 18ct canvases"}
+                >
+                  Size {sz}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="bg-slate-700/50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
               <span className="text-slate-300">Current Stock</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleUpdateInventory(-1)}
-                  disabled={updatingInventory === 5 || (inventorySize5?.skeins || 0) <= 0}
+                  disabled={updatingInventory === threadSize || (inventorySize5?.skeins || 0) <= 0}
                   className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
                 >
                   −
@@ -311,7 +343,7 @@ export default function ColorDetailPage() {
                 />
                 <button
                   onClick={() => handleUpdateInventory(1)}
-                  disabled={updatingInventory === 5}
+                  disabled={updatingInventory === threadSize}
                   className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white text-xl font-bold"
                 >
                   +
@@ -322,14 +354,14 @@ export default function ColorDetailPage() {
               <span className="text-slate-400 text-sm mr-2">Quick add:</span>
               <button
                 onClick={() => handleUpdateInventory(5)}
-                disabled={updatingInventory === 5}
+                disabled={updatingInventory === threadSize}
                 className="px-4 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium"
               >
                 +5
               </button>
               <button
                 onClick={() => handleUpdateInventory(10)}
-                disabled={updatingInventory === 5}
+                disabled={updatingInventory === threadSize}
                 className="px-4 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-medium"
               >
                 +10
