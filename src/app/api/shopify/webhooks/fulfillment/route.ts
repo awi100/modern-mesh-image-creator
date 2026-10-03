@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseNeedsKit, normalizeTitle, matchSupplyByVariant, isPosSource } from "@/lib/shopify";
+import { lockOrder } from "@/lib/order-lock";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
+import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import crypto from "crypto";
 
 // Shopify webhook payload types
@@ -10,6 +12,9 @@ interface ShopifyLineItem {
   title: string;
   variant_title: string | null;
   quantity: number;
+  // Original quantity minus refunded/removed units. Shopify omits it on older
+  // API versions, hence optional — we fall back to `quantity`.
+  current_quantity?: number | null;
   product_id: number;
 }
 
@@ -180,6 +185,14 @@ export async function POST(request: NextRequest) {
     }[] = [];
 
     for (const lineItem of payload.line_items) {
+      // Refunded/removed units. The GraphQL fetchers normalise `quantity` to
+      // `currentQuantity` via applyLineItemRefunds (lib/shopify.ts), but this
+      // REST payload was read raw — so a partially refunded line deducted the
+      // ORIGINAL count here and the refunded count via sync, and whichever path
+      // ran first decided the number. A fully refunded line deducts nothing.
+      const effectiveQuantity = lineItem.current_quantity ?? lineItem.quantity;
+      if (effectiveQuantity <= 0) continue;
+
       const productTitle = lineItem.title;
       const lowerTitle = productTitle.toLowerCase();
       const isIntroProduct = lowerTitle.includes("intro") || lowerTitle.includes("beginner");
@@ -194,7 +207,7 @@ export async function POST(request: NextRequest) {
         supplyId: matchedSupply?.id || null,
         productTitle,
         variantTitle: lineItem.variant_title,
-        quantity: lineItem.quantity,
+        quantity: effectiveQuantity,
         needsKit: matchedDesign ? needsKit : false,
       });
     }
@@ -209,6 +222,24 @@ export async function POST(request: NextRequest) {
     const supplyUpdatesMap = new Map<string, number>();
 
     for (const item of items) {
+      // Mystery Bag lines aren't backed by a designId — their deductions come
+      // from saved MysteryBagPick rows. The other two paths skip them here; this
+      // one didn't, which is harmless only while no design is named like the
+      // bag, and would start double-deducting the day one is.
+      if (isMysteryBagTitle(item.productTitle)) continue;
+
+      // Bundle line → deduct its components, and nothing else. Checked first and
+      // `continue`d, matching orders/fulfill: this path previously fell through
+      // and ALSO deducted a design/supply of the same name.
+      const bundle = bundleMap.get(normalizeTitle(item.productTitle));
+      if (bundle) {
+        const { components } = expandBundle(bundle, item.variantTitle, supplyLite);
+        for (const comp of components) {
+          supplyUpdatesMap.set(comp.supplyId, (supplyUpdatesMap.get(comp.supplyId) || 0) + comp.quantity * item.quantity);
+        }
+        continue;
+      }
+
       if (item.designId) {
         const existing = designUpdatesMap.get(item.designId) || {
           canvasDeduction: 0,
@@ -229,19 +260,15 @@ export async function POST(request: NextRequest) {
         const existing = supplyUpdatesMap.get(item.supplyId) || 0;
         supplyUpdatesMap.set(item.supplyId, existing + item.quantity);
       }
-
-      // Bundle line item → deduct each component supply.
-      const bundle = bundleMap.get(normalizeTitle(item.productTitle));
-      if (bundle) {
-        const { components } = expandBundle(bundle, item.variantTitle, supplyLite);
-        for (const comp of components) {
-          supplyUpdatesMap.set(comp.supplyId, (supplyUpdatesMap.get(comp.supplyId) || 0) + comp.quantity * item.quantity);
-        }
-      }
     }
 
     // Process in transaction with idempotency check inside
     const result = await prisma.$transaction(async (tx) => {
+      // Serialise against the other deduction paths AND against Shopify's own
+      // webhook retries. Must come before the re-check below: a check taken
+      // before the lock is still a race.
+      await lockOrder(tx, shopifyOrderId);
+
       // Check again inside transaction to prevent race conditions
       const existingInTx = await tx.shopifyOrder.findUnique({
         where: { shopifyOrderId },
@@ -304,8 +331,12 @@ export async function POST(request: NextRequest) {
         if (design) {
           const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
           const availKit = isPos ? design.marketKitsReady : design.kitsReady;
-          const actualCanvasDeduction = Math.min(updates.canvasDeduction, availCanvas);
-          const actualKitDeduction = Math.min(updates.kitDeduction, availKit);
+          // Floored at 0: Math.min alone returns a NEGATIVE deduction when the
+          // bucket is already negative, which the audit row then records as a
+          // negative "deducted" and the response counts as a negative total
+          // (see orders #3580/#3583, logged as kits 0 -> -1).
+          const actualCanvasDeduction = Math.max(0, Math.min(updates.canvasDeduction, availCanvas));
+          const actualKitDeduction = Math.max(0, Math.min(updates.kitDeduction, availKit));
 
           if (isPos && (actualCanvasDeduction < updates.canvasDeduction || actualKitDeduction < updates.kitDeduction)) {
             console.warn(`Webhook: POS order ${payload.name} exceeded market stock for design ${designId} (market tote count likely drifted)`);
@@ -353,7 +384,7 @@ export async function POST(request: NextRequest) {
 
         if (supply) {
           const avail = isPos ? supply.marketQuantity : supply.quantity;
-          const actualDeduction = Math.min(deduction, avail);
+          const actualDeduction = Math.max(0, Math.min(deduction, avail));
           if (isPos && actualDeduction < deduction) {
             console.warn(`Webhook: POS order ${payload.name} exceeded market supply stock for supply ${supplyId}`);
           }
@@ -370,7 +401,7 @@ export async function POST(request: NextRequest) {
       }
 
       return { alreadyProcessed: false, kitsDeducted, canvasesDeducted, suppliesDeducted };
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
 
     if (result.alreadyProcessed) {
       console.log(`Webhook: Order ${payload.name} was already processed (race condition avoided)`);

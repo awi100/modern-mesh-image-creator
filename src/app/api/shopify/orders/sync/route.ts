@@ -11,6 +11,7 @@ import {
   isPosSource,
 } from "@/lib/shopify";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
+import { lockOrder } from "@/lib/order-lock";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface SyncResult {
@@ -246,6 +247,23 @@ export async function POST() {
 
         // Process in transaction
         await prisma.$transaction(async (tx) => {
+          // Serialise against the webhook, manual fulfil, and another sync.
+          await lockOrder(tx, shopifyOrder.id);
+
+          // Re-check INSIDE the transaction. The processed-id set above was
+          // built once per request, before any of this ran, so it cannot see an
+          // order another run processed in the meantime — and unlike the other
+          // two paths this one had no in-transaction guard at all, so two
+          // concurrent syncs each deducted the full order. The Orders page
+          // auto-syncs on mount, so two tabs (or a refresh mid-sync) was enough.
+          const existingInTx = await tx.shopifyOrder.findUnique({
+            where: { shopifyOrderId: shopifyOrder.id },
+            include: { items: { take: 1, select: { id: true } } },
+          });
+          if (existingInTx?.fulfilledAt || (existingInTx?.items.length ?? 0) > 0) {
+            return;
+          }
+
           // Create ShopifyOrder record
           const order = await tx.shopifyOrder.upsert({
             where: { shopifyOrderId: shopifyOrder.id },
@@ -294,8 +312,10 @@ export async function POST() {
             if (design) {
               const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
               const availKit = isPos ? design.marketKitsReady : design.kitsReady;
-              const actualCanvasDeduction = Math.min(updates.canvasDeduction, availCanvas);
-              const actualKitDeduction = Math.min(updates.kitDeduction, availKit);
+              // Floored at 0 — Math.min alone returns a negative deduction when
+              // the bucket is already negative, corrupting the audit row.
+              const actualCanvasDeduction = Math.max(0, Math.min(updates.canvasDeduction, availCanvas));
+              const actualKitDeduction = Math.max(0, Math.min(updates.kitDeduction, availKit));
 
               if (isPos && (actualCanvasDeduction < updates.canvasDeduction || actualKitDeduction < updates.kitDeduction)) {
                 console.warn(`Sync: POS order ${shopifyOrder.name} exceeded market stock for design ${designId} (market tote count likely drifted)`);
@@ -340,7 +360,7 @@ export async function POST() {
 
             if (supply) {
               const avail = isPos ? supply.marketQuantity : supply.quantity;
-              const actualDeduction = Math.min(deduction, avail);
+              const actualDeduction = Math.max(0, Math.min(deduction, avail));
               if (isPos && actualDeduction < deduction) {
                 console.warn(`Sync: POS order ${shopifyOrder.name} exceeded market supply stock for supply ${supplyId}`);
               }
@@ -354,7 +374,7 @@ export async function POST() {
               }
             }
           }
-        });
+        }, { maxWait: 10_000, timeout: 20_000 });
 
         result.synced++;
         result.syncedOrders.push({

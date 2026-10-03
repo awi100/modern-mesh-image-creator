@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { isMysteryBagTitle, picksRequiredForItems } from "@/lib/mystery-bag";
 import { isPosSource, normalizeTitle } from "@/lib/shopify";
+import { lockOrder } from "@/lib/order-lock";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface FulfillItem {
@@ -151,11 +152,20 @@ export async function POST(request: NextRequest) {
 
     // Process all updates in a single transaction with idempotency check
     const result = await prisma.$transaction(async (tx) => {
+      // Serialise against the webhook and sync paths before re-checking.
+      await lockOrder(tx, shopifyOrderId);
+
       // Check again inside transaction to prevent race conditions with webhook
       const existingInTx = await tx.shopifyOrder.findUnique({
         where: { shopifyOrderId },
       });
 
+      // Deliberately checks fulfilledAt ONLY, unlike the webhook and sync
+      // guards which also treat "has line items" as processed. Undo clears
+      // fulfilledAt but KEEPS the items, and re-fulfilling an undone order by
+      // hand is the whole point of the Undo button — the items check belongs
+      // only on the automatic paths, which must not re-deduct what a human
+      // deliberately reversed.
       if (existingInTx?.fulfilledAt) {
         // Already processed (possibly by webhook)
         return { alreadyProcessed: true, kitsDeducted: 0, canvasesDeducted: 0, suppliesDeducted: 0, misprintsDeducted: 0 };
@@ -214,6 +224,14 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Clear any line items left behind by a previous fulfil that was undone.
+      // Undo keeps them (flipping processed=false) so the history survives, but
+      // re-fulfilling then ADDED a second set for the same order — and anything
+      // counting line items (Market Prep's packing list) counted both.
+      if (existingInTx) {
+        await tx.shopifyOrderItem.deleteMany({ where: { shopifyOrderId: existingInTx.id } });
+      }
+
       // Create ShopifyOrderItem records
       for (const item of items) {
         await tx.shopifyOrderItem.create({
@@ -245,9 +263,22 @@ export async function POST(request: NextRequest) {
           // Misprint (mystery-bag) canvases are online-only regardless.
           const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
           const availKit = isPos ? design.marketKitsReady : design.kitsReady;
-          const actualCanvasDeduction = Math.min(updates.canvasDeduction, availCanvas);
-          const actualKitDeduction = Math.min(updates.kitDeduction, availKit);
-          const actualMisprintDeduction = Math.min(updates.misprintDeduction, design.misprintCount);
+          // Floored at 0 — Math.min alone returns a negative deduction when the
+          // bucket is already negative, corrupting the audit row.
+          const actualCanvasDeduction = Math.max(0, Math.min(updates.canvasDeduction, availCanvas));
+          const actualKitDeduction = Math.max(0, Math.min(updates.kitDeduction, availKit));
+          const actualMisprintDeduction = Math.max(0, Math.min(updates.misprintDeduction, design.misprintCount));
+
+          // The webhook and sync paths both warn here; this one was silent, so a
+          // manual fulfil that deducted nothing reported success with no trace
+          // anywhere but the OrderDeduction row.
+          if (actualCanvasDeduction < updates.canvasDeduction || actualKitDeduction < updates.kitDeduction) {
+            console.warn(
+              `Fulfill: order ${orderNumber} exceeded ${isPos ? "market tote" : "online"} stock for design ${designId} ` +
+              `(wanted ${updates.kitDeduction} kits/${updates.canvasDeduction} canvases, ` +
+              `took ${actualKitDeduction}/${actualCanvasDeduction})`
+            );
+          }
 
           // Single consolidated update per design
           await tx.design.update({
@@ -293,7 +324,7 @@ export async function POST(request: NextRequest) {
 
         if (supply) {
           const avail = isPos ? supply.marketQuantity : supply.quantity;
-          const actualDeduction = Math.min(deduction, avail);
+          const actualDeduction = Math.max(0, Math.min(deduction, avail));
           if (actualDeduction > 0) {
             await tx.supply.update({
               where: { id: supplyId },
@@ -307,7 +338,7 @@ export async function POST(request: NextRequest) {
       }
 
       return { alreadyProcessed: false, kitsDeducted, canvasesDeducted, suppliesDeducted, misprintsDeducted };
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
 
     if (result.alreadyProcessed) {
       return NextResponse.json({
@@ -450,6 +481,34 @@ export async function DELETE(request: NextRequest) {
       designRestoreMap.set(pick.designId, existing);
     }
 
+    // What was ACTUALLY taken off the shelf, per design.
+    //
+    // The restore map above is built from the line items, i.e. what the order
+    // ASKED for — but deduction clamps to what was in stock. Undoing a clamped
+    // order therefore handed back stock that was never taken: a POS order for 3
+    // kits against a tote of 1 deducted 1 and restored 3, inventing 2 kits. The
+    // OrderDeduction table has recorded the real figures all along and nothing
+    // read them; this is the one place that has to.
+    //
+    // Orders predating that table (1,403 of them) have no rows, so they fall
+    // back to the line-item amounts — the old behaviour, which is the best
+    // available answer when there is no record of what was taken.
+    // Newest first, and we keep only the FIRST row seen per design: a
+    // fulfil -> undo -> fulfil leaves two sets of audit rows for one order, and
+    // summing them would restore both fulfillments' worth. Each fulfil writes
+    // exactly one row per design (the update map is keyed by designId), so the
+    // newest row per design is precisely the current fulfillment.
+    const auditRows = await prisma.orderDeduction.findMany({
+      where: { shopifyOrderId },
+      select: { designId: true, kitsDeducted: true, canvasDeducted: true },
+      orderBy: { createdAt: "desc" },
+    });
+    const actualByDesign = new Map<string, { kits: number; canvas: number }>();
+    for (const row of auditRows) {
+      if (!row.designId || actualByDesign.has(row.designId)) continue;
+      actualByDesign.set(row.designId, { kits: row.kitsDeducted, canvas: row.canvasDeducted });
+    }
+
     let kitsRestored = 0;
     let canvasesRestored = 0;
     let suppliesRestored = 0;
@@ -457,29 +516,40 @@ export async function DELETE(request: NextRequest) {
 
     // Restore inventory in a transaction
     await prisma.$transaction(async (tx) => {
+      await lockOrder(tx, shopifyOrderId);
+
       // Restore design inventory
       for (const [designId, restore] of designRestoreMap) {
+        // Bucket columns restore what was taken; totalSold/totalKitsSold restore
+        // what was requested, because the deduct side increments those by the
+        // requested amount regardless of clamping.
+        const audited = actualByDesign.get(designId);
+        const canvasRestore = audited ? Math.max(0, audited.canvas) : restore.canvasRestore;
+        const kitRestore = audited ? Math.max(0, audited.kits) : restore.kitRestore;
+
         await tx.design.update({
           where: { id: designId },
           data: {
             ...(isPos
               ? {
-                  marketCanvasPrinted: restore.canvasRestore > 0 ? { increment: restore.canvasRestore } : undefined,
-                  marketKitsReady: restore.kitRestore > 0 ? { increment: restore.kitRestore } : undefined,
+                  marketCanvasPrinted: canvasRestore > 0 ? { increment: canvasRestore } : undefined,
+                  marketKitsReady: kitRestore > 0 ? { increment: kitRestore } : undefined,
                 }
               : {
-                  canvasPrinted: restore.canvasRestore > 0 ? { increment: restore.canvasRestore } : undefined,
-                  kitsReady: restore.kitRestore > 0 ? { increment: restore.kitRestore } : undefined,
+                  canvasPrinted: canvasRestore > 0 ? { increment: canvasRestore } : undefined,
+                  kitsReady: kitRestore > 0 ? { increment: kitRestore } : undefined,
                 }),
             // Misprint restores are always main (mystery bags are online-only).
+            // NOTE: misprint deductions are clamped too but are not recorded in
+            // OrderDeduction, so this one column can still over-restore.
             misprintCount: restore.misprintRestore > 0 ? { increment: restore.misprintRestore } : undefined,
             totalSold: { decrement: restore.totalSoldRestore },
             totalKitsSold: restore.totalKitsSoldRestore > 0 ? { decrement: restore.totalKitsSoldRestore } : undefined,
           },
         });
 
-        canvasesRestored += restore.canvasRestore;
-        kitsRestored += restore.kitRestore;
+        canvasesRestored += canvasRestore;
+        kitsRestored += kitRestore;
         misprintsRestored += restore.misprintRestore;
       }
 
@@ -507,7 +577,7 @@ export async function DELETE(request: NextRequest) {
         where: { shopifyOrderId: localOrder.id },
         data: { processed: false },
       });
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
 
     return NextResponse.json({
       success: true,

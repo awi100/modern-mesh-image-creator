@@ -31,14 +31,35 @@ export async function GET(request: NextRequest) {
     const bufferParam = (url.searchParams.get("buffer") || "balanced") as Buffer;
     const buffer: Buffer = ["conservative", "balanced", "aggressive"].includes(bufferParam) ? bufferParam : "balanced";
 
+    // Window by the REAL order date, not createdAt (which the schema documents
+    // as our local sync time). These agree today because POS orders sync at the
+    // till, but any bulk backfill of POS history would stamp every order with
+    // one sync date, collapsing every market into a single event — and since
+    // `recommended` scales off the busiest single market, that would tell you to
+    // pack ~1.5x everything ever sold at a market. inventory/velocity and
+    // inventory/reorder already window this way.
+    //
+    // `processed` + `fulfilledAt` match those routes too: an order fulfilled and
+    // then undone keeps its line items (undo only clears fulfilledAt and flips
+    // processed), so without these filters it still counted toward the packing
+    // list, as did the second row set left behind by a fulfil -> undo -> fulfil.
     const orders = await prisma.shopifyOrder.findMany({
-      where: { sourceName: { equals: "pos", mode: "insensitive" } },
+      where: {
+        sourceName: { equals: "pos", mode: "insensitive" },
+        fulfilledAt: { not: null },
+      },
       select: {
         createdAt: true,
-        items: { select: { productTitle: true, quantity: true, designId: true, supplyId: true, needsKit: true } },
+        orderDate: true,
+        items: {
+          where: { processed: true },
+          select: { productTitle: true, quantity: true, designId: true, supplyId: true, needsKit: true },
+        },
       },
       orderBy: { createdAt: "asc" },
     });
+    // Legacy rows (pre-orderDate) fall back to sync time.
+    const soldAt = (o: { orderDate: Date | null; createdAt: Date }) => o.orderDate ?? o.createdAt;
 
     // Reference: current market-tote stock, so the packer can see how many more
     // to grab. Matched to POS product titles by normalized name.
@@ -56,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     // Cluster POS order dates into market events.
     const dayKey = (d: Date) => d.toISOString().slice(0, 10);
-    const distinctDays = [...new Set(orders.map((o) => dayKey(o.createdAt)))].sort();
+    const distinctDays = [...new Set(orders.map((o) => dayKey(soldAt(o))))].sort();
     const marketOfDay = new Map<string, number>();
     const markets: { start: string; end: string; days: string[] }[] = [];
     for (const day of distinctDays) {
@@ -84,7 +105,7 @@ export async function GET(request: NextRequest) {
     }
     const items = new Map<string, ItemAgg>();
     for (const o of orders) {
-      const mIdx = marketOfDay.get(dayKey(o.createdAt))!;
+      const mIdx = marketOfDay.get(dayKey(soldAt(o)))!;
       for (const it of o.items) {
         const name = it.productTitle;
         let agg = items.get(name);
