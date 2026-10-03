@@ -39,3 +39,41 @@ export async function lockOrder(
   // deduction transaction and take the whole path down.
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${shopifyOrderId}))`;
 }
+
+/**
+ * Lock the design rows a deduction is about to change, in a deterministic order.
+ *
+ * `lockOrder` serialises work on ONE order, which is not enough: two different
+ * orders for the same design take different keys and run fully in parallel.
+ * Every deduction path then does read -> `Math.min(requested, available)` ->
+ * `{ decrement }`, and under READ COMMITTED both readers can see
+ * `kitsReady = 1`, both clamp to 1, and the second decrement is re-evaluated
+ * against the already-updated row — leaving `kitsReady = -1`.
+ *
+ * That is how the negative buckets behind orders #3580 and #3583 were created.
+ * The `Math.max(0, …)` floor on the clamp only stops the symptom (a negative
+ * *deduction*); it cannot stop a negative *column*, because the value the clamp
+ * read was already stale by the time it was written.
+ *
+ * ORDER BY id is what makes this deadlock-free: two orders listing the same two
+ * designs in opposite line-item order would otherwise grab the row locks in
+ * opposite order and deadlock. Sorting gives every caller the same sequence.
+ *
+ * Call inside the transaction, after lockOrder and before reading any design.
+ */
+export async function lockDesigns(
+  tx: Prisma.TransactionClient,
+  designIds: string[],
+): Promise<void> {
+  if (designIds.length === 0) return;
+  await tx.$executeRaw`SELECT id FROM designs WHERE id IN (${Prisma.join(designIds)}) ORDER BY id FOR UPDATE`;
+}
+
+/** Same, for supply rows — identical read-modify-write clamp, identical race. */
+export async function lockSupplies(
+  tx: Prisma.TransactionClient,
+  supplyIds: string[],
+): Promise<void> {
+  if (supplyIds.length === 0) return;
+  await tx.$executeRaw`SELECT id FROM supplies WHERE id IN (${Prisma.join(supplyIds)}) ORDER BY id FOR UPDATE`;
+}

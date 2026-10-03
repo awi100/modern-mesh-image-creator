@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { isMysteryBagTitle, picksRequiredForItems } from "@/lib/mystery-bag";
 import { isPosSource, normalizeTitle } from "@/lib/shopify";
-import { lockOrder } from "@/lib/order-lock";
+import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface FulfillItem {
@@ -224,14 +224,11 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Clear any line items left behind by a previous fulfil that was undone.
-      // Undo keeps them (flipping processed=false) so the history survives, but
-      // re-fulfilling then ADDED a second set for the same order — and anything
-      // counting line items (Market Prep's packing list) counted both.
-      if (existingInTx) {
-        await tx.shopifyOrderItem.deleteMany({ where: { shopifyOrderId: existingInTx.id } });
-      }
-
+      // NOT deleting the previous (undone) line items: every consumer already
+      // filters processed:true, so the stale set is invisible to them, and the
+      // client only sends back lines it could match — deleting would destroy the
+      // unmatched ones permanently.
+      //
       // Create ShopifyOrderItem records
       for (const item of items) {
         await tx.shopifyOrderItem.create({
@@ -252,6 +249,14 @@ export async function POST(request: NextRequest) {
       }
 
       // Process design updates - ONE update per design
+      // Lock every design and supply this order touches, in id order, BEFORE
+      // reading their current counts. The clamp below is a read-modify-write and
+      // the order lock does not cover it: a different order for the same design
+      // runs under a different key, so both could read the same stock, both
+      // clamp to it, and the second decrement would drive the column negative.
+      await lockDesigns(tx, [...designUpdatesMap.keys()].sort());
+      await lockSupplies(tx, [...supplyUpdatesMap.keys()].sort());
+
       for (const [designId, updates] of designUpdatesMap) {
         const design = await tx.design.findUnique({
           where: { id: designId },
@@ -391,7 +396,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Missing shopifyOrderId" }, { status: 400 });
     }
 
-    // Find the local order record with its items and any mystery-bag picks
+    // Read for validation only. The authoritative re-read happens INSIDE the
+    // transaction, under the lock — this commit's own rule is that a check made
+    // before the lock is still a race, and the undo path was the one place that
+    // didn't apply it: two Undo clicks (two tabs, or a retried DELETE) both read
+    // fulfilledAt as set, both queued on the lock, and both restored, doubling
+    // the stock returned.
     const localOrder = await prisma.shopifyOrder.findUnique({
       where: { shopifyOrderId },
       include: {
@@ -500,14 +510,22 @@ export async function DELETE(request: NextRequest) {
     // newest row per design is precisely the current fulfillment.
     const auditRows = await prisma.orderDeduction.findMany({
       where: { shopifyOrderId },
-      select: { designId: true, kitsDeducted: true, canvasDeducted: true },
+      select: { designId: true, kitsDeducted: true, canvasDeducted: true, bucket: true },
       orderBy: { createdAt: "desc" },
     });
-    const actualByDesign = new Map<string, { kits: number; canvas: number }>();
+    const actualByDesign = new Map<string, { kits: number; canvas: number; bucket: string }>();
     for (const row of auditRows) {
       if (!row.designId || actualByDesign.has(row.designId)) continue;
-      actualByDesign.set(row.designId, { kits: row.kitsDeducted, canvas: row.canvasDeducted });
+      actualByDesign.set(row.designId, {
+        kits: row.kitsDeducted,
+        canvas: row.canvasDeducted,
+        bucket: row.bucket,
+      });
     }
+    // Whether this order was ever audited at all. Used to tell "no audit row for
+    // this design because nothing was deducted for it" apart from "no audit rows
+    // at all because the order predates the table".
+    const orderWasAudited = actualByDesign.size > 0;
 
     let kitsRestored = 0;
     let canvasesRestored = 0;
@@ -515,8 +533,18 @@ export async function DELETE(request: NextRequest) {
     let misprintsRestored = 0;
 
     // Restore inventory in a transaction
-    await prisma.$transaction(async (tx) => {
+    const undoResult = await prisma.$transaction(async (tx) => {
       await lockOrder(tx, shopifyOrderId);
+
+      // Authoritative check, under the lock. Without it the lock merely queued a
+      // second concurrent undo and then let it restore everything a second time.
+      const stillFulfilled = await tx.shopifyOrder.findUnique({
+        where: { shopifyOrderId },
+        select: { fulfilledAt: true },
+      });
+      if (!stillFulfilled?.fulfilledAt) {
+        return { alreadyUndone: true };
+      }
 
       // Restore design inventory
       for (const [designId, restore] of designRestoreMap) {
@@ -524,13 +552,29 @@ export async function DELETE(request: NextRequest) {
         // what was requested, because the deduct side increments those by the
         // requested amount regardless of clamping.
         const audited = actualByDesign.get(designId);
-        const canvasRestore = audited ? Math.max(0, audited.canvas) : restore.canvasRestore;
-        const kitRestore = audited ? Math.max(0, audited.kits) : restore.kitRestore;
+
+        // A design with no audit row on an order that WAS audited had nothing
+        // deducted for it. That is the mystery-bag case: the webhook and sync
+        // paths have no pick-based deduction at all, so a bag fulfilled by
+        // webhook has picks recorded but no stock taken — and restoring from the
+        // picks invented a kit and a misprint canvas per pick. Orders #2779 and
+        // #3058 are in exactly that state today.
+        const neverDeducted = orderWasAudited && !audited;
+
+        const canvasRestore = audited ? Math.max(0, audited.canvas) : neverDeducted ? 0 : restore.canvasRestore;
+        const kitRestore = audited ? Math.max(0, audited.kits) : neverDeducted ? 0 : restore.kitRestore;
+        const misprintRestore = neverDeducted ? 0 : restore.misprintRestore;
+
+        // Restore to the bucket the deduction actually came OUT of. isPos is
+        // recomputed from sourceName, which the fulfil POST overwrites on every
+        // call, so a channel change between fulfil and undo would otherwise
+        // credit the wrong column.
+        const toMarket = audited ? audited.bucket === "market" : isPos;
 
         await tx.design.update({
           where: { id: designId },
           data: {
-            ...(isPos
+            ...(toMarket
               ? {
                   marketCanvasPrinted: canvasRestore > 0 ? { increment: canvasRestore } : undefined,
                   marketKitsReady: kitRestore > 0 ? { increment: kitRestore } : undefined,
@@ -540,9 +584,10 @@ export async function DELETE(request: NextRequest) {
                   kitsReady: kitRestore > 0 ? { increment: kitRestore } : undefined,
                 }),
             // Misprint restores are always main (mystery bags are online-only).
-            // NOTE: misprint deductions are clamped too but are not recorded in
-            // OrderDeduction, so this one column can still over-restore.
-            misprintCount: restore.misprintRestore > 0 ? { increment: restore.misprintRestore } : undefined,
+            // NOTE: misprint deductions are clamped but OrderDeduction has no
+            // misprint columns, so a bag fulfilled against misprintCount 0 still
+            // over-restores. Fixing that needs an additive schema change.
+            misprintCount: misprintRestore > 0 ? { increment: misprintRestore } : undefined,
             totalSold: { decrement: restore.totalSoldRestore },
             totalKitsSold: restore.totalKitsSoldRestore > 0 ? { decrement: restore.totalKitsSoldRestore } : undefined,
           },
@@ -550,7 +595,7 @@ export async function DELETE(request: NextRequest) {
 
         canvasesRestored += canvasRestore;
         kitsRestored += kitRestore;
-        misprintsRestored += restore.misprintRestore;
+        misprintsRestored += misprintRestore;
       }
 
       // Restore supply inventory to the bucket it was deducted from.
@@ -577,7 +622,22 @@ export async function DELETE(request: NextRequest) {
         where: { shopifyOrderId: localOrder.id },
         data: { processed: false },
       });
+
+      return { alreadyUndone: false };
     }, { maxWait: 10_000, timeout: 20_000 });
+
+    if (undoResult.alreadyUndone) {
+      // A concurrent undo (or a retried request) got there first. Report success
+      // with zero restored rather than an error — the desired end state holds.
+      return NextResponse.json({
+        success: true,
+        kitsRestored: 0,
+        canvasesRestored: 0,
+        suppliesRestored: 0,
+        misprintsRestored: 0,
+        message: "Fulfillment was already undone",
+      });
+    }
 
     return NextResponse.json({
       success: true,

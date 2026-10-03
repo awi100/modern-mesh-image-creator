@@ -11,7 +11,7 @@ import {
   isPosSource,
 } from "@/lib/shopify";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
-import { lockOrder } from "@/lib/order-lock";
+import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface SyncResult {
@@ -214,6 +214,18 @@ export async function POST() {
           // app can surface a "pick designs" prompt to the user.
           if (isMysteryBagTitle(item.productTitle)) continue;
 
+          // Bundle line → its components only. Checked first and `continue`d,
+          // matching orders/fulfill and the webhook: falling through also
+          // deducted a design/supply that happened to share the bundle's name.
+          const bundle = bundleMap.get(normalizeTitle(item.productTitle));
+          if (bundle) {
+            const { components } = expandBundle(bundle, item.variantTitle, supplyLite);
+            for (const comp of components) {
+              supplyUpdatesMap.set(comp.supplyId, (supplyUpdatesMap.get(comp.supplyId) || 0) + comp.quantity * item.quantity);
+            }
+            continue;
+          }
+
           if (item.designId) {
             const existing = designUpdatesMap.get(item.designId) || {
               canvasDeduction: 0,
@@ -234,19 +246,10 @@ export async function POST() {
             const existing = supplyUpdatesMap.get(item.supplyId) || 0;
             supplyUpdatesMap.set(item.supplyId, existing + item.quantity);
           }
-
-          // Bundle line item → deduct each component supply.
-          const bundle = bundleMap.get(normalizeTitle(item.productTitle));
-          if (bundle) {
-            const { components } = expandBundle(bundle, item.variantTitle, supplyLite);
-            for (const comp of components) {
-              supplyUpdatesMap.set(comp.supplyId, (supplyUpdatesMap.get(comp.supplyId) || 0) + comp.quantity * item.quantity);
-            }
-          }
         }
 
         // Process in transaction
-        await prisma.$transaction(async (tx) => {
+        const txOutcome = await prisma.$transaction(async (tx) => {
           // Serialise against the webhook, manual fulfil, and another sync.
           await lockOrder(tx, shopifyOrder.id);
 
@@ -261,7 +264,7 @@ export async function POST() {
             include: { items: { take: 1, select: { id: true } } },
           });
           if (existingInTx?.fulfilledAt || (existingInTx?.items.length ?? 0) > 0) {
-            return;
+            return { skipped: true };
           }
 
           // Create ShopifyOrder record
@@ -303,6 +306,14 @@ export async function POST() {
           // Process design updates. POS sales draw down the market tote;
           // online sales draw down main/online stock. totalSold/totalKitsSold
           // always increment regardless of channel.
+          // Lock every design and supply this order touches, in id order, BEFORE
+          // reading their current counts. The clamp below is a read-modify-write and
+          // the order lock does not cover it: a different order for the same design
+          // runs under a different key, so both could read the same stock, both
+          // clamp to it, and the second decrement would drive the column negative.
+          await lockDesigns(tx, [...designUpdatesMap.keys()].sort());
+          await lockSupplies(tx, [...supplyUpdatesMap.keys()].sort());
+
           for (const [designId, updates] of designUpdatesMap) {
             const design = await tx.design.findUnique({
               where: { id: designId },
@@ -376,11 +387,17 @@ export async function POST() {
           }
         }, { maxWait: 10_000, timeout: 20_000 });
 
-        result.synced++;
-        result.syncedOrders.push({
-          orderNumber: shopifyOrder.name,
-          itemCount: items.length,
-        });
+        // An order skipped by the in-transaction guard was NOT synced here —
+        // counting it as synced told the user work had happened that hadn't.
+        if (txOutcome?.skipped) {
+          result.alreadyProcessed++;
+        } else {
+          result.synced++;
+          result.syncedOrders.push({
+            orderNumber: shopifyOrder.name,
+            itemCount: items.length,
+          });
+        }
       } catch (error) {
         console.error(`Error syncing order ${shopifyOrder.name}:`, error);
         result.errors.push(`${shopifyOrder.name}: ${error instanceof Error ? error.message : "Unknown error"}`);

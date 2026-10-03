@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseNeedsKit, normalizeTitle, matchSupplyByVariant, isPosSource } from "@/lib/shopify";
-import { lockOrder } from "@/lib/order-lock";
+import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import crypto from "crypto";
@@ -322,6 +322,14 @@ export async function POST(request: NextRequest) {
       // Process design updates. POS sales draw down the market tote; online
       // sales draw down main/online stock. totalSold/totalKitsSold always
       // increment (a sale is a sale for velocity), regardless of channel.
+      // Lock every design and supply this order touches, in id order, BEFORE
+      // reading their current counts. The clamp below is a read-modify-write and
+      // the order lock does not cover it: a different order for the same design
+      // runs under a different key, so both could read the same stock, both
+      // clamp to it, and the second decrement would drive the column negative.
+      await lockDesigns(tx, [...designUpdatesMap.keys()].sort());
+      await lockSupplies(tx, [...supplyUpdatesMap.keys()].sort());
+
       for (const [designId, updates] of designUpdatesMap) {
         const design = await tx.design.findUnique({
           where: { id: designId },
