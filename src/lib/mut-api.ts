@@ -2,7 +2,7 @@ import { invalidateInventory } from "@/lib/invalidate-inventory";
 
 /**
  * `fetch` for any request that CHANGES stock, kits, canvases, market, Andover,
- * supplies, misprints or bobbins.
+ * supplies or bobbins.
  *
  * On success it invalidates every inventory-related SWR key across the app, so
  * an edit made on one page shows up on all the others without a manual refresh.

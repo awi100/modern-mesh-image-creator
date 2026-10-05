@@ -1,13 +1,11 @@
-// Mystery Misprint Bag — a bundled product where 2 misprinted 14ct canvases
-// (with matching kits) ship per bag. Internal team picks which designs go in
-// each order before fulfillment so the right inventory gets deducted.
+// Mystery Misprint Bag — a bundled product. We no longer track which misprint
+// designs go in a bag, so there is no pick flow and no inventory deduction for
+// it; the only thing left is recognising the product so the Orders page can
+// list those orders and show the customer's special instructions.
 
 import { normalizeTitle } from "./shopify";
 
 export const MYSTERY_BAG_TITLE = "Mystery Misprint Bag";
-
-// Picks required per bag (2 canvases + 2 kits per bag).
-export const PICKS_PER_BAG = 2;
 
 const NORMALIZED_TITLE = normalizeTitle(MYSTERY_BAG_TITLE);
 
@@ -17,18 +15,4 @@ const NORMALIZED_TITLE = normalizeTitle(MYSTERY_BAG_TITLE);
 export function isMysteryBagTitle(productTitle: string | null | undefined): boolean {
   if (!productTitle) return false;
   return normalizeTitle(productTitle).startsWith(NORMALIZED_TITLE);
-}
-
-// Total picks needed for an order's mystery-bag line items.
-// Sums quantities of every Mystery Bag line item and multiplies by PICKS_PER_BAG.
-export function picksRequiredForItems(
-  items: { productTitle: string; quantity: number }[]
-): number {
-  let bags = 0;
-  for (const item of items) {
-    if (isMysteryBagTitle(item.productTitle)) {
-      bags += item.quantity;
-    }
-  }
-  return bags * PICKS_PER_BAG;
 }

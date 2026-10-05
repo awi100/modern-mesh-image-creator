@@ -222,10 +222,7 @@ export async function POST(request: NextRequest) {
     const supplyUpdatesMap = new Map<string, number>();
 
     for (const item of items) {
-      // Mystery Bag lines aren't backed by a designId — their deductions come
-      // from saved MysteryBagPick rows. The other two paths skip them here; this
-      // one didn't, which is harmless only while no design is named like the
-      // bag, and would start double-deducting the day one is.
+      // Mystery Bag lines match no design and deduct nothing.
       if (isMysteryBagTitle(item.productTitle)) continue;
 
       // Bundle line → deduct its components, and nothing else. Checked first and

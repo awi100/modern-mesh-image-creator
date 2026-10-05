@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
-import { isMysteryBagTitle, picksRequiredForItems } from "@/lib/mystery-bag";
+import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { isPosSource, normalizeTitle } from "@/lib/shopify";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
@@ -28,23 +28,8 @@ interface FulfillRequest {
 interface DesignUpdates {
   canvasDeduction: number;
   kitDeduction: number;
-  misprintDeduction: number;
   totalSold: number;
   totalKitsSold: number;
-}
-
-// Sentinel thrown from inside the fulfill transaction when saved mystery-bag
-// picks don't match the required count — rolls back the transaction and is
-// translated to a 400 response in the outer handler.
-class MysteryPicksError extends Error {
-  required: number;
-  saved: number;
-  constructor(required: number, saved: number) {
-    super(`Mystery Misprint Bag picks not complete: required ${required}, saved ${saved}`);
-    this.name = "MysteryPicksError";
-    this.required = required;
-    this.saved = saved;
-  }
 }
 
 // Load active bundles + supplies for expanding bundle line items into their
@@ -106,8 +91,7 @@ export async function POST(request: NextRequest) {
     const supplyUpdatesMap = new Map<string, number>();
 
     for (const item of items) {
-      // Mystery Bag line items aren't backed by a designId — deductions for
-      // them are derived from saved MysteryBagPick rows below.
+      // Mystery Bag lines match no design and no longer deduct anything.
       if (isMysteryBagTitle(item.productTitle)) continue;
 
       // Bundle line item → deduct each component supply.
@@ -124,7 +108,6 @@ export async function POST(request: NextRequest) {
         const existing = designUpdatesMap.get(item.designId) || {
           canvasDeduction: 0,
           kitDeduction: 0,
-          misprintDeduction: 0,
           totalSold: 0,
           totalKitsSold: 0,
         };
@@ -143,12 +126,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Mystery Bag picks: each pick = 1 kit + 1 misprint canvas for that design.
-    // Picks are saved separately via /api/shopify/orders/mystery-bag and we
-    // require the count to match the bag quantities before fulfilling.
-    // We read picks INSIDE the transaction below so a concurrent PUT picks
-    // can't change them between the read and the deduction.
-    const requiredPicks = picksRequiredForItems(items);
 
     // Process all updates in a single transaction with idempotency check
     const result = await prisma.$transaction(async (tx) => {
@@ -168,45 +145,12 @@ export async function POST(request: NextRequest) {
       // deliberately reversed.
       if (existingInTx?.fulfilledAt) {
         // Already processed (possibly by webhook)
-        return { alreadyProcessed: true, kitsDeducted: 0, canvasesDeducted: 0, suppliesDeducted: 0, misprintsDeducted: 0 };
-      }
-
-      // Read mystery bag picks atomically with the rest of this transaction —
-      // a concurrent PUT picks cannot change them between this read and the
-      // deductions below.
-      let mysteryPicks: { designId: string }[] = [];
-      if (requiredPicks > 0 && existingInTx) {
-        mysteryPicks = await tx.mysteryBagPick.findMany({
-          where: { shopifyOrderId: existingInTx.id },
-          select: { designId: true },
-        });
-      }
-      if (requiredPicks > 0 && mysteryPicks.length !== requiredPicks) {
-        // Throw a sentinel so the transaction rolls back and the outer handler
-        // can map it to a 400.
-        throw new MysteryPicksError(requiredPicks, mysteryPicks.length);
-      }
-
-      // Fold picks into the per-design update map. Each pick = 1 kit + 1 misprint.
-      for (const pick of mysteryPicks) {
-        const existing = designUpdatesMap.get(pick.designId) || {
-          canvasDeduction: 0,
-          kitDeduction: 0,
-          misprintDeduction: 0,
-          totalSold: 0,
-          totalKitsSold: 0,
-        };
-        existing.kitDeduction += 1;
-        existing.misprintDeduction += 1;
-        existing.totalSold += 1;
-        existing.totalKitsSold += 1;
-        designUpdatesMap.set(pick.designId, existing);
+        return { alreadyProcessed: true, kitsDeducted: 0, canvasesDeducted: 0, suppliesDeducted: 0 };
       }
 
       let kitsDeducted = 0;
       let canvasesDeducted = 0;
       let suppliesDeducted = 0;
-      let misprintsDeducted = 0;
 
       // Create or update ShopifyOrder record
       const shopifyOrder = await tx.shopifyOrder.upsert({
@@ -260,19 +204,17 @@ export async function POST(request: NextRequest) {
       for (const [designId, updates] of designUpdatesMap) {
         const design = await tx.design.findUnique({
           where: { id: designId },
-          select: { name: true, kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true, misprintCount: true },
+          select: { name: true, kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true },
         });
 
         if (design) {
           // POS sales draw from the market tote; online from main stock.
-          // Misprint (mystery-bag) canvases are online-only regardless.
           const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
           const availKit = isPos ? design.marketKitsReady : design.kitsReady;
           // Floored at 0 — Math.min alone returns a negative deduction when the
           // bucket is already negative, corrupting the audit row.
           const actualCanvasDeduction = Math.max(0, Math.min(updates.canvasDeduction, availCanvas));
           const actualKitDeduction = Math.max(0, Math.min(updates.kitDeduction, availKit));
-          const actualMisprintDeduction = Math.max(0, Math.min(updates.misprintDeduction, design.misprintCount));
 
           // The webhook and sync paths both warn here; this one was silent, so a
           // manual fulfil that deducted nothing reported success with no trace
@@ -298,7 +240,6 @@ export async function POST(request: NextRequest) {
                     canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
                     kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
                   }),
-              misprintCount: actualMisprintDeduction > 0 ? { decrement: actualMisprintDeduction } : undefined,
               totalSold: { increment: updates.totalSold },
               totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
             },
@@ -316,7 +257,6 @@ export async function POST(request: NextRequest) {
 
           canvasesDeducted += actualCanvasDeduction;
           kitsDeducted += actualKitDeduction;
-          misprintsDeducted += actualMisprintDeduction;
         }
       }
 
@@ -342,7 +282,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      return { alreadyProcessed: false, kitsDeducted, canvasesDeducted, suppliesDeducted, misprintsDeducted };
+      return { alreadyProcessed: false, kitsDeducted, canvasesDeducted, suppliesDeducted };
     }, { maxWait: 10_000, timeout: 20_000 });
 
     if (result.alreadyProcessed) {
@@ -352,7 +292,6 @@ export async function POST(request: NextRequest) {
         kitsDeducted: 0,
         canvasesDeducted: 0,
         suppliesDeducted: 0,
-        misprintsDeducted: 0,
       });
     }
 
@@ -361,20 +300,8 @@ export async function POST(request: NextRequest) {
       kitsDeducted: result.kitsDeducted,
       canvasesDeducted: result.canvasesDeducted,
       suppliesDeducted: result.suppliesDeducted,
-      misprintsDeducted: result.misprintsDeducted,
     });
-  } catch (error) {
-    if (error instanceof MysteryPicksError) {
-      return NextResponse.json(
-        {
-          error: "Mystery Misprint Bag picks not complete",
-          requiredPicks: error.required,
-          savedPicks: error.saved,
-        },
-        { status: 400 }
-      );
-    }
-    console.error("Error fulfilling order:", error);
+  } catch (error) {    console.error("Error fulfilling order:", error);
     return NextResponse.json(
       { error: "Failed to fulfill order" },
       { status: 500 }
@@ -406,7 +333,6 @@ export async function DELETE(request: NextRequest) {
       where: { shopifyOrderId },
       include: {
         items: true,
-        mysteryBagPicks: true,
       },
     });
 
@@ -419,15 +345,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // POS orders deducted from the market tote — restore there. Online orders
-    // restore to main/online stock. Mystery-bag misprint restores always go to
-    // main (mystery bags are online-only).
+    // restore to main/online stock.
     const isPos = isPosSource(localOrder.sourceName);
 
     // Aggregate what needs to be restored by designId and supplyId
     const designRestoreMap = new Map<string, {
       canvasRestore: number;
       kitRestore: number;
-      misprintRestore: number;
       totalSoldRestore: number;
       totalKitsSoldRestore: number;
     }>();
@@ -435,7 +359,7 @@ export async function DELETE(request: NextRequest) {
     const { bundleMap: undoBundleMap, supplyLite: undoSupplyLite } = await loadBundleContext();
 
     for (const item of localOrder.items) {
-      // Mystery Bag line items don't carry designId; we restore from picks below.
+      // Mystery Bag lines carry no designId and deducted nothing.
       if (isMysteryBagTitle(item.productTitle)) continue;
 
       // Bundle line item → restore each component supply (re-expanded from the
@@ -455,7 +379,6 @@ export async function DELETE(request: NextRequest) {
         const existing = designRestoreMap.get(item.designId) || {
           canvasRestore: 0,
           kitRestore: 0,
-          misprintRestore: 0,
           totalSoldRestore: 0,
           totalKitsSoldRestore: 0,
         };
@@ -473,22 +396,6 @@ export async function DELETE(request: NextRequest) {
         const existing = supplyRestoreMap.get(item.supplyId) || 0;
         supplyRestoreMap.set(item.supplyId, existing + item.quantity);
       }
-    }
-
-    // Restore one kit + one misprint canvas per saved Mystery Bag pick.
-    for (const pick of localOrder.mysteryBagPicks) {
-      const existing = designRestoreMap.get(pick.designId) || {
-        canvasRestore: 0,
-        kitRestore: 0,
-        misprintRestore: 0,
-        totalSoldRestore: 0,
-        totalKitsSoldRestore: 0,
-      };
-      existing.kitRestore += 1;
-      existing.misprintRestore += 1;
-      existing.totalSoldRestore += 1;
-      existing.totalKitsSoldRestore += 1;
-      designRestoreMap.set(pick.designId, existing);
     }
 
     // What was ACTUALLY taken off the shelf, per design.
@@ -530,7 +437,6 @@ export async function DELETE(request: NextRequest) {
     let kitsRestored = 0;
     let canvasesRestored = 0;
     let suppliesRestored = 0;
-    let misprintsRestored = 0;
 
     // Restore inventory in a transaction
     const undoResult = await prisma.$transaction(async (tx) => {
@@ -554,16 +460,11 @@ export async function DELETE(request: NextRequest) {
         const audited = actualByDesign.get(designId);
 
         // A design with no audit row on an order that WAS audited had nothing
-        // deducted for it. That is the mystery-bag case: the webhook and sync
-        // paths have no pick-based deduction at all, so a bag fulfilled by
-        // webhook has picks recorded but no stock taken — and restoring from the
-        // picks invented a kit and a misprint canvas per pick. Orders #2779 and
-        // #3058 are in exactly that state today.
+        // deducted for it, so it must get nothing back.
         const neverDeducted = orderWasAudited && !audited;
 
         const canvasRestore = audited ? Math.max(0, audited.canvas) : neverDeducted ? 0 : restore.canvasRestore;
         const kitRestore = audited ? Math.max(0, audited.kits) : neverDeducted ? 0 : restore.kitRestore;
-        const misprintRestore = neverDeducted ? 0 : restore.misprintRestore;
 
         // Restore to the bucket the deduction actually came OUT of. isPos is
         // recomputed from sourceName, which the fulfil POST overwrites on every
@@ -583,11 +484,6 @@ export async function DELETE(request: NextRequest) {
                   canvasPrinted: canvasRestore > 0 ? { increment: canvasRestore } : undefined,
                   kitsReady: kitRestore > 0 ? { increment: kitRestore } : undefined,
                 }),
-            // Misprint restores are always main (mystery bags are online-only).
-            // NOTE: misprint deductions are clamped but OrderDeduction has no
-            // misprint columns, so a bag fulfilled against misprintCount 0 still
-            // over-restores. Fixing that needs an additive schema change.
-            misprintCount: misprintRestore > 0 ? { increment: misprintRestore } : undefined,
             totalSold: { decrement: restore.totalSoldRestore },
             totalKitsSold: restore.totalKitsSoldRestore > 0 ? { decrement: restore.totalKitsSoldRestore } : undefined,
           },
@@ -595,7 +491,6 @@ export async function DELETE(request: NextRequest) {
 
         canvasesRestored += canvasRestore;
         kitsRestored += kitRestore;
-        misprintsRestored += misprintRestore;
       }
 
       // Restore supply inventory to the bucket it was deducted from.
@@ -634,7 +529,6 @@ export async function DELETE(request: NextRequest) {
         kitsRestored: 0,
         canvasesRestored: 0,
         suppliesRestored: 0,
-        misprintsRestored: 0,
         message: "Fulfillment was already undone",
       });
     }
@@ -644,7 +538,6 @@ export async function DELETE(request: NextRequest) {
       kitsRestored,
       canvasesRestored,
       suppliesRestored,
-      misprintsRestored,
       message: "Fulfillment undone, inventory restored",
     });
   } catch (error) {

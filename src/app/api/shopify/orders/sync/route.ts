@@ -58,8 +58,7 @@ export async function POST() {
     // rows — the latter catches orders that were fulfilled and then
     // deliberately UNDONE (undo clears fulfilledAt but keeps the items).
     // Re-syncing an undone order would silently re-deduct inventory and undo
-    // the undo. A pre-fulfillment Mystery-Bag row has no items, so it stays
-    // eligible for a real sync.
+    // the undo. A row with no items at all stays eligible for a real sync.
     const processedOrders = await prisma.shopifyOrder.findMany({
       where: {
         shopifyOrderId: {
@@ -209,9 +208,7 @@ export async function POST() {
         const supplyUpdatesMap = new Map<string, number>();
 
         for (const item of items) {
-          // Mystery Bag line items never auto-deduct on sync — they require
-          // explicit picks via the orders UI. Sync records them as-is so the
-          // app can surface a "pick designs" prompt to the user.
+          // Mystery Bag lines match no design and deduct nothing.
           if (isMysteryBagTitle(item.productTitle)) continue;
 
           // Bundle line → its components only. Checked first and `continue`d,

@@ -10,8 +10,8 @@ interface MeshFilterChipsProps {
 }
 
 // 14ct intro kits are retired. The active mesh counts are 18ct (canvases) and
-// 13ct (intro kits); "Order View" = both. Archived 14ct designs are still
-// reachable via "All" (and the Misprints tab, which fetches 14ct directly).
+// 13ct (intro kits); "Order View" = both. Archived 14ct designs remain
+// reachable via "All".
 const OPTIONS: { value: MeshFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "18", label: "18ct" },

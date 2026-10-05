@@ -11,25 +11,10 @@ import {
   visibleCustomAttributes,
   isExpressShippingTitle,
 } from "@/lib/shopify";
-import { isMysteryBagTitle, PICKS_PER_BAG } from "@/lib/mystery-bag";
+import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 export type ItemType = "canvas" | "supply" | "mystery_bag" | "bundle";
-
-export interface MysteryBagPickInfo {
-  id: string;
-  designId: string;
-  designName: string;
-  previewImageUrl: string | null;
-  meshCount: number;
-  misprintCount: number;
-  kitsReady: number;
-}
-
-export interface MysteryBagState {
-  required: number;     // total picks needed across all bag line items
-  picks: MysteryBagPickInfo[];
-}
 
 export interface OrderItem {
   lineItemId: string;
@@ -73,8 +58,9 @@ export interface Order {
   // Local fulfillment tracking
   locallyFulfilled: boolean;
   locallyFulfilledAt: string | null;
-  // Mystery Misprint Bag state (null if the order has no bag line items)
-  mysteryBag: MysteryBagState | null;
+  // Does this order contain a Mystery Misprint Bag line? We no longer track
+  // which misprints go in it — this only drives the Orders page filter.
+  hasMysteryBag: boolean;
   // Shipping
   shippingTitle: string | null; // e.g. "Express", "Standard"
   isExpress: boolean;           // derived from shippingTitle (express / priority / overnight / etc.)
@@ -89,8 +75,6 @@ export interface OrdersResponse {
     totalCanvasesNeeded: number;
     totalCanvasesReady: number;
     totalMysteryBags: number;
-    totalMysteryBagPicksMade: number;
-    totalMysteryBagPicksNeeded: number;
     totalSupplies: number;
     totalSuppliesReady: number;
     unmatchedProducts: string[];
@@ -203,7 +187,7 @@ export async function GET() {
       console.error("Failed to fetch draft orders:", e);
     }
 
-    // Fetch local order records (fulfillment + mystery bag picks) for all orders
+    // Fetch local fulfillment state for all orders
     const localOrders = await prisma.shopifyOrder.findMany({
       where: {
         shopifyOrderId: {
@@ -213,29 +197,11 @@ export async function GET() {
       select: {
         shopifyOrderId: true,
         fulfilledAt: true,
-        mysteryBagPicks: {
-          orderBy: { createdAt: "asc" },
-          include: {
-            design: {
-              select: {
-                id: true,
-                name: true,
-                previewImageUrl: true,
-                meshCount: true,
-                misprintCount: true,
-                kitsReady: true,
-              },
-            },
-          },
-        },
       },
     });
 
     const localFulfillmentMap = new Map(
       localOrders.map((f) => [f.shopifyOrderId, f.fulfilledAt])
-    );
-    const localPicksMap = new Map(
-      localOrders.map((f) => [f.shopifyOrderId, f.mysteryBagPicks])
     );
 
     // Process orders
@@ -311,8 +277,7 @@ export async function GET() {
         // aren't a canvas/supply/kit of their own, so skip the counters below.
         if (itemType === "bundle") continue;
 
-        // Mystery bag items have no design/supply demand of their own — their
-        // demand is on misprintCount + kitsReady of the designs the team picks,
+        // Mystery bag items have no design/supply demand of their own,
         // applied during fulfillment.
         if (itemType === "mystery_bag") continue;
 
@@ -354,27 +319,7 @@ export async function GET() {
 
       const localFulfilledAt = localFulfillmentMap.get(shopifyOrder.id);
 
-      // Compute Mystery Bag state if any line items are mystery bags
-      let mysteryBag: MysteryBagState | null = null;
-      const bagQuantity = items
-        .filter((i) => i.itemType === "mystery_bag")
-        .reduce((sum, i) => sum + i.quantity, 0);
-      if (bagQuantity > 0) {
-        const required = bagQuantity * PICKS_PER_BAG;
-        const savedPicks = localPicksMap.get(shopifyOrder.id) || [];
-        mysteryBag = {
-          required,
-          picks: savedPicks.map((p) => ({
-            id: p.id,
-            designId: p.design.id,
-            designName: p.design.name,
-            previewImageUrl: p.design.previewImageUrl,
-            meshCount: p.design.meshCount,
-            misprintCount: p.design.misprintCount,
-            kitsReady: p.design.kitsReady,
-          })),
-        };
-      }
+      const hasMysteryBag = items.some((i) => i.itemType === "mystery_bag");
 
       const shippingTitle = shopifyOrder.shippingLine?.title || null;
       orders.push({
@@ -387,7 +332,7 @@ export async function GET() {
         items,
         locallyFulfilled: !!localFulfilledAt,
         locallyFulfilledAt: localFulfilledAt?.toISOString() || null,
-        mysteryBag,
+        hasMysteryBag,
         shippingTitle,
         isExpress: isExpressShippingTitle(shippingTitle),
       });
@@ -406,18 +351,8 @@ export async function GET() {
       totalSuppliesReady += Math.min(demand.ready, demand.needed);
     }
 
-    // Mystery Misprint Bag totals: count orders that contain at least one
-    // mystery bag line item (not bag-units sold), plus aggregate picks-state
-    // for the summary chip.
-    let totalMysteryBags = 0;
-    let totalMysteryBagPicksMade = 0;
-    let totalMysteryBagPicksNeeded = 0;
-    for (const order of orders) {
-      if (!order.mysteryBag) continue;
-      totalMysteryBags += 1;
-      totalMysteryBagPicksMade += order.mysteryBag.picks.length;
-      totalMysteryBagPicksNeeded += order.mysteryBag.required;
-    }
+    // Orders containing at least one mystery bag line (not bag-units sold).
+    const totalMysteryBags = orders.filter((o) => o.hasMysteryBag).length;
 
     const response: OrdersResponse = {
       orders,
@@ -428,8 +363,6 @@ export async function GET() {
         totalCanvasesNeeded,
         totalCanvasesReady,
         totalMysteryBags,
-        totalMysteryBagPicksMade,
-        totalMysteryBagPicksNeeded,
         totalSupplies,
         totalSuppliesReady,
         unmatchedProducts: Array.from(unmatchedProducts),

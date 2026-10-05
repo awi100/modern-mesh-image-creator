@@ -43,7 +43,6 @@ interface Design {
   marketCanvasPrinted: number;
   canvasAndover: number;
   kitsAndover: number;
-  misprintCount: number;
   isDraft: boolean;
   notLiveAt: string | null;
   archivedAt: string | null;
@@ -73,7 +72,7 @@ interface ColorUsage {
   designs: ColorUsageDesign[];
 }
 
-const TAB_TYPES = ["threads", "kits", "canvases", "market", "supplies", "bobbins", "misprints"] as const;
+const TAB_TYPES = ["threads", "kits", "canvases", "market", "supplies", "bobbins"] as const;
 type TabType = (typeof TAB_TYPES)[number];
 
 interface Supply {
@@ -253,14 +252,10 @@ export default function InventoryPage() {
     useMeshFilter("inventoryMeshFilter");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [designs, setDesigns] = useState<Design[]>([]);
-  // Misprints are 14ct-only and must NOT be constrained by the mesh filter
-  // (which defaults to "order" and would hide most 14ct designs). Fetched
-  // separately, always as all 14ct designs.
-  const [misprintDesigns, setMisprintDesigns] = useState<Design[]>([]);
   const [colorUsage, setColorUsage] = useState<Map<string, ColorUsageDesign[]>>(new Map());
   const [loading, setLoading] = useState(true);
   // Separate from `loading` (which only gated the Threads tab): the Kits,
-  // Canvases, Market and Misprints tabs render off `designs`, which starts as
+  // Canvases and Market tabs render off `designs`, which starts as
   // [], so during the first fetch they asserted "No designs found" as fact.
   const [designsLoading, setDesignsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -366,12 +361,6 @@ export default function InventoryPage() {
     fetchColorUsage();
   }, [meshFilter, filterReady]);
 
-  // Misprint designs (all 14ct) load once, independent of the mesh filter.
-  useEffect(() => {
-    fetchMisprintDesigns();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Re-fetch counts when the tab regains focus, so POS sales (and any other
   // changes) that happened while this page sat open in the background show up.
   // Without this, market/online numbers can look stale after a market day.
@@ -380,7 +369,6 @@ export default function InventoryPage() {
       if (document.visibilityState === "visible") {
         fetchInventory();
         fetchDesigns();
-        fetchMisprintDesigns();
         // Supplies and bobbins were omitted, so those tabs never self-healed —
         // e.g. picking supplies up from Andover elsewhere left this page showing
         // the old number indefinitely (and a later edit computed its delta from
@@ -414,7 +402,6 @@ export default function InventoryPage() {
       fetchInventory(),
       fetchDesigns(),
       fetchColorUsage(),
-      fetchMisprintDesigns(),
       ...Array.from(expandedKits).map((designId) => fetchKitContents(designId, true)),
       hasFetchedSuppliesRef.current || activeTab === "supplies" ? fetchSupplies() : Promise.resolve(),
       hasFetchedBobbinsRef.current || activeTab === "bobbins" ? fetchBobbins() : Promise.resolve(),
@@ -467,27 +454,6 @@ export default function InventoryPage() {
       console.error("Error fetching designs:", error);
     } finally {
       if (currentMeshRef.current === forMesh) setDesignsLoading(false);
-    }
-  };
-
-  // All 14ct designs for the Misprints tab, independent of the mesh filter.
-  // Archived 14ct designs are included here ONLY (they may still have physical
-  // misprint stock to track/ship even though they're retired everywhere else).
-  const fetchMisprintDesigns = async () => {
-    try {
-      const [activeRes, archivedRes] = await Promise.all([
-        fetch(`/api/designs?meshCount=14`),
-        fetch(`/api/designs?meshCount=14&archived=true`),
-      ]);
-      const active: Design[] = activeRes.ok ? await activeRes.json() : [];
-      const archived: Design[] = archivedRes.ok ? await archivedRes.json() : [];
-      const byId = new Map<string, Design>();
-      for (const d of [...active, ...archived]) {
-        if (!d.isDraft) byId.set(d.id, d);
-      }
-      setMisprintDesigns([...byId.values()]);
-    } catch (error) {
-      console.error("Error fetching misprint designs:", error);
     }
   };
 
@@ -1458,39 +1424,6 @@ export default function InventoryPage() {
     .filter((d) => canvasOnHand(d) < LOW_ON_HAND)
     .sort((a, b) => canvasOnHand(a) - canvasOnHand(b));
 
-  // Adjust a design's misprint count by signed delta (additive); clamp at 0.
-  const handleMisprintDelta = async (designId: string, delta: number) => {
-    const design = misprintDesigns.find((d) => d.id === designId);
-    if (!design) return;
-    if (delta < 0 && design.misprintCount + delta < 0) return;
-    try {
-      const res = await mutApi(`/api/designs/${designId}/misprint`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ delta }),
-      });
-      if (!res.ok) return;
-      const data: { id: string; misprintCount: number } = await res.json();
-      const apply = (prev: Design[]) => prev.map((d) => (d.id === data.id ? { ...d, misprintCount: data.misprintCount } : d));
-      setMisprintDesigns(apply);
-      setDesigns(apply); // keep in sync if the design also appears in the filtered set
-    } catch (err) {
-      console.error("Failed to adjust misprint count:", err);
-    }
-  };
-
-  // Set a design's misprint count to an absolute value (used by text input).
-  const handleSetMisprintValue = async (designId: string, value: number) => {
-    const design = misprintDesigns.find((d) => d.id === designId);
-    if (!design) return;
-    if (!Number.isFinite(value)) return;
-    const newVal = Math.max(0, Math.floor(value));
-    const delta = newVal - design.misprintCount;
-    if (delta !== 0) {
-      await handleMisprintDelta(designId, delta);
-    }
-  };
-
   // Group designs by collection (folder)
   // Count-sorted designs for the Kits/Canvases tabs. The order is frozen while
   // you edit counts (useFrozenSort), so rows don't jump under the cursor when
@@ -1762,22 +1695,6 @@ export default function InventoryPage() {
               {bobbinData && (
                 <span className="ml-1 text-xs opacity-75">({bobbinData.summary.totalBobbins})</span>
               )}
-            </button>
-            <button
-              onClick={() => selectTab("misprints")}
-              className={`px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
-                activeTab === "misprints"
-                  ? "bg-purple-800 text-white"
-                  : "text-slate-400 hover:text-white hover:bg-slate-700"
-              }`}
-            >
-              <svg className="w-4 h-4 flex-shrink-0 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              Misprints
-              <span className="ml-1 text-xs opacity-75">
-                ({misprintDesigns.reduce((sum, d) => sum + d.misprintCount, 0)})
-              </span>
             </button>
             <div className="border-l border-slate-600 h-6 mx-2" />
             <Link
@@ -3202,111 +3119,6 @@ export default function InventoryPage() {
           </div>
         )}
 
-        {/* Misprints Tab */}
-        {activeTab === "misprints" && (() => {
-          const misprint14ct = misprintDesigns;
-          const totalMisprints = misprint14ct.reduce((sum, d) => sum + d.misprintCount, 0);
-          const designsWithStock = misprint14ct.filter((d) => d.misprintCount > 0).length;
-          const filtered = searchQuery
-            ? misprint14ct.filter((d) => d.name.toLowerCase().includes(searchQuery.toLowerCase()))
-            : misprint14ct;
-          const sorted = [...filtered].sort((a, b) => {
-            // Designs with misprints first, then alphabetical
-            if ((a.misprintCount > 0) !== (b.misprintCount > 0)) {
-              return a.misprintCount > 0 ? -1 : 1;
-            }
-            return a.name.localeCompare(b.name);
-          });
-          return (
-            <>
-              {/* Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                  <p className="text-xs text-slate-400 uppercase tracking-wider">Misprints in Stock</p>
-                  <p className="text-xl font-bold text-purple-400">{totalMisprints}</p>
-                </div>
-                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                  <p className="text-xs text-slate-400 uppercase tracking-wider">Distinct Designs</p>
-                  <p className="text-xl font-bold text-white">{designsWithStock}</p>
-                </div>
-                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                  <p className="text-xs text-slate-400 uppercase tracking-wider">14ct Designs</p>
-                  <p className="text-xl font-bold text-slate-300">{misprint14ct.length}</p>
-                </div>
-              </div>
-
-              <div className="mb-4 px-4 py-3 rounded-lg bg-purple-900/20 border border-purple-800/40 text-sm text-purple-200">
-                Misprints are 14ct only. Use the controls below to add or remove from inventory as physical misprints accumulate or ship.
-              </div>
-
-              {/* Search */}
-              <div className="mb-4">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search 14ct designs…"
-                  className="w-full max-w-md px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-700"
-                />
-              </div>
-
-              {sorted.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">No 14ct designs found.</div>
-              ) : (
-                <div className="grid gap-2">
-                  {sorted.map((design) => (
-                    <div
-                      key={design.id}
-                      className={`bg-slate-800 rounded-lg border p-3 flex items-center gap-3 ${
-                        design.misprintCount > 0 ? "border-purple-800/60" : "border-slate-700"
-                      }`}
-                    >
-                      <Link href={`/design/${design.id}/info`} className="flex-shrink-0">
-                        {design.previewImageUrl ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={design.previewImageUrl}
-                            alt={design.name}
-                            className="w-12 h-12 object-cover rounded border border-slate-600"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded bg-slate-700 border border-slate-600" />
-                        )}
-                      </Link>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/design/${design.id}/info`}
-                            className="text-white font-medium hover:text-purple-300 truncate text-sm md:text-base"
-                          >
-                            {design.name}
-                          </Link>
-                          {design.archivedAt && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 bg-sky-900/50 text-sky-300 uppercase tracking-wide" title="Archived design — shown here for misprint stock only">Archived</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          {design.canvasPrinted} canvases printed · {design.kitsReady} kits ready
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <CountStepper
-                          value={design.misprintCount}
-                          onCommit={(next) => handleSetMisprintValue(design.id, next)}
-                          onDelta={(d) => handleMisprintDelta(design.id, d)}
-                          ariaLabel={`Misprints for ${design.name}`}
-                          valueClassName={design.misprintCount > 0 ? "text-purple-300" : "text-slate-400"}
-                          decrementTitle="Remove one misprint"
-                          incrementTitle="Add one misprint"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          );
-        })()}
       </div>
 
       {/* Add/Edit Supply Modal */}

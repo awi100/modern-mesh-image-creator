@@ -4,7 +4,7 @@ import React, { useState } from "react";
 
 /**
  * The one count stepper for every inventory surface (threads, kits, canvases,
- * market tote, Andover, supplies, bobbins, misprints).
+ * market tote, Andover, supplies, bobbins).
  *
  * Before this existed the same control was re-implemented ~21 times across four
  * pages and drifted into several different commit paths — some committed on
