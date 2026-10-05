@@ -1728,7 +1728,7 @@ export default function OrdersPage() {
                         fulfilling={fulfilling === order.shopifyOrderId}
                         onUndo={handleUndoFulfillment}
                         undoing={undoing === order.shopifyOrderId}
-                        />
+                      />
                     ));
                   })()
                 )}
@@ -1737,7 +1737,6 @@ export default function OrdersPage() {
           </>
         )}
 
-        {/* Mystery Bag Picker */}
         {/* Backup Color Picker Modal */}
         {editingBackup && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -1945,7 +1944,8 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
                 <span className="px-2 py-1 rounded text-xs font-medium bg-purple-900/50 text-purple-400">
                   {suppliesInOrder} suppl{suppliesInOrder > 1 ? "ies" : "y"}
                 </span>
-              )}            </div>
+              )}
+            </div>
 
             <svg
               className={`w-5 h-5 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -2040,7 +2040,8 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
 
       {/* Expanded Content */}
       {expanded && (
-        <div className="border-t border-slate-700 divide-y divide-slate-700/50">          {order.items.map((item, idx) => (
+        <div className="border-t border-slate-700 divide-y divide-slate-700/50">
+          {order.items.map((item, idx) => (
             <OrderItemRow key={idx} item={item} demandByDesign={demandByDesign} />
           ))}
         </div>

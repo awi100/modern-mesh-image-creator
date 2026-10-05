@@ -126,7 +126,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-
     // Process all updates in a single transaction with idempotency check
     const result = await prisma.$transaction(async (tx) => {
       // Serialise against the webhook and sync paths before re-checking.
@@ -301,7 +300,8 @@ export async function POST(request: NextRequest) {
       canvasesDeducted: result.canvasesDeducted,
       suppliesDeducted: result.suppliesDeducted,
     });
-  } catch (error) {    console.error("Error fulfilling order:", error);
+  } catch (error) {
+    console.error("Error fulfilling order:", error);
     return NextResponse.json(
       { error: "Failed to fulfill order" },
       { status: 500 }

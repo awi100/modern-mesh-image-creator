@@ -277,8 +277,7 @@ export async function GET() {
         // aren't a canvas/supply/kit of their own, so skip the counters below.
         if (itemType === "bundle") continue;
 
-        // Mystery bag items have no design/supply demand of their own,
-        // applied during fulfillment.
+        // Mystery bag lines have no design or supply demand of their own.
         if (itemType === "mystery_bag") continue;
 
         // Count what's needed based on item type

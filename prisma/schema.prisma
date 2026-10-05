@@ -99,7 +99,9 @@ model Design {
   kitsReady             Int     @default(0)  // assembled kits awaiting sale (online/storage stock)
   canvasPrinted         Int     @default(0)  // physical canvases printed (at main location, online/storage stock)
   canvasPrintedMaddie   Int     @default(0)  // canvases printed at Maddie's location
-  misprintCount         Int     @default(0)  // misprinted 14ct canvases available for Mystery Misprint Bags
+  // RETAINED, UNUSED: misprint stock is no longer tracked anywhere in the app.
+  // Kept so the existing counts survive; safe to drop in a deliberate migration.
+  misprintCount         Int     @default(0)
 
   // Market (craft-market tote) inventory — physically allocated to in-person
   // market sales and NOT available for online orders. POS (Shopify source_name
@@ -336,9 +338,10 @@ model ShopifyOrder {
   @@map("shopify_orders")
 }
 
-// Mystery Misprint Bag picks: which misprint designs we chose to include in a
-// specific order's mystery-bag line item(s). Each row = one canvas + kit pair.
-// An order with quantity-2 Mystery Bag will have 2 picks per bag = 4 rows.
+// RETAINED, UNUSED: which misprint designs were chosen for an order's
+// mystery-bag line item(s). Nothing in the app reads or writes this any more —
+// misprint order tracking was removed. Kept so the historical rows survive;
+// safe to drop in a deliberate migration, after a backup.
 model MysteryBagPick {
   id              String       @id @default(cuid())
   shopifyOrderId  String       // FK to ShopifyOrder.id (local row id)

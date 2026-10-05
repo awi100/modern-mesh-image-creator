@@ -5,7 +5,7 @@
 
 import { normalizeTitle } from "./shopify";
 
-export const MYSTERY_BAG_TITLE = "Mystery Misprint Bag";
+const MYSTERY_BAG_TITLE = "Mystery Misprint Bag";
 
 const NORMALIZED_TITLE = normalizeTitle(MYSTERY_BAG_TITLE);
 
