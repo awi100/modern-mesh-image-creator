@@ -2339,30 +2339,49 @@ export default function InventoryPage() {
                                                   valueClassName={item.primaryInStock !== false ? "text-emerald-400" : "text-red-400"}
                                                 />
                                               </div>
-                                              {/* Backup color indicator */}
-                                              {item.backup && (
-                                                <Link
-                                                  href={`/inventory/color/${item.backup.dmcNumber}?size=${size}`}
-                                                  className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 transition-colors"
-                                                  title={`Backup: ${item.backup.colorName}`}
-                                                  onClick={(e) => e.stopPropagation()}
-                                                >
-                                                  <span
-                                                    className="w-6 h-6 rounded flex items-center justify-center border border-white/20"
-                                                    style={{ backgroundColor: item.backup.hex }}
+                                              {/* Backup colour — editable inline, like the primary.
+                                                  It was a read-only link showing "N sk", so the one
+                                                  place you could see a backup had run out was the one
+                                                  place you couldn't restock it. A backup is the same
+                                                  inventory SKU as any other colour at this thread
+                                                  size, and handleKitInventoryUpdate already updates
+                                                  every occurrence of a DMC (primary rows and backup
+                                                  chips alike) — only the control was missing.
+                                                  Not a <Link> wrapper: a stepper's buttons and input
+                                                  cannot be nested inside an anchor. */}
+                                              {item.backup && (() => {
+                                                const backupKey = `${item.backup.dmcNumber}-${size}`;
+                                                return (
+                                                  <div
+                                                    className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-800/50"
+                                                    title={`Backup: ${item.backup.colorName}`}
+                                                    onClick={(e) => e.stopPropagation()}
                                                   >
-                                                    <span
-                                                      className="text-[7px] font-bold"
-                                                      style={{ color: getContrastTextColor(item.backup.hex) }}
+                                                    <Link
+                                                      href={`/inventory/color/${item.backup.dmcNumber}?size=${size}`}
+                                                      className="w-6 h-6 rounded flex items-center justify-center border border-white/20 flex-shrink-0 hover:ring-2 hover:ring-amber-400 transition-all"
+                                                      style={{ backgroundColor: item.backup.hex }}
+                                                      title={`View DMC ${item.backup.dmcNumber}`}
                                                     >
-                                                      {item.backup.dmcNumber}
-                                                    </span>
-                                                  </span>
-                                                  <span className={`text-[10px] font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                                                    {item.backup.inventorySkeins} sk
-                                                  </span>
-                                                </Link>
-                                              )}
+                                                      <span
+                                                        className="text-[7px] font-bold"
+                                                        style={{ color: getContrastTextColor(item.backup.hex) }}
+                                                      >
+                                                        {item.backup.dmcNumber}
+                                                      </span>
+                                                    </Link>
+                                                    <span className="text-[9px] font-medium text-amber-300/80 uppercase tracking-wide">bkup</span>
+                                                    <CountStepper
+                                                      value={item.backup.inventorySkeins}
+                                                      onCommit={(next) => handleSetKitInventory(item.backup!.dmcNumber, next, size, item.backup!.inventorySkeins)}
+                                                      onDelta={(d) => handleKitInventoryUpdate(item.backup!.dmcNumber, d, size)}
+                                                      busy={updatingInventory === backupKey}
+                                                      ariaLabel={`Backup skeins of DMC ${item.backup.dmcNumber} (Size ${size})`}
+                                                      valueClassName={item.backup.inStock ? "text-emerald-400" : "text-red-400"}
+                                                    />
+                                                  </div>
+                                                );
+                                              })()}
                                             </div>
                                           </div>
                                           {/* Color usage indicator */}
