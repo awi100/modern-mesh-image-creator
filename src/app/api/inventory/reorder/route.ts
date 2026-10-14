@@ -14,7 +14,12 @@ import { meshCountWhere } from "@/lib/mesh-filter";
 
 const WINDOW_DAYS = 90; // trailing window for the sales-rate estimate
 const DEFAULT_LEAD_WEEKS = 6; // orders take ~4-6 weeks to arrive; default to the safe end
-const SAFETY_WEEKS = 2; // extra buffer beyond lead time before we're comfortable
+// Weeks of cover we want left ON TOP of the lead time before we're comfortable.
+// Deliberately generous: being early on a reorder costs warehouse space, being
+// late costs a stockout on a design that was selling. Paired with the default
+// 8-week lead this flags anything inside ~18 weeks of supply. Overridable per
+// request so the horizon can be tightened without touching code.
+const DEFAULT_SAFETY_WEEKS = 10;
 const DEFAULT_TARGET_MONTHS = 6; // how long a reorder should last before ordering again
 const WEEKS_PER_MONTH = 4.345;
 // Below these we don't trust the rate enough to raise an urgent flag.
@@ -34,6 +39,7 @@ export async function GET(request: NextRequest) {
     // How long a reorder should last before we have to order again (months).
     const targetMonths = Math.min(24, Math.max(1, Number(url.searchParams.get("targetMonths")) || DEFAULT_TARGET_MONTHS));
     const targetCoverWeeks = Math.round(targetMonths * WEEKS_PER_MONTH);
+    const safetyWeeks = Math.min(52, Math.max(0, Number(url.searchParams.get("safetyWeeks")) || DEFAULT_SAFETY_WEEKS));
     const meshWhere = meshCountWhere(url.searchParams.get("meshCount"));
 
     const now = new Date();
@@ -87,7 +93,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const reorderPointWeeks = leadWeeks + SAFETY_WEEKS;
+    const reorderPointWeeks = leadWeeks + safetyWeeks;
 
     const rows = designs.map((d) => {
       const onHand =
@@ -161,6 +167,10 @@ export async function GET(request: NextRequest) {
       ok: rows.filter((r) => r.status === "ok").length,
       noSales: rows.filter((r) => r.status === "no_sales").length,
       leadWeeks,
+      safetyWeeks,
+      // The number that actually decides the flag: anything with fewer weeks of
+      // supply than this is surfaced.
+      reorderPointWeeks,
       targetMonths,
       windowDays: WINDOW_DAYS,
       totalUnitsToOrder: rows.reduce((s, r) => s + (r.status === "reorder_now" || r.status === "reorder_soon" ? r.suggestedQty : 0), 0),

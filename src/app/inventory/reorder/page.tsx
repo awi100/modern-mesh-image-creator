@@ -35,12 +35,15 @@ interface ReorderSummary {
   ok: number;
   noSales: number;
   leadWeeks: number;
+  safetyWeeks: number;
+  reorderPointWeeks: number;
   targetMonths: number;
   windowDays: number;
   totalUnitsToOrder: number;
 }
 
 const LEAD_OPTIONS = [4, 5, 6, 8];
+const SAFETY_WEEK_OPTIONS = [2, 6, 10, 14, 20];
 const TARGET_MONTH_OPTIONS = [3, 6, 9, 12];
 
 const STATUS_META: Record<ReorderStatus, { label: string; badge: string; border: string }> = {
@@ -55,6 +58,7 @@ export default function ReorderPage() {
   const [summary, setSummary] = useState<ReorderSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [leadWeeks, setLeadWeeks] = useState(6);
+  const [safetyWeeks, setSafetyWeeks] = useState(10);
   const [targetMonths, setTargetMonths] = useState(6);
   const [meshFilter, setMeshFilter] = useState<MeshFilter>("all");
   const [showAll, setShowAll] = useState(false);
@@ -64,7 +68,7 @@ export default function ReorderPage() {
     setLoading(true);
     try {
       const mesh = meshFilter !== "all" ? `&meshCount=${meshFilter}` : "";
-      const res = await fetch(`/api/inventory/reorder?leadWeeks=${leadWeeks}&targetMonths=${targetMonths}${mesh}`);
+      const res = await fetch(`/api/inventory/reorder?leadWeeks=${leadWeeks}&safetyWeeks=${safetyWeeks}&targetMonths=${targetMonths}${mesh}`);
       if (res.ok) {
         const data = await res.json();
         setRows(data.rows || []);
@@ -74,7 +78,7 @@ export default function ReorderPage() {
       console.error("Failed to load reorder analysis:", e);
     }
     setLoading(false);
-  }, [leadWeeks, targetMonths, meshFilter]);
+  }, [leadWeeks, safetyWeeks, targetMonths, meshFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -132,7 +136,8 @@ export default function ReorderPage() {
         <p className="text-sm text-slate-400 mb-4">
           Based on how fast each design is <span className="text-white">actually selling</span> (last {summary?.windowDays ?? 90} days),
           not just how many are left. A design is flagged when its canvases on hand would run out within the
-          time it takes a new order to arrive (the lead time). The suggested <span className="text-white">order quantity</span> is
+          lead time plus your buffer — currently <span className="text-white">{leadWeeks + safetyWeeks} weeks</span> of
+          supply ({leadWeeks}w lead + {safetyWeeks}w buffer). The suggested <span className="text-white">order quantity</span> is
           sized to leave about <span className="text-white">{targetMonths} months</span> of stock once the order arrives, so you
           don&apos;t have to reorder again for a while.
         </p>
@@ -151,6 +156,23 @@ export default function ReorderPage() {
                   }`}
                 >
                   {w}w
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wider text-slate-400" title="Weeks of cover you want left on top of the lead time">Buffer</span>
+            <div className="inline-flex gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
+              {SAFETY_WEEK_OPTIONS.map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setSafetyWeeks(w)}
+                  title={`Flag anything under ${leadWeeks + w} weeks of supply`}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    safetyWeeks === w ? "bg-rose-900 text-white" : "text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  +{w}w
                 </button>
               ))}
             </div>
@@ -211,7 +233,7 @@ export default function ReorderPage() {
           <div className="bg-slate-800 rounded-xl border border-emerald-800/50 p-8 text-center">
             <p className="text-emerald-300 font-medium">Nothing needs reordering</p>
             <p className="text-slate-400 text-sm mt-1">
-              No design is on track to run out within {leadWeeks} weeks. Turn on “Show all designs” to see everything.
+              No design is on track to run out within {leadWeeks + safetyWeeks} weeks. Turn on “Show all designs” to see everything.
             </p>
           </div>
         ) : (
