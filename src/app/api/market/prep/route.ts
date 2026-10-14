@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { normalizeTitle } from "@/lib/shopify";
+import { posDayKey } from "@/lib/pos-events";
 
 // Market Prep: recommend how many of each item to bring to the next market,
 // from past Shopify POS sales. The goal is "don't sell out", so we size to the
@@ -15,6 +16,9 @@ const ONE_OFF: Record<Buffer, number> = { conservative: 1, balanced: 2, aggressi
 // Two POS days within this many days are treated as ONE market event (e.g. a
 // Sat+Sun weekend). SoWa's weekly Sundays are 7 days apart → separate markets.
 const SAME_MARKET_GAP_DAYS = 2;
+
+/** UTC day key — shared so classifications line up with /api/market/events. */
+const dayKeyUTC = posDayKey;
 
 function recommend(max: number, total: number, buffer: Buffer): number {
   if (total <= 1) return ONE_OFF[buffer];
@@ -61,23 +65,54 @@ export async function GET(request: NextRequest) {
     // Legacy rows (pre-orderDate) fall back to sync time.
     const soldAt = (o: { orderDate: Date | null; createdAt: Date }) => o.orderDate ?? o.createdAt;
 
+    // Drop days that weren't craft markets. Sip-and-stitch evenings at
+    // restaurants also sell through Shopify POS, so they arrive here
+    // indistinguishable from a market — but their sales say nothing about what
+    // to pack in the market tote. A day with no pos_events row counts as a
+    // market, so only the exceptions need classifying.
+    const nonMarketDays = new Set(
+      (await prisma.posEvent.findMany({ where: { kind: { not: "market" } }, select: { day: true } }))
+        .map((e) => e.day)
+    );
+    const marketOrders = orders.filter((o) => !nonMarketDays.has(dayKeyUTC(soldAt(o))));
+
     // Reference: current market-tote stock, so the packer can see how many more
     // to grab. Matched to POS product titles by normalized name.
     const [designs, supplies] = await Promise.all([
       prisma.design.findMany({
         where: { deletedAt: null },
-        select: { name: true, marketKitsReady: true, marketCanvasPrinted: true },
+        select: { id: true, name: true, marketKitsReady: true, marketCanvasPrinted: true,
+                  kitsReady: true, canvasPrinted: true },
       }),
-      prisma.supply.findMany({ select: { name: true, marketQuantity: true } }),
+      prisma.supply.findMany({ select: { id: true, name: true, marketQuantity: true, quantity: true } }),
     ]);
+    // The tote figure is kits + canvases, because a POS product line is one
+    // "unit" either way. The split is carried alongside it so a restock screen
+    // knows which column a move should touch.
     const designTote = new Map<string, number>();
-    for (const d of designs) designTote.set(normalizeTitle(d.name), (d.marketKitsReady || 0) + (d.marketCanvasPrinted || 0));
+    const designStock = new Map<string, {
+      id: string; marketKits: number; marketCanvas: number; homeKits: number; homeCanvas: number;
+    }>();
+    for (const d of designs) {
+      const key = normalizeTitle(d.name);
+      designTote.set(key, (d.marketKitsReady || 0) + (d.marketCanvasPrinted || 0));
+      designStock.set(key, {
+        id: d.id,
+        marketKits: d.marketKitsReady || 0, marketCanvas: d.marketCanvasPrinted || 0,
+        homeKits: d.kitsReady || 0, homeCanvas: d.canvasPrinted || 0,
+      });
+    }
     const supplyTote = new Map<string, number>();
-    for (const s of supplies) supplyTote.set(normalizeTitle(s.name), s.marketQuantity || 0);
+    const supplyStock = new Map<string, { id: string; market: number; home: number }>();
+    for (const s of supplies) {
+      const key = normalizeTitle(s.name);
+      supplyTote.set(key, s.marketQuantity || 0);
+      supplyStock.set(key, { id: s.id, market: s.marketQuantity || 0, home: s.quantity || 0 });
+    }
 
     // Cluster POS order dates into market events.
-    const dayKey = (d: Date) => d.toISOString().slice(0, 10);
-    const distinctDays = [...new Set(orders.map((o) => dayKey(soldAt(o))))].sort();
+    const dayKey = dayKeyUTC;
+    const distinctDays = [...new Set(marketOrders.map((o) => dayKey(soldAt(o))))].sort();
     const marketOfDay = new Map<string, number>();
     const markets: { start: string; end: string; days: string[] }[] = [];
     for (const day of distinctDays) {
@@ -104,7 +139,7 @@ export async function GET(request: NextRequest) {
       total: number;
     }
     const items = new Map<string, ItemAgg>();
-    for (const o of orders) {
+    for (const o of marketOrders) {
       const mIdx = marketOfDay.get(dayKey(soldAt(o)))!;
       for (const it of o.items) {
         const name = it.productTitle;
@@ -139,6 +174,9 @@ export async function GET(request: NextRequest) {
         avgPerMarket: Math.round(avgPerMarket * 10) / 10,
         recommended: recommend(max, agg.total, buffer),
         inTote,
+        // Enough to action a home -> market move without a second round trip.
+        design: designStock.get(norm) ?? null,
+        supply: supplyStock.get(norm) ?? null,
       };
     });
 

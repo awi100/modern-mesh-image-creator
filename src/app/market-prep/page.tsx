@@ -5,6 +5,7 @@ import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import PosDayClassifier from "./PosDayClassifier";
 
 type Buffer = "conservative" | "balanced" | "aggressive";
 type Kind = "kit" | "canvas" | "supply" | "other";
@@ -159,7 +160,7 @@ export default function MarketPrepPage() {
 
         {/* Markets analyzed context */}
         {markets.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-5 text-xs text-slate-400">
+          <div className="flex flex-wrap gap-2 mb-3 text-xs text-slate-400">
             <span className="uppercase tracking-wider">Past markets:</span>
             {markets.map((m) => (
               <span key={m.label} className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded">
@@ -168,6 +169,15 @@ export default function MarketPrepPage() {
             ))}
           </div>
         )}
+
+        {/* Which in-person days actually count as markets */}
+        <PosDayClassifier onChange={fetchData} />
+
+        <div className="mb-5">
+          <Link href="/market-prep/missing" className="inline-block px-3 py-2 rounded-lg text-sm font-medium bg-amber-700 hover:bg-amber-600 text-white">
+            See only what&apos;s missing →
+          </Link>
+        </div>
 
         {loading ? (
           <div className="text-slate-400 py-12 text-center">Loading…</div>

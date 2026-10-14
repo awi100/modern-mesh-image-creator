@@ -402,6 +402,22 @@ model OrderDeduction {
   @@map("order_deductions")
 }
 
+// A day on which we sold in person. POS orders alone can't tell a craft market
+// apart from a sip-and-stitch at a restaurant — both arrive with
+// source_name = "pos" — but only markets should drive the market packing list.
+// One row per POS day; days with no row are treated as markets, so classifying
+// is only needed for the exceptions.
+model PosEvent {
+  id        String   @id @default(cuid())
+  day       String   @unique // "YYYY-MM-DD" (UTC), matching how POS days are bucketed
+  kind      String   @default("market") // "market" | "sip_and_stitch" | "other"
+  name      String?  // e.g. "Sip & Stitch - Trattoria"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pos_events")
+}
+
 // Custom canvas size presets
 model CanvasPreset {
   id          String   @id @default(cuid())
