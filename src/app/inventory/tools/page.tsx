@@ -48,13 +48,6 @@ const TOOLS: Tool[] = [
     accent: "text-sky-300",
   },
   {
-    href: "/market-prep",
-    title: "Market Prep",
-    description: "How many of each item to bring to the next market, from past POS sales.",
-    icon: icon("M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"),
-    accent: "text-emerald-300",
-  },
-  {
     href: "/inventory/deductions",
     title: "Sales Log",
     description: "History of every order deduction — which orders came off which inventory bucket.",

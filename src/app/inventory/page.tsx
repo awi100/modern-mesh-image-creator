@@ -15,6 +15,9 @@ import { useToast } from "@/components/Toast";
 import CountStepper from "@/components/inventory/CountStepper";
 import { rowInStock } from "@/lib/kit-stock";
 import { targetFor, isLowOnHand } from "@/lib/stock-targets";
+import MarketToPack from "@/components/market/MarketToPack";
+import MarketPlan from "@/components/market/MarketPlan";
+import { type Buffer as MarketBuffer } from "@/components/market/BufferPicker";
 
 
 
@@ -253,8 +256,29 @@ export default function InventoryPage() {
     url.searchParams.set("tab", t);
     window.history.replaceState(null, "", url.toString());
   };
-  // Market view sub-tab: "current" shows designs that have market canvases in
-  // stock; "zero" shows designs with 0 market canvases (sold out / to restock).
+  // Everything market-related lives on this tab. It used to be split across
+  // here and two /market-prep pages reached through Inventory Tools, which is
+  // how someone asking for packing counts ended up not finding them.
+  //   tote — what's in the tote now, and loading it
+  //   pack — the shortfall against the recommended count, with move buttons
+  //   plan — the full recommendation list and which days count as markets
+  const [marketView, setMarketView] = useState<"tote" | "pack" | "plan">("tote");
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get("view");
+    if (v === "tote" || v === "pack" || v === "plan") setMarketView(v);
+  }, []);
+  const selectMarketView = (v: "tote" | "pack" | "plan") => {
+    setMarketView(v);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "market");
+    url.searchParams.set("view", v);
+    window.history.replaceState(null, "", url.toString());
+  };
+  // Shared by the pack and plan views so switching between them can't quietly
+  // change the numbers underneath you.
+  const [marketBuffer, setMarketBuffer] = useState<MarketBuffer>("balanced");
+  // Market tote sub-filter: "current" shows designs that have market canvases
+  // in stock; "zero" shows designs with 0 market canvases (sold out / to restock).
   const [marketSubTab, setMarketSubTab] = useState<"current" | "zero">("current");
   // Sort by total inventory count on the kits/canvases/supplies tabs.
   // "default" keeps the collection grouping / original order.
@@ -2730,6 +2754,43 @@ export default function InventoryPage() {
 
         {/* Market Tab — kits & canvases allocated to the craft-market tote */}
         {activeTab === "market" && (
+          <>
+            {/* The three market jobs: what's in the tote, what still has to go
+                in it, and what the targets are based on. */}
+            <div className="inline-flex gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 mb-5">
+              {([
+                ["tote", "In the tote"],
+                ["pack", "To pack"],
+                ["plan", "Plan"],
+              ] as const).map(([v, label]) => (
+                <button
+                  key={v}
+                  onClick={() => selectMarketView(v)}
+                  aria-pressed={marketView === v}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    marketView === v ? "bg-emerald-700 text-white" : "text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {activeTab === "market" && marketView === "pack" && (
+          <MarketToPack
+            buffer={marketBuffer}
+            onBufferChange={setMarketBuffer}
+            onMoved={fetchDesigns}
+          />
+        )}
+
+        {activeTab === "market" && marketView === "plan" && (
+          <MarketPlan buffer={marketBuffer} onBufferChange={setMarketBuffer} />
+        )}
+
+        {activeTab === "market" && marketView === "tote" && (
           <>
             {/* Stats + match all */}
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
