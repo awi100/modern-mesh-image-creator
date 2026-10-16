@@ -1387,7 +1387,6 @@ export default function InventoryPage() {
       .map((d) => ({
         id: d.id,
         name: d.name,
-        target: d.marketCanvasPrinted,
         delta: d.marketCanvasPrinted - d.marketKitsReady,
       }));
     if (work.length === 0) return;
@@ -1416,8 +1415,15 @@ export default function InventoryPage() {
             headers: { "Content-Type": "application/json" },
             // Raise = transfer from home (conserves total, decrements Here);
             // lower = remove from the tote outright (does not return to home).
+            //
+            // Both are DELTAS. Lowering used to send the absolute target the
+            // client had computed, which the server applied outside the row
+            // lock — so a POS sale landing between the render and the click
+            // was partly undone by the write that followed it. Same bug the
+            // +/- buttons had; a delta composes with whatever the server
+            // actually holds.
             body: JSON.stringify(
-              x.delta > 0 ? { marketTransferKitsDelta: x.delta } : { marketKitsReady: x.target }
+              x.delta > 0 ? { marketTransferKitsDelta: x.delta } : { marketKitsDelta: x.delta }
             ),
           });
           return { name: x.name, ok: res.ok };
