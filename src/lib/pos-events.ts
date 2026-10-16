@@ -20,5 +20,30 @@ export const EVENT_LABEL: Record<EventKind, string> = {
   other: "Other",
 };
 
-/** UTC day key. Must match how market/prep buckets POS orders. */
-export const posDayKey = (d: Date) => d.toISOString().slice(0, 10);
+/**
+ * The local day an in-person sale happened on. Must match how market/prep
+ * buckets POS orders.
+ *
+ * This is deliberately NOT the UTC day. Everything in-person happens in
+ * Boston, and an evening event runs past 8pm Eastern — which is already
+ * tomorrow in UTC. Keying on `toISOString()` split the 14 Oct sip-and-stitch
+ * into "14 Oct" (15 orders, up to 7:52pm) and "15 Oct" (12 orders, 8:02pm
+ * onwards), so classifying the event as a sip-and-stitch only suppressed half
+ * of it and the other half went on feeding the market packing targets. The
+ * same split hit 23 Sep, where it got mistaken for a genuine two-day event.
+ *
+ * 18 of 281 POS orders land on a different UTC day than Eastern day, and every
+ * one of them is one of those two evenings — the Sunday markets all finish
+ * well before 8pm, so no market day moves.
+ */
+export const EVENT_TIME_ZONE = "America/New_York";
+
+// en-CA formats as YYYY-MM-DD, which is the key format pos_events.day stores.
+const DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: EVENT_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+export const posDayKey = (d: Date) => DAY_FORMAT.format(d);
