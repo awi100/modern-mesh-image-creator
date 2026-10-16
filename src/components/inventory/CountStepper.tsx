@@ -46,9 +46,19 @@ const TONE: Record<StepperTone, { input: string; text: string; ring: string; lab
   supply: { input: "bg-slate-700 border-purple-700/60", text: "text-purple-200", ring: "focus:ring-purple-700", label: "text-purple-400" },
 };
 
+// `sm` is what 27 of the 29 call sites use, because it's the only size that fits
+// three or four of these on one table row. At 32×32 it is well under the 44px
+// touch floor, and a mis-tap here doesn't just fail — it moves stock to the
+// wrong location. So `sm` grows to the floor on touch devices only
+// (`pointer-coarse`), where the extra height costs nothing and the extra width
+// is 8px per button. Mouse-driven layouts are untouched.
 const SIZE: Record<StepperSize, { btn: string; icon: string; input: string; text: string }> = {
-  // sm for dense tables; md meets the 44px touch target for phone use.
-  sm: { btn: "h-8 w-8", icon: "w-4 h-4", input: "w-14 h-8", text: "text-sm" },
+  sm: {
+    btn: "h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-10",
+    icon: "w-4 h-4 pointer-coarse:w-5 pointer-coarse:h-5",
+    input: "w-14 h-8 pointer-coarse:h-11",
+    text: "text-sm pointer-coarse:text-base",
+  },
   md: { btn: "h-11 w-11", icon: "w-5 h-5", input: "w-16 h-11", text: "text-base" },
 };
 

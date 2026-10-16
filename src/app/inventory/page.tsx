@@ -2256,6 +2256,11 @@ export default function InventoryPage() {
                                 </p>
                               </div>
 
+                              {/* Kit controls. Grouped (same as the canvases row
+                                  below) so they stack on a phone instead of
+                                  sharing one line — ungrouped, the three count
+                                  boxes shrank to a couple of characters wide. */}
+                              <div className="flex flex-col md:flex-row items-end md:items-center gap-2 md:gap-4">
                               {/* Kits at Home (the online-sellable bucket) */}
                               <CountStepper
                                 value={design.kitsReady}
@@ -2317,6 +2322,7 @@ export default function InventoryPage() {
                                     Move
                                   </button>
                                 </div>
+                              </div>
                               </div>
                             </div>
 

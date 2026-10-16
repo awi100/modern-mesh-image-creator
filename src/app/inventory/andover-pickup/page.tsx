@@ -61,10 +61,9 @@ const suggestQty = (kind: StockKind, andover: number, onHand: number, override?:
   suggestPickup(kind, andover, onHand, override);
 
 export default function AndoverPickupPage() {
-  // A failed write used to revert the number with no explanation.
+  // A failed pickup used to revert the number with no explanation; the catch
+  // below says so instead.
   const { showToast } = useToast();
-  const saveFailed = (what: string) =>
-    showToast(`Couldn't save ${what} — the number was put back`, "error");
 
   const [designs, setDesigns] = useState<Design[]>([]);
   const [supplies, setSupplies] = useState<Supply[]>([]);
