@@ -13,7 +13,7 @@ import { threadSizeForMesh, skeinYardsForThread, MeshCount, ThreadSize } from "@
 import { mutApi } from "@/lib/mut-api";
 import CountStepper from "@/components/inventory/CountStepper";
 import { rowInStock } from "@/lib/kit-stock";
-import { LOW_ON_HAND, RESTOCK_TARGET } from "@/lib/stock-targets";
+import { targetFor, isLowOnHand } from "@/lib/stock-targets";
 
 
 
@@ -43,6 +43,8 @@ interface Design {
   marketCanvasPrinted: number;
   canvasAndover: number;
   kitsAndover: number;
+  // Per-design "want N in Boston"; null = the house default.
+  restockTarget: number | null;
   isDraft: boolean;
   notLiveAt: string | null;
   archivedAt: string | null;
@@ -1416,12 +1418,13 @@ export default function InventoryPage() {
   const andoverCanvases = designs.reduce((sum, d) => sum + (d.canvasAndover || 0), 0);
   const allCanvases = mainCanvases + marketCanvases + andoverCanvases;
 
-  // On-hand canvas per design = Here (home) + Market tote. Below LOW_ON_HAND,
-  // it needs restocking from Andover. `designs` is already mesh-filtered and
-  // excludes drafts, so this reflects the current mesh view.
+  // On-hand canvas per design = Here (home) + Market tote. Low is judged
+  // against the design's own target where it has one, so a design that only
+  // wants 10 in Boston isn't permanently flagged for sitting at 12. `designs`
+  // is already mesh-filtered and excludes drafts.
   const canvasOnHand = (d: Design) => d.canvasPrinted + (d.marketCanvasPrinted || 0);
   const lowCanvasDesigns = designs
-    .filter((d) => canvasOnHand(d) < LOW_ON_HAND)
+    .filter((d) => isLowOnHand("canvas", canvasOnHand(d), d.restockTarget))
     .sort((a, b) => canvasOnHand(a) - canvasOnHand(b));
 
   // Group designs by collection (folder)
@@ -2252,15 +2255,19 @@ export default function InventoryPage() {
                               <div className="flex flex-col items-center gap-1">
                                 <span className="text-[10px] uppercase tracking-wider text-slate-500">Move</span>
                                 <div className="flex items-center gap-1">
-                                  {(design.kitsAndover || 0) > 0 && (design.kitsReady + design.marketKitsReady) < RESTOCK_TARGET && (
+                                  {(() => {
+                                    const kitTarget = targetFor("kit", design.restockTarget) ?? 0;
+                                    const kitGap = Math.min(design.kitsAndover || 0, kitTarget - (design.kitsReady + design.marketKitsReady));
+                                    return (design.kitsAndover || 0) > 0 && kitGap > 0 && (
                                     <button
-                                      onClick={() => quickMove(design.id, "kit", "andover", "home", Math.min(design.kitsAndover, RESTOCK_TARGET - (design.kitsReady + design.marketKitsReady)))}
+                                      onClick={() => quickMove(design.id, "kit", "andover", "home", kitGap)}
                                       className="px-2 py-1.5 text-[10px] font-medium bg-sky-700 hover:bg-sky-600 text-white rounded whitespace-nowrap"
-                                      title={`Move ${Math.min(design.kitsAndover, RESTOCK_TARGET - (design.kitsReady + design.marketKitsReady))} kits from Andover to Home`}
+                                      title={`Move ${kitGap} kits from Andover to Home (target ${kitTarget})`}
                                     >
                                       → Home
                                     </button>
-                                  )}
+                                    );
+                                  })()}
                                   <button
                                     onClick={() => setMoveModal({ kind: "kit", designId: design.id, from: "andover", to: "home", qty: "" })}
                                     className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors"
@@ -2588,7 +2595,7 @@ export default function InventoryPage() {
                               <span className="text-slate-300 font-semibold">{design.canvasPrinted + design.marketCanvasPrinted} on hand</span>
                               <span className="text-slate-500"> ({design.canvasPrinted} home · <span className="text-emerald-400">{design.marketCanvasPrinted} market</span>)</span>
                               {(design.canvasAndover || 0) > 0 && <span className="text-sky-400"> · {design.canvasAndover} @ Andover</span>}
-                              {(design.canvasPrinted + design.marketCanvasPrinted) < LOW_ON_HAND && (
+                              {isLowOnHand("canvas", design.canvasPrinted + design.marketCanvasPrinted, design.restockTarget) && (
                                 <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-600 text-white">Low</span>
                               )}
                             </p>
@@ -2634,15 +2641,19 @@ export default function InventoryPage() {
                                 ariaLabel={`Canvases at Andover for ${design.name}`}
                               />
                               {/* Restock to Home (top up on-hand toward target) */}
-                              {(design.canvasAndover || 0) > 0 && (design.canvasPrinted + design.marketCanvasPrinted) < RESTOCK_TARGET && (
+                              {(() => {
+                                const cTarget = targetFor("canvas", design.restockTarget) ?? 0;
+                                const cGap = Math.min(design.canvasAndover || 0, cTarget - (design.canvasPrinted + design.marketCanvasPrinted));
+                                return (design.canvasAndover || 0) > 0 && cGap > 0 && (
                                 <button
-                                  onClick={() => handleAndoverTransfer(design.id, Math.min(design.canvasAndover, RESTOCK_TARGET - (design.canvasPrinted + design.marketCanvasPrinted)))}
+                                  onClick={() => handleAndoverTransfer(design.id, cGap)}
                                   className="ml-1 mt-[18px] px-2 py-1 text-[10px] font-medium bg-sky-700 hover:bg-sky-600 text-white rounded whitespace-nowrap"
-                                  title={`Move ${Math.min(design.canvasAndover, RESTOCK_TARGET - (design.canvasPrinted + design.marketCanvasPrinted))} from Andover to home`}
+                                  title={`Move ${cGap} from Andover to home (target ${cTarget})`}
                                 >
                                   → Home
                                 </button>
-                              )}
+                                );
+                              })()}
                             </div>
 
                             {/* Move canvases between locations. Wrapped with a

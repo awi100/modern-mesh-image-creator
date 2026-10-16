@@ -8,7 +8,7 @@ import { meshBadgeClassLight } from "@/lib/mesh-badge";
 import { mutApi } from "@/lib/mut-api";
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 
-import { TARGET_FOR, suggestPickup, isLowOnHand, type StockKind } from "@/lib/stock-targets";
+import { RESTOCK_TARGET, suggestPickup, isLowOnHand, targetFor, type StockKind } from "@/lib/stock-targets";
 
 interface Design {
   id: string;
@@ -23,6 +23,7 @@ interface Design {
   kitsReady: number;
   marketKitsReady: number;
   kitsAndover: number;
+  restockTarget: number | null;
 }
 
 interface Supply {
@@ -45,13 +46,18 @@ interface Row {
   onHand: number;
   andover: number;
   suggest: number;
+  /** null for supplies and for designs on the house default. */
+  target: number | null;
+  /** This design's own override, if it has one (null = inherits the default). */
+  override: number | null;
 }
 
 
 // Per-kind: canvases/kits top up toward 30, supplies have no universal target
 // (you might keep 3 project bags at home and 200 at Andover), so they list
 // whenever there's Andover stock and you type the quantity.
-const suggestQty = (kind: StockKind, andover: number, onHand: number) => suggestPickup(kind, andover, onHand);
+const suggestQty = (kind: StockKind, andover: number, onHand: number, override?: number | null) =>
+  suggestPickup(kind, andover, onHand, override);
 
 export default function AndoverPickupPage() {
   const [designs, setDesigns] = useState<Design[]>([]);
@@ -83,17 +89,18 @@ export default function AndoverPickupPage() {
   const allRows: Row[] = useMemo(() => {
     const rows: Row[] = [];
     for (const d of designs) {
+      const t = d.restockTarget;
       const cOn = d.canvasPrinted + (d.marketCanvasPrinted || 0);
       if ((d.canvasAndover || 0) > 0)
-        rows.push({ key: `${d.id}-canvas`, id: d.id, section: "canvas", name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount, onHand: cOn, andover: d.canvasAndover, suggest: suggestQty("canvas", d.canvasAndover, cOn) });
+        rows.push({ key: `${d.id}-canvas`, id: d.id, section: "canvas", name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount, onHand: cOn, andover: d.canvasAndover, suggest: suggestQty("canvas", d.canvasAndover, cOn, t), target: targetFor("canvas", t), override: t });
       const kOn = d.kitsReady + (d.marketKitsReady || 0);
       if ((d.kitsAndover || 0) > 0)
-        rows.push({ key: `${d.id}-kit`, id: d.id, section: "kit", name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount, onHand: kOn, andover: d.kitsAndover, suggest: suggestQty("kit", d.kitsAndover, kOn) });
+        rows.push({ key: `${d.id}-kit`, id: d.id, section: "kit", name: d.name, previewImageUrl: d.previewImageUrl, meshCount: d.meshCount, onHand: kOn, andover: d.kitsAndover, suggest: suggestQty("kit", d.kitsAndover, kOn, t), target: targetFor("kit", t), override: t });
     }
     for (const s of supplies) {
       const on = s.quantity + (s.marketQuantity || 0);
       if ((s.andoverQuantity || 0) > 0)
-        rows.push({ key: `${s.id}-supply`, id: s.id, section: "supply", name: s.name, previewImageUrl: null, meshCount: null, onHand: on, andover: s.andoverQuantity, suggest: suggestQty("supply", s.andoverQuantity, on) });
+        rows.push({ key: `${s.id}-supply`, id: s.id, section: "supply", name: s.name, previewImageUrl: null, meshCount: null, onHand: on, andover: s.andoverQuantity, suggest: suggestQty("supply", s.andoverQuantity, on), target: null, override: null });
     }
     return rows;
   }, [designs, supplies]);
@@ -200,7 +207,7 @@ export default function AndoverPickupPage() {
           {rows.map((r) => {
             const qty = qtyFor(r);
             const isMoving = moving === r.key;
-            const urgent = isLowOnHand(r.section, r.onHand);
+            const urgent = isLowOnHand(r.section, r.onHand, r.override);
             return (
               <div key={r.key} className="p-3 flex items-center gap-3">
                 {r.previewImageUrl ? (
@@ -226,8 +233,16 @@ export default function AndoverPickupPage() {
                       <span className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${meshBadgeClassLight(r.meshCount)}`}>{r.meshCount}ct</span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-400 flex items-center gap-1.5 flex-wrap">
                     <span className={urgent ? "text-red-400 font-medium" : ""}>{r.onHand} on hand</span>
+                    {r.section !== "supply" && (
+                      <TargetEditor
+                        designId={r.id}
+                        value={r.override}
+                        effective={r.target ?? RESTOCK_TARGET}
+                        onSaved={fetchData}
+                      />
+                    )}
                     {" · "}
                     <span className="text-sky-400">{r.andover} at Andover</span>
                   </p>
@@ -279,7 +294,8 @@ export default function AndoverPickupPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">Andover Pickup</h1>
             <p className="text-sm text-slate-400 mt-1">
-              What to grab from Andover to restock your on-hand stock (Home + Market) toward {TARGET_FOR.canvas}.
+              What to grab from Andover to restock your on-hand stock (Home + Market).
+              Default target is {RESTOCK_TARGET} of each design — tap a target below to change it for that design.
             </p>
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
@@ -309,5 +325,74 @@ export default function AndoverPickupPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The "want N in Boston" number for one design, editable in place.
+ *
+ * Blank means this design has no override and follows the house default, so
+ * clearing the box is a real action (back to default) rather than an error —
+ * the API takes null for exactly that. The target is per DESIGN, so editing it
+ * on a canvas row also moves the kit row for the same design.
+ */
+function TargetEditor({
+  designId, value, effective, onSaved,
+}: { designId: string; value: number | null; effective: number; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const commit = async () => {
+    const raw = draft.trim();
+    const next = raw === "" ? null : Math.max(0, Math.floor(Number(raw)));
+    if (raw !== "" && !Number.isFinite(next as number)) { setEditing(false); return; }
+    if (next === value) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await mutApi(`/api/designs/${designId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restockTarget: next }),
+      });
+      onSaved();
+    } finally {
+      setSaving(false);
+      setEditing(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="number"
+        min={0}
+        inputMode="numeric"
+        value={draft}
+        placeholder={String(effective)}
+        disabled={saving}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className="w-16 px-1 py-0.5 bg-slate-900 border border-emerald-700 rounded text-xs text-center text-white focus:outline-none"
+      />
+    );
+  }
+  return (
+    <button
+      onClick={() => { setDraft(value === null ? "" : String(value)); setEditing(true); }}
+      title={value === null ? `Default target. Click to set a target just for this design.` : `Custom target. Clear the box to go back to the default.`}
+      className={`px-1.5 py-0.5 rounded border text-[11px] transition-colors ${
+        value === null
+          ? "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"
+          : "border-emerald-700 bg-emerald-900/30 text-emerald-300 hover:bg-emerald-900/60"
+      }`}
+    >
+      want {effective}{value === null && <span className="text-slate-500"> (default)</span>}
+    </button>
   );
 }

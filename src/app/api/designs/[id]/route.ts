@@ -431,6 +431,23 @@ export async function PATCH(
       return NextResponse.json({ ...updated, moved });
     }
 
+    // How many of this design we want on hand in Boston. null clears the
+    // override and puts the design back on the house default, which is why
+    // this is checked with `in` rather than `!== undefined` — sending null has
+    // to be distinguishable from not sending the field at all.
+    if ("restockTarget" in body) {
+      const raw = body.restockTarget;
+      if (raw === null || raw === "") {
+        data.restockTarget = null;
+      } else {
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n < 0) {
+          return NextResponse.json({ error: "restockTarget must be a non-negative integer or null" }, { status: 400 });
+        }
+        data.restockTarget = n;
+      }
+    }
+
     // Direct set of the market-tote counts (does NOT touch online stock).
     // Used by "match kits to canvases", which adjusts the market count only.
     if (body.marketKitsReady !== undefined) {

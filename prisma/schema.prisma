@@ -116,6 +116,12 @@ model Design {
   canvasAndover         Int     @default(0)
   kitsAndover           Int     @default(0)  // assembled kits in bulk storage at Andover
 
+  // How many of this design we want on hand in Boston (Home + Market tote).
+  // Drives the Andover pickup suggestion and the low-stock flag. NULL means
+  // "use the house default" (stock-targets.RESTOCK_TARGET), so changing the
+  // default moves every design that hasn't been given its own number.
+  restockTarget         Int?
+
   // Sales tracking (from Shopify fulfilled orders)
   totalSold             Int     @default(0)  // total units sold (kits + canvas-only)
   totalKitsSold         Int     @default(0)  // units sold with kit included
