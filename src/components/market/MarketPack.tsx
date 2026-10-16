@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 import { mutApi } from "@/lib/mut-api";
+import Link from "next/link";
+import CountStepper from "@/components/inventory/CountStepper";
 import PosDayClassifier from "./PosDayClassifier";
 import BufferPicker, { type Buffer } from "./BufferPicker";
 
@@ -33,7 +35,11 @@ import BufferPicker, { type Buffer } from "./BufferPicker";
 
 type Kind = "kit" | "canvas" | "supply" | "other";
 
-interface DesignStock { id: string; marketKits: number; marketCanvas: number; homeKits: number; homeCanvas: number; }
+interface DesignStock {
+  id: string; marketKits: number; marketCanvas: number;
+  homeKits: number; homeCanvas: number;
+  andoverKits: number; andoverCanvas: number;
+}
 interface SupplyStock { id: string; market: number; home: number; }
 interface PrepRow {
   name: string; kind: Kind; total: number; max: number; marketsSold: number;
@@ -88,6 +94,7 @@ export default function MarketPack({
   const [filter, setFilter] = useState<Filter>("todo");
   const [showSupplies, setShowSupplies] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
@@ -164,6 +171,46 @@ export default function MarketPack({
       onMoved?.();
     } catch {
       setError(`Couldn't move ${item.name}.`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /**
+   * Change a design's tote count by hand.
+   *
+   * The two directions are NOT symmetric, and that's deliberate and
+   * long-standing: raising the tote PULLS from home (a transfer, total
+   * unchanged), lowering it REMOVES from the tote outright — stock taken back
+   * out of the tote doesn't reappear at home, because in practice it was sold
+   * or lost rather than carried back.
+   *
+   * Always sent as a delta, never as the absolute the client happens to be
+   * showing: a POS sale landing between render and tap would otherwise be
+   * partly rewound by the write.
+   */
+  const adjust = async (item: Item, what: "canvas" | "kit", delta: number) => {
+    if (delta === 0) return;
+    const key = `${item.name}-${what}`;
+    setBusy(key);
+    try {
+      const body =
+        delta > 0
+          ? what === "canvas"
+            ? { marketTransferCanvasDelta: delta }
+            : { marketTransferKitsDelta: delta }
+          : what === "canvas"
+            ? { marketCanvasDelta: delta }
+            : { marketKitsDelta: delta };
+      const res = await mutApi(`/api/designs/${item.row.design!.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("adjust failed");
+      await load();
+      onMoved?.();
+    } catch {
+      setError(`Couldn't change ${item.name}.`);
     } finally {
       setBusy(null);
     }
@@ -286,7 +333,10 @@ export default function MarketPack({
                 key={item.name}
                 item={item}
                 busy={busy}
+                open={expanded === item.name}
+                onToggle={() => setExpanded(expanded === item.name ? null : item.name)}
                 onPack={() => packRow(item)}
+                onAdjust={(what, delta) => adjust(item, what, delta)}
               />
             ))}
           </div>
@@ -412,55 +462,195 @@ function ReadyBar({
   );
 }
 
-/** One design: what to grab, with held/needed underneath. */
+/** One design: what to grab, with held/needed underneath. Opens for detail. */
 function ItemRow({
-  item, busy, onPack,
+  item, busy, open, onToggle, onPack, onAdjust,
 }: {
-  item: Item; busy: string | null; onPack: () => void;
+  item: Item;
+  busy: string | null;
+  open: boolean;
+  onToggle: () => void;
+  onPack: () => void;
+  onAdjust: (what: "canvas" | "kit", delta: number) => void;
 }) {
   const rowBusy = busy === `${item.name}-row`;
   const canPack =
     (item.canvas ? Math.min(item.canvas.gap, item.canvas.atHome) : 0) +
     (item.kit ? Math.min(item.kit.gap, item.kit.atHome) : 0);
+  const stock = item.row.design;
 
   return (
-    <div
-      className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 border-l-2 ${
-        item.ready ? "border-l-emerald-600 bg-slate-800" : "border-l-amber-500 bg-slate-800"
-      }`}
-    >
-      <div className="w-full md:flex-1 min-w-0">
-        <p className="text-white font-medium truncate">{item.name}</p>
-        <p className="text-[11px] text-slate-500 truncate">
-          peak {item.row.max} at one market · sold {item.row.total} over {item.row.marketsSold} of{" "}
-          {item.row.perMarket.length}
+    <div className={`border-l-2 ${item.ready ? "border-l-emerald-600" : "border-l-amber-500"} bg-slate-800`}>
+      {/* The whole summary is the disclosure control; the Pack button inside it
+          stops the click so one tap can't both pack and open the detail. */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); }
+        }}
+        className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 cursor-pointer hover:bg-slate-700/40 transition-colors"
+      >
+        <div className="w-full md:flex-1 min-w-0 flex items-center gap-2">
+          <Chevron open={open} />
+          <div className="min-w-0">
+            <p className="text-white font-medium truncate">{item.name}</p>
+            <p className="text-[11px] text-slate-500 truncate">
+              peak {item.row.max} at one market · sold {item.row.total} over {item.row.marketsSold} of{" "}
+              {item.row.perMarket.length}
+            </p>
+          </div>
+        </div>
+
+        <Cell side={item.canvas} />
+        <Cell side={item.kit} />
+
+        <div className="w-[84px] flex-shrink-0 ml-auto md:ml-0" onClick={(e) => e.stopPropagation()}>
+          {item.ready ? (
+            <span className="flex items-center justify-end md:justify-center gap-1 text-xs text-emerald-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              packed
+            </span>
+          ) : canPack === 0 ? (
+            <span className="block text-xs text-slate-500 text-right md:text-center">none at home</span>
+          ) : (
+            <button
+              onClick={onPack}
+              disabled={busy !== null}
+              className="w-full px-2 py-2 rounded-lg text-sm font-medium bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-35 disabled:cursor-not-allowed"
+              title={`Move ${canPack} from home into the tote`}
+            >
+              {rowBusy ? "…" : `Pack ${canPack}`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {open && stock && (
+        <div className="border-t border-slate-700/60 bg-slate-900/40 px-3 py-4">
+          <div className="grid gap-4 sm:grid-cols-2 mb-4">
+            <ToteControl
+              label="Canvases in the tote"
+              side={item.canvas}
+              busy={busy === `${item.name}-canvas`}
+              disabled={busy !== null}
+              onAdjust={(d) => onAdjust("canvas", d)}
+              atHome={stock.homeCanvas}
+              atAndover={stock.andoverCanvas}
+              ariaLabel={`Canvases in the market tote for ${item.name}`}
+            />
+            <ToteControl
+              label="Kits in the tote"
+              side={item.kit}
+              busy={busy === `${item.name}-kit`}
+              disabled={busy !== null}
+              onAdjust={(d) => onAdjust("kit", d)}
+              atHome={stock.homeKits}
+              atAndover={stock.andoverKits}
+              ariaLabel={`Kits in the market tote for ${item.name}`}
+            />
+          </div>
+
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs mb-4">
+            <Stat label="Target canvases" value={item.canvas?.need ?? 0} hint={`peak ${item.row.max} + buffer`} />
+            <Stat label="Target kits" value={item.kit?.need ?? 0} hint="only “+ kit” sales" />
+            <Stat label="At home" value={`${stock.homeCanvas}c · ${stock.homeKits}k`} />
+            <Stat label="At Andover" value={`${stock.andoverCanvas}c · ${stock.andoverKits}k`} />
+          </dl>
+
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                Sold per market, oldest first
+              </p>
+              <p className="text-xs text-slate-400 tabular-nums break-words">
+                {item.row.perMarket.join(" · ")}
+              </p>
+            </div>
+            <Link
+              href={`/design/${stock.id}/info`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-slate-400 hover:text-white whitespace-nowrap"
+            >
+              Open design →
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Set the tote count by hand: +/- or type a number.
+ *
+ * Raising pulls from home; lowering removes from the tote outright and does
+ * NOT return stock home. That asymmetry is the app's long-standing market
+ * semantics, so it's spelled out here rather than left to be discovered.
+ */
+function ToteControl({
+  label, side, busy, disabled, onAdjust, atHome, atAndover, ariaLabel,
+}: {
+  label: string;
+  side: Side | null;
+  busy: boolean;
+  disabled: boolean;
+  onAdjust: (delta: number) => void;
+  atHome: number;
+  atAndover: number;
+  ariaLabel: string;
+}) {
+  if (!side) return null;
+  return (
+    <div className="bg-slate-800 rounded-lg border border-slate-700 p-3">
+      <p className="text-xs text-slate-400 mb-2">{label}</p>
+      <div className="flex items-center gap-3">
+        <CountStepper
+          value={side.have}
+          // Converted to a delta against the value just rendered, so a typed
+          // number composes with the server instead of overwriting it.
+          onCommit={(next) => onAdjust(next - side.have)}
+          onDelta={(d) => onAdjust(d)}
+          size="md"
+          tone="market"
+          ariaLabel={ariaLabel}
+          busy={busy}
+          disabled={disabled && !busy}
+          disableIncrement={atHome <= 0}
+          incrementTitle={atHome > 0 ? "Move one from home into the tote" : "Nothing at home to move"}
+          decrementTitle="Take one out of the tote (it does not go back home)"
+        />
+        <div className="text-xs leading-tight">
+          <p className={side.gap > 0 ? "text-amber-400" : "text-emerald-400"}>
+            {side.gap > 0 ? `${side.gap} short of ${side.need}` : `at target (${side.need})`}
+          </p>
+          <p className="text-slate-500">
+            {atHome} at home
+            {atAndover > 0 && <span className="text-sky-400"> · {atAndover} at Andover</span>}
+          </p>
+        </div>
+      </div>
+      {side.gap > 0 && atHome === 0 && (
+        <p className="text-[11px] text-red-400 mt-2">
+          {atAndover > 0
+            ? `None at home — ${atAndover} are at Andover, so pick them up before the market.`
+            : "None at home and none at Andover — these have to be made."}
         </p>
-      </div>
+      )}
+    </div>
+  );
+}
 
-      <Cell side={item.canvas} />
-      <Cell side={item.kit} />
-
-      <div className="w-[84px] flex-shrink-0 ml-auto md:ml-0">
-        {item.ready ? (
-          <span className="flex items-center justify-end md:justify-center gap-1 text-xs text-emerald-400">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            packed
-          </span>
-        ) : canPack === 0 ? (
-          <span className="block text-xs text-slate-500 text-right md:text-center">none at home</span>
-        ) : (
-          <button
-            onClick={onPack}
-            disabled={busy !== null}
-            className="w-full px-2 py-2 rounded-lg text-sm font-medium bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-35 disabled:cursor-not-allowed"
-            title={`Move ${canPack} from home into the tote`}
-          >
-            {rowBusy ? "…" : `Pack ${canPack}`}
-          </button>
-        )}
-      </div>
+function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <div>
+      <dt className="text-[10px] uppercase tracking-wider text-slate-500">{label}</dt>
+      <dd className="text-slate-200 font-medium tabular-nums">{value}</dd>
+      {hint && <p className="text-[10px] text-slate-600">{hint}</p>}
     </div>
   );
 }

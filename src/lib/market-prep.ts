@@ -61,6 +61,7 @@ export interface PrepDesign {
   id: string; name: string;
   marketKitsReady: number; marketCanvasPrinted: number;
   kitsReady: number; canvasPrinted: number;
+  kitsAndover: number; canvasAndover: number;
   /** Retired. Its past market sales are real history, but you can't pack it. */
   archivedAt: Date | null;
 }
@@ -68,7 +69,14 @@ export interface PrepSupply {
   id: string; name: string; marketQuantity: number; quantity: number;
 }
 
-export interface DesignStock { id: string; marketKits: number; marketCanvas: number; homeKits: number; homeCanvas: number; }
+export interface DesignStock {
+  id: string;
+  marketKits: number; marketCanvas: number;
+  homeKits: number; homeCanvas: number;
+  // Bulk storage. Reported so a row with nothing at home can say whether the
+  // stock exists at all or has to be made.
+  andoverKits: number; andoverCanvas: number;
+}
 export interface SupplyStock { id: string; market: number; home: number; }
 
 export interface PrepRow {
@@ -163,6 +171,7 @@ export function buildMarketPrep(
       id: d.id,
       marketKits: d.marketKitsReady || 0, marketCanvas: d.marketCanvasPrinted || 0,
       homeKits: d.kitsReady || 0, homeCanvas: d.canvasPrinted || 0,
+      andoverKits: d.kitsAndover || 0, andoverCanvas: d.canvasAndover || 0,
     });
   }
   const supplyStock = new Map<string, SupplyStock>();

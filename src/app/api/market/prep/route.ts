@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
         select: {
           id: true, name: true, marketKitsReady: true, marketCanvasPrinted: true,
           kitsReady: true, canvasPrinted: true, archivedAt: true,
+          kitsAndover: true, canvasAndover: true,
         },
       }),
       prisma.supply.findMany({
