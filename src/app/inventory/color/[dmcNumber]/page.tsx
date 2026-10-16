@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { mutApi } from "@/lib/mut-api";
+import { useToast } from "@/components/Toast";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
@@ -58,6 +59,11 @@ function getContrastTextColor(hex: string): string {
 
 
 export default function ColorDetailPage() {
+  // A failed write used to revert the number with no explanation.
+  const { showToast } = useToast();
+  const saveFailed = (what: string) =>
+    showToast(`Couldn't save ${what} — the number was put back`, "error");
+
   const params = useParams();
   const dmcNumber = params.dmcNumber as string;
 
@@ -152,6 +158,7 @@ export default function ColorDetailPage() {
       mutateInventoryRows();
     } catch (error) {
       console.error("Error updating inventory:", error);
+      saveFailed("thread stock");
     } finally {
       setUpdatingInventory(null);
     }
@@ -186,6 +193,7 @@ export default function ColorDetailPage() {
       setPendingBackup("");
     } catch (error) {
       console.error("Error setting backup:", error);
+      saveFailed("the backup colour");
     } finally {
       setSavingBackup(false);
     }

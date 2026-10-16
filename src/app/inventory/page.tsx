@@ -11,6 +11,7 @@ import { useMeshFilter } from "@/lib/use-mesh-filter";
 import { meshBadgeClassLight } from "@/lib/mesh-badge";
 import { threadSizeForMesh, skeinYardsForThread, MeshCount, ThreadSize } from "@/lib/yarn-calculator";
 import { mutApi } from "@/lib/mut-api";
+import { useToast } from "@/components/Toast";
 import CountStepper from "@/components/inventory/CountStepper";
 import { rowInStock } from "@/lib/kit-stock";
 import { targetFor, isLowOnHand } from "@/lib/stock-targets";
@@ -222,6 +223,14 @@ function SortControls({
 }
 
 export default function InventoryPage() {
+  // Every write on this page was optimistic with a silent revert: on a failure
+  // the number simply snapped back and you were left assuming you'd misread it.
+  // On a market stall with bad signal that is indistinguishable from a successful
+  // save, so the tote count stays wrong for the rest of the day.
+  const { showToast } = useToast();
+  const saveFailed = (what: string) =>
+    showToast(`Couldn't save ${what} — the number was put back`, "error");
+
   const router = useRouter();
   // Deep-linkable: /inventory?tab=supplies.
   //
@@ -566,6 +575,7 @@ export default function InventoryPage() {
       fetchInventory();
     } catch (error) {
       console.error("Error updating inventory:", error);
+      saveFailed("thread stock");
       // Revert by refetching kit contents for all expanded kits
       for (const designId of expandedKits) {
         fetchKitContents(designId, true);
@@ -699,6 +709,7 @@ export default function InventoryPage() {
       fetchBobbins();
     } catch (error) {
       console.error("Error updating bobbin count:", error);
+      saveFailed("the bobbin count");
       fetchBobbins();
     }
   };
@@ -756,6 +767,7 @@ export default function InventoryPage() {
       }
     } catch (error) {
       console.error("Error saving supply:", error);
+      saveFailed("the supply details");
     }
     setSavingSupply(false);
   };
@@ -788,6 +800,7 @@ export default function InventoryPage() {
       if (!res.ok) fetchSupplies();
     } catch (error) {
       console.error("Error updating supply quantity:", error);
+      saveFailed("supply stock");
       fetchSupplies(); // Revert on error
     }
   };
@@ -832,6 +845,7 @@ export default function InventoryPage() {
         if (!res.ok) fetchSupplies();
       } catch (error) {
         console.error("Error transferring supply to market:", error);
+        saveFailed("the market transfer");
         fetchSupplies();
       }
       return;
@@ -851,6 +865,7 @@ export default function InventoryPage() {
       if (!res.ok) fetchSupplies();
     } catch (error) {
       console.error("Error removing supply from market:", error);
+      saveFailed("the market removal");
       fetchSupplies();
     }
   };
@@ -879,6 +894,7 @@ export default function InventoryPage() {
       if (!res.ok) fetchSupplies();
     } catch (error) {
       console.error("Error updating supply Andover count:", error);
+      saveFailed("Andover supply stock");
       fetchSupplies();
     }
   };
@@ -991,6 +1007,7 @@ export default function InventoryPage() {
       }
     } catch (error) {
       console.error("Error updating inventory item:", error);
+      saveFailed("thread stock");
       await fetchInventory();
     }
   };
@@ -1026,6 +1043,7 @@ export default function InventoryPage() {
       }
     } catch (error) {
       console.error("Error updating design:", error);
+      saveFailed("the count");
       await fetchDesigns();
     }
   };
@@ -1082,6 +1100,7 @@ export default function InventoryPage() {
         if (!response.ok) await fetchDesigns();
       } catch (error) {
         console.error("Error transferring to market:", error);
+        saveFailed("the market transfer");
         await fetchDesigns();
       }
       return;
@@ -1113,6 +1132,7 @@ export default function InventoryPage() {
       if (!response.ok) await fetchDesigns();
     } catch (error) {
       console.error("Error removing from market:", error);
+      saveFailed("the market removal");
       await fetchDesigns();
     }
   };
@@ -1156,6 +1176,7 @@ export default function InventoryPage() {
       if (!res.ok) await fetchDesigns();
     } catch (e) {
       console.error("Error updating Andover stock:", e);
+      saveFailed("Andover canvas stock");
       await fetchDesigns();
     }
   };
@@ -1219,6 +1240,7 @@ export default function InventoryPage() {
       if (!res.ok) await fetchDesigns();
     } catch (e) {
       console.error("Error updating kit Andover stock:", e);
+      saveFailed("Andover kit stock");
       await fetchDesigns();
     }
   };

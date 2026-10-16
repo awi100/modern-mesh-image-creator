@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { mutApi } from "@/lib/mut-api";
+import { useToast } from "@/components/Toast";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -196,6 +197,11 @@ function CounterStatCard({
 
 
 export default function KitPage() {
+  // Writes on this page reverted silently on failure.
+  const { showToast } = useToast();
+  const saveFailed = (what: string) =>
+    showToast(`Couldn't save ${what} — the number was put back`, "error");
+
   const params = useParams();
   const router = useRouter();
   const designId = params.id as string;
@@ -283,6 +289,7 @@ export default function KitPage() {
       if (!res.ok) throw new Error("Failed to update");
     } catch (error) {
       console.error(`Error updating ${field}:`, error);
+      saveFailed("the count");
       fetchKit(); // restore server values
     }
   };
@@ -300,6 +307,7 @@ export default function KitPage() {
       if (!res.ok) throw new Error("Failed to update");
     } catch (error) {
       console.error(`Error updating ${field}:`, error);
+      saveFailed("the count");
       fetchKit(); // restore server values
     }
   };
@@ -326,6 +334,7 @@ export default function KitPage() {
       }
     } catch (error) {
       console.error("Error setting backup color:", error);
+      saveFailed("the backup colour");
     }
 
     setEditingBackup(null);
@@ -438,6 +447,7 @@ export default function KitPage() {
       }
     } catch (error) {
       console.error("Error updating inventory:", error);
+      saveFailed("thread stock");
       // Revert by refetching
       fetchKit();
     }

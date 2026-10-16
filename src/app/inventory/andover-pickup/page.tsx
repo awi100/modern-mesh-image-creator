@@ -5,6 +5,7 @@ import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { meshBadgeClassLight } from "@/lib/mesh-badge";
+import { useToast } from "@/components/Toast";
 import { mutApi } from "@/lib/mut-api";
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 
@@ -60,6 +61,11 @@ const suggestQty = (kind: StockKind, andover: number, onHand: number, override?:
   suggestPickup(kind, andover, onHand, override);
 
 export default function AndoverPickupPage() {
+  // A failed write used to revert the number with no explanation.
+  const { showToast } = useToast();
+  const saveFailed = (what: string) =>
+    showToast(`Couldn't save ${what} — the number was put back`, "error");
+
   const [designs, setDesigns] = useState<Design[]>([]);
   const [supplies, setSupplies] = useState<Supply[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,6 +170,7 @@ export default function AndoverPickupPage() {
             });
       if (!res.ok) await fetchData();
     } catch {
+      showToast(`Couldn't pick up ${r.name} — nothing was moved`, "error");
       await fetchData();
     }
     setMoving(null);

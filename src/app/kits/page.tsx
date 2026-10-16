@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useRef } from "react";
 import { mutApi } from "@/lib/mut-api";
+import { useToast } from "@/components/Toast";
 import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import useSWR from "swr";
@@ -98,6 +99,11 @@ function getContrastTextColor(hex: string): string {
 
 
 export default function KitsPage() {
+  // A failed write used to revert the number with no explanation.
+  const { showToast } = useToast();
+  const saveFailed = (what: string) =>
+    showToast(`Couldn't save ${what} — the number was put back`, "error");
+
   const [expandedKit, setExpandedKit] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "in-stock" | "out-of-stock">("all");
   // Folders start collapsed; only folders in this set are expanded
@@ -181,6 +187,7 @@ export default function KitsPage() {
 
     } catch (error) {
       console.error("Error updating inventory:", error);
+      saveFailed("thread stock");
       // Revert by refetching
       mutateKits();
     } finally {
@@ -291,6 +298,7 @@ export default function KitsPage() {
       }
     } catch (error) {
       console.error("Error updating kits ready:", error);
+      saveFailed("the kit count");
       mutateKits();
     } finally {
       setUpdatingKitsReady(null);
@@ -327,6 +335,7 @@ export default function KitsPage() {
       }
     } catch (error) {
       console.error("Error updating kits ready:", error);
+      saveFailed("the kit count");
       mutateKits();
     } finally {
       setUpdatingKitsReady(null);
