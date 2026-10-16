@@ -510,7 +510,12 @@ export default function KitPage() {
     const items: ShoppingListItem[] = kitContents.map((item) => ({
       dmcNumber: item.dmcNumber,
       colorName: item.colorName,
-      quantity: item.skeinsNeeded,
+      // fullSkeins, NOT skeinsNeeded: the page body, the totals bar and the
+      // stock colouring all use fullSkeins, while skeinsNeeded is a legacy
+      // heuristic that disagrees on roughly half the catalogue. The exported
+      // list is what you carry to the shelf, so it has to match the screen you
+      // read it off — Beer with Lime showed "0 skeins to buy" and exported 6.
+      quantity: item.fullSkeins,
       unit: "skeins",
       hex: item.hex,
       notes: item.bobbinYards > 0 ? `${item.bobbinYards.toFixed(1)} yd on bobbin` : undefined,
@@ -565,7 +570,12 @@ export default function KitPage() {
     const items: ShoppingListItem[] = kitContents.map((item) => ({
       dmcNumber: item.dmcNumber,
       colorName: item.colorName,
-      quantity: item.skeinsNeeded,
+      // fullSkeins, NOT skeinsNeeded: the page body, the totals bar and the
+      // stock colouring all use fullSkeins, while skeinsNeeded is a legacy
+      // heuristic that disagrees on roughly half the catalogue. The exported
+      // list is what you carry to the shelf, so it has to match the screen you
+      // read it off — Beer with Lime showed "0 skeins to buy" and exported 6.
+      quantity: item.fullSkeins,
       unit: "skeins",
       hex: item.hex,
       notes: item.bobbinYards > 0 ? `${item.bobbinYards.toFixed(1)} yd bobbin` : undefined,

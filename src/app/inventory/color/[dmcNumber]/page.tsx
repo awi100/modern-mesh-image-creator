@@ -222,7 +222,11 @@ export default function ColorDetailPage() {
     (d) => threadSizeForMesh(d.meshCount as MeshCount) === threadSize
   );
   const totalDesigns = sizedDesigns.length;
-  const totalSkeinsNeeded = sizedDesigns.reduce((sum, d) => sum + d.skeinsNeeded, 0);
+  // fullSkeins, not the legacy skeinsNeeded. skeinsNeeded reports 1 for EVERY
+  // bobbin-only colour, so this total ran ~2.4x the real figure and disagreed
+  // with Stock Alerts' answer to the identical question (BLANC: 45 here vs 19
+  // there). fullSkeins is what the kit pages show.
+  const totalSkeinsNeeded = sizedDesigns.reduce((sum, d) => sum + (d.fullSkeins ?? 0), 0);
   // Backups are the same SKU story as primaries: a Size 3 row standing in for a
   // Size 5 colour is not a backup you can actually use.
   const sizedBackupFor = (colorUsage?.backupFor || []).filter(

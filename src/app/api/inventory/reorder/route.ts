@@ -96,8 +96,16 @@ export async function GET(request: NextRequest) {
     const reorderPointWeeks = leadWeeks + safetyWeeks;
 
     const rows = designs.map((d) => {
-      const onHand =
+      // Deliberately includes Andover, unlike "on hand" elsewhere in the app
+      // (stock-targets: on hand = Home + Market, Andover is NOT). For a REORDER
+      // the question is "do we own enough", and Andover stock is ours — ordering
+      // more from the printer because 303 canvases are sitting in bulk storage
+      // would be wrong. It is named `totalStock` rather than `onHand` so it
+      // can't be read as the Home+Market figure that the pickup and low-stock
+      // screens mean by that phrase; the per-location split is returned too.
+      const totalStock =
         d.canvasPrinted + (d.marketCanvasPrinted || 0) + (d.canvasAndover || 0);
+      const onHand = totalStock;
 
       // Rate over the window, but never divide by more days than the design has
       // existed (so a 2-week-old design isn't averaged over 90 days).
@@ -135,6 +143,7 @@ export async function GET(request: NextRequest) {
         previewImageUrl: d.previewImageUrl,
         meshCount: d.meshCount,
         onHand,
+        totalStock,
         here: d.canvasPrinted,
         market: d.marketCanvasPrinted || 0,
         andover: d.canvasAndover || 0,

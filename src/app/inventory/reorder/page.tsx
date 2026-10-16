@@ -262,7 +262,10 @@ export default function ReorderPage() {
                     <p className="text-xs text-slate-400 mt-0.5">
                       <span className="text-white font-semibold">{r.weeklyVelocity}</span>/wk
                       {" · "}
-                      <span className="text-white font-semibold">{r.onHand}</span> on hand
+                      <span className="text-white font-semibold">{r.onHand}</span> owned
+                      {r.andover > 0 && (
+                        <span className="text-slate-500"> ({r.here + r.market} on hand · {r.andover} Andover)</span>
+                      )}
                       {r.weeksOfSupply !== null ? (
                         <>
                           {" · ~"}

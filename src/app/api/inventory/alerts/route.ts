@@ -49,7 +49,7 @@ interface ColorDesignUsage {
   yardsNeeded: number;
   skeinsNeeded: number;
   usesFullSkein: boolean;
-  kitsReady: number; // kits already assembled for this design (don't re-order thread for these)
+  kitsReady: number; // assembled kits (home + market tote) — thread already spent
 }
 
 interface MostUsedColor {
@@ -124,6 +124,7 @@ export async function GET(request: NextRequest) {
         bufferPercent: true,
         pixelData: true,
         kitsReady: true,
+        marketKitsReady: true,
         // Velocity fields
         salesVelocity: true,
         velocityCategory: true,
@@ -193,7 +194,10 @@ export async function GET(request: NextRequest) {
 
         // Track aggregate color usage keyed by (dmcNumber, threadSize)
         // — 13ct + Size 3 demand is separate from 14/18ct + Size 5 demand
-        const kitsReady = design.kitsReady || 0;
+        // Kits already assembled, wherever they physically are. A kit in the
+        // market tote is still a kit whose thread is already spent, so the
+        // Order Builder must not buy thread for it again.
+        const kitsReady = (design.kitsReady || 0) + (design.marketKitsReady || 0);
         for (const [dmcNumber, stitchCount] of stitchCounts.entries()) {
           const aggKey = `${dmcNumber}-${threadSize}`;
           const existing = colorUsageMap.get(aggKey);
@@ -264,7 +268,11 @@ export async function GET(request: NextRequest) {
 
         // Calculate velocity-based metrics
         const velocity = design.salesVelocity ?? 0;
-        const kitsReadyCount = design.kitsReady ?? 0;
+        // Kits in the market tote are assembled kits we own — counting only
+        // home stock reported "0 kits / CRITICAL" for designs with a full tote
+        // (Boston Terrier: 0 home, 6 market), and made the Order Builder buy
+        // thread for kits that already exist.
+        const kitsReadyCount = (design.kitsReady ?? 0) + (design.marketKitsReady ?? 0);
         const weeksOfStock = velocity > 0 ? kitsReadyCount / velocity : (kitsReadyCount > 0 ? 999 : 0);
 
         // Determine target weeks based on velocity category
