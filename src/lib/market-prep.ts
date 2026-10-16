@@ -105,6 +105,14 @@ export interface KindTotals {
   inTote: number;
   /** Target for the next market, summed across this list. */
   required: number;
+  /**
+   * How much of `required` the tote actually covers: the per-design minimum of
+   * held and needed. This — not `inTote` — is what `required` can be measured
+   * against, because `covered + toPack === required` exactly, whereas
+   * `inTote` includes surplus on designs that are already over target and so
+   * overstates how ready you are.
+   */
+  covered: number;
   /** Sum of the per-design shortfalls — what you actually still have to carry. */
   toPack: number;
   /** Also in the tote, for designs with no market sales history to plan from. */
@@ -288,6 +296,7 @@ export function buildMarketPrep(
   const canvas: KindTotals = {
     inTote: sum(designRows, (r) => r.toteCanvas ?? 0),
     required: sum(designRows, (r) => r.recommendedCanvas),
+    covered: sum(designRows, (r) => Math.min(r.toteCanvas ?? 0, r.recommendedCanvas)),
     toPack: sum(designRows, (r) => Math.max(0, r.recommendedCanvas - (r.toteCanvas ?? 0))),
     // Stock sitting in the tote for designs that have never sold at a market,
     // so there is nothing to size a target from. Counted here so these figures
@@ -298,12 +307,14 @@ export function buildMarketPrep(
   const kit: KindTotals = {
     inTote: sum(designRows, (r) => r.toteKits ?? 0),
     required: sum(designRows, (r) => r.recommendedKit),
+    covered: sum(designRows, (r) => Math.min(r.toteKits ?? 0, r.recommendedKit)),
     toPack: sum(designRows, (r) => Math.max(0, r.recommendedKit - (r.toteKits ?? 0))),
     offPlan: sum(designs.filter((d) => !plannedDesignIds.has(d.id)), (d) => d.marketKitsReady || 0),
   };
   const supply: KindTotals = {
     inTote: sum(supplyRows, (r) => r.supply!.market),
     required: sum(supplyRows, (r) => r.recommended),
+    covered: sum(supplyRows, (r) => Math.min(r.supply!.market, r.recommended)),
     toPack: sum(supplyRows, (r) => Math.max(0, r.recommended - r.supply!.market)),
     offPlan: sum(supplies.filter((s) => !plannedSupplyIds.has(s.id)), (s) => s.marketQuantity || 0),
   };

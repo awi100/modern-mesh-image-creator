@@ -15,8 +15,7 @@ import { useToast } from "@/components/Toast";
 import CountStepper from "@/components/inventory/CountStepper";
 import { rowInStock } from "@/lib/kit-stock";
 import { targetFor, isLowOnHand } from "@/lib/stock-targets";
-import MarketToPack from "@/components/market/MarketToPack";
-import MarketPlan from "@/components/market/MarketPlan";
+import MarketPack from "@/components/market/MarketPack";
 import { type Buffer as MarketBuffer } from "@/components/market/BufferPicker";
 
 
@@ -256,26 +255,25 @@ export default function InventoryPage() {
     url.searchParams.set("tab", t);
     window.history.replaceState(null, "", url.toString());
   };
-  // Everything market-related lives on this tab. It used to be split across
-  // here and two /market-prep pages reached through Inventory Tools, which is
-  // how someone asking for packing counts ended up not finding them.
-  //   tote — what's in the tote now, and loading it
-  //   pack — the shortfall against the recommended count, with move buttons
-  //   plan — the full recommendation list and which days count as markets
-  const [marketView, setMarketView] = useState<"tote" | "pack" | "plan">("tote");
+  // Everything market-related lives on this tab. There are two jobs here, not
+  // three: "Pack" was once split into a Plan listing every item and a To-pack
+  // listing the short ones, which is the same list behind two names — it's a
+  // filter inside Pack now. ?view=plan still resolves there so older links work.
+  //   pack — targets vs tote, and moving stock into it
+  //   tote — the tote's counts, edited by hand, for every design
+  const [marketView, setMarketView] = useState<"pack" | "tote">("pack");
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("view");
-    if (v === "tote" || v === "pack" || v === "plan") setMarketView(v);
+    if (v === "tote") setMarketView("tote");
+    else if (v === "pack" || v === "plan") setMarketView("pack");
   }, []);
-  const selectMarketView = (v: "tote" | "pack" | "plan") => {
+  const selectMarketView = (v: "pack" | "tote") => {
     setMarketView(v);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", "market");
     url.searchParams.set("view", v);
     window.history.replaceState(null, "", url.toString());
   };
-  // Shared by the pack and plan views so switching between them can't quietly
-  // change the numbers underneath you.
   const [marketBuffer, setMarketBuffer] = useState<MarketBuffer>("balanced");
   // Market tote sub-filter: "current" shows designs that have market canvases
   // in stock; "zero" shows designs with 0 market canvases (sold out / to restock).
@@ -2761,13 +2759,11 @@ export default function InventoryPage() {
         {/* Market Tab — kits & canvases allocated to the craft-market tote */}
         {activeTab === "market" && (
           <>
-            {/* The three market jobs: what's in the tote, what still has to go
-                in it, and what the targets are based on. */}
+            {/* Two jobs: pack for the next market, or edit the tote by hand. */}
             <div className="inline-flex gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 mb-5">
               {([
-                ["tote", "In the tote"],
-                ["pack", "To pack"],
-                ["plan", "Plan"],
+                ["pack", "Pack for market"],
+                ["tote", "Tote counts"],
               ] as const).map(([v, label]) => (
                 <button
                   key={v}
@@ -2785,15 +2781,11 @@ export default function InventoryPage() {
         )}
 
         {activeTab === "market" && marketView === "pack" && (
-          <MarketToPack
+          <MarketPack
             buffer={marketBuffer}
             onBufferChange={setMarketBuffer}
             onMoved={fetchDesigns}
           />
-        )}
-
-        {activeTab === "market" && marketView === "plan" && (
-          <MarketPlan buffer={marketBuffer} onBufferChange={setMarketBuffer} />
         )}
 
         {activeTab === "market" && marketView === "tote" && (
