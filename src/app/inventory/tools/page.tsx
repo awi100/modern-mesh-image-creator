@@ -62,6 +62,13 @@ const TOOLS: Tool[] = [
     accent: "text-slate-300",
   },
   {
+    href: "/inventory/unmatched",
+    title: "Unmatched Sales",
+    description: "Sales that deducted nothing because the Shopify title matched no design or supply — and which of them would still miss today.",
+    icon: icon("M12 9v2m0 4h.01M5.07 19H18.93a2 2 0 001.732-3L13.732 4a2 2 0 00-3.464 0L3.34 16a2 2 0 001.731 3z"),
+    accent: "text-amber-300",
+  },
+  {
     href: "/inventory/bundles",
     title: "Bundles",
     description: "Define bundle products (like the Essentials Bundle) so one order deducts all its component supplies.",
