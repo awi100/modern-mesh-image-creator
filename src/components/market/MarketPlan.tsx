@@ -44,13 +44,6 @@ interface PrepSummary {
 }
 interface MarketInfo { label: string; units: number; }
 
-const KIND_BADGE: Record<Kind, string> = {
-  kit: "bg-rose-900/50 text-rose-300",
-  canvas: "bg-sky-900/50 text-sky-300",
-  supply: "bg-emerald-900/50 text-emerald-300",
-  other: "bg-slate-700 text-slate-300",
-};
-
 export default function MarketPlan({
   buffer,
   onBufferChange,
@@ -130,55 +123,47 @@ export default function MarketPlan({
 
       <BufferPicker value={buffer} onChange={onBufferChange} showHints />
 
-      {summary && (
-        <>
-          <MarketTotals canvas={summary.canvas} kit={summary.kit} className="mb-4" />
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-              <p className="text-xs text-slate-400 uppercase tracking-wider">Distinct items</p>
-              <p className="text-2xl font-bold text-white">{summary.itemCount}</p>
-            </div>
-            <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-              <p className="text-xs text-slate-400 uppercase tracking-wider">Markets analyzed</p>
-              <p className="text-2xl font-bold text-white">{summary.marketCount}</p>
-            </div>
-            <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-              <p className="text-xs text-slate-400 uppercase tracking-wider">Checked off</p>
-              <p className="text-2xl font-bold text-emerald-300">{packedCount}/{rows.length}</p>
-            </div>
-          </div>
-        </>
-      )}
+      {summary && <MarketTotals canvas={summary.canvas} kit={summary.kit} className="mb-3" />}
 
-      {/* The one thing you want to know before leaving for a market. */}
+      {/* The one thing you want to know before leaving for a market. One line:
+          the totals above already carry the detail, so this only has to say
+          whether you're done. */}
       {!loading && rows.length > 0 && (
         <div
-          className={`rounded-xl p-4 mb-4 border ${
-            shortRows === 0 ? "bg-emerald-900/20 border-emerald-700" : "bg-amber-900/20 border-amber-700"
+          className={`rounded-lg px-3 py-2 mb-3 border text-sm ${
+            shortRows === 0
+              ? "bg-emerald-900/20 border-emerald-800 text-emerald-300"
+              : "bg-amber-900/20 border-amber-800 text-amber-200"
           }`}
         >
           {shortRows === 0 ? (
-            <p className="text-emerald-300 font-semibold">
-              Tote is ready — every item has its canvases and kits at target.
-            </p>
+            <span className="font-semibold">Tote is ready — every item is at target.</span>
           ) : (
-            <p className="text-amber-200">
-              <span className="font-semibold">{shortRows}</span> of {rows.length} items are short
-              <span className="text-slate-400"> · {readyRows} ready</span>
-            </p>
+            <>
+              <span className="font-semibold">{shortRows}</span> of {rows.length} items short
+              <span className="opacity-70"> · {readyRows} ready · {packedCount} checked off</span>
+            </>
           )}
         </div>
       )}
 
-      {markets.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3 text-xs text-slate-400">
-          <span className="uppercase tracking-wider">Past markets:</span>
-          {markets.map((m) => (
-            <span key={m.label} className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded">
-              {m.label}: {m.units}u
-            </span>
-          ))}
-        </div>
+      {/* Context for the numbers, kept to one quiet line rather than three
+          large cards for figures nobody acts on. */}
+      {summary && (
+        <p className="text-xs text-slate-500 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span>{summary.itemCount} items · {summary.marketCount} markets</span>
+          {markets.length > 0 && (
+            <>
+              <span className="text-slate-700">|</span>
+              {markets.map((m) => (
+                <span key={m.label} className="text-slate-500" title={`${m.units} units sold`}>
+                  {m.label.slice(5)}
+                  <span className="text-slate-600">:{m.units}</span>
+                </span>
+              ))}
+            </>
+          )}
+        </p>
       )}
 
       {/* Which in-person days actually count as markets */}
@@ -192,24 +177,25 @@ export default function MarketPlan({
           <p className="text-slate-400 text-sm mt-1">Once you&apos;ve sold at a market through Shopify POS, recommendations show here.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="rounded-xl border border-slate-700 overflow-hidden divide-y divide-slate-700/60">
           {rows.map((r) => {
             const isChecked = checked.has(r.name);
             // A design needs canvases and kits in different amounts; a supply
             // is a single number. The API marks the difference by giving
             // designs a split (toteCanvas) and supplies a combined inTote.
             const isDesign = r.toteCanvas !== null;
+            const tracked = isDesign || r.inTote !== null;
             const ready = isReady(r);
             return (
               <div
                 key={r.name}
                 onClick={() => toggle(r.name)}
-                className={`cursor-pointer rounded-xl border p-3 flex items-center gap-3 transition-colors ${
+                className={`cursor-pointer flex items-center gap-3 px-3 py-2.5 border-l-2 transition-colors ${
                   isChecked
-                    ? "bg-slate-800/40 border-slate-700/60"
+                    ? "bg-slate-900/40 border-l-slate-700"
                     : ready
-                      ? "bg-slate-800 border-emerald-800/70 hover:bg-slate-700/40"
-                      : "bg-slate-800 border-amber-800/70 hover:bg-slate-700/40"
+                      ? "bg-slate-800 border-l-emerald-600 hover:bg-slate-700/40"
+                      : "bg-slate-800 border-l-amber-600 hover:bg-slate-700/40"
                 }`}
               >
                 <input
@@ -217,56 +203,88 @@ export default function MarketPlan({
                   checked={isChecked}
                   onChange={() => toggle(r.name)}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-5 h-5 accent-emerald-600 flex-shrink-0"
+                  className="w-4 h-4 accent-emerald-600 flex-shrink-0"
                 />
+
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-white font-medium truncate ${isChecked ? "line-through text-slate-400" : ""}`}>{r.name}</span>
-                    <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0 ${KIND_BADGE[r.kind]}`}>{r.kind}</span>
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0 ${
-                        ready ? "bg-emerald-900/60 text-emerald-300" : "bg-amber-900/60 text-amber-300"
-                      }`}
-                      title={ready ? "Tote has enough of this already" : "Tote is short of this"}
-                    >
-                      {ready ? "✓ in tote" : "short"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    sold {r.perMarket.join(" · ")} · peak <span className="text-white font-semibold">{r.max}</span>
-                    {/* Canvases against canvases, kits against kits. These were
-                        once one summed figure, so 3 canvases + 3 kits read as
-                        "6 in tote" beside a target that only counted canvases. */}
-                    {isDesign ? (
-                      <> · in tote <span className="text-sky-400">{r.toteCanvas ?? 0} canvas</span>
-                        {r.recommendedKit > 0 && <> · <span className="text-rose-400">{r.toteKits ?? 0} kits</span></>}
-                      </>
-                    ) : r.inTote !== null ? (
-                      <> · <span className="text-emerald-400">{r.inTote}</span> in tote now</>
-                    ) : null}
+                  <p className={`font-medium truncate ${isChecked ? "line-through text-slate-500" : "text-white"}`}>
+                    {r.name}
+                  </p>
+                  <p className="text-xs text-slate-500 truncate">
+                    peak <span className="text-slate-300 font-semibold">{r.max}</span> · sold {r.total} over{" "}
+                    {r.marketsSold} of {r.perMarket.length} markets
                   </p>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-xs text-slate-400">bring</p>
-                  {isDesign ? (
-                    <>
-                      <p className="text-2xl font-bold text-sky-300 leading-none">{r.recommendedCanvas}</p>
-                      <p className="text-[10px] uppercase tracking-wider text-slate-500">canvas</p>
-                      {r.recommendedKit > 0 && (
-                        <p className="text-sm font-bold text-rose-300 leading-tight mt-1">
-                          {r.recommendedKit} <span className="text-[10px] uppercase tracking-wider text-slate-500">kits</span>
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-2xl font-bold text-white leading-none">{r.recommended}</p>
-                  )}
-                </div>
+
+                {/* Ten per-market numbers were mostly zeros; the shape is the
+                    only part worth reading at a glance, and the exact run is
+                    still there on hover. */}
+                <Spark values={r.perMarket} />
+
+                {isDesign ? (
+                  <>
+                    <StatPair label="canvas" have={r.toteCanvas ?? 0} need={r.recommendedCanvas} />
+                    <StatPair label="kits" have={r.toteKits ?? 0} need={r.recommendedKit} />
+                  </>
+                ) : tracked ? (
+                  <StatPair label={r.kind === "supply" ? "supply" : "in tote"} have={r.inTote ?? 0} need={r.recommended} wide />
+                ) : (
+                  // Matched no design or supply, so there is no stock to count.
+                  <div className="text-right flex-shrink-0 w-[140px]">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">bring</p>
+                    <p className="text-sm font-semibold text-slate-300 tabular-nums">{r.recommended}</p>
+                    <p className="text-[10px] text-slate-600 leading-tight">not tracked</p>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Held / needed for one kind, in one fixed-width column so the figures line up
+ * down the list. Amber when short, green when covered — the row's left edge
+ * carries the same signal, so no per-row "SHORT" badge is needed (nearly every
+ * row was short, which made the badge pure noise).
+ */
+function StatPair({
+  label, have, need, wide = false,
+}: {
+  label: string; have: number; need: number; wide?: boolean;
+}) {
+  const short = have < need;
+  return (
+    <div className={`text-right flex-shrink-0 ${wide ? "w-[140px]" : "w-[64px]"}`}>
+      <p className="text-[10px] uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="text-sm font-semibold tabular-nums">
+        <span className={short ? "text-amber-400" : "text-emerald-400"}>{have}</span>
+        <span className="text-slate-600"> / </span>
+        <span className="text-slate-300">{need}</span>
+      </p>
+    </div>
+  );
+}
+
+/** Units per market, as bar heights. Hidden on narrow screens. */
+function Spark({ values }: { values: number[] }) {
+  const max = Math.max(1, ...values);
+  return (
+    <div
+      className="hidden md:flex items-end gap-[2px] h-5 flex-shrink-0"
+      title={`sold ${values.join(" · ")} (oldest market first)`}
+      aria-hidden="true"
+    >
+      {values.map((v, i) => (
+        <span
+          key={i}
+          className={`w-[3px] rounded-sm ${v > 0 ? "bg-slate-400" : "bg-slate-700"}`}
+          style={{ height: `${Math.max(2, Math.round((v / max) * 20))}px` }}
+        />
+      ))}
     </div>
   );
 }
