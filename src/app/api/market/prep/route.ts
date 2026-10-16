@@ -86,16 +86,18 @@ export async function GET(request: NextRequest) {
       }),
       prisma.supply.findMany({ select: { id: true, name: true, marketQuantity: true, quantity: true } }),
     ]);
-    // The tote figure is kits + canvases, because a POS product line is one
-    // "unit" either way. The split is carried alongside it so a restock screen
-    // knows which column a move should touch.
-    const designTote = new Map<string, number>();
+    // A design's tote stock is TWO numbers — canvases and kits — and they are
+    // never summed. `inTote` used to be kits + canvases on the reasoning that a
+    // POS line is one unit either way, which made 3 canvases + 3 kits read as
+    // "6 in tote" next to a target that only ever counted canvases. Three
+    // different Shamrock designs all showed 6 while holding 2+4, 4+2 and 3+3.
+    // Design rows now carry no combined figure at all, so nothing can compare
+    // one again; `inTote` is for supplies, which have no kit/canvas split.
     const designStock = new Map<string, {
       id: string; marketKits: number; marketCanvas: number; homeKits: number; homeCanvas: number;
     }>();
     for (const d of designs) {
       const key = normalizeTitle(d.name);
-      designTote.set(key, (d.marketKitsReady || 0) + (d.marketCanvasPrinted || 0));
       designStock.set(key, {
         id: d.id,
         marketKits: d.marketKitsReady || 0, marketCanvas: d.marketCanvasPrinted || 0,
@@ -172,7 +174,8 @@ export async function GET(request: NextRequest) {
       const marketsSold = agg.perMarket.filter((q) => q > 0).length;
       const avgPerMarket = marketCount ? agg.total / marketCount : 0;
       const norm = normalizeTitle(agg.name);
-      const inTote = designTote.has(norm) ? designTote.get(norm)! : supplyTote.has(norm) ? supplyTote.get(norm)! : null;
+      // Supplies only — a design's tote stock is reported split, below.
+      const inTote = designStock.has(norm) ? null : supplyTote.get(norm) ?? null;
       return {
         name: agg.name,
         kind: agg.kind,
@@ -185,8 +188,9 @@ export async function GET(request: NextRequest) {
         recommended: recommend(max, agg.total, buffer),
         inTote,
         // Split packing figures. canvas = every unit sold; kit = only the
-        // "+ kit" units. A design row's inTote above is the two summed, which
-        // is why it can't be compared against either on its own.
+        // "+ kit" units. These are the only figures a design row should be
+        // judged on, in both directions: target and tote, canvases against
+        // canvases and kits against kits.
         recommendedCanvas: agg.kind === "supply" ? 0 : recommend(max, agg.total, buffer),
         recommendedKit: agg.kind === "supply"
           ? 0

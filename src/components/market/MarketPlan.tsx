@@ -24,7 +24,12 @@ interface PrepRow {
   marketsSold: number;
   avgPerMarket: number;
   recommended: number;
+  /** Supplies only. A design's tote stock is the split pair below. */
   inTote: number | null;
+  recommendedCanvas: number;
+  recommendedKit: number;
+  toteCanvas: number | null;
+  toteKits: number | null;
 }
 interface PrepSummary {
   marketCount: number;
@@ -91,6 +96,17 @@ export default function MarketPlan({
 
   const packedCount = rows.filter((r) => checked.has(r.name)).length;
 
+  // Is the tote actually right? Judged per side — canvases against canvases,
+  // kits against kits — never on a sum of the two.
+  const isReady = (r: PrepRow) =>
+    r.toteCanvas !== null
+      ? (r.toteCanvas ?? 0) >= r.recommendedCanvas && (r.toteKits ?? 0) >= r.recommendedKit
+      : r.inTote !== null
+        ? r.inTote >= r.recommended
+        : false;
+  const readyRows = rows.filter(isReady).length;
+  const shortRows = rows.length - readyRows;
+
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
@@ -131,6 +147,26 @@ export default function MarketPlan({
         </div>
       )}
 
+      {/* The one thing you want to know before leaving for a market. */}
+      {!loading && rows.length > 0 && (
+        <div
+          className={`rounded-xl p-4 mb-4 border ${
+            shortRows === 0 ? "bg-emerald-900/20 border-emerald-700" : "bg-amber-900/20 border-amber-700"
+          }`}
+        >
+          {shortRows === 0 ? (
+            <p className="text-emerald-300 font-semibold">
+              Tote is ready — every item has its canvases and kits at target.
+            </p>
+          ) : (
+            <p className="text-amber-200">
+              <span className="font-semibold">{shortRows}</span> of {rows.length} items are short
+              <span className="text-slate-400"> · {readyRows} ready</span>
+            </p>
+          )}
+        </div>
+      )}
+
       {markets.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3 text-xs text-slate-400">
           <span className="uppercase tracking-wider">Past markets:</span>
@@ -156,12 +192,21 @@ export default function MarketPlan({
         <div className="space-y-2">
           {rows.map((r) => {
             const isChecked = checked.has(r.name);
+            // A design needs canvases and kits in different amounts; a supply
+            // is a single number. The API marks the difference by giving
+            // designs a split (toteCanvas) and supplies a combined inTote.
+            const isDesign = r.toteCanvas !== null;
+            const ready = isReady(r);
             return (
               <div
                 key={r.name}
                 onClick={() => toggle(r.name)}
                 className={`cursor-pointer rounded-xl border p-3 flex items-center gap-3 transition-colors ${
-                  isChecked ? "bg-slate-800/40 border-slate-700/60" : "bg-slate-800 border-slate-700 hover:bg-slate-700/40"
+                  isChecked
+                    ? "bg-slate-800/40 border-slate-700/60"
+                    : ready
+                      ? "bg-slate-800 border-emerald-800/70 hover:bg-slate-700/40"
+                      : "bg-slate-800 border-amber-800/70 hover:bg-slate-700/40"
                 }`}
               >
                 <input
@@ -175,17 +220,44 @@ export default function MarketPlan({
                   <div className="flex items-center gap-2">
                     <span className={`text-white font-medium truncate ${isChecked ? "line-through text-slate-400" : ""}`}>{r.name}</span>
                     <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0 ${KIND_BADGE[r.kind]}`}>{r.kind}</span>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0 ${
+                        ready ? "bg-emerald-900/60 text-emerald-300" : "bg-amber-900/60 text-amber-300"
+                      }`}
+                      title={ready ? "Tote has enough of this already" : "Tote is short of this"}
+                    >
+                      {ready ? "✓ in tote" : "short"}
+                    </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
                     sold {r.perMarket.join(" · ")} · peak <span className="text-white font-semibold">{r.max}</span>
-                    {r.inTote !== null && (
+                    {/* Canvases against canvases, kits against kits. These were
+                        once one summed figure, so 3 canvases + 3 kits read as
+                        "6 in tote" beside a target that only counted canvases. */}
+                    {isDesign ? (
+                      <> · in tote <span className="text-sky-400">{r.toteCanvas ?? 0} canvas</span>
+                        {r.recommendedKit > 0 && <> · <span className="text-rose-400">{r.toteKits ?? 0} kits</span></>}
+                      </>
+                    ) : r.inTote !== null ? (
                       <> · <span className="text-emerald-400">{r.inTote}</span> in tote now</>
-                    )}
+                    ) : null}
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs text-slate-400">bring</p>
-                  <p className="text-2xl font-bold text-white leading-none">{r.recommended}</p>
+                  {isDesign ? (
+                    <>
+                      <p className="text-2xl font-bold text-sky-300 leading-none">{r.recommendedCanvas}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">canvas</p>
+                      {r.recommendedKit > 0 && (
+                        <p className="text-sm font-bold text-rose-300 leading-tight mt-1">
+                          {r.recommendedKit} <span className="text-[10px] uppercase tracking-wider text-slate-500">kits</span>
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-2xl font-bold text-white leading-none">{r.recommended}</p>
+                  )}
                 </div>
               </div>
             );
