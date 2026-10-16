@@ -224,6 +224,25 @@ export function fullSkeinsForColor(yardsWithBuffer: number, meshCount: MeshCount
   return remainder <= LEFTOVER_THRESHOLD ? baseSkeins : baseSkeins + 1;
 }
 
+/**
+ * The full-skein / bobbin split for one colour — the ONLY correct derivation.
+ *
+ * A colour is either N whole skeins or a single bobbin of leftover yardage,
+ * never both. This existed as three separate implementations and one of them
+ * (/api/colors/usage) had the leftover test INVERTED and omitted the
+ * `baseSkeins === 0` case, so 56% of its rows disagreed with the kit pages —
+ * reporting "0 skeins + a 19.7 yd bobbin" for a colour the kit page correctly
+ * called 1 skein, despite the bobbin maximum being 5 yd.
+ */
+export function skeinBreakdownForColor(
+  yardsWithBuffer: number,
+  meshCount: MeshCount,
+): { fullSkeins: number; bobbinYards: number } {
+  const y = Math.round(yardsWithBuffer * 10) / 10;
+  const fullSkeins = fullSkeinsForColor(y, meshCount);
+  return { fullSkeins, bobbinYards: fullSkeins === 0 ? y : 0 };
+}
+
 // Total full skeins for a whole kit — matches the kit detail page's
 // totals.skeins. Use this for the cached Design.kitSkeinCount so the summary
 // header and the detail view always agree.

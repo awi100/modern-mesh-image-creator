@@ -735,10 +735,18 @@ export default function InventoryPage() {
     try {
       const url = editingSupplyId ? `/api/supplies/${editingSupplyId}` : "/api/supplies";
       const method = editingSupplyId ? "PATCH" : "POST";
-      const res = await fetch(url, {
+      // EDITING sends details only — never `quantity`. The form holds a snapshot
+      // taken when the dialog opened, and the API writes quantity absolutely, so
+      // saving a name change used to rewind stock to whatever it was when you
+      // opened the pencil (and a cleared Quantity box zeroed it outright, the
+      // Number("") = 0 trap CountStepper exists to prevent). Stock is changed
+      // with the steppers, which send deltas.
+      const { quantity, ...details } = supplyForm;
+      const body = editingSupplyId ? details : { ...details, quantity };
+      const res = await mutApi(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(supplyForm),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         await fetchSupplies();
@@ -991,11 +999,17 @@ export default function InventoryPage() {
     const design = designs.find((d) => d.id === id);
     if (!design) return;
 
-    const currentVal = field === "kitsReady" ? design.kitsReady : design.canvasPrinted;
-    const newVal = Math.max(0, currentVal + delta);
-
-    // Optimistic update
-    setDesigns((prev) => prev.map((d) => (d.id === id ? { ...d, [field]: newVal } : d)));
+    // Functional update: reading the value out of the `designs` closure meant
+    // two taps inside one render tick both computed the SAME new value, so the
+    // UI advanced by 1 while the server (which gets both deltas) advanced by 2.
+    // A later typed value then derived its delta from the diverged number.
+    setDesigns((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? { ...d, [field]: Math.max(0, (field === "kitsReady" ? d.kitsReady : d.canvasPrinted) + delta) }
+          : d,
+      ),
+    );
 
     try {
       const body = field === "kitsReady"
@@ -1084,9 +1098,13 @@ export default function InventoryPage() {
         : { ...d, marketCanvasPrinted: newMarket };
     }));
     try {
+      // Send the REMOVAL as a delta, not the computed absolute: an absolute
+      // built from this render's `market` rewinds any POS sale that landed in
+      // between, and two taps in one tick would both write the same number so
+      // one is silently lost.
       const body = type === "kits"
-        ? { marketKitsReady: newMarket }
-        : { marketCanvasPrinted: newMarket };
+        ? { marketKitsDelta: -removed }
+        : { marketCanvasDelta: -removed };
       const response = await mutApi(`/api/designs/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -3196,14 +3214,22 @@ export default function InventoryPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Quantity</label>
+                  <label className="block text-sm text-slate-400 mb-1">
+                    {editingSupplyId ? "Quantity (edit on the list)" : "Starting quantity"}
+                  </label>
                   <input
                     type="number"
                     value={supplyForm.quantity}
                     onChange={(e) => setSupplyForm({ ...supplyForm, quantity: parseInt(e.target.value) || 0 })}
                     min="0"
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    // Disabled when editing: this dialog no longer writes stock,
+                    // so an editable box here would be a lie.
+                    disabled={!!editingSupplyId}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
+                  {editingSupplyId && (
+                    <p className="text-[11px] text-slate-500 mt-1">Change stock with the +/- on the supplies list.</p>
+                  )}
                 </div>
               </div>
               <div>

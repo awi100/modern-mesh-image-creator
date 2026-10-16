@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
+import { lockSupplies } from "@/lib/order-lock";
 
 // GET - Fetch a single supply
 export async function GET(
@@ -85,6 +86,9 @@ export async function PATCH(
                      body.andoverQuantityDelta !== undefined || body.andoverTransferDelta !== undefined;
 
     const supply = await prisma.$transaction(async (tx) => {
+      // Lock before reading: every branch below is read-modify-write and
+      // READ COMMITTED lets two concurrent transfers both see the same stock.
+      await lockSupplies(tx, [id]);
       if (hasDelta) {
         const current = await tx.supply.findUnique({
           where: { id },

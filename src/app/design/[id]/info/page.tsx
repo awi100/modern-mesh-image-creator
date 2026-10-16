@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { mutApi } from "@/lib/mut-api";
+import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 import { useParams, useRouter } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 
@@ -43,6 +45,11 @@ export default function DesignInfoPage() {
     fetchDesign();
   }, [designId]);
 
+  // This page held a single on-mount snapshot, so its counts drifted the
+  // moment an order fulfilled or another tab edited the design — and the
+  // typed-absolute path above would then write that stale number back.
+  useRefetchOnFocus(() => { fetchDesign(); });
+
   const fetchDesign = async () => {
     try {
       const res = await fetch(`/api/designs/${designId}`);
@@ -61,10 +68,18 @@ export default function DesignInfoPage() {
     setUpdating(field === "kitsReady" ? "kits" : "canvases");
 
     try {
-      const res = await fetch(`/api/designs/${designId}`, {
+      // Send a DELTA, not an absolute. This page fetches once on mount and
+      // never refetches, so `design[field]` can be minutes stale — writing
+      // `stale + 1` resurrects stock that has since sold, and two tabs both
+      // showing 10 would both write 11 instead of landing on 12. The server
+      // applies deltas atomically. mutApi (not bare fetch) so every other open
+      // page sees the change.
+      const res = await mutApi(`/api/designs/${designId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [field]: design[field] + delta }),
+        body: JSON.stringify(
+          field === "kitsReady" ? { kitsReadyDelta: delta } : { canvasPrintedDelta: delta }
+        ),
       });
 
       if (!res.ok) throw new Error("Failed to update");
@@ -84,7 +99,9 @@ export default function DesignInfoPage() {
     setUpdating(field === "kitsReady" ? "kits" : "canvases");
 
     try {
-      const res = await fetch(`/api/designs/${designId}`, {
+      // A typed value is a genuine absolute ("make it 8"), unlike +/- above.
+      // mutApi so other open pages pick it up.
+      const res = await mutApi(`/api/designs/${designId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: value }),

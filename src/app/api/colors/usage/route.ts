@@ -2,30 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
-import { calculateYarnUsage, MeshCount, threadSizeForMesh, skeinYardsForMesh, bobbinThresholdsForMesh } from "@/lib/yarn-calculator";
+import { calculateYarnUsage, MeshCount, threadSizeForMesh, skeinYardsForMesh, bobbinThresholdsForMesh, skeinBreakdownForColor } from "@/lib/yarn-calculator";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 
-const LEFTOVER_THRESHOLD = 5;
-
-// Calculate full skeins and bobbin yards from total yards needed, given the mesh count's thread size
-function calculateSkeinBreakdown(yardsWithBuffer: number, meshCount: MeshCount): { fullSkeins: number; bobbinYards: number } {
-  const SKEIN_YARDS = skeinYardsForMesh(meshCount);
-  const BOBBIN_ONLY_MAX = bobbinThresholdsForMesh(meshCount).max;
-
-  if (yardsWithBuffer <= BOBBIN_ONLY_MAX) {
-    return { fullSkeins: 0, bobbinYards: yardsWithBuffer };
-  }
-
-  const baseSkeins = Math.floor(yardsWithBuffer / SKEIN_YARDS);
-  const remainder = yardsWithBuffer - baseSkeins * SKEIN_YARDS;
-
-  if (remainder > 0 && remainder <= LEFTOVER_THRESHOLD) {
-    return { fullSkeins: baseSkeins + 1, bobbinYards: 0 };
-  }
-
-  return { fullSkeins: baseSkeins, bobbinYards: remainder };
-}
 
 interface DesignUsage {
   id: string;
@@ -164,7 +144,7 @@ export async function GET(request: NextRequest) {
 
           const usage = usageByColor.get(dmcNumber);
           const yardsWithBuffer = usage?.withBuffer || 0;
-          const { fullSkeins, bobbinYards } = calculateSkeinBreakdown(yardsWithBuffer, meshCount);
+          const { fullSkeins, bobbinYards } = skeinBreakdownForColor(yardsWithBuffer, meshCount);
 
           colorUsageMap.get(dmcNumber)!.push({
             id: design.id,

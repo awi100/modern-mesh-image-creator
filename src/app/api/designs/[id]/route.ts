@@ -4,6 +4,7 @@ import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount, getKitSkeinCount } from "@/lib/yarn-calculator";
 import pako from "pako";
+import { lockDesigns } from "@/lib/order-lock";
 
 export async function GET(
   request: NextRequest,
@@ -311,6 +312,7 @@ export async function PATCH(
       "canvasPrintedDelta", "kitsReadyDelta",
       "marketTransferKitsDelta", "marketTransferCanvasDelta",
       "andoverTransferDelta", "canvasAndoverDelta", "kitsAndoverDelta",
+      "marketKitsDelta", "marketCanvasDelta",
     ] as const;
     for (const field of numericFields) {
       if (body[field] !== undefined) {
@@ -411,6 +413,12 @@ export async function PATCH(
       const fromField = LOC_FIELD[from];
       const toField = LOC_FIELD[to];
       const moved = await prisma.$transaction(async (tx) => {
+        // Lock the row BEFORE reading it. findUnique takes no lock, and Prisma
+        // runs at READ COMMITTED, so two concurrent moves both read the same
+        // "available", both clamp to it, and both apply their decrement — a
+        // double-tapped "-> Home" with 3 at Andover ends at Andover -3 / home 6.
+        // The Shopify paths already do this; the manual ones were missed.
+        await lockDesigns(tx, [id]);
         const current = await tx.design.findUnique({
           where: { id },
           select: { canvasPrinted: true, marketCanvasPrinted: true, canvasAndover: true, kitsReady: true, marketKitsReady: true, kitsAndover: true },
@@ -481,14 +489,19 @@ export async function PATCH(
                              body.canvasAndoverDelta !== undefined ||
                              body.kitsAndoverDelta !== undefined;
 
+    const hasMarketOnlyDelta = body.marketKitsDelta !== undefined ||
+                               body.marketCanvasDelta !== undefined;
+
     const hasDeltaUpdates = body.canvasPrintedDelta !== undefined ||
                             body.kitsReadyDelta !== undefined ||
                             hasMarketTransfer ||
+                            hasMarketOnlyDelta ||
                             hasAndoverUpdate;
 
     if (hasDeltaUpdates) {
       // Use transaction for atomic delta updates with floor check
       const design = await prisma.$transaction(async (tx) => {
+        await lockDesigns(tx, [id]);
         // First, get current values to check if delta would go negative
         const current = await tx.design.findUnique({
           where: { id },
@@ -504,6 +517,19 @@ export async function PATCH(
 
         if (!current) {
           throw new Error("Design not found");
+        }
+
+        // Signed delta applied to the market tote ALONE — home is untouched.
+        // This is how "- removes from the tote" is expressed. It used to be sent
+        // as an absolute computed on the client (market - 1), which rewrote the
+        // server's value from a stale snapshot: if a POS sale landed between the
+        // render and the tap, one click both invented a kit and partly erased
+        // the sale. A delta composes with whatever the server actually holds.
+        if (body.marketKitsDelta !== undefined) {
+          data.marketKitsReady = Math.max(0, current.marketKitsReady + body.marketKitsDelta);
+        }
+        if (body.marketCanvasDelta !== undefined) {
+          data.marketCanvasPrinted = Math.max(0, current.marketCanvasPrinted + body.marketCanvasDelta);
         }
 
         // Andover -> home restock (or home -> Andover return), clamped so
