@@ -14,8 +14,12 @@ interface DesignStock { id: string; marketKits: number; marketCanvas: number; ho
 interface SupplyStock { id: string; market: number; home: number; }
 interface PrepRow {
   name: string; kind: Kind; total: number; recommended: number; inTote: number | null;
+  recommendedCanvas: number; recommendedKit: number;
+  toteCanvas: number | null; toteKits: number | null;
   design: DesignStock | null; supply: SupplyStock | null;
 }
+/** One shortfall line: a specific thing to put in the tote. */
+interface Gap { row: PrepRow; what: "canvas" | "kit" | "supply"; need: number; have: number; gap: number; atHome: number; }
 
 const BUFFERS: { value: Buffer; label: string; hint: string }[] = [
   { value: "conservative", label: "Conservative", hint: "peak +25%" },
@@ -53,14 +57,26 @@ export default function MissingFromMarketPage() {
   useEffect(() => { setLoading(true); load(); }, [load]);
   useRefetchOnFocus(load);
 
-  // Only what the tote is SHORT of. Items with no stock record (inTote null)
-  // can't be compared, so they're left out rather than guessed at.
-  const short = rows
-    .filter((r) => r.inTote !== null && r.inTote < r.recommended)
-    .map((r) => ({ ...r, gap: r.recommended - (r.inTote ?? 0) }))
-    .sort((a, b) => b.gap - a.gap || b.recommended - a.recommended);
+  // One line per THING to pack. A design produces up to two: canvases (every
+  // sale needs one) and kits (only "+ kit" sales do). They're genuinely
+  // different numbers — a design can be fine on canvases and short on kits —
+  // so they're never summed into a single figure.
+  const gaps: Gap[] = [];
+  for (const r of rows) {
+    if (r.design) {
+      const c = r.recommendedCanvas - (r.toteCanvas ?? 0);
+      if (c > 0) gaps.push({ row: r, what: "canvas", need: r.recommendedCanvas, have: r.toteCanvas ?? 0, gap: c, atHome: r.design.homeCanvas });
+      const k = r.recommendedKit - (r.toteKits ?? 0);
+      if (k > 0) gaps.push({ row: r, what: "kit", need: r.recommendedKit, have: r.toteKits ?? 0, gap: k, atHome: r.design.homeKits });
+    } else if (r.supply && r.inTote !== null && r.inTote < r.recommended) {
+      gaps.push({ row: r, what: "supply", need: r.recommended, have: r.inTote, gap: r.recommended - r.inTote, atHome: r.supply.home });
+    }
+  }
+  gaps.sort((a, b) => b.gap - a.gap || b.need - a.need);
 
-  const totalGap = short.reduce((s, r) => s + r.gap, 0);
+  const canvasGap = gaps.filter((g) => g.what === "canvas").reduce((s, g) => s + g.gap, 0);
+  const kitGap = gaps.filter((g) => g.what === "kit").reduce((s, g) => s + g.gap, 0);
+  const supplyGap = gaps.filter((g) => g.what === "supply").reduce((s, g) => s + g.gap, 0);
 
   // Home -> market. Both endpoints clamp to what's actually at home, so asking
   // for more than exists moves what there is instead of failing.
@@ -101,9 +117,10 @@ export default function MissingFromMarketPage() {
         <Breadcrumb items={[{ label: "Inventory", href: "/inventory" }, { label: "Market Prep", href: "/market-prep" }, { label: "Missing" }]} className="mb-4" />
 
         <p className="text-sm text-slate-400 mb-4">
-          Only what the tote is <span className="text-white">short of</span> — anything already stocked
-          to target is hidden. Move stock from home straight from this list.
-          Sip-and-stitch days are excluded from the targets.
+          How many <span className="text-white">canvases</span> and <span className="text-white">kits</span> to pack,
+          from current tote stock against the recommended count. Every sale needs a canvas; only a
+          &ldquo;+ kit&rdquo; sale needs a kit, so the two are counted separately. Anything already
+          at target is hidden. Sip-and-stitch days are excluded.
         </p>
 
         <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -127,65 +144,60 @@ export default function MissingFromMarketPage() {
           <div className="flex items-center justify-center h-48">
             <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-600 border-t-rose-500" />
           </div>
-        ) : short.length === 0 ? (
+        ) : gaps.length === 0 ? (
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-10 text-center">
             <p className="text-2xl font-bold text-emerald-400 mb-1">Tote is fully stocked</p>
             <p className="text-slate-400 text-sm">Every item is at or above its target for the next market.</p>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 mb-5">
+            <div className="grid grid-cols-3 gap-3 mb-5">
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Items short</p>
-                <p className="text-xl font-bold text-amber-400">{short.length}</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Canvases to pack</p>
+                <p className="text-2xl font-bold text-sky-400">{canvasGap}</p>
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <p className="text-xs text-slate-400 uppercase tracking-wider">Units to move</p>
-                <p className="text-xl font-bold text-amber-400">{totalGap}</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Kits to pack</p>
+                <p className="text-2xl font-bold text-rose-400">{kitGap}</p>
+              </div>
+              <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Supplies</p>
+                <p className="text-2xl font-bold text-purple-400">{supplyGap}</p>
               </div>
             </div>
 
             <div className="bg-slate-800 rounded-xl border border-slate-700 divide-y divide-slate-700/60 overflow-hidden">
-              {short.map((r) => {
-                const d = r.design, s = r.supply;
+              {gaps.map((g) => {
+                const key = `${g.row.name}-${g.what}`;
+                const canMove = Math.min(g.gap, g.atHome);
                 return (
-                  <div key={r.name} className="p-3 md:p-4">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-white font-medium">{r.name}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wide ${KIND_BADGE[r.kind]}`}>{r.kind}</span>
-                        </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          target {r.recommended} · in tote <span className="text-emerald-400">{r.inTote}</span>
-                          {d && <> · at home {d.homeKits} kit{d.homeKits === 1 ? "" : "s"} / {d.homeCanvas} canvas</>}
-                          {s && <> · at home {s.home}</>}
-                        </p>
+                  <div key={key} className="p-3 md:p-4 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-white font-medium">{g.row.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wide ${KIND_BADGE[g.what === "supply" ? "supply" : g.what]}`}>
+                          {g.what}
+                        </span>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-2xl font-bold text-amber-400 leading-none">{r.gap}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-slate-500">short</p>
-                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        need {g.need} · in tote <span className="text-emerald-400">{g.have}</span> · at home {g.atHome}
+                      </p>
                     </div>
-
-                    <div className="flex items-center gap-2 mt-3 flex-wrap">
-                      {d && (
-                        <>
-                          <MoveButton label={`Move ${Math.min(r.gap, d.homeKits)} kit`} disabled={d.homeKits === 0 || busy !== null}
-                            busy={busy === `${r.name}-kit`} onClick={() => move(r, "kit", Math.min(r.gap, d.homeKits))} />
-                          <MoveButton label={`Move ${Math.min(r.gap, d.homeCanvas)} canvas`} disabled={d.homeCanvas === 0 || busy !== null}
-                            busy={busy === `${r.name}-canvas`} onClick={() => move(r, "canvas", Math.min(r.gap, d.homeCanvas))} />
-                        </>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-2xl font-bold text-amber-400 leading-none">{g.gap}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">to pack</p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {g.atHome === 0 ? (
+                        <span className="text-xs text-red-400">none at home</span>
+                      ) : (
+                        <MoveButton
+                          label={`Move ${canMove}`}
+                          busy={busy === key}
+                          disabled={busy !== null}
+                          onClick={() => move(g.row, g.what, canMove)}
+                        />
                       )}
-                      {s && (
-                        <MoveButton label={`Move ${Math.min(r.gap, s.home)}`} disabled={s.home === 0 || busy !== null}
-                          busy={busy === `${r.name}-supply`} onClick={() => move(r, "supply", Math.min(r.gap, s.home))} />
-                      )}
-                      {!d && !s && <span className="text-xs text-slate-500">no stock record — move on the Inventory page</span>}
-                      {d && d.homeKits === 0 && d.homeCanvas === 0 && (
-                        <span className="text-xs text-red-400">nothing at home to move</span>
-                      )}
-                      {s && s.home === 0 && <span className="text-xs text-red-400">nothing at home to move</span>}
                     </div>
                   </div>
                 );

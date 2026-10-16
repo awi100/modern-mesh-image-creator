@@ -137,6 +137,11 @@ export async function GET(request: NextRequest) {
       designId: string | null;
       perMarket: number[];
       total: number;
+      // Every sale needs a printed canvas; only a "+ kit" sale also needs an
+      // assembled thread kit. Tracked apart so the packing list can say how
+      // many of EACH to put in the tote, which is what you actually carry.
+      perMarketKit: number[];
+      totalKit: number;
     }
     const items = new Map<string, ItemAgg>();
     for (const o of marketOrders) {
@@ -146,7 +151,8 @@ export async function GET(request: NextRequest) {
         let agg = items.get(name);
         if (!agg) {
           const kind: ItemAgg["kind"] = it.supplyId ? "supply" : it.designId ? (it.needsKit ? "kit" : "canvas") : "other";
-          agg = { name, kind, designId: it.designId ?? null, perMarket: new Array(marketCount).fill(0), total: 0 };
+          agg = { name, kind, designId: it.designId ?? null, perMarket: new Array(marketCount).fill(0), total: 0,
+                  perMarketKit: new Array(marketCount).fill(0), totalKit: 0 };
           items.set(name, agg);
         }
         // A kit line upgrades the kind (an item sold both ways reads as a kit).
@@ -154,6 +160,10 @@ export async function GET(request: NextRequest) {
         if (!agg.designId && it.designId) agg.designId = it.designId;
         agg.perMarket[mIdx] += it.quantity;
         agg.total += it.quantity;
+        if (it.needsKit) {
+          agg.perMarketKit[mIdx] += it.quantity;
+          agg.totalKit += it.quantity;
+        }
       }
     }
 
@@ -174,6 +184,17 @@ export async function GET(request: NextRequest) {
         avgPerMarket: Math.round(avgPerMarket * 10) / 10,
         recommended: recommend(max, agg.total, buffer),
         inTote,
+        // Split packing figures. canvas = every unit sold; kit = only the
+        // "+ kit" units. A design row's inTote above is the two summed, which
+        // is why it can't be compared against either on its own.
+        recommendedCanvas: agg.kind === "supply" ? 0 : recommend(max, agg.total, buffer),
+        recommendedKit: agg.kind === "supply"
+          ? 0
+          : (agg.totalKit > 0
+              ? recommend(Math.max(...agg.perMarketKit, 0), agg.totalKit, buffer)
+              : 0),
+        toteCanvas: designStock.get(norm)?.marketCanvas ?? null,
+        toteKits: designStock.get(norm)?.marketKits ?? null,
         // Enough to action a home -> market move without a second round trip.
         design: designStock.get(norm) ?? null,
         supply: supplyStock.get(norm) ?? null,

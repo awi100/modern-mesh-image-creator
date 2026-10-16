@@ -1,6 +1,9 @@
 // Service Worker for Modern Mesh PWA
 const CACHE_NAME = 'modern-mesh-v2';
-const API_CACHE_NAME = 'modern-mesh-api-v1';
+// v2: the previous cache served design reads stale-while-revalidate, which
+// showed pre-edit inventory after a save. Renaming it makes the activate
+// handler below purge every client's poisoned copy on next load.
+const API_CACHE_NAME = 'modern-mesh-api-v2';
 
 // Assets to cache on install (minimal - just the shell)
 const PRECACHE_ASSETS = [
@@ -42,27 +45,31 @@ function isDesignApiRequest(request) {
   return url.pathname.match(/^\/api\/designs(\/[a-zA-Z0-9-]+)?$/);
 }
 
-// Helper: Stale-while-revalidate strategy
-async function staleWhileRevalidate(request, cacheName) {
+// Network-first, with the cache kept ONLY as an offline fallback.
+//
+// This used to be stale-while-revalidate, which returned the cached copy
+// immediately and refreshed it in the background. On a read-mostly app that is
+// fine; on this one it meant: save an inventory count (PATCH goes straight to
+// the network, uncached), reload, and the design list came back from cache
+// showing the PRE-EDIT numbers. The background revalidate then quietly updated
+// the cache, so a second reload showed something different again. There is a
+// 'clearApiCache' message below that would have fixed it, but nothing ever
+// sent it. Inventory data has to be correct, so the network now always wins
+// when it is reachable and the cache only answers when it isn't.
+async function networkFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
-  const cachedResponse = await cache.match(request);
-
-  // Fetch fresh data in background
-  const fetchPromise = fetch(request)
-    .then((networkResponse) => {
-      if (networkResponse.ok) {
-        // Clone before caching
-        cache.put(request, networkResponse.clone());
-      }
-      return networkResponse;
-    })
-    .catch((error) => {
-      console.log('[SW] Network request failed:', error);
-      return cachedResponse;
-    });
-
-  // Return cached response immediately if available, otherwise wait for network
-  return cachedResponse || fetchPromise;
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (error) {
+    console.log('[SW] Offline, serving cached copy:', error);
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) return cachedResponse;
+    throw error;
+  }
 }
 
 // Fetch event
@@ -76,9 +83,9 @@ self.addEventListener('fetch', (event) => {
   // Skip chrome-extension and other non-http(s) requests
   if (!event.request.url.startsWith('http')) return;
 
-  // Handle design API requests with stale-while-revalidate
+  // Design API reads: network-first so a save is never masked by a stale copy.
   if (isDesignApiRequest(event.request)) {
-    event.respondWith(staleWhileRevalidate(event.request, API_CACHE_NAME));
+    event.respondWith(networkFirst(event.request, API_CACHE_NAME));
     return;
   }
 
