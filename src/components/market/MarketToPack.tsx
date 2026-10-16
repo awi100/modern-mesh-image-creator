@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 import { mutApi } from "@/lib/mut-api";
 import BufferPicker, { type Buffer } from "./BufferPicker";
+import MarketTotals, { type KindTotals } from "./MarketTotals";
 
 /**
  * What still has to go in the tote — the shortfall only, nothing already at
@@ -50,6 +51,7 @@ export default function MarketToPack({
   onMoved?: () => void;
 }) {
   const [rows, setRows] = useState<PrepRow[]>([]);
+  const [totals, setTotals] = useState<{ canvas: KindTotals; kit: KindTotals } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +63,7 @@ export default function MarketToPack({
       if (!res.ok) throw new Error("Failed to load");
       const data = await res.json();
       setRows(data.rows ?? []);
+      setTotals(data.summary ? { canvas: data.summary.canvas, kit: data.summary.kit } : null);
       setError(null);
     } catch {
       setError("Couldn't load the market list.");
@@ -105,8 +108,6 @@ export default function MarketToPack({
   designGaps.sort((a, b) => b.worst - a.worst || b.canvas.need - a.canvas.need);
   supplyGaps.sort((a, b) => b.gap - a.gap || b.need - a.need);
 
-  const canvasGap = designGaps.reduce((s, g) => s + g.canvas.gap, 0);
-  const kitGap = designGaps.reduce((s, g) => s + g.kit.gap, 0);
   const supplyGap = supplyGaps.reduce((s, g) => s + g.gap, 0);
   const nothingToPack = designGaps.length === 0 && supplyGaps.length === 0;
 
@@ -151,6 +152,10 @@ export default function MarketToPack({
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-900/30 border border-red-800/60 text-red-200 text-sm">{error}</div>
       )}
 
+      {/* Outside the branches below: the totals are worth seeing whether or not
+          there is anything left to pack. */}
+      {!loading && totals && <MarketTotals canvas={totals.canvas} kit={totals.kit} className="mb-5" />}
+
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-600 border-t-rose-500" />
@@ -162,21 +167,6 @@ export default function MarketToPack({
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-              <p className="text-xs text-slate-400 uppercase tracking-wider">Canvases to pack</p>
-              <p className="text-2xl font-bold text-sky-400">{canvasGap}</p>
-            </div>
-            <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-              <p className="text-xs text-slate-400 uppercase tracking-wider">Kits to pack</p>
-              <p className="text-2xl font-bold text-rose-400">{kitGap}</p>
-            </div>
-            <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-              <p className="text-xs text-slate-400 uppercase tracking-wider">Supplies</p>
-              <p className="text-2xl font-bold text-purple-400">{supplyGap}</p>
-            </div>
-          </div>
-
           {designGaps.length > 0 && (
             <div className="space-y-2 mb-6">
               {designGaps.map((g) => (

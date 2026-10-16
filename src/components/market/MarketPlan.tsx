@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRefetchOnFocus } from "@/lib/use-refetch-on-focus";
 import PosDayClassifier from "./PosDayClassifier";
 import BufferPicker, { type Buffer } from "./BufferPicker";
+import MarketTotals, { type KindTotals } from "./MarketTotals";
 
 /**
  * The full "bring this much" list, the markets it was derived from, and which
@@ -37,6 +38,9 @@ interface PrepSummary {
   totalUnitsToBring: number;
   busiestDayUnits: number;
   buffer: Buffer;
+  canvas: KindTotals;
+  kit: KindTotals;
+  supply: KindTotals;
 }
 interface MarketInfo { label: string; units: number; }
 
@@ -127,24 +131,23 @@ export default function MarketPlan({
       <BufferPicker value={buffer} onChange={onBufferChange} showHints />
 
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-          <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-            <p className="text-xs text-slate-400 uppercase tracking-wider">Units to bring</p>
-            <p className="text-2xl font-bold text-white">{summary.totalUnitsToBring}</p>
+        <>
+          <MarketTotals canvas={summary.canvas} kit={summary.kit} className="mb-4" />
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+              <p className="text-xs text-slate-400 uppercase tracking-wider">Distinct items</p>
+              <p className="text-2xl font-bold text-white">{summary.itemCount}</p>
+            </div>
+            <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+              <p className="text-xs text-slate-400 uppercase tracking-wider">Markets analyzed</p>
+              <p className="text-2xl font-bold text-white">{summary.marketCount}</p>
+            </div>
+            <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+              <p className="text-xs text-slate-400 uppercase tracking-wider">Checked off</p>
+              <p className="text-2xl font-bold text-emerald-300">{packedCount}/{rows.length}</p>
+            </div>
           </div>
-          <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-            <p className="text-xs text-slate-400 uppercase tracking-wider">Distinct items</p>
-            <p className="text-2xl font-bold text-white">{summary.itemCount}</p>
-          </div>
-          <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-            <p className="text-xs text-slate-400 uppercase tracking-wider">Markets analyzed</p>
-            <p className="text-2xl font-bold text-white">{summary.marketCount}</p>
-          </div>
-          <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-            <p className="text-xs text-slate-400 uppercase tracking-wider">Packed</p>
-            <p className="text-2xl font-bold text-emerald-300">{packedCount}/{rows.length}</p>
-          </div>
-        </div>
+        </>
       )}
 
       {/* The one thing you want to know before leaving for a market. */}

@@ -91,6 +91,26 @@ export interface PrepRow {
   supply: SupplyStock | null;
 }
 
+/**
+ * Totals for one kind of thing. Canvases and kits are reported separately and
+ * never added together — they are different objects, needed in different
+ * amounts, and held in different amounts.
+ *
+ * `toPack` is NOT `required - inTote`. Targets are per design, and a surplus of
+ * one design's canvases does not cover a shortfall of another's, so the
+ * shortfall is summed per design.
+ */
+export interface KindTotals {
+  /** In the tote, across the designs on this list. */
+  inTote: number;
+  /** Target for the next market, summed across this list. */
+  required: number;
+  /** Sum of the per-design shortfalls — what you actually still have to carry. */
+  toPack: number;
+  /** Also in the tote, for designs with no market sales history to plan from. */
+  offPlan: number;
+}
+
 export interface PrepResult {
   rows: PrepRow[];
   summary: {
@@ -99,6 +119,9 @@ export interface PrepResult {
     totalUnitsToBring: number;
     busiestDayUnits: number;
     buffer: Buffer;
+    canvas: KindTotals;
+    kit: KindTotals;
+    supply: KindTotals;
   };
   markets: { label: string; units: number }[];
 }
@@ -256,6 +279,35 @@ export function buildMarketPrep(
   // though, so the totals below count every row.
   const packable = rows.filter((r) => !(r.designId && archivedDesigns.has(r.designId)));
 
+  const designRows = packable.filter((r) => r.design);
+  const supplyRows = packable.filter((r) => r.supply);
+  const plannedDesignIds = new Set(designRows.map((r) => r.design!.id));
+  const plannedSupplyIds = new Set(supplyRows.map((r) => r.supply!.id));
+  const sum = <T>(xs: T[], f: (x: T) => number) => xs.reduce((s, x) => s + f(x), 0);
+
+  const canvas: KindTotals = {
+    inTote: sum(designRows, (r) => r.toteCanvas ?? 0),
+    required: sum(designRows, (r) => r.recommendedCanvas),
+    toPack: sum(designRows, (r) => Math.max(0, r.recommendedCanvas - (r.toteCanvas ?? 0))),
+    // Stock sitting in the tote for designs that have never sold at a market,
+    // so there is nothing to size a target from. Counted here so these figures
+    // can be reconciled against the Market tab's tote totals, which cover every
+    // design rather than just the ones on this list.
+    offPlan: sum(designs.filter((d) => !plannedDesignIds.has(d.id)), (d) => d.marketCanvasPrinted || 0),
+  };
+  const kit: KindTotals = {
+    inTote: sum(designRows, (r) => r.toteKits ?? 0),
+    required: sum(designRows, (r) => r.recommendedKit),
+    toPack: sum(designRows, (r) => Math.max(0, r.recommendedKit - (r.toteKits ?? 0))),
+    offPlan: sum(designs.filter((d) => !plannedDesignIds.has(d.id)), (d) => d.marketKitsReady || 0),
+  };
+  const supply: KindTotals = {
+    inTote: sum(supplyRows, (r) => r.supply!.market),
+    required: sum(supplyRows, (r) => r.recommended),
+    toPack: sum(supplyRows, (r) => Math.max(0, r.recommended - r.supply!.market)),
+    offPlan: sum(supplies.filter((s) => !plannedSupplyIds.has(s.id)), (s) => s.marketQuantity || 0),
+  };
+
   return {
     rows: packable,
     summary: {
@@ -266,6 +318,9 @@ export function buildMarketPrep(
         ? Math.max(...markets.map((_, i) => rows.reduce((s, r) => s + r.perMarket[i], 0)))
         : 0,
       buffer,
+      canvas,
+      kit,
+      supply,
     },
     markets: markets.map((m, i) => ({
       label: m.start === m.end ? m.start : `${m.start} – ${m.end}`,
