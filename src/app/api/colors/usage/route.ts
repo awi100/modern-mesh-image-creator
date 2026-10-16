@@ -47,6 +47,10 @@ export async function GET(request: NextRequest) {
     // Fetch non-draft designs (filtered by mesh count if specified)
     const designs = await prisma.design.findMany({
       where: {
+        // Sourced kits buy no thread (lib/sourcing): 13ct intro kits arrive
+        // finished from the supplier, so counting their colours here invents
+        // demand for thread nobody orders.
+        meshCount: { not: 13 },
         isDraft: false,
         deletedAt: null,
         archivedAt: null,

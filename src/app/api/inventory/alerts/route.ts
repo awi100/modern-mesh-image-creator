@@ -114,7 +114,10 @@ export async function GET(request: NextRequest) {
 
     // Fetch all non-draft designs with pixel data and velocity info (excluding ones marked for exclusion)
     const designs = await prisma.design.findMany({
-      where: { isDraft: false, deletedAt: null, archivedAt: null, notLiveAt: null, excludeFromStockAlerts: false, printVersionOf: null, ...meshWhere },
+      // meshCount != 13: sourced kits buy no thread (lib/sourcing) — 13ct intro
+      // kits come finished from the supplier, so their colours must not raise
+      // stock alerts or appear in the Order Builder.
+      where: { isDraft: false, deletedAt: null, archivedAt: null, notLiveAt: null, excludeFromStockAlerts: false, printVersionOf: null, meshCount: { not: 13 }, ...meshWhere },
       select: {
         id: true,
         name: true,

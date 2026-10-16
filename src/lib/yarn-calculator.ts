@@ -37,9 +37,17 @@ export const DEFAULT_SETTINGS: YarnCalculationSettings = {
   mesh18BasketwaveYardsPerSqIn: 3.57, // ~15% more, same ratio as 14ct
 };
 
-/** Thread size used for a given canvas mesh count. */
-export function threadSizeForMesh(meshCount: MeshCount): ThreadSize {
-  return meshCount === 13 ? 3 : 5;
+/**
+ * Thread size used for a given canvas mesh count.
+ *
+ * Size 3 is retired: everything we buy thread for is Size 5. 13ct intro kits
+ * were the only Size 3 line and they now arrive finished from the supplier
+ * (see lib/sourcing), so we hold no Size 3 stock at all — the inventory table
+ * has zero Size 3 rows. Returning 5 here keeps any 13ct lookup pointed at the
+ * SKU that actually exists rather than one that never will.
+ */
+export function threadSizeForMesh(_meshCount: MeshCount): ThreadSize {
+  return 5;
 }
 
 /** Yards in a standard skein for a given thread size. */

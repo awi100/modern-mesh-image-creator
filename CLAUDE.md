@@ -31,17 +31,29 @@ This rule exists because on 2026-05-04, Claude ran `prisma db push --force-reset
 
 The app supports three canvas mesh counts. Each has a specific thread size:
 
-| Mesh | Thread Size | Skein Yards | Usage |
-|------|-------------|-------------|-------|
-| 13ct | Size 3 Pearl Cotton | 16 yards | All intro kits |
-| 14ct | Size 5 Pearl Cotton | 27 yards | RETIRED — original intro kits, archived designs only |
-| 18ct | Size 5 Pearl Cotton | 27 yards | Main design line (all canvases) |
+| Mesh | Thread | Usage |
+|------|--------|-------|
+| 13ct | **none — sourced** | Intro kits. Arrive FINISHED from the supplier (canvas + thread already packed), so we buy no thread for them at all. |
+| 14ct | Size 5 Pearl Cotton, 27 yd | RETIRED — original intro kits, archived designs only |
+| 18ct | Size 5 Pearl Cotton, 27 yd | Main design line (all canvases) — everything we actually buy thread for |
+
+**Size 3 is retired.** It existed only for in-house 13ct intro kits. Those are
+now bought finished, so there is no Size 3 stock and `threadSizeForMesh()`
+always returns 5.
+
+**Sourced vs made** is the distinction that matters for thread: see
+`src/lib/sourcing.ts`. A sourced design still tracks kits and canvases (you
+receive, hold and sell them) but contributes NO thread demand — it must not
+appear in stock alerts, the Order Builder, bobbin analysis or colour usage.
 
 The active mesh counts are **18ct** (canvases) and **13ct** (intro kits). 14ct intro
 kits are retired; those designs are kept as archives but dropped from the active
 mesh filters.
 
-**Thread sizes never mix.** A 13ct design's DMC 209 demand is tracked separately from a 14ct/18ct DMC 209 demand because the inventory items are different (Size 3 vs Size 5 skeins). The app uses the helper `threadSizeForMesh(meshCount)` from `src/lib/yarn-calculator.ts` to derive thread size from mesh count.
+**All thread is Size 5.** Inventory is still keyed by `(dmcNumber, size)` and
+bobbins by `(dmcNumber, length, threadSize)` — the dimension is kept so a second
+thread size could return — but every live row is Size 5 and
+`threadSizeForMesh()` returns 5 for every mesh count.
 
 **Bobbin inventory** is keyed by `(dmcNumber, length, threadSize)`. A 3-yard Size 3 bobbin is a different SKU from a 3-yard Size 5 bobbin.
 
