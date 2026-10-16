@@ -12,6 +12,7 @@ import {
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
+import { salesInWindow, weeklyRate, categorise, targetWeeksFor } from "@/lib/velocity";
 
 interface ColorRequirement {
   dmcNumber: string;
@@ -113,6 +114,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Fetch all non-draft designs with pixel data and velocity info (excluding ones marked for exclusion)
+    // One query for the whole window, shared by every design below.
+    const soldInWindow = await salesInWindow();
     const designs = await prisma.design.findMany({
       // meshCount != 13: sourced kits buy no thread (lib/sourcing) — 13ct intro
       // kits come finished from the supplier, so their colours must not raise
@@ -129,8 +132,7 @@ export async function GET(request: NextRequest) {
         kitsReady: true,
         marketKitsReady: true,
         // Velocity fields
-        salesVelocity: true,
-        velocityCategory: true,
+        createdAt: true,
         velocityCategoryOverride: true,
         targetStockWeeks: true,
       },
@@ -269,8 +271,13 @@ export async function GET(request: NextRequest) {
           .filter((c) => c.fulfillmentCapacity <= minCapacity + 2) // Within 2 of minimum
           .sort((a, b) => a.fulfillmentCapacity - b.fulfillmentCapacity);
 
-        // Calculate velocity-based metrics
-        const velocity = design.salesVelocity ?? 0;
+        // Velocity computed LIVE from order history, not read from
+        // Design.salesVelocity — that column is NULL on every live design and
+        // was last written in February, which made this report "999 weeks /
+        // healthy" for anything with stock and "critical" for anything without.
+        const unitsSold = soldInWindow.get(design.id) ?? 0;
+        const velocity = weeklyRate(unitsSold, design.createdAt);
+        const liveCategory = categorise(velocity, unitsSold);
         // Kits in the market tote are assembled kits we own — counting only
         // home stock reported "0 kits / CRITICAL" for designs with a full tote
         // (Boston Terrier: 0 home, 6 market), and made the Order Builder buy
@@ -279,16 +286,10 @@ export async function GET(request: NextRequest) {
         const weeksOfStock = velocity > 0 ? kitsReadyCount / velocity : (kitsReadyCount > 0 ? 999 : 0);
 
         // Determine target weeks based on velocity category
-        let targetWeeks = design.targetStockWeeks;
-        if (!targetWeeks) {
-          switch (design.velocityCategory) {
-            case "fast": targetWeeks = 6; break;
-            case "medium": targetWeeks = 8; break;
-            case "slow": targetWeeks = 12; break;
-            case "new": targetWeeks = 4; break;
-            default: targetWeeks = 8;
-          }
-        }
+        // An explicit per-design override still wins; otherwise the target
+        // follows the LIVE category.
+        const targetWeeks = design.targetStockWeeks
+          ?? targetWeeksFor(design.velocityCategoryOverride ?? liveCategory);
 
         // Determine stock status based on weeks vs target
         let stockStatus: "critical" | "low" | "healthy";
@@ -313,8 +314,8 @@ export async function GET(request: NextRequest) {
           totalColors: colorRequirements.length,
           totalSkeinsPerKit: yarnUsage.reduce((sum, u) => sum + u.skeinsNeeded, 0),
           // Velocity-based metrics
-          salesVelocity: design.salesVelocity,
-          velocityCategory: design.velocityCategory,
+          salesVelocity: Math.round(velocity * 100) / 100,
+          velocityCategory: design.velocityCategoryOverride ?? liveCategory,
           velocityCategoryOverride: design.velocityCategoryOverride,
           kitsReady: kitsReadyCount,
           weeksOfStock: Math.round(weeksOfStock * 10) / 10,
