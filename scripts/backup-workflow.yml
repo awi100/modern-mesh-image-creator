@@ -1,0 +1,113 @@
+name: Nightly database backup
+
+# 07:10 UTC ≈ 3:10am Eastern — after the day's orders have synced and long
+# before anyone is editing inventory.
+#
+# This job is load-bearing twice over. It takes the only backup that exists
+# (Supabase's free tier has none), and its nightly connection is what stops the
+# project being paused for inactivity after 7 days — a paused project means the
+# Shopify fulfillment webhook fails and stock deductions are silently missed.
+# So a run failing is not just "no backup tonight". Leave failure notifications
+# on.
+on:
+  schedule:
+    - cron: "10 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      # The dump + verification logic lives in the app repo so there is exactly
+      # one copy of it, and what runs here is what runs on the laptop. That
+      # repo is public, so no token is needed to read it.
+      - name: Get the backup script
+        uses: actions/checkout@v4
+        with:
+          repository: awi100/modern-mesh-image-creator
+          path: app
+          sparse-checkout: scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Check out this repo
+        uses: actions/checkout@v4
+        with:
+          path: backups
+
+      # Ubuntu ships an older client; the server is Postgres 17 and pg_dump
+      # refuses to dump a server newer than itself.
+      - name: Install postgresql-client-17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump and verify
+        env:
+          # The SESSION pooler URL on port 5432. Port 6543 is pgbouncer in
+          # transaction mode and cannot run pg_dump at all; the direct
+          # db.<ref>.supabase.co host is IPv6-only and unreachable from here.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OUT_DIR: ${{ github.workspace }}/out
+          PG_BIN_DIR: /usr/lib/postgresql/17/bin
+          BACKUP_PATH_FILE: ${{ github.workspace }}/backup-path.txt
+        run: |
+          cd app
+          ./scripts/db-backup.sh
+          echo "BACKUP_FILE=$(cat "$GITHUB_WORKSPACE/backup-path.txt")" >> "$GITHUB_ENV"
+
+      # Release assets don't live in git history, so 30 days of 2 MB dumps
+      # doesn't turn into a repo nobody can clone.
+      - name: Publish as a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="backup-$(date -u +%Y-%m-%d)"
+          cd backups
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" "$BACKUP_FILE" \
+            --title "Backup $(date -u +%Y-%m-%d)" \
+            --notes "pg_dump of the public schema, verified: non-trivial size and all expected tables present. Restore with scripts/db-restore.sh in the app repo."
+
+      - name: Keep only the last 30
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd backups
+          gh release list --limit 200 --json tagName,createdAt \
+            --jq '.[] | select(.tagName | startswith("backup-")) | .tagName' \
+            | tail -n +31 \
+            | while read -r tag; do
+                echo "pruning $tag"
+                gh release delete "$tag" --yes --cleanup-tag || true
+              done
+
+      # A visible heartbeat, and repo activity — GitHub disables scheduled
+      # workflows after 60 days of an inactive repository, which would stop the
+      # backups and the keep-alive together, silently.
+      - name: Record the run
+        run: |
+          cd backups
+          {
+            echo "# Last successful backup"
+            echo
+            echo "- **$(date -u '+%Y-%m-%d %H:%M UTC')**"
+            echo "- size: $(du -h "$BACKUP_FILE" | cut -f1)"
+            echo
+            echo "If this date is more than a couple of days old, backups have stopped"
+            echo "and the Supabase project is heading for an inactivity pause."
+          } > LAST-RUN.md
+          git config user.name "backup bot"
+          git config user.email "actions@github.com"
+          git add LAST-RUN.md
+          git commit -m "Backup $(date -u +%Y-%m-%d)" || exit 0
+          git push
