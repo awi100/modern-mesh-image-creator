@@ -83,13 +83,37 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd backups
-          gh release list --limit 200 --json tagName,createdAt \
-            --jq '.[] | select(.tagName | startswith("backup-")) | .tagName' \
-            | tail -n +31 \
-            | while read -r tag; do
-                echo "pruning $tag"
-                gh release delete "$tag" --yes --cleanup-tag || true
-              done
+          # Sort by TAG, descending. Not by createdAt: GitHub reports a
+          # release's created_at as the date of the underlying commit, which
+          # runs a day behind the tag here and ties across releases — sorting
+          # on it risks deleting a recent backup instead of an old one, and
+          # deletion is irreversible. The tags are backup-YYYY-MM-DD, so a
+          # lexical sort is a chronological one and depends on nothing.
+          KEEP=30
+          mapfile -t OLD < <(
+            gh release list --limit 200 --json tagName \
+              --jq '[.[] | select(.tagName | startswith("backup-")) | .tagName]
+                    | sort | reverse | .[]' \
+            | tail -n +$((KEEP + 1))
+          )
+
+          if [ ${#OLD[@]} -eq 0 ]; then
+            echo "nothing to prune"
+            exit 0
+          fi
+
+          # Refuse to prune more than a handful in one run. A normal night has
+          # exactly one release to drop; a long list means the listing went
+          # wrong, and the safe response to that is to stop, not to delete.
+          if [ ${#OLD[@]} -gt 5 ]; then
+            echo "refusing to prune ${#OLD[@]} releases in one run — check the repo by hand" >&2
+            exit 1
+          fi
+
+          for tag in "${OLD[@]}"; do
+            echo "pruning $tag"
+            gh release delete "$tag" --yes --cleanup-tag || true
+          done
 
       # A visible heartbeat, and repo activity — GitHub disables scheduled
       # workflows after 60 days of an inactive repository, which would stop the
