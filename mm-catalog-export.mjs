@@ -70,6 +70,7 @@ const PRODUCT_FIELDS = (withCost) => `
   collections(first: 30) { nodes { title } }
   variants(first: 100) {
     nodes {
+      id
       title
       selectedOptions { name value }
       sku
@@ -131,7 +132,15 @@ const COLUMNS = [
   "product_title", "handle", "status", "product_type", "collections", "tags",
   "variant_title", "option_name", "option_value", "sku", "price",
   "compare_at_price", "unit_cost", "inventory_qty",
+  // variant_id and the storefront URL that selects that exact variant. The
+  // wholesale order form prices the canvas+KIT variant, so a link to the bare
+  // product lands on the canvas-only option at a lower price and makes the
+  // sheet look wrong. STOREFRONT_DOMAIN is the customer-facing domain, not the
+  // myshopify.com admin one.
+  "variant_id", "variant_url",
 ];
+
+const STOREFRONT_DOMAIN = process.env.SHOPIFY_STOREFRONT_DOMAIN || "modernmeshco.com";
 
 function csvField(value) {
   const s = value == null ? "" : String(value);
@@ -152,11 +161,17 @@ function toRow(product, variant) {
     optionValue = opts.map((o) => `${o.name}=${o.value}`).join("|");
   }
   const unitCost = unitCostAvailable ? (variant.inventoryItem?.unitCost?.amount ?? "") : "";
+  // "gid://shopify/ProductVariant/43247319482473" -> "43247319482473"
+  const variantId = String(variant.id || "").split("/").pop() || "";
+  const variantUrl = variantId
+    ? `https://${STOREFRONT_DOMAIN}/products/${product.handle}?variant=${variantId}`
+    : "";
   return [
     product.title, product.handle, product.status, product.productType || "",
     collections, tags, variant.title, optionName, optionValue,
     variant.sku || "", variant.price ?? "", variant.compareAtPrice ?? "",
     unitCost, variant.inventoryQuantity ?? "",
+    variantId, variantUrl,
   ];
 }
 
