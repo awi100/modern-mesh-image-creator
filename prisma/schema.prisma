@@ -590,11 +590,18 @@ model PurchaseOrder {
   // Costs that attach to the goods and must be spread across the lines rather
   // than expensed: freight, duty, tariffs. Discounts are negative. Sales tax
   // is held separately because it is usually NOT capitalisable.
-  shippingCost Float @default(0)
-  dutiesCost   Float @default(0)
-  otherCost    Float @default(0)
-  discount     Float @default(0)
-  salesTax     Float @default(0)
+  shippingCost    Float   @default(0)
+  dutiesCost      Float   @default(0)
+  otherCost       Float   @default(0)
+  discount        Float   @default(0)
+  salesTax        Float   @default(0)
+  // Charged by the payment platform on top of the invoice — Alibaba takes
+  // 2.99%. Kept apart from `otherCost` because whether it belongs in the
+  // cost of the goods is a judgement: unavoidable in order to acquire them,
+  // but a financing cost rather than a cost of the goods themselves.
+  // `feeInLandedCost` decides per order, so a report can say which it did.
+  paymentFee      Float   @default(0)
+  feeInLandedCost Boolean @default(true)
 
   // "quantity" | "value" | "manual" — how the costs above were spread. Stored
   // so a landed cost can always be explained, not just asserted.
@@ -713,7 +720,10 @@ model ReceiptLine {
 model CostLayer {
   id     String             @id @default(cuid())
   lineId String?
-  line   PurchaseOrderLine? @relation(fields: [lineId], references: [id])
+  // A layer created by a purchase line dies with it. Without the cascade,
+  // rolling back an import only set lineId to null and left the layers
+  // behind, so the next import doubled every one of them.
+  line   PurchaseOrderLine? @relation(fields: [lineId], references: [id], onDelete: Cascade)
 
   // Same shape as the PO line: exactly one target, plus the form it takes.
   kind      String // "canvas" | "kit" | "supply" | "thread"
