@@ -70,133 +70,138 @@ model DesignTag {
 
 // Main Design model
 model Design {
-  id           String   @id @default(cuid())
+  id           String @id @default(cuid())
   name         String
   widthInches  Float
   heightInches Float
-  meshCount    Int      // 13, 14, or 18
-  gridWidth    Int      // Computed: round(widthInches * meshCount)
-  gridHeight   Int      // Computed: round(heightInches * meshCount)
+  meshCount    Int // 13, 14, or 18
+  gridWidth    Int // Computed: round(widthInches * meshCount)
+  gridHeight   Int // Computed: round(heightInches * meshCount)
 
   // Pixel grid data - stored as compressed JSON
   // Format: Array of rows, each row is array of DMC numbers or null (empty)
-  pixelData    Bytes    // Compressed with pako
+  pixelData Bytes // Compressed with pako
 
   // Reference image for tracing (optional)
   referenceImageUrl     String?
   referenceImageOpacity Float   @default(0.5)
 
   // Cloudinary URLs for exports
-  previewImageUrl       String?
-  artworkPdfUrl         String?
-  guidePdfUrl           String?
+  previewImageUrl String?
+  artworkPdfUrl   String?
+  guidePdfUrl     String?
 
   // Settings
-  stitchType            String  @default("continental") // "continental" or "basketweave"
-  bufferPercent         Float   @default(20)
+  stitchType    String @default("continental") // "continental" or "basketweave"
+  bufferPercent Float  @default(20)
 
   // Kit tracking
-  kitsReady             Int     @default(0)  // assembled kits awaiting sale (online/storage stock)
-  canvasPrinted         Int     @default(0)  // physical canvases printed (at main location, online/storage stock)
-  canvasPrintedMaddie   Int     @default(0)  // canvases printed at Maddie's location
+  kitsReady     Int @default(0) // assembled kits awaiting sale (online/storage stock)
+  canvasPrinted Int @default(0) // physical canvases printed (at main location, online/storage stock)
+  // DEAD: Maddie stopped printing in March and every row is 0. Retained only
+  // because dropping a column needs --accept-data-loss, which this project
+  // forbids without an explicit decision. Safe to drop deliberately.
+  canvasPrintedMaddie Int @default(0)
   // RETAINED, UNUSED: misprint stock is no longer tracked anywhere in the app.
   // Kept so the existing counts survive; safe to drop in a deliberate migration.
-  misprintCount         Int     @default(0)
+  misprintCount Int @default(0)
 
   // Market (craft-market tote) inventory — physically allocated to in-person
   // market sales and NOT available for online orders. POS (Shopify source_name
   // "pos") sales deduct from these; online orders deduct from kitsReady/canvasPrinted.
   // Stock is moved here from main via the "transfer to market" action.
-  marketKitsReady       Int     @default(0)  // assembled kits in the market tote
-  marketCanvasPrinted   Int     @default(0)  // printed canvases in the market tote
+  marketKitsReady     Int @default(0) // assembled kits in the market tote
+  marketCanvasPrinted Int @default(0) // printed canvases in the market tote
 
   // Bulk storage at Andover. Ordered in bulk and kept here (limited space at
   // home), then moved to home as needed. Never deducted by sales — it's
   // upstream of home/market. Canvas and kits are tracked separately.
-  canvasAndover         Int     @default(0)
-  kitsAndover           Int     @default(0)  // assembled kits in bulk storage at Andover
+  canvasAndover Int @default(0)
+  kitsAndover   Int @default(0) // assembled kits in bulk storage at Andover
 
   // How many of this design we want on hand in Boston (Home + Market tote).
   // Drives the Andover pickup suggestion and the low-stock flag. NULL means
   // "use the house default" (stock-targets.RESTOCK_TARGET), so changing the
   // default moves every design that hasn't been given its own number.
-  restockTarget         Int?
+  restockTarget Int?
 
   // Sales tracking (from Shopify fulfilled orders)
-  totalSold             Int     @default(0)  // total units sold (kits + canvas-only)
-  totalKitsSold         Int     @default(0)  // units sold with kit included
+  totalSold     Int @default(0) // total units sold (kits + canvas-only)
+  totalKitsSold Int @default(0) // units sold with kit included
 
   // Velocity tracking for smart stock alerts
   // DEPRECATED: written only by the manual Recalculate button, NULL on every
   // live design, last written Feb 2026. Nothing reads it any more — velocity is
   // derived on read in lib/velocity.ts. Retained so the historical values and
   // the Recalculate button keep working; safe to drop deliberately later.
-  salesVelocity         Float?  // weighted units per week (4-week rolling, recent weighted more)
-  velocityCategory      String? // "fast" (3+/wk), "medium" (1-3/wk), "slow" (<1/wk), "new"
+  salesVelocity            Float? // weighted units per week (4-week rolling, recent weighted more)
+  velocityCategory         String? // "fast" (3+/wk), "medium" (1-3/wk), "slow" (<1/wk), "new"
   velocityCategoryOverride String? // manual override: "fast", "medium", "slow"
-  targetStockWeeks      Int?    // optional override for target weeks of stock
-  lastVelocityUpdate    DateTime? // when velocity was last calculated
+  targetStockWeeks         Int? // optional override for target weeks of stock
+  lastVelocityUpdate       DateTime? // when velocity was last calculated
 
   // Precomputed kit summary (updated on design save)
-  kitColorCount         Int     @default(0)  // distinct colors in the kit
-  kitSkeinCount         Int     @default(0)  // total skeins for one kit
-  colorsUsed            String? // JSON array of DMC numbers used in design
+  kitColorCount Int     @default(0) // distinct colors in the kit
+  kitSkeinCount Int     @default(0) // total skeins for one kit
+  colorsUsed    String? // JSON array of DMC numbers used in design
 
   // Backup color mappings (for substitution when primary color is unavailable)
   // Format: JSON object { "503": "504", "310": "3371" }
-  backupColors          String? // JSON map of primary DMC # to backup DMC #
+  backupColors String? // JSON map of primary DMC # to backup DMC #
 
   // Print color hex overrides (for print versions only)
   // Format: JSON object { "209": "#9070C8", "310": "#333333" }
   // Maps DMC numbers to adjusted hex values for printer compensation
-  printColorOverrides   String?
+  printColorOverrides String?
 
   // Stock alert exclusion
   excludeFromStockAlerts Boolean @default(false)
 
   // Draft status (new designs start as draft, mark complete when ready to sell)
-  isDraft               Boolean @default(true)
+  isDraft Boolean @default(true)
 
   // Archived: design still exists but is no longer used. Excluded from all
   // aggregations (ordering, color usage, kits, stock alerts, analytics, etc.)
   // and from the main gallery by default. Distinct from draft (WIP) and trash.
-  archivedAt            DateTime?
+  archivedAt DateTime?
 
   // Not Live: printed (or being printed) but not for sale yet. Hidden from
   // sales/planning (analytics, reorder, velocity, stock alerts, color usage,
   // bobbin analysis, kits overview) and from the market tote, but its printed
   // stock still shows in the Canvases/Kits inventory tabs. Distinct from draft.
-  notLiveAt             DateTime?
+  notLiveAt DateTime?
 
   // Product categorization
-  skillLevel            String? // "easy", "intermediate", "advanced"
-  sizeCategory          String? // "small", "medium", "large"
-  totalStitches         Int     @default(0) // Precomputed total stitch count
+  skillLevel    String? // "easy", "intermediate", "advanced"
+  sizeCategory  String? // "small", "medium", "large"
+  totalStitches Int     @default(0) // Precomputed total stitch count
 
   // Soft delete (trash)
-  deletedAt             DateTime?
+  deletedAt DateTime?
 
   // Offline sync version (incremented on each save)
-  version               Int       @default(1)
+  version Int @default(1)
 
   // Print version relationship
   // A print version is a color-adjusted copy of a design for sending to the printer.
   // The original design drives kit/inventory. The print version is for export files only.
-  printVersionOf       String?   @unique
-  printVersionOfDesign Design?   @relation("PrintVersion", fields: [printVersionOf], references: [id], onDelete: Cascade)
-  printVersion         Design?   @relation("PrintVersion")
+  printVersionOf       String? @unique
+  printVersionOfDesign Design? @relation("PrintVersion", fields: [printVersionOf], references: [id], onDelete: Cascade)
+  printVersion         Design? @relation("PrintVersion")
 
   // Organization
-  folderId  String?
-  folder    Folder?     @relation(fields: [folderId], references: [id])
-  tags      DesignTag[]
-  kitSales  KitSale[]
+  folderId          String?
+  folder            Folder?             @relation(fields: [folderId], references: [id])
+  tags              DesignTag[]
+  kitSales          KitSale[]
+  purchaseLines     PurchaseOrderLine[]
+  costLayers        CostLayer[]
   shopifyOrderItems ShopifyOrderItem[]
   finishingProjects FinishingProject[]
   mysteryBagPicks   MysteryBagPick[]
 
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([folderId])
   @@index([createdAt])
@@ -208,72 +213,72 @@ model Design {
 
 // User settings for yarn calculation calibration
 model UserSettings {
-  id                               String   @id @default(cuid())
+  id                            String   @id @default(cuid())
   // Yards of thread per square inch of canvas coverage
   // 13ct uses Size 3 Pearl Cotton (16-yard skeins); 14/18 use Size 5 (27-yard skeins)
-  mesh13ContinentalYardsPerSqIn    Float    @default(2.2)   // 13ct, 169 stitches/sq in, Size 3
-  mesh13BasketwaveYardsPerSqIn     Float    @default(2.5)   // 13ct, Size 3
-  mesh14ContinentalYardsPerSqIn    Float    @default(2.1)   // 14ct, 196 stitches/sq in, Size 5
-  mesh14BasketwaveYardsPerSqIn     Float    @default(2.4)   // 14ct, ~15% more
-  mesh18ContinentalYardsPerSqIn    Float    @default(3.1)   // 18ct, 324 stitches/sq in, Size 5 (hybrid model, see yarn-calculator.ts)
-  mesh18BasketwaveYardsPerSqIn     Float    @default(3.57)  // 18ct, ~15% more
+  mesh13ContinentalYardsPerSqIn Float    @default(2.2) // 13ct, 169 stitches/sq in, Size 3
+  mesh13BasketwaveYardsPerSqIn  Float    @default(2.5) // 13ct, Size 3
+  mesh14ContinentalYardsPerSqIn Float    @default(2.1) // 14ct, 196 stitches/sq in, Size 5
+  mesh14BasketwaveYardsPerSqIn  Float    @default(2.4) // 14ct, ~15% more
+  mesh18ContinentalYardsPerSqIn Float    @default(3.1) // 18ct, 324 stitches/sq in, Size 5 (hybrid model, see yarn-calculator.ts)
+  mesh18BasketwaveYardsPerSqIn  Float    @default(3.57) // 18ct, ~15% more
   // Default export DPI
-  defaultExportDpi                 Int      @default(600)
-  createdAt                        DateTime @default(now())
-  updatedAt                        DateTime @updatedAt
+  defaultExportDpi              Int      @default(600)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
 
   @@map("user_settings")
 }
 
 // Editable cost/margin assumptions for the Pricing tool (single row).
 model PricingSettings {
-  id                 String   @id @default("default")
+  id                String   @id @default("default")
   // Thread
-  skeinCost          Float    @default(1.25) // $ per full skein
+  skeinCost         Float    @default(1.25) // $ per full skein
   // Kit hardware: 2 needles + threader + threader bag + kit bag
-  kitHardwareCost    Float    @default(0.75)
+  kitHardwareCost   Float    @default(0.75)
   // Canvas packaging: bag + tape
-  canvasPackCost     Float    @default(0.30)
+  canvasPackCost    Float    @default(0.30)
   // Per-order costs
-  orderPackCost      Float    @default(0.50)
-  shippingLabelCost  Float    @default(5.50)
-  shippingCollected  Float    @default(6.00)
-  feePercent         Float    @default(0.029) // payment processing %
-  feeFixed           Float    @default(0.30)  // payment processing flat
-  cacPerOrder        Float    @default(22.0)  // blended ad cost per order
-  targetGrossMargin  Float    @default(0.80)  // deprecated (kept for compat)
+  orderPackCost     Float    @default(0.50)
+  shippingLabelCost Float    @default(5.50)
+  shippingCollected Float    @default(6.00)
+  feePercent        Float    @default(0.029) // payment processing %
+  feeFixed          Float    @default(0.30) // payment processing flat
+  cacPerOrder       Float    @default(22.0) // blended ad cost per order
+  targetGrossMargin Float    @default(0.80) // deprecated (kept for compat)
   // Canvas price targets this NET margin AFTER all costs incl. CAC.
-  targetNetMargin    Float    @default(0.35)
+  targetNetMargin   Float    @default(0.35)
   // The +kit upcharge targets this margin on the incremental kit cost (no extra
   // CAC — a kit is an attach on an order you already paid to acquire).
-  kitAttachMargin    Float    @default(0.72)
+  kitAttachMargin   Float    @default(0.72)
   // Canvas base cost by size tier
-  canvasCostXS       Float    @default(3.0)
-  canvasCostSmall    Float    @default(4.0)
-  canvasCostMedium   Float    @default(5.0)
-  canvasCostLarge    Float    @default(6.0)
-  canvasCostXL       Float    @default(6.0)
+  canvasCostXS      Float    @default(3.0)
+  canvasCostSmall   Float    @default(4.0)
+  canvasCostMedium  Float    @default(5.0)
+  canvasCostLarge   Float    @default(6.0)
+  canvasCostXL      Float    @default(6.0)
   // Size-tier cutoffs by area (sq in)
-  xsMaxArea          Float    @default(9)
-  smallMaxArea       Float    @default(12)
-  mediumMaxArea      Float    @default(20)
-  largeMaxArea       Float    @default(30)
+  xsMaxArea         Float    @default(9)
+  smallMaxArea      Float    @default(12)
+  mediumMaxArea     Float    @default(20)
+  largeMaxArea      Float    @default(30)
   // Round recommended prices up to the nearest this many dollars
-  roundTo            Int      @default(1)
+  roundTo           Int      @default(1)
   // Our chosen (set) prices per tier — canvas-only and +kit. These are the
   // prices we actually sell at; the recommendations above are advisory.
-  introPrice         Float    @default(40)
-  priceCanvasXS      Float    @default(40)
-  priceKitXS         Float    @default(50)
-  priceCanvasSmall   Float    @default(45)
-  priceKitSmall      Float    @default(57)
-  priceCanvasMedium  Float    @default(50)
-  priceKitMedium     Float    @default(65)
-  priceCanvasLarge   Float    @default(55)
-  priceKitLarge      Float    @default(70)
-  priceCanvasXL      Float    @default(60)
-  priceKitXL         Float    @default(80)
-  updatedAt          DateTime @updatedAt
+  introPrice        Float    @default(40)
+  priceCanvasXS     Float    @default(40)
+  priceKitXS        Float    @default(50)
+  priceCanvasSmall  Float    @default(45)
+  priceKitSmall     Float    @default(57)
+  priceCanvasMedium Float    @default(50)
+  priceKitMedium    Float    @default(65)
+  priceCanvasLarge  Float    @default(55)
+  priceKitLarge     Float    @default(70)
+  priceCanvasXL     Float    @default(60)
+  priceKitXL        Float    @default(80)
+  updatedAt         DateTime @updatedAt
 
   @@map("pricing_settings")
 }
@@ -282,7 +287,7 @@ model PricingSettings {
 model InventoryItem {
   id        String   @id @default(cuid())
   dmcNumber String
-  size      Int      // 3 (13ct, Size 3 Pearl Cotton) or 5 (14/18ct, Size 5 Pearl Cotton)
+  size      Int // 3 (13ct, Size 3 Pearl Cotton) or 5 (14/18ct, Size 5 Pearl Cotton)
   skeins    Int      @default(1) // 1 skein = 27 yards
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -297,7 +302,7 @@ model InventoryItem {
 model BobbinInventory {
   id         String   @id @default(cuid())
   dmcNumber  String
-  length     Int      // Whole yards (e.g., 3, 4, 5)
+  length     Int // Whole yards (e.g., 3, 4, 5)
   threadSize Int      @default(5) // 3 or 5
   count      Int      @default(0)
   createdAt  DateTime @default(now())
@@ -333,14 +338,14 @@ model KitSaleItem {
 
 // Shopify order tracking - prevents double-processing fulfilled orders
 model ShopifyOrder {
-  id              String   @id @default(cuid())
-  shopifyOrderId  String   @unique // Shopify's order ID (e.g., "gid://shopify/Order/123")
-  orderNumber     String   // Human-readable order number (e.g., "#1001")
+  id              String             @id @default(cuid())
+  shopifyOrderId  String             @unique // Shopify's order ID (e.g., "gid://shopify/Order/123")
+  orderNumber     String // Human-readable order number (e.g., "#1001")
   customerName    String?
-  sourceName      String?  // Shopify order source ("pos" = Point of Sale, "web"/checkout = online).
-                           // Determines which inventory bucket the order deducts from / restores to.
+  sourceName      String? // Shopify order source ("pos" = Point of Sale, "web"/checkout = online).
+  // Determines which inventory bucket the order deducts from / restores to.
   fulfilledAt     DateTime? // When we processed the fulfillment
-  createdAt       DateTime @default(now()) // when WE created the local row (sync time)
+  createdAt       DateTime           @default(now()) // when WE created the local row (sync time)
   orderDate       DateTime? // the real Shopify order-placed date (for velocity/sales-rate)
   items           ShopifyOrderItem[]
   mysteryBagPicks MysteryBagPick[]
@@ -353,12 +358,12 @@ model ShopifyOrder {
 // misprint order tracking was removed. Kept so the historical rows survive;
 // safe to drop in a deliberate migration, after a backup.
 model MysteryBagPick {
-  id              String       @id @default(cuid())
-  shopifyOrderId  String       // FK to ShopifyOrder.id (local row id)
-  order           ShopifyOrder @relation(fields: [shopifyOrderId], references: [id], onDelete: Cascade)
-  designId        String
-  design          Design       @relation(fields: [designId], references: [id], onDelete: Cascade)
-  createdAt       DateTime     @default(now())
+  id             String       @id @default(cuid())
+  shopifyOrderId String // FK to ShopifyOrder.id (local row id)
+  order          ShopifyOrder @relation(fields: [shopifyOrderId], references: [id], onDelete: Cascade)
+  designId       String
+  design         Design       @relation(fields: [designId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
 
   @@index([shopifyOrderId])
   @@index([designId])
@@ -366,18 +371,18 @@ model MysteryBagPick {
 }
 
 model ShopifyOrderItem {
-  id              String       @id @default(cuid())
-  shopifyOrderId  String
-  order           ShopifyOrder @relation(fields: [shopifyOrderId], references: [id], onDelete: Cascade)
-  designId        String?      // Linked design (null if no match found)
-  design          Design?      @relation(fields: [designId], references: [id], onDelete: SetNull)
-  supplyId        String?      // Linked supply (for supply items)
-  supply          Supply?      @relation(fields: [supplyId], references: [id], onDelete: SetNull)
-  productTitle    String       // Original Shopify product title
-  variantTitle    String?      // e.g., "8x8 / Yes" or "10x10 / No"
-  quantity        Int
-  needsKit        Boolean      // true if "Yes" was selected for kit option
-  processed       Boolean      @default(false) // true after inventory deducted
+  id               String       @id @default(cuid())
+  shopifyOrderId   String
+  order            ShopifyOrder @relation(fields: [shopifyOrderId], references: [id], onDelete: Cascade)
+  designId         String? // Linked design (null if no match found)
+  design           Design?      @relation(fields: [designId], references: [id], onDelete: SetNull)
+  supplyId         String? // Linked supply (for supply items)
+  supply           Supply?      @relation(fields: [supplyId], references: [id], onDelete: SetNull)
+  productTitle     String // Original Shopify product title
+  variantTitle     String? // e.g., "8x8 / Yes" or "10x10 / No"
+  quantity         Int
+  needsKit         Boolean // true if "Yes" was selected for kit option
+  processed        Boolean      @default(false) // true after inventory deducted
   // Shopify line-item customAttributes (e.g. "Special instructions" for
   // Mystery Misprint Bag). Stored as a JSON array of {key, value} so we
   // can render them after fulfillment when Shopify's unfulfilled feed no
@@ -394,13 +399,13 @@ model ShopifyOrderItem {
 model OrderDeduction {
   id              String   @id @default(cuid())
   createdAt       DateTime @default(now())
-  shopifyOrderId  String   // Shopify order gid
-  orderNumber     String   // e.g. "#2593"
-  sourceName      String?  // "pos" | "web" | etc.
-  bucket          String   // "market" | "online"
-  via             String   // "webhook" | "sync" | "fulfill"
+  shopifyOrderId  String // Shopify order gid
+  orderNumber     String // e.g. "#2593"
+  sourceName      String? // "pos" | "web" | etc.
+  bucket          String // "market" | "online"
+  via             String // "webhook" | "sync" | "fulfill"
   designId        String?
-  designName      String?  // denormalized for readability
+  designName      String? // denormalized for readability
   kitsRequested   Int      @default(0)
   kitsDeducted    Int      @default(0) // < requested means it clamped (ran out)
   canvasRequested Int      @default(0)
@@ -421,7 +426,7 @@ model PosEvent {
   id        String   @id @default(cuid())
   day       String   @unique // "YYYY-MM-DD" (UTC), matching how POS days are bucketed
   kind      String   @default("market") // "market" | "sip_and_stitch" | "other"
-  name      String?  // e.g. "Sip & Stitch - Trattoria"
+  name      String? // e.g. "Sip & Stitch - Trattoria"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -430,32 +435,34 @@ model PosEvent {
 
 // Custom canvas size presets
 model CanvasPreset {
-  id          String   @id @default(cuid())
-  name        String
-  widthInches Float
+  id           String   @id @default(cuid())
+  name         String
+  widthInches  Float
   heightInches Float
-  description String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  description  String?
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("canvas_presets")
 }
 
 // Supply products (needles, finishers, needle minders, etc.)
 model Supply {
-  id          String   @id @default(cuid())
-  name        String   @unique // Must match Shopify product title for matching
-  sku         String?  // Optional SKU
-  description String?
-  imageUrl    String?
-  quantity    Int      @default(0) // Stock count (online/storage, at home)
-  marketQuantity Int   @default(0) // Stock in the craft-market tote (POS sales deduct from here)
-  andoverQuantity Int  @default(0) // Bulk stock kept at Andover storage (pick up to restock home)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String              @id @default(cuid())
+  name              String              @unique // Must match Shopify product title for matching
+  sku               String? // Optional SKU
+  description       String?
+  imageUrl          String?
+  quantity          Int                 @default(0) // Stock count (online/storage, at home)
+  marketQuantity    Int                 @default(0) // Stock in the craft-market tote (POS sales deduct from here)
+  andoverQuantity   Int                 @default(0) // Bulk stock kept at Andover storage (pick up to restock home)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   shopifyOrderItems ShopifyOrderItem[]
   bundleComponents  BundleComponent[]
+  purchaseLines     PurchaseOrderLine[]
+  costLayers        CostLayer[]
 
   @@map("supplies")
 }
@@ -477,10 +484,10 @@ model Bundle {
 }
 
 model BundleComponent {
-  id        String  @id @default(cuid())
-  bundleId  String
-  bundle    Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
-  quantity  Int     @default(1)
+  id         String  @id @default(cuid())
+  bundleId   String
+  bundle     Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  quantity   Int     @default(1)
   // Fixed component: supplyId set, chooseFrom null.
   // Customer-choice component: chooseFrom is a Supply-name filter (e.g.
   // "Needle Minder"); the specific supply is resolved per order from the
@@ -499,9 +506,9 @@ model FinishingProject {
   id          String    @id @default(cuid())
   designId    String
   design      Design    @relation(fields: [designId], references: [id], onDelete: Cascade)
-  person      String    // who is working on it (e.g., "Andrew", "Maddie")
+  person      String // who is working on it (e.g., "Andrew", "Maddie")
   status      String    @default("wip") // "wip" or "finished"
-  productType String?   // what it was made into: "Pillow", "Ornament", "Frame", etc.
+  productType String? // what it was made into: "Pillow", "Ornament", "Frame", etc.
   startedAt   DateTime  @default(now())
   finishedAt  DateTime?
   notes       String?
@@ -515,11 +522,219 @@ model FinishingProject {
 // Global color backup pairs (bidirectional)
 // If 503 has backup 504, then 504 automatically has backup 503
 model ColorBackup {
-  id            String   @id @default(cuid())
-  dmcNumber     String   @unique // Primary color
-  backupDmcNumber String           // Backup color
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(cuid())
+  dmcNumber       String   @unique // Primary color
+  backupDmcNumber String // Backup color
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@map("color_backups")
+}
+
+// ---------------------------------------------------------------------------
+// COSTING
+//
+// How inventory is costed here, and why it is not the perpetual movement
+// ledger a textbook would reach for.
+//
+// Consumption is measured PERIODICALLY: what we bought, minus what we still
+// have, is what we used. That is a deliberate choice. Stock leaves without a
+// record all the time — a canvas handed over at a sip-and-stitch, a raffle
+// prize, a sample posted to a shop — and a perpetual ledger silently
+// understates consumption whenever someone forgets to log one. Purchases are
+// documented by supplier invoices and the remaining count is a real number in
+// this app, so the difference between them is right even when nobody wrote
+// anything down. It is also the shape Form 1125-A asks for: opening +
+// purchases - ending.
+//
+// What that costs us: the total is trustworthy, the BREAKDOWN is not. We still
+// know precisely what Shopify sold (OrderDeduction), and a manual adjustment
+// can carry a reason. Everything left over is reported as "unaccounted"
+// instead of being quietly folded into retail COGS, because a number nobody
+// recorded is not evidence of a sale.
+//
+// Valuation of what remains is FIFO over CostLayer rows. The layers also make
+// weighted-average computable from the same data, so the method can change
+// later without a migration.
+// ---------------------------------------------------------------------------
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  website   String?
+  contact   String? // email / WeChat / whoever we actually talk to
+  currency  String   @default("USD")
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id            String   @id @default(cuid())
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  invoiceNumber String? // the supplier's number, e.g. "SH20261010"
+  status        String   @default("draft") // draft|ordered|partial|received|cancelled
+  currency      String   @default("USD")
+  // Rate to USD at the time of payment. 1 for USD invoices.
+  fxRate        Float    @default(1)
+
+  orderDate    DateTime?
+  paidDate     DateTime?
+  expectedDate DateTime?
+
+  // Costs that attach to the goods and must be spread across the lines rather
+  // than expensed: freight, duty, tariffs. Discounts are negative. Sales tax
+  // is held separately because it is usually NOT capitalisable.
+  shippingCost Float @default(0)
+  dutiesCost   Float @default(0)
+  otherCost    Float @default(0)
+  discount     Float @default(0)
+  salesTax     Float @default(0)
+
+  // "quantity" | "value" | "manual" — how the costs above were spread. Stored
+  // so a landed cost can always be explained, not just asserted.
+  allocationMethod String  @default("value")
+  // True while any line's cost came from an allocation rather than a supplier
+  // figure, so reports can label the number as estimated.
+  costsEstimated   Boolean @default(false)
+
+  invoiceUrl String? // Drive link or uploaded receipt
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines    PurchaseOrderLine[]
+  receipts Receipt[]
+
+  @@unique([supplierId, invoiceNumber])
+  @@index([status])
+  @@index([orderDate])
+  @@map("purchase_orders")
+}
+
+// What an order is FOR. Exactly one of designId/supplyId/threadKey is set.
+// `kind` says what form the goods take, which is what separates a 13ct intro
+// kit we buy finished from an 18ct canvas we print and assemble ourselves.
+model PurchaseOrderLine {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  // "canvas" | "kit" | "supply" | "thread"
+  //   canvas — blank/printed canvas we will assemble into a kit ourselves
+  //   kit    — a FINISHED kit bought as one unit (all 13ct intro kits today,
+  //            18ct planned). Its landed cost is the whole kit; no components
+  //            are added on top, which is what stops double-counting.
+  kind                String
+  designId            String?
+  design              Design? @relation(fields: [designId], references: [id])
+  supplyId            String?
+  supply              Supply? @relation(fields: [supplyId], references: [id])
+  threadKey           String? // "<dmcNumber>-<size>" when kind = thread
+  // What the supplier called it, kept verbatim for reconciliation against the
+  // invoice even after we rename the design.
+  supplierDescription String? @map("supplier_description")
+
+  quantity       Int
+  unitCost       Float // ex-freight, as invoiced
+  // Freight/duty/other allocated to this line. Filled by the allocation.
+  allocatedCost  Float @default(0)
+  // (quantity * unitCost + allocatedCost) / quantity, written at receipt time
+  // so it can never drift from the layers it created.
+  landedUnitCost Float @default(0)
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  receiptLines ReceiptLine[]
+  costLayers   CostLayer[]
+
+  @@index([purchaseOrderId])
+  @@index([designId])
+  @@index([supplyId])
+  @@map("purchase_order_lines")
+}
+
+// A delivery. Receiving is what moves stock and creates cost — never ordering
+// or paying. One PO can have many, for partial shipments.
+model Receipt {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  receivedDate    DateTime
+  // Where the goods physically landed: "home" | "andover".
+  location        String        @default("home")
+  notes           String?
+  // Set when a receipt is reversed. Reversal is explicit and leaves the
+  // original row alone, because deleting a financial record loses the fact
+  // that it happened.
+  reversedAt      DateTime?
+  reversedReason  String?
+  createdAt       DateTime      @default(now())
+
+  lines ReceiptLine[]
+
+  @@index([purchaseOrderId])
+  @@map("receipts")
+}
+
+model ReceiptLine {
+  id        String            @id @default(cuid())
+  receiptId String
+  receipt   Receipt           @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  lineId    String
+  line      PurchaseOrderLine @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  quantity  Int
+
+  // One receipt may only ever book a given PO line once. This is the guard
+  // against receiving the same shipment twice, enforced by the database rather
+  // than by remembering to check.
+  @@unique([receiptId, lineId])
+  @@index([lineId])
+  @@map("receipt_lines")
+}
+
+// A quantity of one thing bought at one price. FIFO consumes the oldest
+// remaining layer first; weighted average is derivable from the same rows.
+// Never edited once consumed — a supplier correction creates an adjusting
+// layer so historical valuation stays reproducible.
+model CostLayer {
+  id     String             @id @default(cuid())
+  lineId String?
+  line   PurchaseOrderLine? @relation(fields: [lineId], references: [id])
+
+  // Same shape as the PO line: exactly one target, plus the form it takes.
+  kind      String // "canvas" | "kit" | "supply" | "thread"
+  designId  String?
+  design    Design? @relation(fields: [designId], references: [id])
+  supplyId  String?
+  supply    Supply? @relation(fields: [supplyId], references: [id])
+  threadKey String?
+
+  quantity       Int // as received
+  remaining      Int // decremented as consumption is applied
+  landedUnitCost Float
+  receivedAt     DateTime // drives FIFO order and period reports
+
+  // "purchase" | "opening" | "adjustment"
+  //   opening    — stock that existed before costing began, valued at a rate
+  //                we had to choose. Always flagged estimated.
+  //   adjustment — a documented correction, never an edit of a purchase layer.
+  source    String  @default("purchase")
+  estimated Boolean @default(false)
+  notes     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([kind, designId, receivedAt])
+  @@index([kind, supplyId, receivedAt])
+  @@index([threadKey, receivedAt])
+  @@map("cost_layers")
 }

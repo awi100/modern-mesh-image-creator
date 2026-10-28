@@ -12,7 +12,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:backup": "./scripts/db-backup.sh",
-    "db:restore": "./scripts/db-restore.sh"
+    "db:restore": "./scripts/db-restore.sh",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -46,7 +48,8 @@
     "eslint-config-next": "^15.5.10",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^2.1.9"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
