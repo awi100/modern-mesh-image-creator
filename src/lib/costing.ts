@@ -108,6 +108,31 @@ export function landedUnitCost(quantity: number, unitCost: number, allocated: nu
   return round2((quantity * unitCost + allocated) / quantity);
 }
 
+/**
+ * Unit cost for a lot the supplier topped up at no charge — free extras, or a
+ * reprint making good on a batch that printed badly.
+ *
+ * The money is unchanged and the units went up, so the rate goes down: the
+ * paid line's whole landed cost is spread across every unit that arrived, paid
+ * and free alike. Both lines then carry this same rate.
+ *
+ * The alternative is to cost the free units at zero and leave the paid ones
+ * alone. That keeps the same total, but it reports the first canvases off a
+ * reprinted batch as expensive and the rest as free, when the two are the same
+ * canvas and sell for the same price. Pooling tells you what a unit of this
+ * design actually cost, which is the number a margin is worth taking against.
+ *
+ * Pass freeUnits = 0 and this is just `landedUnitCost`.
+ */
+export function poolReplacementCost(
+  paid: { quantity: number; unitCost: number; allocatedCost: number },
+  freeUnits: number,
+): number {
+  const units = paid.quantity + Math.max(0, freeUnits);
+  if (units <= 0) return 0;
+  return round2((paid.quantity * paid.unitCost + paid.allocatedCost) / units);
+}
+
 /* -------------------------------------------------------------------------- */
 /* FIFO valuation                                                             */
 /* -------------------------------------------------------------------------- */

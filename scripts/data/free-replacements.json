@@ -1,0 +1,5 @@
+{
+  "_what": "Units the supplier sent at no charge — free extras, and reprints of batches that printed badly. These goods are already sitting in the quantity columns, so recording them changes no count: it only tells the costing system they arrived, which stops them being read as stock nobody can explain.",
+  "_howToFill": "Add an entry per design to `replacements`. `units` is how many free ones arrived. `invoice` names the paid order they make good on — omit it and the most recent paid line for that design is used. `freight` is anything WE paid to get the reprint here (usually 0); it goes into the pooled cost.",
+  "replacements": []
+}

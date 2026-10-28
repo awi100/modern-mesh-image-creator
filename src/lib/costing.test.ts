@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   allocateCosts,
   landedUnitCost,
+  poolReplacementCost,
   valueFifo,
   consumeFifo,
   weightedAverage,
@@ -74,6 +75,39 @@ describe("landed cost allocation", () => {
   it("computes a landed unit cost that includes freight", () => {
     // Raincoat Pup: 300 @ $3.25 + $260 FedEx = $1,235 / 300
     expect(landedUnitCost(300, 3.25, 260)).toBeCloseTo(4.12, 2);
+  });
+});
+
+describe("free replacement units", () => {
+  it("spreads the money paid over every unit that arrived", () => {
+    // Aperol Spritz: 200 invoiced at $3.20 with $66 of freight on the line,
+    // then a free reprint of 140 after the first run printed badly.
+    const paid = { quantity: 200, unitCost: 3.2, allocatedCost: 66 };
+    expect(landedUnitCost(200, 3.2, 66)).toBeCloseTo(3.53, 2);
+    const pooled = poolReplacementCost(paid, 140);
+    expect(pooled).toBeCloseTo(2.08, 2);
+    // The total capitalised is unchanged bar penny rounding: a rate held to
+    // cents can be up to half a cent off per unit, which over 340 units is
+    // $1.20. Same effect as the $1.47 across the whole Sanhome import.
+    expect(round2(pooled * 340)).toBeCloseTo(200 * 3.2 + 66, -1);
+    expect(Math.abs(pooled * 340 - (200 * 3.2 + 66))).toBeLessThan(340 * 0.005);
+  });
+
+  it("leaves a line alone when nothing was sent free", () => {
+    const paid = { quantity: 100, unitCost: 5, allocatedCost: 100 };
+    expect(poolReplacementCost(paid, 0)).toBe(landedUnitCost(100, 5, 100));
+  });
+
+  it("values free units as real stock, not as nothing", () => {
+    // 340 held, all at the pooled rate: a free canvas is still a canvas, and
+    // dropping it out of the valuation would understate what we hold.
+    const pooled = poolReplacementCost({ quantity: 200, unitCost: 3.2, allocatedCost: 66 }, 140);
+    const v = valueFifo(340, [
+      layer("paid", 200, pooled, "2026-06-01"),
+      layer("free", 140, pooled, "2026-08-01"),
+    ]);
+    expect(v.uncoveredUnits).toBe(0);
+    expect(v.value).toBeCloseTo(706, -1); // 707.20 — penny rounding, as above
   });
 });
 

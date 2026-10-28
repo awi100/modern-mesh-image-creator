@@ -661,6 +661,18 @@ model PurchaseOrderLine {
   // so it can never drift from the layers it created.
   landedUnitCost Float @default(0)
 
+  // A no-charge line: free extras, or a reprint the supplier sent to replace a
+  // batch that printed badly. Kept as its own line rather than folded into the
+  // paid one, so the paid line still reconciles against the invoice verbatim.
+  noCharge       Boolean             @default(false)
+  // The paid line these free units make good on. Set it and the goods cost of
+  // that line is spread across BOTH lines' units, because that is what the
+  // money actually bought — see poolReplacementCost(). Left null, the free
+  // units simply cost nothing and the paid units keep their original rate.
+  replacesLineId String?
+  replaces       PurchaseOrderLine?  @relation("Replacement", fields: [replacesLineId], references: [id])
+  replacedBy     PurchaseOrderLine[] @relation("Replacement")
+
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -738,10 +750,13 @@ model CostLayer {
   landedUnitCost Float
   receivedAt     DateTime // drives FIFO order and period reports
 
-  // "purchase" | "opening" | "adjustment"
+  // "purchase" | "opening" | "adjustment" | "replacement"
   //   opening    — stock that existed before costing began, valued at a rate
   //                we had to choose. Always flagged estimated.
-  //   adjustment — a documented correction, never an edit of a purchase layer.
+  //   adjustment  — a documented correction, never an edit of a purchase layer.
+  //   replacement — units the supplier sent at no charge. Real stock, so it
+  //                 counts toward quantity; the cost it carries depends on
+  //                 whether it was pooled with the line it replaces.
   source    String  @default("purchase")
   estimated Boolean @default(false)
   notes     String?
