@@ -96,15 +96,15 @@ model Design {
   bufferPercent Float  @default(20)
 
   // Kit tracking
-  kitsReady     Int @default(0) // assembled kits awaiting sale (online/storage stock)
-  canvasPrinted Int @default(0) // physical canvases printed (at main location, online/storage stock)
+  kitsReady           Int @default(0) // assembled kits awaiting sale (online/storage stock)
+  canvasPrinted       Int @default(0) // physical canvases printed (at main location, online/storage stock)
   // DEAD: Maddie stopped printing in March and every row is 0. Retained only
   // because dropping a column needs --accept-data-loss, which this project
   // forbids without an explicit decision. Safe to drop deliberately.
   canvasPrintedMaddie Int @default(0)
   // RETAINED, UNUSED: misprint stock is no longer tracked anywhere in the app.
   // Kept so the existing counts survive; safe to drop in a deliberate migration.
-  misprintCount Int @default(0)
+  misprintCount       Int @default(0)
 
   // Market (craft-market tote) inventory — physically allocated to in-person
   // market sales and NOT available for online orders. POS (Shopify source_name
@@ -612,7 +612,12 @@ model PurchaseOrder {
   lines    PurchaseOrderLine[]
   receipts Receipt[]
 
-  @@unique([supplierId, invoiceNumber])
+  // NOT unique. Sanhome reused SH20260820 for two different invoices on
+  // consecutive days — a 200-unit Hydrangea order and a 21-design, 1,330-unit
+  // order. A unique constraint would have refused the second one, so duplicate
+  // invoice numbers are surfaced as a warning at import instead of being made
+  // impossible to record.
+  @@index([supplierId, invoiceNumber])
   @@index([status])
   @@index([orderDate])
   @@map("purchase_orders")
