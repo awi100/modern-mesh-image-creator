@@ -5,6 +5,7 @@ import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount, getKitSkeinCount } from "@/lib/yarn-calculator";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
+import { KIT_GROUP_INCLUDE, kitStockOf } from "@/lib/kit-group";
 
 // All descendant folder IDs. Fetches the folder tree once and walks it in
 // memory (avoids a serialized DB query per folder — the old N+1 pattern).
@@ -122,18 +123,35 @@ export async function GET(request: NextRequest) {
         printVersion: {
           select: { id: true },
         },
+        ...KIT_GROUP_INCLUDE,
       },
       orderBy: { updatedAt: "desc" },
     });
 
     // Transform tags
-    const result = designs.map((design) => ({
-      ...design,
-      pixelData: undefined, // Don't send pixel data in list
-      tags: design.tags.map((dt) => dt.tag),
-      hasPrintVersion: !!design.printVersion,
-      printVersionId: design.printVersion?.id || null,
-    }));
+    const result = designs.map((design) => {
+      // Kit counts are overwritten with the pool's when this design shares one,
+      // so every list in the app shows what is actually on the shelf instead of
+      // the zeroed columns a member carries. Canvas counts are untouched: only
+      // the thread is interchangeable.
+      //
+      // Anything SUMMING these across designs must use totalKitStock, or one
+      // pool counted once per member multiplies by the membership.
+      const kits = kitStockOf(design);
+      return {
+        ...design,
+        pixelData: undefined, // Don't send pixel data in list
+        tags: design.tags.map((dt) => dt.tag),
+        hasPrintVersion: !!design.printVersion,
+        printVersionId: design.printVersion?.id || null,
+        kitsReady: kits.home,
+        marketKitsReady: kits.market,
+        kitsAndover: kits.andover,
+        kitPool: kits.shared
+          ? { name: kits.groupName, members: kits.memberCount, contents: kits.contents }
+          : null,
+      };
+    });
 
     return NextResponse.json(result);
   } catch (error) {

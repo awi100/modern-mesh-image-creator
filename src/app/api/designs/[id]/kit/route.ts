@@ -5,6 +5,7 @@ import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount, threadSizeForMesh, fullSkeinsForColor } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import pako from "pako";
+import { KIT_GROUP_INCLUDE, kitStockOf } from "@/lib/kit-group";
 
 // GET - Compute kit contents for a design
 export async function GET(
@@ -37,6 +38,8 @@ export async function GET(
         marketKitsReady: true,
         marketCanvasPrinted: true,
         kitsAndover: true,
+        kitGroupId: true,
+        ...KIT_GROUP_INCLUDE,
         canvasAndover: true,
         totalSold: true,
         totalKitsSold: true,
@@ -174,11 +177,20 @@ export async function GET(
         bufferPercent: design.bufferPercent,
         widthInches: design.widthInches,
         heightInches: design.heightInches,
-        kitsReady: design.kitsReady,
+        // From the shared pool when this design is in one. Canvases stay the
+        // design's own: only the thread is interchangeable.
+        kitsReady: kitStockOf(design).home,
         canvasPrinted: design.canvasPrinted,
-        marketKitsReady: design.marketKitsReady,
+        marketKitsReady: kitStockOf(design).market,
         marketCanvasPrinted: design.marketCanvasPrinted,
-        kitsAndover: design.kitsAndover,
+        kitsAndover: kitStockOf(design).andover,
+        kitPool: kitStockOf(design).shared
+          ? {
+              name: kitStockOf(design).groupName,
+              members: kitStockOf(design).memberCount,
+              contents: kitStockOf(design).contents,
+            }
+          : null,
         canvasAndover: design.canvasAndover,
         totalSold: design.totalSold,
         totalKitsSold: design.totalKitsSold,

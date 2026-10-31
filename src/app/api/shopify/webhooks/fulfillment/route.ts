@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseNeedsKit, normalizeTitle, matchSupplyByVariant, isPosSource } from "@/lib/shopify";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
+import { deductKits, lockKitGroups } from "@/lib/kit-group";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import crypto from "crypto";
@@ -325,6 +326,16 @@ export async function POST(request: NextRequest) {
       // runs under a different key, so both could read the same stock, both
       // clamp to it, and the second decrement would drive the column negative.
       await lockDesigns(tx, [...designUpdatesMap.keys()].sort());
+      // Kit stock for a grouped design lives on the group, so locking the
+      // design rows no longer serialises two orders for DIFFERENT street signs
+      // drawing on the same pool.
+      const groupIds = (
+        await tx.design.findMany({
+          where: { id: { in: [...designUpdatesMap.keys()] }, kitGroupId: { not: null } },
+          select: { kitGroupId: true },
+        })
+      ).map((d) => d.kitGroupId!);
+      await lockKitGroups(tx, groupIds);
       await lockSupplies(tx, [...supplyUpdatesMap.keys()].sort());
 
       for (const [designId, updates] of designUpdatesMap) {
@@ -335,13 +346,18 @@ export async function POST(request: NextRequest) {
 
         if (design) {
           const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
-          const availKit = isPos ? design.marketKitsReady : design.kitsReady;
           // Floored at 0: Math.min alone returns a NEGATIVE deduction when the
           // bucket is already negative, which the audit row then records as a
           // negative "deducted" and the response counts as a negative total
           // (see orders #3580/#3583, logged as kits 0 -> -1).
           const actualCanvasDeduction = Math.max(0, Math.min(updates.canvasDeduction, availCanvas));
-          const actualKitDeduction = Math.max(0, Math.min(updates.kitDeduction, availKit));
+          // Kits may be a pool shared with other designs, so the clamp and the
+          // decrement both happen in deductKits, which re-reads the pool. Two
+          // street signs in one order therefore see it as the other left it.
+          const kitDraw = await deductKits(
+            tx, designId, isPos ? "market" : "home", updates.kitDeduction,
+          );
+          const actualKitDeduction = kitDraw.deducted;
 
           if (isPos && (actualCanvasDeduction < updates.canvasDeduction || actualKitDeduction < updates.kitDeduction)) {
             console.warn(`Webhook: POS order ${payload.name} exceeded market stock for design ${designId} (market tote count likely drifted)`);
@@ -350,15 +366,11 @@ export async function POST(request: NextRequest) {
           await tx.design.update({
             where: { id: designId },
             data: {
+              // Canvas only — deductKits above already moved the kit stock,
+              // wherever it lives.
               ...(isPos
-                ? {
-                    marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
-                    marketKitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
-                  }
-                : {
-                    canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
-                    kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
-                  }),
+                ? { marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined }
+                : { canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined }),
               totalSold: { increment: updates.totalSold },
               totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
             },

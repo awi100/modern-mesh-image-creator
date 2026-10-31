@@ -5,6 +5,7 @@ import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount, getKitSkeinCount } from "@/lib/yarn-calculator";
 import pako from "pako";
 import { lockDesigns } from "@/lib/order-lock";
+import { setKits, adjustKits, moveKits, lockKitGroups } from "@/lib/kit-group";
 
 export async function GET(
   request: NextRequest,
@@ -321,6 +322,54 @@ export async function PATCH(
           return NextResponse.json({ error: `${field} must be an integer` }, { status: 400 });
         }
         body[field] = n;
+      }
+    }
+
+    // Kit stock for a grouped design lives on the group, not on this design.
+    // Apply any kit field here and strip it from the body, so everything below
+    // runs on canvas fields alone and can stay unaware of pools.
+    //
+    // Canvases are untouched: only the thread is interchangeable, so a Comm Ave
+    // sale still needs a Comm Ave canvas.
+    const grouped = await prisma.design.findUnique({ where: { id }, select: { kitGroupId: true } });
+    let kitPool: { name: string; home: number; market: number; andover: number } | null = null;
+    if (grouped?.kitGroupId) {
+      const KIT_KEYS = [
+        "kitsReady", "marketKitsReady", "kitsAndover",
+        "kitsReadyDelta", "marketKitsDelta", "kitsAndoverDelta", "marketTransferKitsDelta",
+      ] as const;
+      const touchesKits =
+        KIT_KEYS.some((k) => body[k] !== undefined) || body.canvasMove?.kind === "kit";
+
+      if (touchesKits) {
+        await prisma.$transaction(async (tx) => {
+          await lockKitGroups(tx, [grouped.kitGroupId!]);
+          if (body.kitsReady !== undefined) await setKits(tx, id, "home", body.kitsReady);
+          if (body.marketKitsReady !== undefined) await setKits(tx, id, "market", body.marketKitsReady);
+          if (body.kitsAndover !== undefined) await setKits(tx, id, "andover", body.kitsAndover);
+          if (body.kitsReadyDelta !== undefined) await adjustKits(tx, id, "home", body.kitsReadyDelta);
+          if (body.marketKitsDelta !== undefined) await adjustKits(tx, id, "market", body.marketKitsDelta);
+          if (body.kitsAndoverDelta !== undefined) await adjustKits(tx, id, "andover", body.kitsAndoverDelta);
+          // Positive = home -> tote; negative = tote -> home.
+          if (body.marketTransferKitsDelta !== undefined) {
+            const q = Math.trunc(body.marketTransferKitsDelta);
+            if (q > 0) await moveKits(tx, id, "home", "market", q);
+            else if (q < 0) await moveKits(tx, id, "market", "home", -q);
+          }
+          if (body.canvasMove?.kind === "kit") {
+            const mv = body.canvasMove;
+            await moveKits(tx, id, mv.from, mv.to, Math.floor(Number(mv.qty)));
+          }
+        });
+        const g = await prisma.kitGroup.findUnique({ where: { id: grouped.kitGroupId } });
+        if (g) kitPool = { name: g.name, home: g.kitsReady, market: g.marketKitsReady, andover: g.kitsAndover };
+      }
+
+      for (const k of KIT_KEYS) delete body[k];
+      if (body.canvasMove?.kind === "kit") {
+        // Handled above; nothing is left for the canvas mover to do.
+        const updated = await prisma.design.findUnique({ where: { id }, include: { folder: true } });
+        return NextResponse.json({ ...updated, moved: 0, kitPool });
       }
     }
 

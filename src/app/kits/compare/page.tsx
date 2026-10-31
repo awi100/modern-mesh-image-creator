@@ -8,6 +8,7 @@ import SectionNav from "@/components/SectionNav";
 import useSWR from "swr";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { totalKitStock } from "@/lib/kit-pool";
 
 interface KitContent {
   dmcNumber: string;
@@ -28,6 +29,16 @@ interface KitSummary {
   totalSkeins: number;
   kitsReady: number;
   marketKitsReady: number;
+  kitsAndover: number;
+  // Present when this design's kits come from a pool shared with others; the
+  // counts above are then the WHOLE pool, so total them with totalKitStock.
+  kitGroupId?: string | null;
+  kitGroup?: {
+    id: string; name: string; contents?: string | null;
+    kitsReady: number; marketKitsReady: number; kitsAndover: number;
+    _count?: { designs: number };
+  } | null;
+  kitPool?: { name: string; members: number; contents: string | null } | null;
   kitContents: KitContent[];
   folder: { id: string; name: string } | null;
   archived?: boolean;
@@ -165,12 +176,17 @@ export default function KitComparePage() {
           collections.map(([folderName, pairs]) => {
             const isCollectionExpanded = expandedCollections.has(folderName);
             const pairedInCollection = pairs.filter(p => p.kit14 && p.kit18).length;
-            const ready14InCollection = pairs.reduce((sum, p) => sum + (p.kit14?.kitsReady || 0), 0);
-            const ready18InCollection = pairs.reduce((sum, p) => sum + (p.kit18?.kitsReady || 0), 0);
+            // totalKitStock rather than a reduce: designs sharing a kit pool
+            // each report the whole pool, so adding them would count the same
+            // bags once per member.
+            const kits14 = totalKitStock(pairs.map((p) => p.kit14).filter(Boolean) as KitSummary[]);
+            const kits18 = totalKitStock(pairs.map((p) => p.kit18).filter(Boolean) as KitSummary[]);
+            const ready14InCollection = kits14.home;
+            const ready18InCollection = kits18.home;
             // Market-tote stock shown separately so the headline number still
             // matches the per-design (online) counters below.
-            const market14InCollection = pairs.reduce((sum, p) => sum + (p.kit14?.marketKitsReady || 0), 0);
-            const market18InCollection = pairs.reduce((sum, p) => sum + (p.kit18?.marketKitsReady || 0), 0);
+            const market14InCollection = kits14.market;
+            const market18InCollection = kits18.market;
 
             return (
               <div key={folderName} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">

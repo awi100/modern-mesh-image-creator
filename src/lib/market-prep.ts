@@ -1,5 +1,6 @@
 import { normalizeTitle } from "@/lib/shopify";
 import { posDayKey } from "@/lib/pos-events";
+import { kitStockOf, totalKitStock } from "./kit-group";
 
 /**
  * How much of each thing to bring to the next market, and how much of it is
@@ -62,6 +63,13 @@ export interface PrepDesign {
   marketKitsReady: number; marketCanvasPrinted: number;
   kitsReady: number; canvasPrinted: number;
   kitsAndover: number; canvasAndover: number;
+  // Set when this design's kits come from a pool shared with others.
+  kitGroupId?: string | null;
+  kitGroup?: {
+    id: string; name: string; contents?: string | null;
+    kitsReady: number; marketKitsReady: number; kitsAndover: number;
+    _count?: { designs: number };
+  } | null;
   /** Retired. Its past market sales are real history, but you can't pack it. */
   archivedAt: Date | null;
 }
@@ -72,6 +80,8 @@ export interface PrepSupply {
 export interface DesignStock {
   id: string;
   marketKits: number; marketCanvas: number;
+  /** Non-null when marketKits/homeKits are a pool shared with other designs. */
+  kitPool?: { name: string; members: number; contents: string | null } | null;
   homeKits: number; homeCanvas: number;
   // Bulk storage. Reported so a row with nothing at home can say whether the
   // stock exists at all or has to be made.
@@ -167,11 +177,18 @@ export function buildMarketPrep(
     designIdByTitle.set(normalizeTitle(d.name), d.id);
     designNameById.set(d.id, d.name);
     if (d.archivedAt) archivedDesigns.add(d.id);
+    const kits = kitStockOf(d);
     designStock.set(d.id, {
       id: d.id,
-      marketKits: d.marketKitsReady || 0, marketCanvas: d.marketCanvasPrinted || 0,
-      homeKits: d.kitsReady || 0, homeCanvas: d.canvasPrinted || 0,
-      andoverKits: d.kitsAndover || 0, andoverCanvas: d.canvasAndover || 0,
+      // Kits may be a pool several designs draw on, so they come from
+      // kitStockOf rather than the design's own (zeroed) columns. Canvases are
+      // always this design's own.
+      marketKits: kits.market, marketCanvas: d.marketCanvasPrinted || 0,
+      homeKits: kits.home, homeCanvas: d.canvasPrinted || 0,
+      andoverKits: kits.andover, andoverCanvas: d.canvasAndover || 0,
+      kitPool: kits.shared
+        ? { name: kits.groupName!, members: kits.memberCount, contents: kits.contents }
+        : null,
     });
   }
   const supplyStock = new Map<string, SupplyStock>();
@@ -318,7 +335,9 @@ export function buildMarketPrep(
     required: sum(designRows, (r) => r.recommendedKit),
     covered: sum(designRows, (r) => Math.min(r.toteKits ?? 0, r.recommendedKit)),
     toPack: sum(designRows, (r) => Math.max(0, r.recommendedKit - (r.toteKits ?? 0))),
-    offPlan: sum(designs.filter((d) => !plannedDesignIds.has(d.id)), (d) => d.marketKitsReady || 0),
+    // totalKitStock, not a plain sum: a pooled count belongs to the pool, so
+    // adding it once per member would multiply it by the membership.
+    offPlan: totalKitStock(designs.filter((d) => !plannedDesignIds.has(d.id))).market,
   };
   const supply: KindTotals = {
     inTote: sum(supplyRows, (r) => r.supply!.market),

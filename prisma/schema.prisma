@@ -31,6 +31,40 @@ model DmcColor {
 }
 
 // Folder organization for designs
+/// A pool of made-up kits shared by several designs.
+///
+/// Exists because a kit is a bag of thread, and when two designs call for the
+/// same thread the same bag serves either one. Packing them separately means
+/// counting the same interchangeable bags under five different headings, which
+/// then reads as five shortages instead of one pool.
+///
+/// Only sound while every member's thread requirement really is covered by one
+/// bag: same colours, and a length that satisfies the hungriest member. Adding
+/// a design that needs a colour the others do not silently under-packs the
+/// pool, so membership is deliberate — see scripts/create-kit-group.ts.
+model KitGroup {
+  id   String @id @default(cuid())
+  name String @unique
+
+  /// What one bag contains, in words, for whoever is packing: e.g.
+  /// "2 x 909 skeins, 1 x BLANC skein, 1 x 310 bobbin (5yd)".
+  contents String?
+  notes    String?
+
+  /// The shared pool, in the same three locations a design uses. Members' own
+  /// kit columns stay at 0.
+  kitsReady       Int @default(0)
+  marketKitsReady Int @default(0)
+  kitsAndover     Int @default(0)
+
+  designs Design[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("kit_groups")
+}
+
 model Folder {
   id        String   @id @default(cuid())
   name      String
@@ -96,6 +130,15 @@ model Design {
   bufferPercent Float  @default(20)
 
   // Kit tracking
+  //
+  // A "kit" here is the pre-packed THREAD set, not a canvas. Assembling one
+  // does not consume a canvas column; selling a kit deducts a canvas AND a kit,
+  // which is why both move together in every deduction path.
+  //
+  // When kitGroupId is set these three columns are NOT the stock: the group
+  // holds a single shared pool and these are kept at 0 so a read that has not
+  // been taught about groups shows nothing rather than a stale number. Always
+  // go through src/lib/kit-group.ts.
   kitsReady           Int @default(0) // assembled kits awaiting sale (online/storage stock)
   canvasPrinted       Int @default(0) // physical canvases printed (at main location, online/storage stock)
   // DEAD: Maddie stopped printing in March and every row is 0. Retained only
@@ -118,6 +161,12 @@ model Design {
   // upstream of home/market. Canvas and kits are tracked separately.
   canvasAndover Int @default(0)
   kitsAndover   Int @default(0) // assembled kits in bulk storage at Andover
+
+  // Designs whose thread set is interchangeable share one pool of made kits —
+  // the five green street signs all take 2x909 + 1xBLANC + a 310 bobbin, so a
+  // bag packed for one fits any of them. Canvases stay per-design.
+  kitGroupId String?
+  kitGroup   KitGroup? @relation(fields: [kitGroupId], references: [id], onDelete: SetNull)
 
   // How many of this design we want on hand in Boston (Home + Market tote).
   // Drives the Andover pickup suggestion and the low-stock flag. NULL means
@@ -207,6 +256,7 @@ model Design {
   @@index([createdAt])
   @@index([deletedAt])
   @@index([archivedAt])
+  @@index([kitGroupId])
   @@index([notLiveAt])
   @@map("designs")
 }

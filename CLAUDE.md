@@ -160,6 +160,35 @@ src/
   - Groups by DMC color and rounded length (whole yards only)
   - Shows which designs share same bobbin requirements
 
+### Shared kit pools
+
+A "kit" is the **bag of thread**, not a canvas — assembling one doesn't consume
+a canvas column, and selling a kit deducts a canvas *and* a kit.
+
+When several designs call for the same thread, one bag serves any of them, so
+they share a single pool (`KitGroup`). The five green street signs — Boylston
+Street, Comm Ave, Main Street, Mass Ave, Newbury Street — all take
+**2 x 909 skeins + 1 x BLANC skein + 1 x 310 bobbin (5yd)**, so they draw on one
+pool of made bags. **Canvases stay per-design**: only the thread is
+interchangeable.
+
+Rules, all enforced in `src/lib/kit-pool.ts` (pure, client-safe) and
+`src/lib/kit-group.ts` (writes):
+
+- A member's own `kitsReady` / `marketKitsReady` / `kitsAndover` are held at
+  **0**. The stock is on the group. Read it with `kitStockOf(design)`, never the
+  columns directly.
+- `kitStockOf` reports the **whole pool** to every member, because any bag fits
+  any of them. Do not divide it for display.
+- **Totalling across designs must use `totalKitStock`**, not a `reduce` — the
+  same 11 bags reported on 5 designs sums to 55.
+- Buying thread uses `sharedKitShare` (the even share), so a pool is counted
+  once rather than once per member.
+- Weeks-of-cover for a pooled design divides by the **combined** velocity of
+  every member.
+- Add or remove members with `scripts/create-kit-group.ts`, which refuses to
+  write unless the members' colour sets match exactly.
+
 ### Kit Features
 - View kit requirements for each design
 - Track "kits ready" (assembled kits)

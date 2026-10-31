@@ -12,6 +12,7 @@ import pako from "pako";
 import { writeFileSync } from "node:fs";
 import { calculateYarnUsage, type MeshCount, type StitchType } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
+import { KIT_GROUP_INCLUDE, sharedKitShare } from "../../../src/lib/kit-pool";
 
 // ---- Tunables ----
 const ATTACH = 0.72;      // historical 18ct kit-attach rate
@@ -46,6 +47,7 @@ async function main() {
     select: {
       id: true, name: true, pixelData: true, stitchType: true, bufferPercent: true,
       kitsReady: true, marketKitsReady: true, kitsAndover: true,
+      kitGroupId: true, ...KIT_GROUP_INCLUDE,
       canvasPrinted: true, marketCanvasPrinted: true, canvasAndover: true,
     },
   });
@@ -68,7 +70,13 @@ async function main() {
 
   for (const d of designs) {
     const onHand = d.canvasPrinted + (d.marketCanvasPrinted || 0) + (d.canvasAndover || 0);
-    const made = d.kitsReady + (d.marketKitsReady || 0) + (d.kitsAndover || 0); // Andover = assembled kits in bulk storage
+    // A design sharing a kit pool gets its EVEN SHARE here, not the whole
+    // pool: "kits already made" feeds a per-design order quantity, and
+    // crediting all five street signs with the same bags would order no kits
+    // for any of them. sharedKitShare includes Andover, which this does too.
+    const made = d.kitGroupId
+      ? sharedKitShare(d) + (d.kitGroup?.kitsAndover ?? 0) / Math.max(1, d.kitGroup?._count?.designs ?? 1)
+      : d.kitsReady + (d.marketKitsReady || 0) + (d.kitsAndover || 0); // Andover = assembled kits in bulk storage
     const onOrder = onOrderFor(d.name);
     if (onHand + made + onOrder === 0) continue;
     const velocity = (sold.get(d.id) || 0) / (WINDOW_DAYS / 7);

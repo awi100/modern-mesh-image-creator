@@ -4,6 +4,7 @@ import { isAuthenticated } from "@/lib/session";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { isPosSource, normalizeTitle } from "@/lib/shopify";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
+import { deductKits, restoreKits, lockKitGroups } from "@/lib/kit-group";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface FulfillItem {
@@ -198,6 +199,14 @@ export async function POST(request: NextRequest) {
       // runs under a different key, so both could read the same stock, both
       // clamp to it, and the second decrement would drive the column negative.
       await lockDesigns(tx, [...designUpdatesMap.keys()].sort());
+      // Grouped designs keep their kit stock on the group, so the design locks
+      // do not serialise two orders for different members of one pool.
+      await lockKitGroups(tx, (
+        await tx.design.findMany({
+          where: { id: { in: [...designUpdatesMap.keys()] }, kitGroupId: { not: null } },
+          select: { kitGroupId: true },
+        })
+      ).map((d) => d.kitGroupId!));
       await lockSupplies(tx, [...supplyUpdatesMap.keys()].sort());
 
       for (const [designId, updates] of designUpdatesMap) {
@@ -209,11 +218,14 @@ export async function POST(request: NextRequest) {
         if (design) {
           // POS sales draw from the market tote; online from main stock.
           const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
-          const availKit = isPos ? design.marketKitsReady : design.kitsReady;
           // Floored at 0 — Math.min alone returns a negative deduction when the
           // bucket is already negative, corrupting the audit row.
           const actualCanvasDeduction = Math.max(0, Math.min(updates.canvasDeduction, availCanvas));
-          const actualKitDeduction = Math.max(0, Math.min(updates.kitDeduction, availKit));
+          // Kits may be a shared pool; deductKits clamps and decrements
+          // wherever the stock actually lives.
+          const actualKitDeduction = (
+            await deductKits(tx, designId, isPos ? "market" : "home", updates.kitDeduction)
+          ).deducted;
 
           // The webhook and sync paths both warn here; this one was silent, so a
           // manual fulfil that deducted nothing reported success with no trace
@@ -230,15 +242,10 @@ export async function POST(request: NextRequest) {
           await tx.design.update({
             where: { id: designId },
             data: {
+              // Canvas only — the kit half is already done, above.
               ...(isPos
-                ? {
-                    marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
-                    marketKitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
-                  }
-                : {
-                    canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
-                    kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
-                  }),
+                ? { marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined }
+                : { canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined }),
               totalSold: { increment: updates.totalSold },
               totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
             },
@@ -472,18 +479,16 @@ export async function DELETE(request: NextRequest) {
         // credit the wrong column.
         const toMarket = audited ? audited.bucket === "market" : isPos;
 
+        // Kits return to the pool they were taken from, which for a grouped
+        // design is the group — not the design's own zeroed column.
+        await restoreKits(tx, designId, toMarket ? "market" : "home", kitRestore);
+
         await tx.design.update({
           where: { id: designId },
           data: {
             ...(toMarket
-              ? {
-                  marketCanvasPrinted: canvasRestore > 0 ? { increment: canvasRestore } : undefined,
-                  marketKitsReady: kitRestore > 0 ? { increment: kitRestore } : undefined,
-                }
-              : {
-                  canvasPrinted: canvasRestore > 0 ? { increment: canvasRestore } : undefined,
-                  kitsReady: kitRestore > 0 ? { increment: kitRestore } : undefined,
-                }),
+              ? { marketCanvasPrinted: canvasRestore > 0 ? { increment: canvasRestore } : undefined }
+              : { canvasPrinted: canvasRestore > 0 ? { increment: canvasRestore } : undefined }),
             totalSold: { decrement: restore.totalSoldRestore },
             totalKitsSold: restore.totalKitsSoldRestore > 0 ? { decrement: restore.totalKitsSoldRestore } : undefined,
           },

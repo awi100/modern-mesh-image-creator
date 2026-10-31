@@ -13,6 +13,7 @@ import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
 import { salesInWindow, weeklyRate, categorise, targetWeeksFor } from "@/lib/velocity";
+import { KIT_GROUP_INCLUDE, kitStockOf, sharedKitShare } from "@/lib/kit-group";
 
 interface ColorRequirement {
   dmcNumber: string;
@@ -131,6 +132,9 @@ export async function GET(request: NextRequest) {
         pixelData: true,
         kitsReady: true,
         marketKitsReady: true,
+        kitsAndover: true,
+        kitGroupId: true,
+        ...KIT_GROUP_INCLUDE,
         // Velocity fields
         createdAt: true,
         velocityCategoryOverride: true,
@@ -173,6 +177,16 @@ export async function GET(request: NextRequest) {
       skeinsNeeded: number;
     }>();
 
+    // Combined weekly sales rate per shared kit pool. A pool's cover has to be
+    // judged against everything drawing on it, so this is summed before the
+    // per-design loop and read back inside it.
+    const groupVelocity = new Map<string, number>();
+    for (const d of designs) {
+      if (!d.kitGroupId) continue;
+      const v = weeklyRate(soldInWindow.get(d.id) ?? 0, d.createdAt);
+      groupVelocity.set(d.kitGroupId, (groupVelocity.get(d.kitGroupId) ?? 0) + v);
+    }
+
     for (const design of designs) {
       if (!design.pixelData) continue;
 
@@ -202,7 +216,13 @@ export async function GET(request: NextRequest) {
         // Kits already assembled, wherever they physically are. A kit in the
         // market tote is still a kit whose thread is already spent, so the
         // Order Builder must not buy thread for it again.
-        const kitsReady = (design.kitsReady || 0) + (design.marketKitsReady || 0);
+        //
+        // For a SHARED pool this is the design's even share, not the whole
+        // pool. The whole pool is what the design can ship (any bag fits it),
+        // but for buying thread the pool must be counted once across its
+        // members — crediting all five street signs with the same 11 bags would
+        // report 55 kits' worth of thread already spent.
+        const kitsReady = sharedKitShare(design);
         for (const [dmcNumber, stitchCount] of stitchCounts.entries()) {
           const aggKey = `${dmcNumber}-${threadSize}`;
           const existing = colorUsageMap.get(aggKey);
@@ -282,8 +302,18 @@ export async function GET(request: NextRequest) {
         // home stock reported "0 kits / CRITICAL" for designs with a full tote
         // (Boston Terrier: 0 home, 6 market), and made the Order Builder buy
         // thread for kits that already exist.
-        const kitsReadyCount = (design.kitsReady ?? 0) + (design.marketKitsReady ?? 0);
-        const weeksOfStock = velocity > 0 ? kitsReadyCount / velocity : (kitsReadyCount > 0 ? 999 : 0);
+        const pool = kitStockOf(design);
+        const kitsReadyCount = pool.home + pool.market;
+        // Weeks of cover for a pooled design is the pool against the COMBINED
+        // velocity of everything drawing on it. Dividing by this design's own
+        // rate alone would report five designs as comfortable off one shelf
+        // that only covers them put together.
+        const coverVelocity = pool.shared
+          ? groupVelocity.get(pool.groupId!) ?? velocity
+          : velocity;
+        const weeksOfStock = coverVelocity > 0
+          ? kitsReadyCount / coverVelocity
+          : (kitsReadyCount > 0 ? 999 : 0);
 
         // Determine target weeks based on velocity category
         // An explicit per-design override still wins; otherwise the target

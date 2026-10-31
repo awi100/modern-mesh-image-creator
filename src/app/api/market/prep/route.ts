@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { buildMarketPrep, parseBuffer } from "@/lib/market-prep";
+import { KIT_GROUP_INCLUDE } from "@/lib/kit-group";
 
 /**
  * Market Prep: what to bring to the next market, and what's already in the
@@ -53,6 +54,7 @@ export async function GET(request: NextRequest) {
           id: true, name: true, marketKitsReady: true, marketCanvasPrinted: true,
           kitsReady: true, canvasPrinted: true, archivedAt: true,
           kitsAndover: true, canvasAndover: true,
+          kitGroupId: true, ...KIT_GROUP_INCLUDE,
         },
       }),
       prisma.supply.findMany({

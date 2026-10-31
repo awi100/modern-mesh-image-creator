@@ -17,6 +17,7 @@ import { rowInStock } from "@/lib/kit-stock";
 import { targetFor, isLowOnHand } from "@/lib/stock-targets";
 import MarketPack from "@/components/market/MarketPack";
 import { type Buffer as MarketBuffer } from "@/components/market/BufferPicker";
+import { totalKitStock } from "@/lib/kit-pool";
 
 
 
@@ -41,6 +42,9 @@ interface Design {
   name: string;
   previewImageUrl: string | null;
   kitsReady: number;
+  // Set by the API when these kit counts are a pool shared with other designs.
+  kitGroupId?: string | null;
+  kitPool?: { name: string; members: number; contents: string | null } | null;
   canvasPrinted: number;
   marketKitsReady: number;
   marketCanvasPrinted: number;
@@ -1473,11 +1477,15 @@ export default function InventoryPage() {
     (sum, item) => sum + item.skeins * skeinYardsForThread(item.size as ThreadSize),
     0,
   );
-  const totalKitsReady = designs.reduce((sum, d) => sum + d.kitsReady, 0);
+  // totalKitStock, not a plain reduce: the five street signs share one pool and
+  // the API reports the whole pool on each of them, so adding them up would
+  // count the same eleven bags five times.
+  const kitTotals = totalKitStock(designs);
+  const totalKitsReady = kitTotals.home;
 
   // Market tote stats (in-person/craft-market stock, not available online)
-  const marketKitsReady = designs.reduce((sum, d) => sum + (d.marketKitsReady || 0), 0);
-  const kitsAndoverTotal = designs.reduce((sum, d) => sum + (d.kitsAndover || 0), 0);
+  const marketKitsReady = kitTotals.market;
+  const kitsAndoverTotal = kitTotals.andover;
   const marketCanvases = designs.reduce((sum, d) => sum + (d.marketCanvasPrinted || 0), 0);
   const totalKitsOverall = totalKitsReady + marketKitsReady + kitsAndoverTotal;
 
@@ -2220,7 +2228,7 @@ export default function InventoryPage() {
                       </svg>
                       <h3 className="text-white font-semibold">{group.folderName}</h3>
                       <span className="text-slate-500 text-sm">
-                        ({group.designs.length} design{group.designs.length !== 1 ? "s" : ""} · {group.designs.reduce((sum, d) => sum + d.kitsReady + (d.marketKitsReady || 0) + (d.kitsAndover || 0), 0)} kits)
+                        ({group.designs.length} design{group.designs.length !== 1 ? "s" : ""} · {totalKitStock(group.designs).total} kits)
                       </span>
                     </div>
 

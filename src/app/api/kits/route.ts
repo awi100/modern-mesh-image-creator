@@ -6,6 +6,7 @@ import { calculateYarnUsage, MeshCount, threadSizeForMesh, skeinYardsForMesh, bo
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { meshCountWhere } from "@/lib/mesh-filter";
 import pako from "pako";
+import { KIT_GROUP_INCLUDE, kitStockOf } from "@/lib/kit-group";
 
 const LEFTOVER_THRESHOLD = 5;
 
@@ -51,6 +52,8 @@ export async function GET(request: NextRequest) {
         marketCanvasPrinted: true,
         kitsAndover: true,
         canvasAndover: true,
+        kitGroupId: true,
+        ...KIT_GROUP_INCLUDE,
         backupColors: true,
         folder: {
           select: {
@@ -223,12 +226,28 @@ export async function GET(request: NextRequest) {
           meshCount: design.meshCount,
           stitchType: design.stitchType,
           bufferPercent: design.bufferPercent,
-          kitsReady: design.kitsReady ?? 0,
+          // Kits come from wherever they live — a shared pool for the street
+          // signs, the design's own columns otherwise. Canvases are always this
+          // design's own; only the thread is interchangeable.
+          kitsReady: kitStockOf(design).home,
           canvasPrinted: design.canvasPrinted ?? 0,
-          marketKitsReady: design.marketKitsReady ?? 0,
+          marketKitsReady: kitStockOf(design).market,
           marketCanvasPrinted: design.marketCanvasPrinted ?? 0,
-          kitsAndover: design.kitsAndover ?? 0,
+          kitsAndover: kitStockOf(design).andover,
           canvasAndover: design.canvasAndover ?? 0,
+          // Passed through so a client can total these rows with totalKitStock
+          // and have the pool counted once, not once per member.
+          kitGroupId: design.kitGroupId,
+          kitGroup: design.kitGroup,
+          // Non-null when these kit counts are shared, so the UI can say so
+          // rather than showing one pool five times as if it were five.
+          kitPool: kitStockOf(design).shared
+            ? {
+                name: kitStockOf(design).groupName,
+                members: kitStockOf(design).memberCount,
+                contents: kitStockOf(design).contents,
+              }
+            : null,
           totalColors: kitContents.length,
           totalSkeins,
           allInStock: kitContents.every((c) => c.inStock),

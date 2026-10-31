@@ -44,6 +44,16 @@ interface Folder {
 }
 
 interface KitSummary {
+  // Set when this design's kits come from a pool shared with other designs.
+  // The kit counts below are then the WHOLE pool, because any bag in it fits
+  // this design — so they must be totalled with totalKitStock, never summed.
+  kitGroupId?: string | null;
+  kitGroup?: {
+    id: string; name: string; contents?: string | null;
+    kitsReady: number; marketKitsReady: number; kitsAndover: number;
+    _count?: { designs: number };
+  } | null;
+  kitPool?: { name: string; members: number; contents: string | null } | null;
   designId: string;
   designName: string;
   previewImageUrl: string | null;
@@ -595,6 +605,17 @@ export default function KitsPage() {
                             }`}>
                               {kit.allInStock ? "In Stock" : "Out of Stock"}
                             </div>
+                            {/* A shared pool shows the same numbers on all its
+                                members, so say so plainly — otherwise five
+                                designs each look like they have eleven kits. */}
+                            {kit.kitPool && (
+                              <span
+                                className="px-2 py-1 rounded-full text-xs font-medium bg-sky-900/50 text-sky-300 whitespace-nowrap"
+                                title={`Shared with ${kit.kitPool.members - 1} other design${kit.kitPool.members === 2 ? "" : "s"}: one bag fits any of them.${kit.kitPool.contents ? ` Each bag: ${kit.kitPool.contents}.` : ""}`}
+                              >
+                                shared pool · {kit.kitPool.members}
+                              </span>
+                            )}
                             {/* Counts: Here (online, editable) · Market (tote) · Andover (bulk) · Total */}
                             <div className="flex items-center gap-2 md:gap-3" onClick={(e) => e.stopPropagation()}>
                               {/* Here — online stock, editable */}

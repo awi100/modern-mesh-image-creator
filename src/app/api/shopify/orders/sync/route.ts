@@ -12,6 +12,7 @@ import {
 } from "@/lib/shopify";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
+import { deductKits, lockKitGroups } from "@/lib/kit-group";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface SyncResult {
@@ -309,6 +310,14 @@ export async function POST() {
           // runs under a different key, so both could read the same stock, both
           // clamp to it, and the second decrement would drive the column negative.
           await lockDesigns(tx, [...designUpdatesMap.keys()].sort());
+          // A grouped design's kit stock sits on the group, outside the design
+          // locks taken above.
+          await lockKitGroups(tx, (
+            await tx.design.findMany({
+              where: { id: { in: [...designUpdatesMap.keys()] }, kitGroupId: { not: null } },
+              select: { kitGroupId: true },
+            })
+          ).map((d) => d.kitGroupId!));
           await lockSupplies(tx, [...supplyUpdatesMap.keys()].sort());
 
           for (const [designId, updates] of designUpdatesMap) {
@@ -319,11 +328,14 @@ export async function POST() {
 
             if (design) {
               const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
-              const availKit = isPos ? design.marketKitsReady : design.kitsReady;
               // Floored at 0 — Math.min alone returns a negative deduction when
               // the bucket is already negative, corrupting the audit row.
               const actualCanvasDeduction = Math.max(0, Math.min(updates.canvasDeduction, availCanvas));
-              const actualKitDeduction = Math.max(0, Math.min(updates.kitDeduction, availKit));
+              // Kits may be pooled across designs; deductKits clamps against
+              // whichever row actually holds the stock.
+              const actualKitDeduction = (
+                await deductKits(tx, designId, isPos ? "market" : "home", updates.kitDeduction)
+              ).deducted;
 
               if (isPos && (actualCanvasDeduction < updates.canvasDeduction || actualKitDeduction < updates.kitDeduction)) {
                 console.warn(`Sync: POS order ${shopifyOrder.name} exceeded market stock for design ${designId} (market tote count likely drifted)`);
@@ -332,15 +344,10 @@ export async function POST() {
               await tx.design.update({
                 where: { id: designId },
                 data: {
+                  // Canvas only — the kit half is already done, above.
                   ...(isPos
-                    ? {
-                        marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
-                        marketKitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
-                      }
-                    : {
-                        canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined,
-                        kitsReady: actualKitDeduction > 0 ? { decrement: actualKitDeduction } : undefined,
-                      }),
+                    ? { marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined }
+                    : { canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined }),
                   totalSold: { increment: updates.totalSold },
                   totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
                 },
