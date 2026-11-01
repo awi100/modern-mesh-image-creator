@@ -166,11 +166,19 @@ A "kit" is the **bag of thread**, not a canvas — assembling one doesn't consum
 a canvas column, and selling a kit deducts a canvas *and* a kit.
 
 When several designs call for the same thread, one bag serves any of them, so
-they share a single pool (`KitGroup`). The five green street signs — Boylston
-Street, Comm Ave, Main Street, Mass Ave, Newbury Street — all take
-**2 x 909 skeins + 1 x BLANC skein + 1 x 310 bobbin (5yd)**, so they draw on one
-pool of made bags. **Canvases stay per-design**: only the thread is
+they share a pool (`KitGroup`). **Canvases stay per-design**: only the thread is
 interchangeable.
+
+| Pool | Members | One bag |
+|------|---------|---------|
+| **Street Sign - Small** | Comm Ave, Mass Ave, Main Street | 1 x 909, 1 x BLANC, 1 x 310 bobbin (4yd) |
+| **Street Sign - Large** | Boylston Street, Newbury Street | 2 x 909, 1 x BLANC, 1 x 310 bobbin (5yd) |
+
+The split is on **raw** yardage, which is what you physically pack: the three
+small signs need 23.8-26.7yd of 909 and fit one 27-yard skein, while Boylston
+and Newbury need 33-34yd and do not. The yarn calculator rounds the *buffered*
+figure up and so reports 2 skeins for all five — do not size a bag from it.
+Main Street is tight at 26.7 of 27yd (1.1% spare).
 
 Rules, all enforced in `src/lib/kit-pool.ts` (pure, client-safe) and
 `src/lib/kit-group.ts` (writes):
