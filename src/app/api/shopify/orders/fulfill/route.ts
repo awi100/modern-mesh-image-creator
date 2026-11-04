@@ -5,6 +5,7 @@ import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { isPosSource, normalizeTitle } from "@/lib/shopify";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { deductKits, restoreKits, lockKitGroups } from "@/lib/kit-group";
+import { drawFrom } from "@/lib/stock-draw";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface FulfillItem {
@@ -212,20 +213,22 @@ export async function POST(request: NextRequest) {
       for (const [designId, updates] of designUpdatesMap) {
         const design = await tx.design.findUnique({
           where: { id: designId },
-          select: { name: true, kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true },
+          select: { name: true, kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true, canvasAndover: true },
         });
 
         if (design) {
           // POS sales draw from the market tote; online from main stock.
-          const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
-          // Floored at 0 — Math.min alone returns a negative deduction when the
-          // bucket is already negative, corrupting the audit row.
-          const actualCanvasDeduction = Math.max(0, Math.min(updates.canvasDeduction, availCanvas));
-          // Kits may be a shared pool; deductKits clamps and decrements
-          // wherever the stock actually lives.
-          const actualKitDeduction = (
-            await deductKits(tx, designId, isPos ? "market" : "home", updates.kitDeduction)
-          ).deducted;
+          // Canvas draws on the order's own bucket, then on Andover bulk.
+          const canvasDraw = drawFrom(
+            updates.canvasDeduction,
+            isPos ? design.marketCanvasPrinted : design.canvasPrinted,
+            design.canvasAndover,
+          );
+          const actualCanvasDeduction = canvasDraw.total;
+          // Kits may be a shared pool; deductKits draws wherever the stock
+          // actually lives, Andover included.
+          const kitDraw = await deductKits(tx, designId, isPos ? "market" : "home", updates.kitDeduction);
+          const actualKitDeduction = kitDraw.deducted;
 
           // The webhook and sync paths both warn here; this one was silent, so a
           // manual fulfil that deducted nothing reported success with no trace
@@ -243,9 +246,12 @@ export async function POST(request: NextRequest) {
             where: { id: designId },
             data: {
               // Canvas only — the kit half is already done, above.
-              ...(isPos
-                ? { marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined }
-                : { canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined }),
+              ...(canvasDraw.fromPrimary > 0
+                ? (isPos
+                    ? { marketCanvasPrinted: { decrement: canvasDraw.fromPrimary } }
+                    : { canvasPrinted: { decrement: canvasDraw.fromPrimary } })
+                : {}),
+              ...(canvasDraw.fromAndover > 0 ? { canvasAndover: { decrement: canvasDraw.fromAndover } } : {}),
               totalSold: { increment: updates.totalSold },
               totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
             },
@@ -257,6 +263,7 @@ export async function POST(request: NextRequest) {
               bucket: isPos ? "market" : "online", via: "fulfill",
               designId, designName: design.name,
               kitsRequested: updates.kitDeduction, kitsDeducted: actualKitDeduction,
+              canvasFromAndover: canvasDraw.fromAndover, kitsFromAndover: kitDraw.fromAndover,
               canvasRequested: updates.canvasDeduction, canvasDeducted: actualCanvasDeduction,
             },
           });
@@ -424,16 +431,21 @@ export async function DELETE(request: NextRequest) {
     // newest row per design is precisely the current fulfillment.
     const auditRows = await prisma.orderDeduction.findMany({
       where: { shopifyOrderId },
-      select: { designId: true, kitsDeducted: true, canvasDeducted: true, bucket: true },
+      select: { designId: true, kitsDeducted: true, canvasDeducted: true, bucket: true, canvasFromAndover: true, kitsFromAndover: true },
       orderBy: { createdAt: "desc" },
     });
-    const actualByDesign = new Map<string, { kits: number; canvas: number; bucket: string }>();
+    const actualByDesign = new Map<string, {
+      kits: number; canvas: number; bucket: string;
+      canvasFromAndover: number; kitsFromAndover: number;
+    }>();
     for (const row of auditRows) {
       if (!row.designId || actualByDesign.has(row.designId)) continue;
       actualByDesign.set(row.designId, {
         kits: row.kitsDeducted,
         canvas: row.canvasDeducted,
         bucket: row.bucket,
+        canvasFromAndover: row.canvasFromAndover,
+        kitsFromAndover: row.kitsFromAndover,
       });
     }
     // Whether this order was ever audited at all. Used to tell "no audit row for
@@ -479,16 +491,25 @@ export async function DELETE(request: NextRequest) {
         // credit the wrong column.
         const toMarket = audited ? audited.bucket === "market" : isPos;
 
+        // Each unit goes back where it came from. A sale that fell through to
+        // Andover must credit Andover, not home — otherwise an undo quietly
+        // moves stock between two real places.
+        const canvasBackToAndover = Math.min(audited?.canvasFromAndover ?? 0, canvasRestore);
+        const canvasBackToBucket = canvasRestore - canvasBackToAndover;
+
         // Kits return to the pool they were taken from, which for a grouped
         // design is the group — not the design's own zeroed column.
-        await restoreKits(tx, designId, toMarket ? "market" : "home", kitRestore);
+        await restoreKits(tx, designId, toMarket ? "market" : "home", kitRestore, audited?.kitsFromAndover ?? 0);
 
         await tx.design.update({
           where: { id: designId },
           data: {
-            ...(toMarket
-              ? { marketCanvasPrinted: canvasRestore > 0 ? { increment: canvasRestore } : undefined }
-              : { canvasPrinted: canvasRestore > 0 ? { increment: canvasRestore } : undefined }),
+            ...(canvasBackToBucket > 0
+              ? (toMarket
+                  ? { marketCanvasPrinted: { increment: canvasBackToBucket } }
+                  : { canvasPrinted: { increment: canvasBackToBucket } })
+              : {}),
+            ...(canvasBackToAndover > 0 ? { canvasAndover: { increment: canvasBackToAndover } } : {}),
             totalSold: { decrement: restore.totalSoldRestore },
             totalKitsSold: restore.totalKitsSoldRestore > 0 ? { decrement: restore.totalKitsSoldRestore } : undefined,
           },

@@ -8,6 +8,7 @@
 
 import { Prisma } from "@prisma/client";
 import { KIT_FIELDS, type KitLocation } from "./kit-pool";
+import { drawFrom } from "./stock-draw";
 
 // Re-exported so server code has one import for both halves.
 export * from "./kit-pool";
@@ -33,53 +34,67 @@ export async function lockKitGroups(
 }
 
 /**
- * Take `requested` kits for a design at one location, clamped to what is there.
+ * Take `requested` kits for a design, drawing on its location first and then on
+ * Andover bulk.
  *
  * Reads inside the call rather than taking a count from the caller, so several
  * members of one group drawing in the same transaction each see the pool as the
  * earlier ones left it. A caller that cached the figure would let two street
  * signs in one order both clamp against the same opening balance.
  *
- * Returns what was actually taken, which is what the audit row should record.
+ * Returns the split, which is what the audit row should record: an undo has to
+ * put each unit back where it came from.
  */
 export async function deductKits(
   tx: Prisma.TransactionClient,
   designId: string,
   location: KitLocation,
   requested: number,
-): Promise<{ deducted: number; from: "group" | "design"; groupId: string | null }> {
-  if (!(requested > 0)) return { deducted: 0, from: "design", groupId: null };
+): Promise<{ deducted: number; fromAndover: number; short: number; from: "group" | "design"; groupId: string | null }> {
+  const none = { deducted: 0, fromAndover: 0, short: 0, from: "design" as const, groupId: null };
+  if (!(requested > 0)) return none;
   const field = KIT_FIELDS[location];
 
   const design = await tx.design.findUnique({
     where: { id: designId },
     select: { kitGroupId: true, kitsReady: true, marketKitsReady: true, kitsAndover: true },
   });
-  if (!design) return { deducted: 0, from: "design", groupId: null };
+  if (!design) return none;
+
+  // Andover is already the primary bucket for an andover-located draw; there is
+  // nothing further to fall back to.
+  const useAndover = location !== "andover";
 
   if (design.kitGroupId) {
     const group = await tx.kitGroup.findUnique({
       where: { id: design.kitGroupId },
       select: { kitsReady: true, marketKitsReady: true, kitsAndover: true },
     });
-    if (!group) return { deducted: 0, from: "design", groupId: null };
-    // Floored at 0 for the same reason the design path is: Math.min alone
-    // returns a negative deduction when the pool is already negative.
-    const deducted = Math.max(0, Math.min(requested, group[field]));
-    if (deducted > 0) {
+    if (!group) return none;
+    const d = drawFrom(requested, group[field], useAndover ? group.kitsAndover : 0);
+    if (d.total > 0) {
       await tx.kitGroup.update({
         where: { id: design.kitGroupId },
-        data: { [field]: { decrement: deducted } },
+        data: {
+          ...(d.fromPrimary > 0 ? { [field]: { decrement: d.fromPrimary } } : {}),
+          ...(d.fromAndover > 0 ? { kitsAndover: { decrement: d.fromAndover } } : {}),
+        },
       });
     }
-    return { deducted, from: "group", groupId: design.kitGroupId };
+    return { deducted: d.total, fromAndover: d.fromAndover, short: d.short, from: "group", groupId: design.kitGroupId };
   }
 
-  const deducted = Math.max(0, Math.min(requested, design[field]));
-  if (deducted > 0) {
-    await tx.design.update({ where: { id: designId }, data: { [field]: { decrement: deducted } } });
+  const d = drawFrom(requested, design[field], useAndover ? design.kitsAndover : 0);
+  if (d.total > 0) {
+    await tx.design.update({
+      where: { id: designId },
+      data: {
+        ...(d.fromPrimary > 0 ? { [field]: { decrement: d.fromPrimary } } : {}),
+        ...(d.fromAndover > 0 ? { kitsAndover: { decrement: d.fromAndover } } : {}),
+      },
+    });
   }
-  return { deducted, from: "design", groupId: null };
+  return { deducted: d.total, fromAndover: d.fromAndover, short: d.short, from: "design", groupId: null };
 }
 
 /** Put kits back — an unfulfil, or a cancelled order. */
@@ -88,18 +103,27 @@ export async function restoreKits(
   designId: string,
   location: KitLocation,
   units: number,
+  fromAndover = 0,
 ): Promise<void> {
   if (!(units > 0)) return;
   const field = KIT_FIELDS[location];
+  // Each unit goes back where it came from. Crediting an Andover draw to home
+  // would quietly move stock between two real places.
+  const toAndover = Math.min(Math.max(0, fromAndover), units);
+  const toPrimary = units - toAndover;
+  const data = {
+    ...(toPrimary > 0 ? { [field]: { increment: toPrimary } } : {}),
+    ...(toAndover > 0 ? { kitsAndover: { increment: toAndover } } : {}),
+  };
   const design = await tx.design.findUnique({
     where: { id: designId },
     select: { kitGroupId: true },
   });
   if (!design) return;
   if (design.kitGroupId) {
-    await tx.kitGroup.update({ where: { id: design.kitGroupId }, data: { [field]: { increment: units } } });
+    await tx.kitGroup.update({ where: { id: design.kitGroupId }, data });
   } else {
-    await tx.design.update({ where: { id: designId }, data: { [field]: { increment: units } } });
+    await tx.design.update({ where: { id: designId }, data });
   }
 }
 

@@ -160,6 +160,29 @@ src/
   - Groups by DMC color and rounded length (whole yards only)
   - Shows which designs share same bobbin requirements
 
+### Where a sale deducts from
+
+An order draws on its own bucket first, then falls back to **Andover** bulk:
+
+| Order | Draws from | Then |
+|-------|-----------|------|
+| online (`web`) | home (`canvasPrinted` / `kitsReady`) | Andover |
+| in person (`pos`) | tote (`marketCanvasPrinted` / `marketKitsReady`) | Andover |
+
+A POS sale does **not** fall back to home — market stock is deliberately
+separate, moved to the tote as an explicit transfer, so it falls straight
+through to Andover.
+
+The split is computed by `drawFrom()` in `src/lib/stock-draw.ts` and recorded on
+the `OrderDeduction` row as `canvasFromAndover` / `kitsFromAndover`, so an undo
+puts each unit back where it came from.
+
+Before the fallback existed the clamp stopped at the empty bucket and deducted
+**nothing** — 55 deduction rows came up short that way, each a sale that left no
+trace in any count. Note the cost of the fallback: a draw from Andover does not
+mean anyone fetched anything, so the Andover count is only right again after the
+next pickup.
+
 ### Shared kit pools
 
 A "kit" is the **bag of thread**, not a canvas — assembling one doesn't consume

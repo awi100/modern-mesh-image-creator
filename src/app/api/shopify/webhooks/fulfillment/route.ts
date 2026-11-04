@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { parseNeedsKit, normalizeTitle, matchSupplyByVariant, isPosSource } from "@/lib/shopify";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { deductKits, lockKitGroups } from "@/lib/kit-group";
+import { drawFrom } from "@/lib/stock-draw";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import crypto from "crypto";
@@ -341,16 +342,21 @@ export async function POST(request: NextRequest) {
       for (const [designId, updates] of designUpdatesMap) {
         const design = await tx.design.findUnique({
           where: { id: designId },
-          select: { name: true, kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true },
+          select: { name: true, kitsReady: true, canvasPrinted: true, marketKitsReady: true, marketCanvasPrinted: true, canvasAndover: true },
         });
 
         if (design) {
-          const availCanvas = isPos ? design.marketCanvasPrinted : design.canvasPrinted;
+          // Canvas draws on the order's own bucket, then on Andover bulk.
+          const canvasDraw = drawFrom(
+            updates.canvasDeduction,
+            isPos ? design.marketCanvasPrinted : design.canvasPrinted,
+            design.canvasAndover,
+          );
           // Floored at 0: Math.min alone returns a NEGATIVE deduction when the
           // bucket is already negative, which the audit row then records as a
           // negative "deducted" and the response counts as a negative total
           // (see orders #3580/#3583, logged as kits 0 -> -1).
-          const actualCanvasDeduction = Math.max(0, Math.min(updates.canvasDeduction, availCanvas));
+          const actualCanvasDeduction = canvasDraw.total;
           // Kits may be a pool shared with other designs, so the clamp and the
           // decrement both happen in deductKits, which re-reads the pool. Two
           // street signs in one order therefore see it as the other left it.
@@ -368,9 +374,12 @@ export async function POST(request: NextRequest) {
             data: {
               // Canvas only — deductKits above already moved the kit stock,
               // wherever it lives.
-              ...(isPos
-                ? { marketCanvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined }
-                : { canvasPrinted: actualCanvasDeduction > 0 ? { decrement: actualCanvasDeduction } : undefined }),
+              ...(canvasDraw.fromPrimary > 0
+                ? (isPos
+                    ? { marketCanvasPrinted: { decrement: canvasDraw.fromPrimary } }
+                    : { canvasPrinted: { decrement: canvasDraw.fromPrimary } })
+                : {}),
+              ...(canvasDraw.fromAndover > 0 ? { canvasAndover: { decrement: canvasDraw.fromAndover } } : {}),
               totalSold: { increment: updates.totalSold },
               totalKitsSold: updates.totalKitsSold > 0 ? { increment: updates.totalKitsSold } : undefined,
             },
@@ -383,6 +392,7 @@ export async function POST(request: NextRequest) {
               designId, designName: design.name,
               kitsRequested: updates.kitDeduction, kitsDeducted: actualKitDeduction,
               canvasRequested: updates.canvasDeduction, canvasDeducted: actualCanvasDeduction,
+              canvasFromAndover: canvasDraw.fromAndover, kitsFromAndover: kitDraw.fromAndover,
             },
           });
 
