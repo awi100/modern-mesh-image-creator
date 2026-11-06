@@ -21,8 +21,29 @@ const WINDOW_DAYS = 90;   // velocity window
 
 // ---- Canvas already coming (EDIT THIS each run) ----
 // Design name -> canvas quantity on order (canvas order sheet + outstanding POs).
+// Canvas reorder agreed 6 Nov 2026 — sized to 12 months of cover from arrival
+// (rate x 15 months less stock on hand, which covers the ~3-month lead).
 const ON_ORDER: Record<string, number> = {
-  // e.g. "Fenway Frank": 300, "Lobster": 150, "Hydrangea": 200,
+  "Fenway Frank": 200,
+  "Citgo Sign": 200,
+  "Shamrock": 200,
+  "Honey Deuce": 100,
+  "Hugo Spritz": 100,
+  "Summer Should Be Fun": 100,
+  "Cosmopolitan": 100,
+  "Shamrock Beer": 100,
+  "Cowboy Pup": 100,
+  "Boston Terrier": 100,
+  "Espresso Martini": 50,
+  "Martini": 50,
+  "Anchor": 50,
+  "Lighthouse": 50,
+  "French Bulldog": 50,
+  "Heart Matchbox": 50,
+  "Pats Matchbox": 50,
+  "Comm Ave": 50,
+  "Crab": 50,
+  "Black & Gold Hockey Jersey": 50,
 };
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
