@@ -36,6 +36,24 @@ Active 18ct designs only: `meshCount = 18`, `deletedAt = null`, `archivedAt = nu
 ## Velocity source (important)
 Bucket/window by the **real order date** (`ShopifyOrder.orderDate ?? createdAt`) and only count `ShopifyOrderItem.processed = true`. `createdAt` is our local sync time, so windowing by it dumps backfilled orders into the current window; `processed` avoids double-counting undo/re-fulfill rows. (Both were review fixes — keep them.)
 
+## Shared kit pools
+
+Designs in a `KitGroup` (see `src/lib/kit-pool.ts`) are **one line on the
+sheet**, not one per design — the supplier makes a single bag that fits any
+member, so per-design lines would have them packing identical bags under
+different names. Today that is `Street Sign - Small` (Comm Ave, Main Street,
+Mass Ave) and `Street Sign - Large` (Boylston Street, Newbury Street).
+
+- `made` per member is its **even share** (`sharedKitShare`), so the shares add
+  back up to the pool exactly — crediting every member with the whole pool
+  would under-order by the membership multiple.
+- Kits are computed **per design** (each has its own canvas and velocity) and
+  then summed into the pool line.
+- Thread per bag is the **MAX across members**, not each design's own figure: a
+  pooled bag must satisfy the hungriest member. Main Street needs 31.5yd of 909
+  where Comm Ave needs 28.1, and one bag serves either, so 31.5 is what goes in.
+- Canvas stays per-design and is summed onto the pool line for context only.
+
 ## Thread (yards per color)
 For each design's `kitsToOrder`, run `calculateYarnUsage` and take each color's **buffered** yards (`withBuffer`) per kit × kitsToOrder, aggregated by DMC. Report totals in **yards**, not skeins — the supplier breaks skeins/hanks differently than we do. Per-kit breakdown = the buffered yards for ONE kit of each design.
 

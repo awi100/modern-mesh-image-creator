@@ -89,6 +89,20 @@ async function main() {
   const byColor = new Map<string, number>();
   let totalKits = 0;
 
+  // Designs that share a kit pool are ordered as ONE line, because that is what
+  // the supplier makes: one bag that fits any member. Five lines would have
+  // them packing five versions of an identical bag.
+  type Pool = {
+    name: string; kits: number; onHand: number; made: number; onOrder: number; velocity: number;
+    members: string[];
+    // The hungriest member decides each colour. A pooled bag has to satisfy
+    // whichever design needs the most, so a per-design figure would send some
+    // bags out short — Main Street wants 31.5yd of 909 where Comm Ave wants
+    // 28.1, and one bag serves either.
+    yards: Map<string, number>;
+  };
+  const pools = new Map<string, Pool>();
+
   for (const d of designs) {
     const onHand = d.canvasPrinted + (d.marketCanvasPrinted || 0) + (d.canvasAndover || 0);
     // A design sharing a kit pool gets its EVEN SHARE here, not the whole
@@ -107,16 +121,41 @@ async function main() {
     // reaches the supplier as "order 4.33 kits".
     const kits = Math.max(0, Math.round(Math.round(projected * ATTACH) - made));
     if (kits <= 0) continue;
-    orderRows.push([d.name, onHand, Math.round(made * 10) / 10, onOrder, Math.round(velocity * 100) / 100, kits]);
-    totalKits += kits;
 
     const grid: (string | null)[][] = JSON.parse(pako.inflate(Buffer.from(d.pixelData), { to: "string" }));
     const usage = calculateYarnUsage(countStitches(grid), 18 as MeshCount, (d.stitchType as StitchType) || "continental", d.bufferPercent ?? 20);
+
+    if (d.kitGroupId && d.kitGroup) {
+      const key = d.kitGroup.name;
+      const p = pools.get(key) ?? { name: key, kits: 0, onHand: 0, made: 0, onOrder: 0, velocity: 0, members: [], yards: new Map() };
+      p.kits += kits;
+      p.onHand += onHand;       // each member's own canvas; only the bag is shared
+      p.made += made;           // the shares add back up to the pool
+      p.onOrder += onOrder;
+      p.velocity += velocity;
+      p.members.push(d.name);
+      for (const u of usage) p.yards.set(u.dmcNumber, Math.max(p.yards.get(u.dmcNumber) ?? 0, u.withBuffer));
+      pools.set(key, p);
+      continue;
+    }
+
+    orderRows.push([d.name, onHand, Math.round(made * 10) / 10, onOrder, Math.round(velocity * 100) / 100, kits]);
+    totalKits += kits;
     for (const u of usage) {
       const yPerKit = Math.round(u.withBuffer * 10) / 10;
       perKit.push([d.name, u.dmcNumber, getDmcColorByNumber(u.dmcNumber)?.name ?? "Unknown", yPerKit]);
       byColor.set(u.dmcNumber, (byColor.get(u.dmcNumber) || 0) + u.withBuffer * kits);
     }
+  }
+
+  for (const p of pools.values()) {
+    orderRows.push([p.name, p.onHand, Math.round(p.made * 10) / 10, p.onOrder, Math.round(p.velocity * 100) / 100, p.kits]);
+    totalKits += p.kits;
+    for (const [dmc, yd] of p.yards) {
+      perKit.push([p.name, dmc, getDmcColorByNumber(dmc)?.name ?? "Unknown", Math.round(yd * 10) / 10]);
+      byColor.set(dmc, (byColor.get(dmc) || 0) + yd * p.kits);
+    }
+    console.log(`pooled: ${p.name} = ${p.kits} bags for ${p.members.join(", ")}`);
   }
 
   const threadRows: (string | number)[][] = [["dmc", "color", "total_yards"]];
