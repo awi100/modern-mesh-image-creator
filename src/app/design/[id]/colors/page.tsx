@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { adjustColorForPrint, hexToHsl, hslToHex, exportPrintOrderPdf } from "@/lib/pdf-export";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { PrintColorHistory } from "@/components/PrintColorHistory";
 
 interface ColorInfo {
   dmcNumber: string;
@@ -42,6 +43,9 @@ export default function ColorSwapPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);
+  // Bumped when something outside the history panel changes a revision, so
+  // the panel reloads rather than showing a list that is one run behind.
+  const [historyKey, setHistoryKey] = useState(0);
 
   // Persist print color overrides. Returns true only if the server actually
   // saved — previously the result was ignored, so a failed save (e.g. an
@@ -200,6 +204,14 @@ export default function ColorSwapPage() {
         designName: design.name.replace(/ \(Print\)$/, ""),
         colorOverrides: Object.keys(overrides).length > 0 ? overrides : null,
       });
+      // Exporting the print order IS the print run, so record what went out.
+      // Deliberately not awaited before the PDF: a history write failing must
+      // not cost someone the file they asked for.
+      fetch(`/api/designs/${designId}/print-colors`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "print", note: "Print order PDF exported" }),
+      }).then(() => setHistoryKey((k) => k + 1)).catch(() => {});
     } catch (err) {
       console.error("Export error:", err);
     }
@@ -426,6 +438,13 @@ export default function ColorSwapPage() {
               </div>
             </div>
           </div>
+
+        <PrintColorHistory
+          key={historyKey}
+          designId={designId}
+          currentOverrides={overrides}
+          onRestore={(next) => setOverrides(next)}
+        />
         </div>
       </div>
   );

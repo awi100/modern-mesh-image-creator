@@ -65,6 +65,38 @@ model KitGroup {
   @@map("kit_groups")
 }
 
+/// What the print colors were, at a point in time.
+///
+/// Print colors drift: each reorder nudges a few hexes to make the printed
+/// canvas a little truer. Without a record, the previous mix is overwritten the
+/// moment someone moves a slider, so there is no way to tell whether this run
+/// is better or worse than the last — or to go back.
+///
+/// Append-only. A revision is never edited, and restoring one writes its values
+/// forward as the current setting rather than deleting anything after it.
+model PrintColorRevision {
+  id       String @id @default(cuid())
+  designId String
+  design   Design @relation(fields: [designId], references: [id], onDelete: Cascade)
+
+  /// Snapshot of printColorOverrides as it stood: { "209": "#9070C8" }.
+  /// An empty object is meaningful — it records "no adjustments at all".
+  overrides String
+
+  /// "baseline"  — captured automatically before the first edit, so whatever
+  ///               was in use before anyone touched it is never lost
+  /// "print"     — taken when the print order PDF was exported
+  /// "manual"    — someone pressed save, usually with a note
+  /// "restore"   — an earlier revision was brought back
+  source String  @default("manual")
+  note   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([designId, createdAt])
+  @@map("print_color_revisions")
+}
+
 model Folder {
   id        String   @id @default(cuid())
   name      String
@@ -201,7 +233,12 @@ model Design {
   // Print color hex overrides (for print versions only)
   // Format: JSON object { "209": "#9070C8", "310": "#333333" }
   // Maps DMC numbers to adjusted hex values for printer compensation
+  //
+  // This is only ever the CURRENT setting. What was sent to the printer last
+  // time lives in printColorRevisions, because colors get nudged at every
+  // reorder and the previous mix is the thing you want to compare against.
   printColorOverrides String?
+  printColorRevisions PrintColorRevision[]
 
   // Stock alert exclusion
   excludeFromStockAlerts Boolean @default(false)

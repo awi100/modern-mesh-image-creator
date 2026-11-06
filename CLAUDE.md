@@ -160,6 +160,26 @@ src/
   - Groups by DMC color and rounded length (whole yards only)
   - Shows which designs share same bobbin requirements
 
+### Print colour history
+
+`Design.printColorOverrides` is only ever the CURRENT print-colour mix. What was
+sent to the printer previously lives in `PrintColorRevision` (append-only), so a
+reorder can be compared with the last run instead of silently overwriting it.
+
+- A **baseline** revision is captured automatically the first time anyone edits
+  a design's colours, recording what was in use beforehand.
+- Exporting the print-order PDF records a **print** revision — that export is
+  the print run.
+- "Save these colours" on the colours page records a **manual** revision with a
+  note.
+- Restoring writes the old values forward as a **restore** revision; nothing is
+  ever deleted, because the record of what actually went to a printer should
+  outlive being superseded.
+
+Identical consecutive snapshots are skipped (`recordRevision`), which matters
+because the colours page auto-saves on a debounce — otherwise every pause while
+dragging a slider would leave its own entry. Logic in `src/lib/print-colors.ts`.
+
 ### Where a sale deducts from
 
 An order draws on its own bucket first, then falls back to **Andover** bulk:

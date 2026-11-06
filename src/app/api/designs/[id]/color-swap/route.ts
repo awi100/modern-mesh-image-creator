@@ -4,6 +4,7 @@ import { isAuthenticated } from "@/lib/session";
 import { countStitchesByColor } from "@/lib/color-utils";
 import { calculateYarnUsage, MeshCount, getKitSkeinCount } from "@/lib/yarn-calculator";
 import pako from "pako";
+import { ensureBaseline, parseOverrides } from "@/lib/print-colors";
 
 // PUT /api/designs/[id]/color-swap - Save print color hex overrides
 export async function PUT(
@@ -25,6 +26,15 @@ export async function PUT(
     if (!design.printVersionOf) {
       return NextResponse.json({ error: "Can only set overrides on print versions" }, { status: 400 });
     }
+
+    // Capture what the colours were BEFORE this edit, the first time one
+    // happens. Without it the oldest state a design can show is one someone has
+    // already changed — losing exactly the "what was it last time" that the
+    // history exists to answer.
+    const before = await prisma.design.findUnique({
+      where: { id }, select: { printColorOverrides: true },
+    });
+    await ensureBaseline(prisma, id, parseOverrides(before?.printColorOverrides));
 
     await prisma.design.update({
       where: { id },
