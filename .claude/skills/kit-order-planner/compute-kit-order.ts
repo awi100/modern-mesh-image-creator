@@ -81,9 +81,12 @@ async function main() {
     if (onHand + made + onOrder === 0) continue;
     const velocity = (sold.get(d.id) || 0) / (WINDOW_DAYS / 7);
     const projected = Math.max(0, onHand - Math.round(velocity * LEAD_WEEKS)) + made + onOrder;
-    const kits = Math.max(0, Math.round(projected * ATTACH) - made);
+    // Rounded at the end, not before: `made` is fractional for a design in a
+    // shared kit pool (its even share of the pool), and an unrounded count
+    // reaches the supplier as "order 4.33 kits".
+    const kits = Math.max(0, Math.round(Math.round(projected * ATTACH) - made));
     if (kits <= 0) continue;
-    orderRows.push([d.name, onHand, made, onOrder, Math.round(velocity * 100) / 100, kits]);
+    orderRows.push([d.name, onHand, Math.round(made * 10) / 10, onOrder, Math.round(velocity * 100) / 100, kits]);
     totalKits += kits;
 
     const grid: (string | null)[][] = JSON.parse(pako.inflate(Buffer.from(d.pixelData), { to: "string" }));
