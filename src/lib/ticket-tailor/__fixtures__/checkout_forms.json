@@ -1,5 +1,5 @@
 {
-  "_note": "GET /v1/checkout_forms \u2014 checkout_form_elements are bare ID strings and there is NO /checkout_form_elements endpoint (404), so question text and the option list can only be read off issued tickets.",
+  "_note": "GET /v1/checkout_forms \u2014 checkout_form_elements are bare ID strings and there is NO /checkout_form_elements endpoint (404), so question text and the option list are only observable from answered tickets.",
   "data": [
     {
       "object": "checkout_form",

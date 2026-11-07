@@ -1,5 +1,5 @@
 {
-  "_note": "GET /v1/events?limit=100 \u2014 all 5 events. Event/venue names are business data, not PII, so kept.",
+  "_note": "GET /v1/events?limit=100 \u2014 all 5 events. Event and venue names are business data, not PII, so kept verbatim.",
   "data": [
     {
       "object": "event",
@@ -28,7 +28,7 @@
         "thumbnail": "https://uploads.tickettailorassets.com/c_crop,dpr_1.0,h_500,q_100,w_500,x_0,y_0/c_scale,h_250,q_85,w_250/v1/production/userfiles/shv8xygdzqtlavsu0vgr.jpg?_a=BAAHWXDQ"
       },
       "max_tickets_sold_per_occurrence": null,
-      "name": "Riley Moss",
+      "name": "Modern Mesh Sip and Stitch",
       "online_event": "false",
       "online_link": null,
       "override_id": null,
@@ -43,7 +43,7 @@
           "lead_time_before_event": null,
           "max_order_value": null,
           "min_order_value": null,
-          "name": "Alex Reed",
+          "name": null,
           "paypal_pay_later_enabled": "false",
           "type": "stripe"
         }
@@ -79,7 +79,7 @@
           "hide_when_sold_out": "false",
           "max_per_order": 20,
           "min_per_order": 1,
-          "name": "Jordan Frost",
+          "name": "General Admission",
           "override_id": null,
           "price": 6500,
           "quantity": 0,
@@ -110,7 +110,7 @@
       "url": "https://www.tickettailor.com/events/modernmeshco/2368390",
       "venue": {
         "country": "US",
-        "name": "Riley Moss",
+        "name": "Loco Taqueria and Oyster Bar South Boston",
         "postal_code": "02118"
       },
       "voucher_ids": [],
@@ -146,7 +146,7 @@
         "thumbnail": null
       },
       "max_tickets_sold_per_occurrence": null,
-      "name": "Alex Vance",
+      "name": "Modern Mesh x Publico Sip and Stitch",
       "online_event": "false",
       "online_link": null,
       "override_id": null,
@@ -161,7 +161,7 @@
           "lead_time_before_event": null,
           "max_order_value": null,
           "min_order_value": null,
-          "name": "Alex Reed",
+          "name": null,
           "paypal_pay_later_enabled": "false",
           "type": "stripe"
         }
@@ -197,7 +197,7 @@
           "hide_when_sold_out": "false",
           "max_per_order": 20,
           "min_per_order": 1,
-          "name": "Avery Poe",
+          "name": "General Admission",
           "override_id": null,
           "price": 6500,
           "quantity": 0,
@@ -228,7 +228,7 @@
       "url": "https://www.tickettailor.com/events/modernmeshco/2413702",
       "venue": {
         "country": "US",
-        "name": "Alex Vance",
+        "name": "Publico",
         "postal_code": "02118"
       },
       "voucher_ids": [],
@@ -264,7 +264,7 @@
         "thumbnail": "https://uploads.tickettailorassets.com/c_crop,dpr_1.0,h_500,q_100,w_500,x_0,y_0/c_scale,h_250,q_85,w_250/v1/production/userfiles/ndecqygxlnfu06gv4vf9.jpg?_a=BAAHWXDQ"
       },
       "max_tickets_sold_per_occurrence": null,
-      "name": "Jordan Hale",
+      "name": "Modern Mesh x Glass House Sip and Stitch",
       "online_event": "false",
       "online_link": null,
       "override_id": null,
@@ -279,7 +279,7 @@
           "lead_time_before_event": null,
           "max_order_value": null,
           "min_order_value": null,
-          "name": "Alex Reed",
+          "name": null,
           "paypal_pay_later_enabled": "false",
           "type": "stripe"
         }
@@ -315,7 +315,7 @@
           "hide_when_sold_out": "false",
           "max_per_order": 20,
           "min_per_order": 1,
-          "name": "Casey Frost",
+          "name": "General Admission",
           "override_id": null,
           "price": 7000,
           "quantity": 1,
@@ -346,7 +346,7 @@
       "url": "https://www.tickettailor.com/events/modernmeshco/2462054",
       "venue": {
         "country": "US",
-        "name": "Jordan Hale",
+        "name": "Glass House",
         "postal_code": "02118"
       },
       "voucher_ids": [],
@@ -382,7 +382,7 @@
         "thumbnail": "https://uploads.tickettailorassets.com/c_crop,dpr_1.0,h_500,q_100,w_500,x_0,y_0/c_scale,h_250,q_85,w_250/v1/production/userfiles/be9vc5gv1pjizcx2ufrs.jpg?_a=BAAHWXDQ"
       },
       "max_tickets_sold_per_occurrence": null,
-      "name": "Alex Vance",
+      "name": "Modern Mesh x Aeronaut Brewing Sip and Stitch",
       "online_event": "false",
       "online_link": null,
       "override_id": null,
@@ -397,7 +397,7 @@
           "lead_time_before_event": null,
           "max_order_value": null,
           "min_order_value": null,
-          "name": "Alex Reed",
+          "name": null,
           "paypal_pay_later_enabled": "false",
           "type": "stripe"
         }
@@ -433,7 +433,7 @@
           "hide_when_sold_out": "false",
           "max_per_order": 20,
           "min_per_order": 1,
-          "name": "Morgan Lane",
+          "name": "General Admission",
           "override_id": null,
           "price": 7000,
           "quantity": 23,
@@ -464,7 +464,7 @@
       "url": "https://www.tickettailor.com/events/modernmeshco/2496855",
       "venue": {
         "country": "US",
-        "name": "Alex Vance",
+        "name": "Aeronaut Brewing",
         "postal_code": "02118"
       },
       "voucher_ids": [],
@@ -500,7 +500,7 @@
         "thumbnail": "https://uploads.tickettailorassets.com/c_crop,dpr_1.0,h_500,q_100,w_500,x_0,y_0/c_scale,h_250,q_85,w_250/v1/production/userfiles/xqbyo3nq9uudbht2ij0w.jpg?_a=BAAHWXDQ"
       },
       "max_tickets_sold_per_occurrence": null,
-      "name": "Harper Roe",
+      "name": "Modern Mesh x Broken Records Sip and Stitch",
       "online_event": "false",
       "online_link": null,
       "override_id": null,
@@ -515,7 +515,7 @@
           "lead_time_before_event": null,
           "max_order_value": null,
           "min_order_value": null,
-          "name": "Alex Reed",
+          "name": null,
           "paypal_pay_later_enabled": "false",
           "type": "stripe"
         }
@@ -551,7 +551,7 @@
           "hide_when_sold_out": "false",
           "max_per_order": 20,
           "min_per_order": 1,
-          "name": "Jordan Hale",
+          "name": "General Admission",
           "override_id": null,
           "price": 7000,
           "quantity": 60,
@@ -582,7 +582,7 @@
       "url": "https://www.tickettailor.com/events/modernmeshco/2496865",
       "venue": {
         "country": "US",
-        "name": "Harper Roe",
+        "name": "Broken Records",
         "postal_code": "02118"
       },
       "voucher_ids": [],
