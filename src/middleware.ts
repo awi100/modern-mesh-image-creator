@@ -7,6 +7,7 @@ const publicPaths = [
   "/api/auth/login",
   "/api/auth/logout",
   "/api/shopify/webhooks", // Shopify webhooks (authenticated via HMAC)
+  "/api/ticket-tailor/webhooks", // Ticket Tailor webhooks (authenticated via HMAC)
 ];
 
 export function middleware(request: NextRequest) {
