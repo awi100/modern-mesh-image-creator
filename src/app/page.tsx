@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import NewDesignDialog from "@/components/NewDesignDialog";
+import SectionNav, { SECTION_LINKS } from "@/components/SectionNav";
 import { meshBadgeClassDark } from "@/lib/mesh-badge";
 import BatchActionBar from "@/components/BatchActionBar";
 import ColorSwapDialog from "@/components/ColorSwapDialog";
@@ -111,6 +112,13 @@ function buildDesignsUrl(
   if (searchQuery) params.set("search", searchQuery);
   return `/api/designs?${params.toString()}`;
 }
+
+/** The shared sections minus Home — this menu only appears on the home page —
+ *  plus the one entry that belongs nowhere else. */
+const MOBILE_SECTIONS = [
+  ...SECTION_LINKS.filter((x) => x.href !== "/"),
+  { href: "/custom-design", label: "From Photo" },
+];
 
 export default function HomePage() {
   const router = useRouter();
@@ -1431,23 +1439,12 @@ export default function HomePage() {
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3 overflow-x-auto flex-1 justify-end">
             {/* Nav links — hidden on mobile and iPad portrait; shown at lg+
                 where there's room without horizontal scrolling. */}
-            <nav className="hidden lg:flex items-center gap-2">
-              <Link href="/kits" className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all text-sm">
-                Kits
-              </Link>
-              <Link href="/orders" className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all text-sm">
-                Orders
-              </Link>
-              <Link href="/analytics" className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all text-sm">
-                Analytics
-              </Link>
-              <Link href="/inventory" className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all text-sm">
-                Inventory
-              </Link>
-              <Link href="/finishing" className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all text-sm">
-                Finishing
-              </Link>
-            </nav>
+            {/* One nav definition, shared with every other page. This was a second
+                hardcoded list that drifted from SectionNav — a section could be added
+                there and stay invisible from the page you actually start on. */}
+            <div className="hidden lg:flex">
+              <SectionNav />
+            </div>
 
             {/* Mobile nav menu button — also visible on iPad portrait
                 since the full nav links don't fit until lg+. */}
@@ -1543,12 +1540,17 @@ export default function HomePage() {
               aria-hidden="true"
             />
             <div className="absolute right-3 md:right-4 top-full mt-1 w-48 bg-white dark:bg-slate-700 rounded-lg shadow-xl border border-slate-200 dark:border-slate-600 py-1 z-50">
-              <Link href="/kits" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Kits</Link>
-              <Link href="/orders" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Orders</Link>
-              <Link href="/analytics" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Analytics</Link>
-              <Link href="/inventory" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Inventory</Link>
-              <Link href="/finishing" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>Finishing</Link>
-              <Link href="/custom-design" className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => setShowMobileNav(false)}>From Photo</Link>
+              {/* The same sections as the desktop row, from the same list. */}
+              {MOBILE_SECTIONS.map((x) => (
+                <Link
+                  key={x.href}
+                  href={x.href}
+                  className="block px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600"
+                  onClick={() => setShowMobileNav(false)}
+                >
+                  {x.label}
+                </Link>
+              ))}
             </div>
           </div>
         )}

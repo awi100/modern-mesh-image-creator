@@ -160,6 +160,34 @@ src/
   - Groups by DMC color and rounded length (whole yards only)
   - Shows which designs share same bobbin requirements
 
+### Navigation
+
+`src/components/SectionNav.tsx` is the **only** list of top-level sections, and
+every page renders it — including the home page, which previously had two more
+hardcoded copies that drifted. Add a section there and nowhere else.
+
+```
+Home · Orders · Events · Inventory · Kits · Market · Tools · Analytics
+```
+
+- **Market** links to `/inventory?tab=market&view=pack`, because the market view
+  is a tab on the Inventory page rather than its own route. `SectionNav` reads
+  the query string to tell Market from Inventory, which is why it is wrapped in
+  `Suspense` — `useSearchParams` otherwise forces every page out of static
+  rendering and fails the build.
+- **`/tools`** is the hub for everything used occasionally: Reorder, Stock
+  Alerts, Pricing, Velocity, Sales Log, Unmatched Sales, Shopify sync, Andover
+  Pickup, Bundles, Canvas mappings, Finishing, Help. `ALSO_UNDER` in `SectionNav`
+  keeps the Tools tab lit on all of them. It was `/inventory/tools`, which still
+  redirects.
+- **Finishing is not top-level** — two records, both from April 2026. It lives
+  on `/tools`.
+- A loading state must still render the nav. Arriving on a bare spinner with no
+  nav leaves the back button as the only way out, which is what `/kits` and
+  `/analytics` used to do.
+- `/market-prep`, `/supplies` and `/inventory/restock` are **redirect stubs**
+  forwarding to Inventory tabs. Don't list them in nav as if they were pages.
+
 ### Print colour history
 
 `Design.printColorOverrides` is only ever the CURRENT print-colour mix. What was

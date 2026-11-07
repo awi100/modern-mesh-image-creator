@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { mutApi } from "@/lib/mut-api";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import SectionNav from "@/components/SectionNav";
 
 interface DesignVelocity {
   id: string;
@@ -117,6 +118,7 @@ export default function VelocityPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Header */}
       <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 sticky top-0 z-40 safe-area-top">
+        <div className="max-w-5xl mx-auto px-3 md:px-4 pt-2"><SectionNav /></div>
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="text-rose-600 dark:text-rose-400 hover:text-rose-500 dark:hover:text-rose-300">
