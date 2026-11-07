@@ -200,6 +200,11 @@ model Design {
   kitGroupId String?
   kitGroup   KitGroup? @relation(fields: [kitGroupId], references: [id], onDelete: SetNull)
 
+  // Ticket Tailor sip-and-stitch picks that resolve to this design.
+  ttResolvedTickets TicketTailorTicket[]        @relation("TtResolved")
+  ttOverrideTickets TicketTailorTicket[]        @relation("TtOverride")
+  ttCanvasMappings  TicketTailorCanvasMapping[]
+
   // How many of this design we want on hand in Boston (Home + Market tote).
   // Drives the Andover pickup suggestion and the low-stock flag. NULL means
   // "use the house default" (stock-targets.RESTOCK_TARGET), so changing the
@@ -860,4 +865,274 @@ model CostLayer {
   @@index([kind, supplyId, receivedAt])
   @@index([threadKey, receivedAt])
   @@map("cost_layers")
+}
+
+/// ---------------------------------------------------------------------------
+/// Ticket Tailor — sip-and-stitch events
+///
+/// Attendees buy a ticket on Ticket Tailor and pick a canvas during checkout.
+/// Those picks used to be deducted from stock by hand, which is a large part of
+/// why 405 units across 15 active 18ct designs reconcile only as "unaccounted".
+///
+/// Two rules shape every model below:
+///
+///   1. SYNCING NEVER MOVES STOCK. Webhooks and the sync button only mirror
+///      Ticket Tailor and resolve picks. Stock moves solely when someone presses
+///      Confirm on an event, which mirrors Shopify deducting at fulfilment
+///      rather than at order time — and means a ticket bought weeks early and
+///      later cancelled never touched a count.
+///   2. Ticket Tailor is READ-ONLY to us. Nothing here is ever pushed back.
+/// ---------------------------------------------------------------------------
+
+model TicketTailorEvent {
+  id String @id @default(cuid())
+
+  /// Ticket Tailor's own ids. Each event here has its OWN series id (series are
+  /// 1:1 with events in this box office, not used for recurrence), so
+  /// ttEventId is the key to filter and store against; the series id is kept
+  /// only because /checkout_forms is keyed to it.
+  ttEventId       String  @unique
+  ttEventSeriesId String?
+
+  name      String
+  venueName String?
+  startsAt  DateTime
+  endsAt    DateTime?
+  /// The event's own timezone string from Ticket Tailor, e.g.
+  /// "America/New_York". Kept because the Eastern day is what decides the
+  /// PosEvent row and the POS-overlap comparison.
+  timezone  String?
+  /// Ticket Tailor's status: "draft" | "published" | "close_sales".
+  ttStatus  String?
+
+  /// Ours, not theirs: "open" | "historical" | "confirmed".
+  ///   historical — started before this feature shipped, so its canvases were
+  ///                already deducted by hand or through POS. Viewable, but
+  ///                confirming would double-count, hence the explicit opt-in.
+  state                  String  @default("open")
+  allowHistoricalConfirm Boolean @default(false)
+
+  /// Set when someone confirms, along with the options they chose, so an undo
+  /// and any later per-ticket deduction use the same settings.
+  confirmedAt       DateTime?
+  confirmLocation   String? // "home" | "market"
+  /// Every sip-and-stitch canvas goes out kitted, so this is true in practice.
+  /// Kept as a field rather than assumed, because a future event might sell a
+  /// bare canvas and silently deducting a kit that was never handed over would
+  /// be worse than an explicit toggle.
+  confirmDeductKits Boolean   @default(true)
+
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  orders  TicketTailorOrder[]
+  tickets TicketTailorTicket[]
+
+  @@index([startsAt])
+  @@index([state])
+  @@map("ticket_tailor_events")
+}
+
+model TicketTailorOrder {
+  id        String @id @default(cuid())
+  ttOrderId String @unique
+
+  ttEventId String
+  event     TicketTailorEvent @relation(fields: [ttEventId], references: [ttEventId], onDelete: Cascade)
+
+  /// "completed" was the only value seen across the sampled orders, and no
+  /// cancelled or refunded order has been observed yet — so this is recorded
+  /// but NOT trusted as the authority on whether a ticket counts. The per-ticket
+  /// voidedAt / ttStatus is (see TicketTailorTicket).
+  status String?
+
+  buyerName  String?
+  buyerEmail String?
+
+  /// Minor units, as Ticket Tailor sends them: total 6500 is $65.00, with
+  /// currency.base_multiplier = 100. Stored for display on the event page only;
+  /// it is deliberately NOT fed into costing, which is purchase-side and has no
+  /// revenue concept anywhere in the app.
+  totalCents     Int     @default(0)
+  totalPaidCents Int     @default(0)
+  refundCents    Int     @default(0)
+  currency       String? // "usd"
+
+  ttCreatedAt DateTime?
+  /// The payload verbatim, so a field we did not think to model is recoverable
+  /// without re-fetching — and so a shape change is diagnosable after the fact.
+  raw         Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tickets TicketTailorTicket[]
+
+  @@index([ttEventId])
+  @@map("ticket_tailor_orders")
+}
+
+model TicketTailorTicket {
+  id         String @id @default(cuid())
+  ttTicketId String @unique
+
+  ttOrderId String
+  order     TicketTailorOrder @relation(fields: [ttOrderId], references: [ttOrderId], onDelete: Cascade)
+  ttEventId String
+  event     TicketTailorEvent @relation(fields: [ttEventId], references: [ttEventId], onDelete: Cascade)
+
+  attendeeName   String?
+  attendeeEmail  String?
+  ticketTypeName String? // "General Admission" — one type per event so far
+  ttTicketTypeId String?
+
+  /// The answer verbatim, e.g. "Comm Ave Street Sign". Kept raw and never
+  /// overwritten: the mapping may be corrected later, and the original is the
+  /// only evidence of what the attendee actually chose.
+  ///
+  /// An API key created without customer-data access returns "****" here
+  /// instead of the answer. That must be treated as a loud failure, not an
+  /// unknown canvas — every ticket would otherwise resolve as unmapped.
+  canvasAnswer String?
+  /// Normalised answer (lowercased, whitespace collapsed) — the join key to
+  /// TicketTailorCanvasMapping. "New England vs Everyone" and
+  /// "New England Vs Everyone" are the same pick and must not become two rows.
+  answerKey    String?
+
+  /// Resolution, recomputed on every sync and whenever a mapping changes.
+  /// "override" | "mapped" | "ignored" | "unmapped" | "no_answer"
+  resolveStatus    String  @default("no_answer")
+  resolvedDesignId String?
+  resolvedDesign   Design? @relation("TtResolved", fields: [resolvedDesignId], references: [id], onDelete: SetNull)
+  resolvedNeedsKit Boolean @default(true)
+
+  /// Someone swapped canvases at the table. The deduction follows the override;
+  /// canvasAnswer still shows what was picked at checkout.
+  overrideDesignId String?
+  overrideDesign   Design? @relation("TtOverride", fields: [overrideDesignId], references: [id], onDelete: SetNull)
+  overrideNote     String?
+
+  /// Ticket Tailor's per-ticket signals, and the ones we actually trust.
+  ttStatus String? // "valid" | …
+  voidedAt DateTime?
+
+  listedPriceCents Int?
+  ttCreatedAt      DateTime?
+  ttUpdatedAt      DateTime?
+  raw              Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ttEventId])
+  @@index([ttOrderId])
+  @@index([answerKey])
+  @@index([resolveStatus])
+  @@map("ticket_tailor_tickets")
+}
+
+/// Which design a checkout answer means.
+///
+/// An explicit table rather than name matching. 219 of 226 answered tickets do
+/// match a design name exactly once lowercased, but the misses are the whole
+/// point: "Comm Ave Street Sign" is nearest to "Comm Ave Street Sign (14ct)",
+/// an ARCHIVED 14ct design, so a fuzzy matcher maps a live pick onto a retired
+/// row. "Shamrock" and "Shamrock Intro Kit" are also both real, different
+/// designs that any prefix matching would collapse.
+///
+/// Answers span 13ct intro kits and 18ct canvases alike, so this must NOT be
+/// restricted by meshCount.
+///
+/// The option list cannot be seeded from Ticket Tailor: /checkout_forms returns
+/// element IDs and there is no endpoint to expand them, so the only way to
+/// learn an option is to see it answered. Unmapped-answer triage is permanent,
+/// not a one-off migration.
+model TicketTailorCanvasMapping {
+  id String @id @default(cuid())
+
+  /// Normalised answer — lowercased, whitespace collapsed.
+  answerKey  String @unique
+  /// The answer as first seen, for display.
+  answerText String
+
+  /// null means "this answer is not a canvas — ignore it", which is different
+  /// from "we have not mapped it yet" (no row at all).
+  designId String?
+  design   Design? @relation(fields: [designId], references: [id], onDelete: SetNull)
+
+  needsKit Boolean @default(true)
+  note     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([designId])
+  @@map("ticket_tailor_canvas_mappings")
+}
+
+/// One row per ticket per confirmation — the audit trail a reversal replays
+/// from, mirroring OrderDeduction for Shopify.
+///
+/// designId/designName are denormalised with no relation, exactly as
+/// OrderDeduction does it: the record of what was deducted should survive the
+/// design being renamed or soft-deleted.
+model TicketTailorDeduction {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  ttTicketId String
+  ttEventId  String
+
+  designId   String?
+  designName String?
+
+  /// Which bucket the draw came from: "home" | "market". Andover is the
+  /// fallback within that draw, recorded separately below.
+  location String
+
+  kitsRequested     Int @default(0)
+  kitsDeducted      Int @default(0) // < requested means it clamped (ran out)
+  canvasRequested   Int @default(0)
+  canvasDeducted    Int @default(0)
+  /// How much came out of Andover bulk rather than the chosen bucket, so a
+  /// reversal credits each unit back where it came from instead of moving stock
+  /// between two real places on paper.
+  canvasFromAndover Int @default(0)
+  kitsFromAndover   Int @default(0)
+
+  /// The owners ticked "already deducted via POS, skip" for this design. The
+  /// row is still written, with zero deducted, so the decision is on the record
+  /// rather than invisible.
+  skippedForPos Boolean   @default(false)
+  reversedAt    DateTime?
+
+  @@index([ttEventId])
+  @@index([ttTicketId])
+  @@index([designId])
+  @@map("ticket_tailor_deductions")
+}
+
+/// Webhook deliveries, keyed on Ticket Tailor's own envelope id.
+///
+/// Ticket Tailor retries 22 times with exponential backoff over 72 hours and
+/// may deliver the same event more than once, so the envelope id is the
+/// idempotency key: a repeat delivery of something already processed returns
+/// 200 without doing the work again.
+model TicketTailorWebhookDelivery {
+  /// Ticket Tailor's envelope `id`, used directly as the primary key so a
+  /// duplicate delivery collides on insert.
+  id String @id
+
+  event       String
+  resourceUrl String?
+  ttEventId   String?
+
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  error       String?
+
+  @@index([receivedAt])
+  @@index([ttEventId])
+  @@map("ticket_tailor_webhook_deliveries")
 }
