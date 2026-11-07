@@ -750,7 +750,7 @@ Two more things the match proves:
 
 - **Money is in minor units** — `total: 6500` is $65.00. Divide by `currency.base_multiplier`.
 - **The event id is at `event_summary.id`**, not a top-level `event_id`.
-- `status` was `"completed"` on all five sampled. **A cancelled or refunded order was not observed**, so the cancellation representation is still unverified: `refund_amount` and `credited_out_amount` exist and were `0`, and `issued_ticket.voided_at` / `status` are the per-ticket signals. **Nothing may rely on an order status value other than treating `"completed"` as good until a real cancellation is seen.** Prefer the per-ticket `voided_at` and `status != "valid"` as the authority.
+- `status` was `"completed"` on all five sampled, but a **full sync later showed 9 cancelled orders of 193**, 8 of them fully refunded — so the 5-order sample was simply too small. A cancelled order carries `status: "cancelled"`, and **every one of its tickets gets `ttStatus: "voided"` AND `voidedAt` set**, so the two signals agree. `refund_amount` is NOT reliable: one cancelled order had `refund_amount: 0`. Earlier text in this section calling cancellation unverified is superseded: `refund_amount` and `credited_out_amount` exist and were `0`, and `issued_ticket.voided_at` / `status` are the per-ticket signals. **Nothing may rely on an order status value other than treating `"completed"` as good until a real cancellation is seen.** Prefer the per-ticket `voided_at` and `status != "valid"` as the authority.
 - `notes`, `status_message`, `referral_tag` and `marketing_opt_in` were all null across the sample.
 
 ### Checkout forms — not usable

@@ -21,7 +21,7 @@ interface Stock {
   kitPool: { name: string | null; members: number } | null;
 }
 interface ToBring { designId: string; designName: string | null; tickets: number; canvas: number; kits: number; stock: Stock | null }
-interface Discrepancy { kind: string; message: string; count?: number }
+interface Discrepancy { kind: string; message: string; count?: number; ttTicketIds?: string[] }
 interface Deduction {
   id: string; ttTicketId: string; designName: string | null; location: string;
   canvasRequested: number; canvasDeducted: number; kitsRequested: number; kitsDeducted: number;
@@ -166,6 +166,28 @@ export default function EventDetailPage() {
     } finally { setBusy(false); }
   };
 
+  /**
+   * Restore or deduct a single ticket.
+   *
+   * Both are per-ticket on purpose. A void after confirmation is NOT restored
+   * automatically: the money came back but the canvas may have gone home with
+   * the attendee, so putting stock back would invent it. Someone has to say.
+   */
+  const ticketStock = async (ttTicketId: string, action: "restore" | "deduct") => {
+    setBusy(true); setError(null); setNote(null);
+    try {
+      const res = await mutApi(`/api/ticket-tailor/tickets/${ttTicketId}/${action}`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Failed (${res.status})`);
+      setNote(action === "restore"
+        ? `Put back ${data.canvas} canvas and ${data.kits} kit${data.kits === 1 ? "" : "s"} of ${data.designName ?? "that design"}.`
+        : `Deducted ${data.canvas} canvas and ${data.kits} kit${data.kits === 1 ? "" : "s"} of ${data.designName ?? "that design"}.`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed");
+    } finally { setBusy(false); }
+  };
+
   const unlock = async () => {
     setBusy(true);
     try {
@@ -228,6 +250,22 @@ export default function EventDetailPage() {
                       className="ml-2 underline text-amber-200 hover:text-white disabled:opacity-50">
                       Allow deduction anyway
                     </button>
+                  )}
+                  {(x.kind === "voided_after_confirm" || x.kind === "override_changed_after_confirm") && (x.ttTicketIds ?? []).map((tid) => (
+                    <button key={tid} onClick={() => ticketStock(tid, "restore")} disabled={busy}
+                      className="ml-2 px-2 py-0.5 rounded bg-amber-900/60 text-amber-100 hover:bg-amber-800 text-xs disabled:opacity-50">
+                      Put this one back
+                    </button>
+                  ))}
+                  {x.kind === "new_ticket_after_confirm" && (
+                    <span className="ml-2 inline-flex flex-wrap gap-1">
+                      {(x.ttTicketIds ?? []).map((tid) => (
+                        <button key={tid} onClick={() => ticketStock(tid, "deduct")} disabled={busy}
+                          className="px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-100 hover:bg-emerald-800 text-xs disabled:opacity-50">
+                          Deduct {d.attendees.find((a) => a.ttTicketId === tid)?.attendeeName ?? tid}
+                        </button>
+                      ))}
+                    </span>
                   )}
                 </li>
               ))}

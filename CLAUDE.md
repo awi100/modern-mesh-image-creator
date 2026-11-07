@@ -160,6 +160,24 @@ src/
   - Groups by DMC color and rounded length (whole yards only)
   - Shows which designs share same bobbin requirements
 
+### Voided and cancelled sip-and-stitch tickets
+
+A cancelled Ticket Tailor order has `status: "cancelled"`, and **every one of
+its tickets gets both `ttStatus: "voided"` and `voidedAt`** — the two agree, and
+either is safe to check. `refund_amount` is NOT: one cancelled order had a
+refund of 0. Of 247 tickets synced, 11 are voided across 9 cancelled orders.
+
+- **Before the event is confirmed**, a voided ticket is simply left out of the
+  plan. There is nothing to undo.
+- **After confirmation**, a void does **not** auto-restore stock. It is reported
+  as a discrepancy with a per-ticket "put this one back" button, because the
+  money came back but the canvas may have gone home with the attendee —
+  restoring automatically would invent stock.
+- A **late signup** after confirmation is reported the same way, with a per-
+  ticket deduct button that reuses the options the event was confirmed with.
+- Both replay or write audit rows, so the Andover split is honoured and pressing
+  twice is refused rather than doubling.
+
 ### Navigation
 
 `src/components/SectionNav.tsx` is the **only** list of top-level sections, and
