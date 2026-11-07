@@ -29,6 +29,9 @@ export interface PlanTicket {
    *  therefore unverified. */
   voided?: boolean;
   orderCancelled?: boolean;
+  /** Deliberately left out — see TicketTailorTicket.excludedAt. Treated like a
+   *  void for the plan, but reported as a decision rather than a problem. */
+  manuallyExcluded?: boolean;
 }
 
 export interface PlanLine {
@@ -85,9 +88,10 @@ export function buildDeductionPlan(tickets: PlanTicket[], opts: PlanOptions): De
   for (const t of tickets) {
     if (t.masked) masked.push(t);
 
-    // A void or a cancelled order takes the ticket out before anything else:
-    // a cancellation before confirmation should simply never have counted.
-    if (t.voided || t.orderCancelled) { excluded.push(t); continue; }
+    // A void, a cancelled order, or a deliberate exclusion takes the ticket
+    // out before anything else: a cancellation before confirmation should
+    // simply never have counted, and an excluded ticket is a closed question.
+    if (t.voided || t.orderCancelled || t.manuallyExcluded) { excluded.push(t); continue; }
 
     if (t.status === "no_answer") { noAnswer.push(t); continue; }
     if (t.status === "ignored") { ignored.push(t); continue; }
@@ -243,9 +247,11 @@ export function eventDiscrepancies(input: DiscrepancyInput): Discrepancy[] {
   const out: Discrepancy[] = [];
   const confirmed = event.state === "confirmed";
   const deducted = new Map(deductions.filter((d) => !d.reversedAt).map((d) => [d.ttTicketId, d]));
-  const live = tickets.filter((t) => !t.voided && !t.orderCancelled);
+  // "Live" means still in play. An excluded ticket is not a problem waiting to
+  // be solved, so it drops out of every check below.
+  const live = tickets.filter((t) => !t.voided && !t.orderCancelled && !t.manuallyExcluded);
 
-  const maskedT = tickets.filter((t) => t.masked);
+  const maskedT = tickets.filter((t) => t.masked && !t.manuallyExcluded);
   if (maskedT.length) {
     out.push({
       kind: "masked_answer",
@@ -285,7 +291,9 @@ export function eventDiscrepancies(input: DiscrepancyInput): Discrepancy[] {
   }
 
   if (confirmed) {
-    const voidedAfter = tickets.filter((t) => (t.voided || t.orderCancelled) && deducted.has(t.ttTicketId));
+    // An excluded ticket that was never deducted raises nothing; one that WAS
+    // deducted still needs flagging, since stock moved for it.
+    const voidedAfter = tickets.filter((t) => (t.voided || t.orderCancelled || t.manuallyExcluded) && deducted.has(t.ttTicketId));
     for (const t of voidedAfter) {
       const d = deducted.get(t.ttTicketId)!;
       out.push({
@@ -293,7 +301,7 @@ export function eventDiscrepancies(input: DiscrepancyInput): Discrepancy[] {
         ttTicketIds: [t.ttTicketId],
         designId: d.designId,
         message:
-          `${t.attendeeName ?? "A ticket"} was ${t.voided ? "voided" : "cancelled"} after this event was confirmed, ` +
+          `${t.attendeeName ?? "A ticket"} was ${t.voided ? "voided" : t.orderCancelled ? "cancelled" : "left out"} after this event was confirmed, ` +
           `but ${plural(d.canvasDeducted, "canvas", "canvases")}${d.kitsDeducted ? ` and ${plural(d.kitsDeducted, "kit")}` : ""} ` +
           `of ${d.designName ?? "that design"} had already been deducted. ` +
           `Restore it only if the canvas came back — it may have gone home with someone.`,

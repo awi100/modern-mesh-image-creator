@@ -51,6 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       masked: !!t.canvasAnswer && /^\*+$/.test(t.canvasAnswer.trim()),
       voided: !!t.voidedAt,
       orderCancelled: ["cancelled", "canceled", "refunded", "voided"].includes(s),
+      manuallyExcluded: !!t.excludedAt,
     };
   });
 

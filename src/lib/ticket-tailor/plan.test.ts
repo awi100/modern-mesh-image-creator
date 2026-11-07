@@ -287,3 +287,71 @@ describe("discrepancies", () => {
     expect(d).toEqual([]);
   });
 });
+
+describe("deliberately excluded tickets", () => {
+  const ev = { ttEventId: "ev_1", name: "Sip & Stitch", state: "open" };
+
+  it("leaves an excluded ticket out of the plan", () => {
+    const p = buildDeductionPlan([
+      t({ ttTicketId: "it_1" }),
+      t({ ttTicketId: "it_2", manuallyExcluded: true }),
+    ], { deductKits: true });
+    expect(p.totalCanvas).toBe(1);
+    expect(p.excluded.map((x) => x.ttTicketId)).toEqual(["it_2"]);
+  });
+
+  it("stops reporting an excluded no-answer ticket", () => {
+    // The Publico case: the canvas question was briefly not required, so 20
+    // tickets have no answer and never will. Once left out, the event should
+    // stop asking.
+    const unanswered = (id: string, excluded: boolean) =>
+      t({ ttTicketId: id, status: "no_answer", designId: null, canvasAnswer: null, manuallyExcluded: excluded });
+
+    const before = eventDiscrepancies({ event: ev, tickets: [unanswered("it_1", false)], deductions: [] });
+    expect(before.find((x) => x.kind === "no_answer")?.count).toBe(1);
+
+    const after = eventDiscrepancies({ event: ev, tickets: [unanswered("it_1", true)], deductions: [] });
+    expect(after).toEqual([]);
+  });
+
+  it("stops reporting an excluded unmapped ticket too", () => {
+    const d = eventDiscrepancies({
+      event: ev,
+      tickets: [t({ ttTicketId: "it_1", status: "unmapped", designId: null, canvasAnswer: "???", manuallyExcluded: true })],
+      deductions: [],
+    });
+    expect(d).toEqual([]);
+  });
+
+  it("still flags an excluded ticket that had already been deducted", () => {
+    // Excluding after the stock moved is not the same as it never counting —
+    // somebody has to decide whether to put it back.
+    const d = eventDiscrepancies({
+      event: { ...ev, state: "confirmed" },
+      tickets: [t({ ttTicketId: "it_1", manuallyExcluded: true, designName: "Fenway Frank" })],
+      deductions: [{
+        ttTicketId: "it_1", designId: "d_fenway", designName: "Fenway Frank",
+        kitsRequested: 1, kitsDeducted: 1, canvasRequested: 1, canvasDeducted: 1,
+        skippedForPos: false, reversedAt: null,
+      }],
+    });
+    const f = d.find((x) => x.kind === "voided_after_confirm")!;
+    expect(f.message).toMatch(/left out/);
+    expect(f.message).toContain("Fenway Frank");
+  });
+
+  it("does not let an exclusion hide a masked answer", () => {
+    // Masking is a key-permission failure. Excluding the ticket is a reasonable
+    // response, but it must not be the way the warning disappears while other
+    // tickets are still affected.
+    const d = eventDiscrepancies({
+      event: ev,
+      tickets: [
+        t({ ttTicketId: "it_1", status: "unmapped", designId: null, masked: true, canvasAnswer: "****", manuallyExcluded: true }),
+        t({ ttTicketId: "it_2", status: "unmapped", designId: null, masked: true, canvasAnswer: "****" }),
+      ],
+      deductions: [],
+    });
+    expect(d.find((x) => x.kind === "masked_answer")?.count).toBe(1);
+  });
+});

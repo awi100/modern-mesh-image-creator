@@ -54,6 +54,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       masked: !!t.canvasAnswer && /^\*+$/.test(t.canvasAnswer.trim()),
       voided: !!t.voidedAt,
       orderCancelled: isCancelled(t.order?.status),
+      manuallyExcluded: !!t.excludedAt,
     };
   });
 
@@ -158,6 +159,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       needsKit: t.resolvedNeedsKit,
       voidedAt: t.voidedAt?.toISOString() ?? null,
       orderCancelled: isCancelled(t.order?.status),
+      excludedAt: t.excludedAt?.toISOString() ?? null,
+      excludedReason: t.excludedReason,
       ticketTypeName: t.ticketTypeName,
       listedPriceCents: t.listedPriceCents,
     })),
@@ -209,6 +212,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const event = await prisma.ticketTailorEvent.findFirst({ where: { OR: [{ id }, { ttEventId: id }] } });
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+
+  /**
+   * Leave out every ticket that has no canvas answer, in one go.
+   *
+   * For an event that is over and cannot be fixed: Publico sold 81 tickets
+   * while the canvas question was briefly not required, so 20 have no answer
+   * and never will. Only touches tickets with NO answer — an unmapped answer is
+   * still a real question, since mapping it helps every future event.
+   */
+  if (body.excludeUnanswered === true) {
+    const reason = typeof body.reason === "string" && body.reason.trim()
+      ? body.reason.trim().slice(0, 500)
+      : "Canvas choice was not required at the time";
+    const result = await prisma.ticketTailorTicket.updateMany({
+      where: { ttEventId: event.ttEventId, resolveStatus: "no_answer", excludedAt: null },
+      data: { excludedAt: new Date(), excludedReason: reason },
+    });
+    return NextResponse.json({ excluded: result.count, reason });
+  }
 
   if (typeof body.allowHistoricalConfirm === "boolean") {
     const updated = await prisma.ticketTailorEvent.update({

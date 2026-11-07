@@ -14,6 +14,7 @@ interface Attendee {
   resolveStatus: string; design: DesignRef | null; overrideDesignId: string | null;
   overrideNote: string | null; needsKit: boolean; voidedAt: string | null;
   orderCancelled: boolean; ticketTypeName: string | null; listedPriceCents: number | null;
+  excludedAt: string | null; excludedReason: string | null;
 }
 interface Stock {
   canvasHome: number; canvasMarket: number; canvasAndover: number;
@@ -188,6 +189,44 @@ export default function EventDetailPage() {
     } finally { setBusy(false); }
   };
 
+  /** Leave every unanswered ticket out, for an event that is over and cannot
+   *  be fixed — the canvas question was not always required. */
+  const excludeUnanswered = async () => {
+    const n = d?.plan.noAnswer ?? 0;
+    if (!confirm(
+      `Leave out ${n} ticket${n === 1 ? "" : "s"} with no canvas answer?\n\n` +
+      `They stay on the attendee list, marked as left out, and this event stops ` +
+      `asking about them. No stock moves either way.`,
+    )) return;
+    setBusy(true); setError(null);
+    try {
+      const res = await mutApi(`/api/ticket-tailor/events/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excludeUnanswered: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setNote(`Left out ${data.excluded} ticket${data.excluded === 1 ? "" : "s"} with no canvas answer.`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed");
+    } finally { setBusy(false); }
+  };
+
+  const setExcluded = async (ttTicketId: string, excluded: boolean) => {
+    setBusy(true); setError(null);
+    try {
+      const res = await mutApi(`/api/ticket-tailor/tickets/${ttTicketId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excluded }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed");
+    } finally { setBusy(false); }
+  };
+
   const unlock = async () => {
     setBusy(true);
     try {
@@ -257,6 +296,12 @@ export default function EventDetailPage() {
                       Put this one back
                     </button>
                   ))}
+                  {x.kind === "no_answer" && (
+                    <button onClick={excludeUnanswered} disabled={busy}
+                      className="ml-2 px-2 py-0.5 rounded bg-amber-900/60 text-amber-100 hover:bg-amber-800 text-xs disabled:opacity-50">
+                      Leave them out
+                    </button>
+                  )}
                   {x.kind === "new_ticket_after_confirm" && (
                     <span className="ml-2 inline-flex flex-wrap gap-1">
                       {(x.ttTicketIds ?? []).map((tid) => (
@@ -359,12 +404,15 @@ export default function EventDetailPage() {
             {d.attendees.map((a) => (
               <div key={a.ttTicketId}
                    className={`flex flex-col sm:flex-row sm:items-center gap-2 py-2 border-b border-slate-700 last:border-0 ${
-                     a.voidedAt || a.orderCancelled ? "opacity-50" : ""}`}>
+                     a.voidedAt || a.orderCancelled || a.excludedAt ? "opacity-50" : ""}`}>
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-sm">
                     {a.attendeeName ?? "(no name)"}
                     {(a.voidedAt || a.orderCancelled) && (
                       <span className="ml-2 text-xs text-slate-400">{a.voidedAt ? "voided" : "order cancelled"}</span>
+                    )}
+                    {a.excludedAt && !a.voidedAt && !a.orderCancelled && (
+                      <span className="ml-2 text-xs text-slate-400" title={a.excludedReason ?? undefined}>left out</span>
                     )}
                   </p>
                   <p className="text-xs text-slate-500">
@@ -383,6 +431,12 @@ export default function EventDetailPage() {
                   {a.overrideDesignId && (
                     <button onClick={() => setOverride(a.ttTicketId, null)} disabled={busy}
                       className="text-xs text-slate-500 hover:text-white disabled:opacity-50">reset</button>
+                  )}
+                  {!a.voidedAt && !a.orderCancelled && (
+                    <button onClick={() => setExcluded(a.ttTicketId, !a.excludedAt)} disabled={busy}
+                      className="text-xs text-slate-500 hover:text-white disabled:opacity-50 whitespace-nowrap">
+                      {a.excludedAt ? "put back" : "leave out"}
+                    </button>
                   )}
                 </div>
               </div>

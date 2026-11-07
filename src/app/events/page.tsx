@@ -150,6 +150,7 @@ function Row({ r }: { r: EventListRow }) {
           {r.masked > 0 && <Stat label="hidden" value={r.masked} tone="text-red-400" />}
           {r.unmapped > 0 && <Stat label="unmapped" value={r.unmapped} tone="text-amber-400" />}
           {r.noAnswer > 0 && <Stat label="no answer" value={r.noAnswer} tone="text-amber-400" />}
+          {r.excluded > 0 && <Stat label="left out" value={r.excluded} tone="text-slate-500" />}
           {r.deducted > 0 && <Stat label="deducted" value={r.deducted} tone="text-emerald-400" />}
         </div>
       </div>

@@ -20,6 +20,7 @@ export interface EventListRow {
   unmapped: number;
   noAnswer: number;
   masked: number;
+  excluded: number;
   deducted: number;
   lastSyncedAt: string | null;
 }
@@ -40,7 +41,7 @@ export async function GET() {
     orderBy: { startsAt: "desc" },
     include: {
       tickets: {
-        select: { resolveStatus: true, voidedAt: true, canvasAnswer: true },
+        select: { resolveStatus: true, voidedAt: true, canvasAnswer: true, excludedAt: true },
       },
     },
   });
@@ -54,6 +55,9 @@ export async function GET() {
 
   const rows: EventListRow[] = events.map((e) => {
     const live = e.tickets.filter((t) => !t.voidedAt);
+    // Excluded tickets are a closed question, so they must not keep an event
+    // reading "needs attention" forever.
+    const open = live.filter((t) => !t.excludedAt);
     return {
       id: e.id,
       ttEventId: e.ttEventId,
@@ -67,10 +71,11 @@ export async function GET() {
       tickets: e.tickets.length,
       liveTickets: live.length,
       voided: e.tickets.length - live.length,
-      unmapped: live.filter((t) => t.resolveStatus === "unmapped").length,
-      noAnswer: live.filter((t) => t.resolveStatus === "no_answer").length,
+      unmapped: open.filter((t) => t.resolveStatus === "unmapped").length,
+      noAnswer: open.filter((t) => t.resolveStatus === "no_answer").length,
       // A masked answer is a key-permission failure, not a mapping gap.
-      masked: live.filter((t) => !!t.canvasAnswer && /^\*+$/.test(t.canvasAnswer.trim())).length,
+      masked: open.filter((t) => !!t.canvasAnswer && /^\*+$/.test(t.canvasAnswer.trim())).length,
+      excluded: live.length - open.length,
       deducted: deductedBy.get(e.ttEventId) ?? 0,
       lastSyncedAt: e.lastSyncedAt?.toISOString() ?? null,
     };

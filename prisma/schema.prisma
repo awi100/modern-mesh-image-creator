@@ -1018,8 +1018,21 @@ model TicketTailorTicket {
   overrideNote     String?
 
   /// Ticket Tailor's per-ticket signals, and the ones we actually trust.
-  ttStatus String? // "valid" | …
+  /// A cancelled order sets BOTH ttStatus "voided" and voidedAt on each of its
+  /// tickets, so either is safe to read. (refund_amount is not — one cancelled
+  /// order recorded a refund of 0.)
+  ttStatus String? // "valid" | "voided"
   voidedAt DateTime?
+
+  /// Deliberately left out of this event's deduction, and no longer reported.
+  ///
+  /// For a ticket whose canvas can never be known: the Publico event sold 81
+  /// tickets while the canvas question was briefly not required, so 20 of them
+  /// have no answer and never will. That is a settled fact rather than an
+  /// outstanding problem, and an event cannot be closed out while the app keeps
+  /// asking about it.
+  excludedAt     DateTime?
+  excludedReason String?
 
   listedPriceCents Int?
   ttCreatedAt      DateTime?

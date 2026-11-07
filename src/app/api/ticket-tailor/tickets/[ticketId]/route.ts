@@ -31,6 +31,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   });
   if (!ticket) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
 
+  // Leave this ticket out, or put it back in play. Separate from an override:
+  // excluding says "this one will never have a canvas", not "it has a
+  // different one".
+  if (typeof body.excluded === "boolean") {
+    const updated = await prisma.ticketTailorTicket.update({
+      where: { id: ticket.id },
+      data: {
+        excludedAt: body.excluded ? new Date() : null,
+        excludedReason: body.excluded
+          ? (typeof body.excludedReason === "string" && body.excludedReason.trim()
+              ? body.excludedReason.trim().slice(0, 500)
+              : "No canvas recorded")
+          : null,
+      },
+    });
+    return NextResponse.json({
+      ttTicketId: updated.ttTicketId,
+      excludedAt: updated.excludedAt,
+      excludedReason: updated.excludedReason,
+    });
+  }
+
   const raw = body.overrideDesignId;
   const overrideDesignId = raw === null || raw === "" ? null : typeof raw === "string" ? raw : undefined;
   if (overrideDesignId === undefined) {

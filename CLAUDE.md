@@ -173,6 +173,14 @@ refund of 0. Of 247 tickets synced, 11 are voided across 9 cancelled orders.
   as a discrepancy with a per-ticket "put this one back" button, because the
   money came back but the canvas may have gone home with the attendee —
   restoring automatically would invent stock.
+- A ticket can also be **deliberately left out** (`excludedAt` /
+  `excludedReason`), for one whose canvas can never be known. The Publico event
+  sold 81 tickets while the canvas question was briefly not required, so 20 have
+  no answer and never will; leaving them out stops the event reading "needs
+  attention" for something unfixable. An excluded ticket drops out of the plan
+  and every check — except a masked answer, which stays visible while any other
+  ticket is affected, and except one already deducted, which still needs a
+  decision about putting it back.
 - A **late signup** after confirmation is reported the same way, with a per-
   ticket deduct button that reuses the options the event was confirmed with.
 - Both replay or write audit rows, so the Andover split is honoured and pressing
