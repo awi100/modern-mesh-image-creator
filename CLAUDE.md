@@ -212,10 +212,14 @@ dragging a slider would leave its own entry. Logic in `src/lib/print-colors.ts`.
 
 An order draws on its own bucket first, then falls back to **Andover** bulk:
 
-| Order | Draws from | Then |
-|-------|-----------|------|
+| Sale | Draws from | Then |
+|------|-----------|------|
 | online (`web`) | home (`canvasPrinted` / `kitsReady`) | Andover |
 | in person (`pos`) | tote (`marketCanvasPrinted` / `marketKitsReady`) | Andover |
+| **sip-and-stitch** (Ticket Tailor) | **home, always** | Andover |
+
+A sip-and-stitch never touches the market tote — that stock is physically
+reserved for craft markets — so the event page offers no location choice.
 
 A POS sale does **not** fall back to home — market stock is deliberately
 separate, moved to the tote as an explicit transfer, so it falls straight

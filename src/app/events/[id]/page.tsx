@@ -62,7 +62,9 @@ export default function EventDetailPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [location, setLocation] = useState<"home" | "market">("market");
+  // Events always draw on home stock, falling back to Andover. There is no
+  // choice to make, so there is no control for it.
+  const location = "home" as const;
   const [deductKits, setDeductKits] = useState(true);
   const [skip, setSkip] = useState<Set<string>>(new Set());
 
@@ -72,7 +74,6 @@ export default function EventDetailPage() {
       if (!res.ok) throw new Error(`Could not load event (${res.status})`);
       const data: Detail = await res.json();
       setD(data);
-      setLocation((data.event.confirmLocation as "home" | "market") ?? "market");
       setDeductKits(data.event.confirmDeductKits);
       setError(null);
     } catch (e) {
@@ -98,7 +99,7 @@ export default function EventDetailPage() {
     if (!plan || !d) return;
     const msg =
       `Deduct ${plan.totalCanvas} canvases` + (plan.totalKits ? ` and ${plan.totalKits} kits` : "") +
-      ` from ${location === "home" ? "home" : "the market tote"}?\n\n` +
+      ` from home stock?\n\n` +
       `Only do this once you have physically pulled them. You can undo it, but it changes real counts.`;
     if (!confirm(msg)) return;
     setBusy(true); setError(null); setNote(null);
@@ -111,8 +112,7 @@ export default function EventDetailPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Failed (${res.status})`);
       setNote(
-        `Deducted ${data.canvasDeducted} canvases and ${data.kitsDeducted} kits from ` +
-        `${data.location === "home" ? "home" : "the market tote"}.` +
+        `Deducted ${data.canvasDeducted} canvases and ${data.kitsDeducted} kits from home.` +
         (data.shortLines ? ` ${data.shortLines} lines came up short — see below.` : "") +
         (data.skipped ? ` ${data.skipped} skipped as already sold through POS.` : ""),
       );
@@ -300,7 +300,7 @@ export default function EventDetailPage() {
 
         {confirmed ? (
           <Card title="Stock has been deducted"
-                subtitle={`${d.event.confirmedAt ? new Date(d.event.confirmedAt).toLocaleString() : ""} · from ${d.event.confirmLocation === "home" ? "home" : "the market tote"}`}>
+                subtitle={`${d.event.confirmedAt ? new Date(d.event.confirmedAt).toLocaleString() : ""} · from ${d.event.confirmLocation ?? "home"} stock`}>
             <DeductionTable rows={d.deductions} />
             <button onClick={undo} disabled={busy}
               className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm disabled:opacity-50">
@@ -309,7 +309,7 @@ export default function EventDetailPage() {
           </Card>
         ) : (
           <ConfirmPanel
-            plan={plan} location={location} setLocation={setLocation}
+            plan={plan} location={location}
             deductKits={deductKits} setDeductKits={setDeductKits}
             skip={skip} setSkip={setSkip} onDeduct={deduct} busy={busy}
             posDay={d.event.posDay}
@@ -357,9 +357,9 @@ export default function EventDetailPage() {
 }
 
 function ConfirmPanel({
-  plan, location, setLocation, deductKits, setDeductKits, skip, setSkip, onDeduct, busy, posDay,
+  plan, location, deductKits, setDeductKits, skip, setSkip, onDeduct, busy, posDay,
 }: {
-  plan: PlanResp | null; location: "home" | "market"; setLocation: (l: "home" | "market") => void;
+  plan: PlanResp | null; location: "home" | "market";
   deductKits: boolean; setDeductKits: (b: boolean) => void;
   skip: Set<string>; setSkip: (s: Set<string>) => void;
   onDeduct: () => void; busy: boolean; posDay: string;
@@ -371,16 +371,10 @@ function ConfirmPanel({
     <Card title="Pull the canvases, then deduct"
           subtitle="Nothing has come off stock yet. Press the button once the canvases and kits are physically pulled.">
       <div className="flex flex-wrap items-center gap-4 mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-400">Take from</span>
-          {(["market", "home"] as const).map((l) => (
-            <button key={l} onClick={() => setLocation(l)}
-              className={`px-3 py-1.5 rounded-lg text-sm ${location === l ? "bg-sky-600 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`}>
-              {l === "market" ? "Market tote" : "Home"}
-            </button>
-          ))}
-          <span className="text-xs text-slate-500">falls back to Andover</span>
-        </div>
+        <p className="text-sm text-slate-400">
+          Taking from <span className="text-slate-200 font-medium">home stock</span>, falling back to
+          Andover. The market tote is left alone — it is for craft markets.
+        </p>
         <label className="flex items-center gap-2 text-sm text-slate-300">
           <input type="checkbox" checked={deductKits} onChange={(e) => setDeductKits(e.target.checked)} className="accent-sky-500" />
           Also deduct kits
@@ -444,7 +438,7 @@ function ConfirmPanel({
         {busy ? "Deducting…"
           : `Deduct ${plan.totalCanvas} canvas${plan.totalCanvas === 1 ? "" : "es"}` +
             (plan.totalKits ? ` and ${plan.totalKits} kit${plan.totalKits === 1 ? "" : "s"}` : "") +
-            ` from ${location === "home" ? "home" : "the market tote"}`}
+            ` from home`}
       </button>
       {plan.skipped.length > 0 && (
         <p className="text-xs text-slate-500 mt-2">

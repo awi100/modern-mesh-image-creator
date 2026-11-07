@@ -21,7 +21,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
   const { id } = await params;
   const { searchParams } = new URL(request.url);
-  const location = searchParams.get("location") === "home" ? "home" : "market";
+  // Home by default: an event never pulls from the market tote (see the confirm
+  // route). The parameter stays so the preview can still be asked about the
+  // other bucket if that is ever needed.
+  const location = searchParams.get("location") === "market" ? "market" : "home";
   const deductKitsToo = searchParams.get("deductKits") !== "false";
   const skipDesignIds = (searchParams.get("skip") ?? "").split(",").filter(Boolean);
 

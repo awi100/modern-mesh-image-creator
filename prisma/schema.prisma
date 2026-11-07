@@ -915,7 +915,11 @@ model TicketTailorEvent {
   /// Set when someone confirms, along with the options they chose, so an undo
   /// and any later per-ticket deduction use the same settings.
   confirmedAt       DateTime?
-  confirmLocation   String? // "home" | "market"
+  /// Which bucket the canvases actually came out of, kept so a reversal credits
+  /// them back to the same place. In practice always "home": a sip-and-stitch
+  /// draws on home stock and falls back to Andover, never the market tote,
+  /// which is physically reserved for craft markets.
+  confirmLocation   String?
   /// Every sip-and-stitch canvas goes out kitted, so this is true in practice.
   /// Kept as a field rather than assumed, because a future event might sell a
   /// bare canvas and silently deducting a kit that was never handed over would

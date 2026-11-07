@@ -68,7 +68,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
 
-  const location: Location = body.location === "home" ? "home" : "market";
+  // Sip-and-stitch canvases always come from HOME, falling back to Andover.
+  // The market tote is physically for craft markets, so an event never draws on
+  // it — there is no UI choice, and `location` is only read so an old or
+  // scripted request is not silently reinterpreted.
+  const location: Location = body.location === "market" ? "market" : "home";
   const deductKitsToo = body.deductKits !== false;
   const skipDesignIds: string[] = Array.isArray(body.skipDesignIds)
     ? body.skipDesignIds.filter((x: unknown) => typeof x === "string")
