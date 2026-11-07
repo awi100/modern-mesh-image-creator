@@ -1,0 +1,61 @@
+{
+  "_note": "GET /v1/checkout_forms \u2014 checkout_form_elements are bare ID strings and there is NO /checkout_form_elements endpoint (404), so question text and the option list can only be read off issued tickets.",
+  "data": [
+    {
+      "object": "checkout_form",
+      "id": "cf_677323",
+      "checkout_form_elements": [],
+      "created_at": 1787105394,
+      "event_series_id": null
+    },
+    {
+      "object": "checkout_form",
+      "id": "cf_678863",
+      "checkout_form_elements": [
+        "ce_1878560"
+      ],
+      "created_at": 1787319494,
+      "event_series_id": "es_2368390"
+    },
+    {
+      "object": "checkout_form",
+      "id": "cf_690899",
+      "checkout_form_elements": [
+        "ce_1911718"
+      ],
+      "created_at": 1789152748,
+      "event_series_id": "es_2413702"
+    },
+    {
+      "object": "checkout_form",
+      "id": "cf_706344",
+      "checkout_form_elements": [
+        "ce_1950575"
+      ],
+      "created_at": 1791410832,
+      "event_series_id": "es_2462054"
+    },
+    {
+      "object": "checkout_form",
+      "id": "cf_717394",
+      "checkout_form_elements": [
+        "ce_1980468"
+      ],
+      "created_at": 1793047004,
+      "event_series_id": "es_2496855"
+    },
+    {
+      "object": "checkout_form",
+      "id": "cf_717400",
+      "checkout_form_elements": [
+        "ce_1980475"
+      ],
+      "created_at": 1793047368,
+      "event_series_id": "es_2496865"
+    }
+  ],
+  "links": {
+    "next": null,
+    "previous": null
+  }
+}

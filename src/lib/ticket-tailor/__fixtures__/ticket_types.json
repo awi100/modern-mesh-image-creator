@@ -1,0 +1,6 @@
+{
+  "_note": "GET /v1/ticket_types?event_id=ev_9365960 \u2014 a single 'General Admission' type.",
+  "status": 404,
+  "error_code": "PAGE_NOT_FOUND",
+  "message": "Page not found"
+}
