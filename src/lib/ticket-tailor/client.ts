@@ -138,7 +138,27 @@ export interface TtOrder extends Record<string, unknown> { id: string }
 export interface TtIssuedTicket extends Record<string, unknown> { id: string }
 
 export const listEvents = () => ttListAll<TtEvent>("/events");
-export const getEvent = (ttEventId: string) => ttGet<{ data: TtEvent }>(`/events/${ttEventId}`);
+
+/**
+ * Unwrap a single-resource response.
+ *
+ * LIST endpoints return `{ data: [...], links }`, but SINGLE-resource ones
+ * return the object bare, with `id` and `object` at the top level — no `data`
+ * key. Assuming the wrapper made every event sync fail with "Cannot read
+ * properties of undefined (reading 'venue')", so both shapes are accepted
+ * rather than one being trusted.
+ */
+export function unwrapOne<T extends Record<string, unknown>>(res: unknown): T {
+  if (res && typeof res === "object") {
+    const o = res as Record<string, unknown>;
+    if (o.data && typeof o.data === "object" && !Array.isArray(o.data)) return o.data as T;
+    return o as T;
+  }
+  throw new Error("Ticket Tailor returned a non-object where one resource was expected");
+}
+
+export const getEvent = async (ttEventId: string) =>
+  unwrapOne<TtEvent>(await ttGet<unknown>(`/events/${ttEventId}`));
 export const listIssuedTickets = (ttEventId: string) =>
   ttListAll<TtIssuedTicket>("/issued_tickets", { event_id: ttEventId });
 export const listOrders = (ttEventId?: string) =>

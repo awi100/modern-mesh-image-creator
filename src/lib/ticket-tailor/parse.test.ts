@@ -209,3 +209,29 @@ describe("parsing real orders", () => {
     expect(ordData.map(parseOrder).every((o) => o.status === "completed")).toBe(true);
   });
 });
+
+describe("unwrapping a single resource", () => {
+  it("accepts the bare object a single-resource endpoint returns", async () => {
+    const { unwrapOne } = await import("./client");
+    // GET /v1/events/{id} returns the event with id/object at the top level.
+    expect(unwrapOne({ id: "ev_1", object: "event", name: "X" })).toMatchObject({ id: "ev_1" });
+  });
+
+  it("also accepts a data wrapper, in case an endpoint uses one", async () => {
+    const { unwrapOne } = await import("./client");
+    expect(unwrapOne({ data: { id: "ev_1", object: "event" } })).toMatchObject({ id: "ev_1" });
+  });
+
+  it("does not mistake a list for one resource", async () => {
+    const { unwrapOne } = await import("./client");
+    // An array under `data` is a list response; unwrapping it would hand the
+    // caller an array where it expects one event.
+    expect(unwrapOne({ data: [{ id: "ev_1" }] })).toMatchObject({ data: [{ id: "ev_1" }] });
+  });
+
+  it("throws on junk rather than returning undefined", async () => {
+    const { unwrapOne } = await import("./client");
+    expect(() => unwrapOne(null)).toThrow();
+    expect(() => unwrapOne("nope")).toThrow();
+  });
+});
