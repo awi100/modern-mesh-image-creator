@@ -269,6 +269,19 @@ order is $0 *on purpose*. Nine such orders between 11 Sept and 5 Nov 2026 were
 dropped there and deducted nothing, leaving no trace in the app. Draft-originated
 orders are now exempt from that rule.
 
+Those nine (#3617 #3675 #3803 #3805 #3892 #3934 #4112 #4148 #4174) had **already
+been subtracted by hand**, so on 9 Nov 2026 each was given a bare `ShopifyOrder`
+row — `fulfilledAt` and `kind: donation`, and deliberately **no line items and no
+`OrderDeduction` rows** — to stop the first sync deducting those 11 units a second
+time. `fulfilledAt` alone satisfies sync's processed guard. The items are missing
+on purpose: undo falls back to line-item quantities whenever an order has no audit
+rows, so fabricating "processed" items would have let one Undo click invent stock
+that was never deducted. Nothing claims the app moved that stock, so those units
+are absent from `totalSold` and from the deduction log. Pressing Undo on one
+clears `fulfilledAt` and, with no items left to guard it, lets the next sync
+deduct it for real — the escape hatch if one of them turns out not to have been
+handled after all.
+
 **Draft orders need the `read_draft_orders` scope**, which the live token does
 not have. Without it `fetchOpenDraftOrders` and `fetchCompletedDraftLinks` both
 fail, so open drafts aren't listed and the draft→order reconciliation doesn't
