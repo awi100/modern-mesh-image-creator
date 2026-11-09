@@ -12,6 +12,8 @@ interface Deduction {
   sourceName: string | null;
   bucket: "market" | "online" | string;
   via: string;
+  // Why the order existed: retail | wholesale | donation | replacement.
+  kind: string;
   designName: string | null;
   kitsRequested: number;
   kitsDeducted: number;
@@ -109,6 +111,16 @@ export default function DeductionLogPage() {
                     <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0 ${r.bucket === "market" ? "bg-emerald-900/50 text-emerald-300" : "bg-slate-700 text-slate-300"}`}>
                       {r.bucket}
                     </span>
+                    {/* Only the exceptions are labelled. Without this a canvas
+                        given away looks exactly like one that was sold. */}
+                    {r.kind && r.kind !== "retail" && (
+                      <span
+                        className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0 bg-amber-900/50 text-amber-300"
+                        title={`Deducted for a ${r.kind}, not a retail sale`}
+                      >
+                        {r.kind}
+                      </span>
+                    )}
                     <span className="text-white basis-full sm:basis-auto sm:flex-1 min-w-0 truncate">{r.designName || "(unmatched)"}</span>
                     <span className={`flex-shrink-0 ${kitShort ? "text-red-400 font-semibold" : "text-slate-300"}`} title={kitShort ? `needed ${r.kitsRequested}, only ${r.kitsDeducted} in stock` : ""}>
                       −{r.kitsDeducted} kit{kitShort ? ` / ${r.kitsRequested}` : ""}

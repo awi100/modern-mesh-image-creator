@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { fetchRecentlyFulfilledOrders, fetchUnfulfilledOrders, ShopifyOrderNode, parseNeedsKit, normalizeTitle } from "@/lib/shopify";
+import { classifyOrderKind, countsAsRetailDemand } from "@/lib/order-kind";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 
 interface DesignAnalytics {
@@ -262,6 +263,39 @@ export async function GET(request: NextRequest) {
       } catch (e) {
         console.error("Error fetching from Shopify:", e);
       }
+    }
+
+    // Drop anything that isn't a sale before any of it reaches revenue, order
+    // counts or AOV. Hand-built $0 donations and replacements now reach the app
+    // instead of being discarded as refunded ghosts (they have to, so they
+    // deduct stock) — but nine $0 orders counted as orders would drag AOV down
+    // by about 6% and invent nine customers. A wholesale order is a real sale
+    // at half price; it is excluded here too, because mixing it into retail AOV
+    // and per-design revenue describes neither channel.
+    //
+    // A kind stored locally wins over the guess, so a correction made on the
+    // Orders page moves these numbers as well as the sales rate. Reading the
+    // guess only would have left the two halves of the app disagreeing about
+    // the same order.
+    if (allOrders.length > 0) {
+      const storedKinds = new Map(
+        (
+          await prisma.shopifyOrder.findMany({
+            where: { shopifyOrderId: { in: allOrders.map((o) => o.id) } },
+            select: { shopifyOrderId: true, kind: true },
+          })
+        ).map((r) => [r.shopifyOrderId, r.kind])
+      );
+      allOrders = allOrders.filter((o) =>
+        countsAsRetailDemand(
+          storedKinds.get(o.id) ??
+            classifyOrderKind({
+              sourceName: o.sourceName,
+              tags: o.tags,
+              totalAmount: o.currentTotalPriceSet?.shopMoney?.amount ?? null,
+            })
+        )
+      );
     }
 
     // Split orders into current and previous period

@@ -10,6 +10,7 @@ import MeshFilterChips, { MeshFilter } from "@/components/MeshFilterChips";
 import { useMeshFilter } from "@/lib/use-mesh-filter";
 import CountStepper from "@/components/inventory/CountStepper";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
+import { ORDER_KINDS, ORDER_KIND_LABEL, ORDER_KIND_HELP, type OrderKind } from "@/lib/order-kind";
 
 // Kit content types
 interface BackupColorInfo {
@@ -218,6 +219,7 @@ export default function OrdersPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ synced: number; message: string } | null>(null);
   const [undoing, setUndoing] = useState<string | null>(null);
+  const [settingKind, setSettingKind] = useState<string | null>(null);
 
   // Calculate how many orders can be fully filled with current inventory
   const fulfillableOrderCount = useMemo(() => {
@@ -288,9 +290,18 @@ export default function OrdersPage() {
       }
       const result = await res.json();
       if (showResult && result.synced > 0) {
+        // Name the ones that weren't sales. They deduct stock exactly like a
+        // sale, so a donation or a wholesale box quietly moving inventory is
+        // the one outcome of this sync worth reading before you trust the
+        // counts — and the type is a guess that can be corrected on the order.
+        const nonRetail: { orderNumber: string; label: string }[] = result.nonRetail ?? [];
+        const aside =
+          nonRetail.length > 0
+            ? ` — including ${nonRetail.map((o) => `${o.orderNumber} as ${o.label.toLowerCase()}`).join(", ")}. Stock was deducted; these are kept out of the sales rate. Change the type on an order if that's wrong.`
+            : "";
         setSyncResult({
           synced: result.synced,
-          message: `Synced ${result.synced} fulfilled order${result.synced > 1 ? "s" : ""} from Shopify`,
+          message: `Synced ${result.synced} fulfilled order${result.synced > 1 ? "s" : ""} from Shopify${aside}`,
         });
         // Refetch orders to update the list
         await fetchOrders();
@@ -445,6 +456,9 @@ export default function OrdersPage() {
           orderNumber: order.orderNumber,
           customerName: order.customerName,
           sourceName: order.sourceName,
+          // Why the order exists, so a donation or wholesale box deducts stock
+          // without being counted as retail demand.
+          kind: order.kind,
           items,
         }),
       });
@@ -478,6 +492,55 @@ export default function OrdersPage() {
     }
     setFulfilling(null);
   }, [fetchOrders]);
+
+  /**
+   * Record why an order exists. This moves no stock — the units left the
+   * building whatever the reason — it only decides whether the order counts as
+   * retail demand in the sales rate that sizes reorders and the kit order.
+   *
+   * Applied locally first, because an order that hasn't been deducted yet has
+   * no row to label: the server answers 404 and the choice rides along on the
+   * fulfil request instead. Any other failure puts the old value back.
+   */
+  const handleSetOrderKind = useCallback(async (order: Order, kind: OrderKind) => {
+    const previous = order.kind;
+    if (previous === kind) return;
+    setSettingKind(order.shopifyOrderId);
+    setError(null);
+
+    const applyLocally = (value: OrderKind) =>
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              orders: prev.orders.map((o) =>
+                o.shopifyOrderId === order.shopifyOrderId ? { ...o, kind: value } : o
+              ),
+            }
+          : prev
+      );
+
+    applyLocally(kind);
+
+    try {
+      // mutApi, not fetch: the kind changes the sales rate, so every page
+      // showing velocity, reorder sizing or stock alerts is now stale.
+      const res = await mutApi("/api/shopify/orders/kind", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopifyOrderId: order.shopifyOrderId, kind }),
+      });
+      // 404 = not deducted yet, which is expected and not an error.
+      if (!res.ok && res.status !== 404) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update order type");
+      }
+    } catch (err) {
+      applyLocally(previous);
+      setError(err instanceof Error ? err.message : "Failed to update order type");
+    }
+    setSettingKind(null);
+  }, []);
 
   // Fetch inventory when backup picker opens, using the editing design's
   // thread size so a 13ct design shows Size 3 stock (not Size 5).
@@ -905,6 +968,14 @@ export default function OrdersPage() {
                 <p className="text-sm text-slate-400">Unmatched</p>
               </div>
             </div>
+
+            {/* Draft orders unavailable (missing Shopify scope) */}
+            {data.draftWarning && (
+              <div className="p-4 bg-amber-900/20 border border-amber-700 rounded-lg">
+                <p className="text-amber-400 font-medium mb-1">Draft orders not loaded</p>
+                <p className="text-sm text-slate-300">{data.draftWarning}</p>
+              </div>
+            )}
 
             {/* Unmatched Products Warning */}
             {data.summary.unmatchedProducts.length > 0 && (
@@ -1690,6 +1761,8 @@ export default function OrdersPage() {
                       fulfilling={fulfilling === order.shopifyOrderId}
                       onUndo={handleUndoFulfillment}
                       undoing={undoing === order.shopifyOrderId}
+                      onSetKind={handleSetOrderKind}
+                      settingKind={settingKind === order.shopifyOrderId}
                     />
                   ));
                 })()}
@@ -1728,6 +1801,8 @@ export default function OrdersPage() {
                         fulfilling={fulfilling === order.shopifyOrderId}
                         onUndo={handleUndoFulfillment}
                         undoing={undoing === order.shopifyOrderId}
+                        onSetKind={handleSetOrderKind}
+                        settingKind={settingKind === order.shopifyOrderId}
                       />
                     ));
                   })()
@@ -1840,9 +1915,19 @@ interface OrderCardProps {
   fulfilling: boolean;
   onUndo: (shopifyOrderId: string) => void;
   undoing: boolean;
+  onSetKind: (order: Order, kind: OrderKind) => void;
+  settingKind: boolean;
 }
 
-function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilling, onUndo, undoing }: OrderCardProps) {
+// Colours for the order-type chip. Retail has none — it is the normal case and
+// a badge on every order is just noise.
+const KIND_CHIP: Record<Exclude<OrderKind, "retail">, string> = {
+  wholesale: "bg-violet-600 text-white",
+  donation: "bg-teal-600 text-white",
+  replacement: "bg-orange-600 text-white",
+};
+
+function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilling, onUndo, undoing, onSetKind, settingKind }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Only count canvas items for kits/canvases
@@ -1889,6 +1974,14 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
                   title="Shopify draft order (created manually, not yet completed). Fulfilling it here deducts inventory now; completing it later in Shopify won't double-deduct."
                 >
                   Draft
+                </span>
+              )}
+              {order.kind !== "retail" && (
+                <span
+                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${KIND_CHIP[order.kind]}`}
+                  title={ORDER_KIND_HELP[order.kind]}
+                >
+                  {ORDER_KIND_LABEL[order.kind]}
                 </span>
               )}
               {order.isExpress && (
@@ -2044,6 +2137,29 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
           {order.items.map((item, idx) => (
             <OrderItemRow key={idx} item={item} demandByDesign={demandByDesign} />
           ))}
+          {/* Order type. Stock is deducted either way — this decides whether
+              the order counts as retail demand when sizing reorders. */}
+          <div className="p-4 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <label htmlFor={`kind-${order.shopifyOrderId}`} className="text-sm text-slate-400">
+              Order type
+            </label>
+            <select
+              id={`kind-${order.shopifyOrderId}`}
+              value={order.kind}
+              disabled={settingKind}
+              onChange={(e) => onSetKind(order, e.target.value as OrderKind)}
+              className="bg-slate-900 border border-slate-600 text-white text-sm rounded-lg px-2 py-1 disabled:opacity-50"
+            >
+              {ORDER_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {ORDER_KIND_LABEL[k]}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-slate-500 basis-full sm:basis-auto">
+              {settingKind ? "Saving…" : ORDER_KIND_HELP[order.kind]}
+            </span>
+          </div>
         </div>
       )}
     </div>

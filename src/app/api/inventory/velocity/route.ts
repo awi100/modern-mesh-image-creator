@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
+import { retailDemandWhere, PROCESSED_DESIGN_ITEMS } from "@/lib/velocity";
 
 // Velocity category thresholds (units per week)
 const FAST_THRESHOLD = 3; // 3+ units/week
@@ -64,22 +65,17 @@ export async function POST(request: NextRequest) {
 
     // Get all fulfilled orders from the last 4 weeks with their items
     const recentOrders = await prisma.shopifyOrder.findMany({
-      where: {
-        fulfilledAt: { not: null },
-        // Window by the REAL order date; fall back to our row createdAt only for
-        // legacy rows that predate the orderDate column (else a batch/backfill
-        // sync would dump every historical order into the current week).
-        OR: [
-          { orderDate: { gte: fourWeeksAgo } },
-          { orderDate: null, createdAt: { gte: fourWeeksAgo } },
-        ],
-      },
+      // Retail only, windowed by the REAL order date, falling back to our row
+      // createdAt only for legacy rows that predate the orderDate column (else
+      // a batch/backfill sync would dump every historical order into the
+      // current week). See lib/velocity.
+      where: retailDemandWhere(fourWeeksAgo),
       include: {
         items: {
           // processed:true only — an undo sets items processed=false but keeps
           // the rows, and a re-fulfill adds a fresh set; without this filter a
           // re-fulfilled order's line items are counted twice.
-          where: { designId: { not: null }, processed: true },
+          where: PROCESSED_DESIGN_ITEMS,
           select: {
             designId: true,
             quantity: true,

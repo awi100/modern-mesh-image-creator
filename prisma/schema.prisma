@@ -436,6 +436,12 @@ model ShopifyOrder {
   customerName    String?
   sourceName      String? // Shopify order source ("pos" = Point of Sale, "web"/checkout = online).
   // Determines which inventory bucket the order deducts from / restores to.
+  // Why the order exists: "retail" | "wholesale" | "donation" | "replacement".
+  // Only retail counts toward the sales rate that sizes reorders — the other
+  // three still deduct stock, because the unit physically left. Defaults to
+  // retail so every pre-existing order keeps counting exactly as it did.
+  // See src/lib/order-kind.ts.
+  kind            String             @default("retail")
   fulfilledAt     DateTime? // When we processed the fulfillment
   createdAt       DateTime           @default(now()) // when WE created the local row (sync time)
   orderDate       DateTime? // the real Shopify order-placed date (for velocity/sales-rate)
@@ -496,6 +502,10 @@ model OrderDeduction {
   sourceName        String? // "pos" | "web" | etc.
   bucket            String // "market" | "online"
   via               String // "webhook" | "sync" | "fulfill"
+  // Order kind at the time of deduction, denormalized like sourceName and
+  // designName so the audit log reads standalone: a donation that deducted a
+  // canvas looks identical to a sale without it.
+  kind              String   @default("retail")
   designId          String?
   designName        String? // denormalized for readability
   kitsRequested     Int      @default(0)

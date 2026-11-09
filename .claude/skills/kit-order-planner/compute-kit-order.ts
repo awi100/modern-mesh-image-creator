@@ -13,6 +13,7 @@ import { writeFileSync } from "node:fs";
 import { calculateYarnUsage, type MeshCount, type StitchType } from "@/lib/yarn-calculator";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { KIT_GROUP_INCLUDE, sharedKitShare } from "../../../src/lib/kit-pool";
+import { RETAIL } from "../../../src/lib/order-kind";
 
 // ---- Tunables ----
 const ATTACH = 0.72;      // historical 18ct kit-attach rate
@@ -73,10 +74,14 @@ async function main() {
     },
   });
 
-  // Velocity: units sold/week over the trailing window, by REAL order date, processed rows only.
+  // Velocity: units sold/week over the trailing window, by REAL order date,
+  // processed rows only, and RETAIL only — a wholesale order, a donation or a
+  // damaged-goods replacement moves stock without being a customer wanting the
+  // design, and this rate decides how many kits the supplier makes.
   const orders = await prisma.shopifyOrder.findMany({
     where: {
       fulfilledAt: { not: null },
+      kind: RETAIL,
       OR: [{ orderDate: { gte: windowStart } }, { orderDate: null, createdAt: { gte: windowStart } }],
     },
     select: { items: { where: { designId: { not: null }, processed: true }, select: { designId: true, quantity: true } } },

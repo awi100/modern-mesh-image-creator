@@ -36,6 +36,8 @@ Active 18ct designs only: `meshCount = 18`, `deletedAt = null`, `archivedAt = nu
 ## Velocity source (important)
 Bucket/window by the **real order date** (`ShopifyOrder.orderDate ?? createdAt`) and only count `ShopifyOrderItem.processed = true`. `createdAt` is our local sync time, so windowing by it dumps backfilled orders into the current window; `processed` avoids double-counting undo/re-fulfill rows. (Both were review fixes — keep them.)
 
+Count **retail orders only** (`ShopifyOrder.kind = "retail"`). Wholesale orders, donations and damaged-goods replacements all deduct stock but none is retail demand — a single 30-unit wholesale order would otherwise read as 2.3 units/week of fresh demand and have the supplier make a year of kits for it. See `src/lib/order-kind.ts`.
+
 ## Shared kit pools
 
 Designs in a `KitGroup` (see `src/lib/kit-pool.ts`) are **one line on the

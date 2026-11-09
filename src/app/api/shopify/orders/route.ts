@@ -11,6 +11,7 @@ import {
   visibleCustomAttributes,
   isExpressShippingTitle,
 } from "@/lib/shopify";
+import { classifyOrderKind, toOrderKind, type OrderKind } from "@/lib/order-kind";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
@@ -55,6 +56,11 @@ export interface Order {
   sourceName: string | null;
   // True for Shopify draft orders (manually created, not yet completed)
   isDraft: boolean;
+  // Why the order exists. Either the kind stored against an order we've already
+  // processed — including a correction made here — or, for one we haven't, the
+  // guess from its source, tags and total. Anything but "retail" deducts stock
+  // the same way but stays out of the sales rate. See lib/order-kind.
+  kind: OrderKind;
   // Local fulfillment tracking
   locallyFulfilled: boolean;
   locallyFulfilledAt: string | null;
@@ -79,6 +85,13 @@ export interface OrdersResponse {
     totalSuppliesReady: number;
     unmatchedProducts: string[];
   };
+  /**
+   * Why the open-draft list is missing, when it is. Draft orders need the
+   * read_draft_orders scope on the Shopify token; without it this request used
+   * to fail into a console.error nobody reads, so drafts looked like a feature
+   * that didn't exist. Completed drafts still arrive through sync regardless.
+   */
+  draftWarning?: string;
 }
 
 // Classify item type based on whether it matches a design or supply
@@ -180,10 +193,15 @@ export async function GET() {
     // Drafts are shown first so they're easy to find and act on.
     const shopifyData = await fetchUnfulfilledOrders();
     let shopifyOrders = shopifyData.orders.nodes;
+    let draftWarning: string | undefined;
     try {
       const draftOrders = await fetchOpenDraftOrders();
       shopifyOrders = [...draftOrders, ...shopifyOrders];
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      draftWarning = /access denied|ACCESS_DENIED/i.test(msg)
+        ? "Open draft orders aren't shown: the Shopify token is missing the read_draft_orders scope. Completing a draft in Shopify still brings it in on the next sync."
+        : `Open draft orders couldn't be loaded: ${msg}`;
       console.error("Failed to fetch draft orders:", e);
     }
 
@@ -197,12 +215,16 @@ export async function GET() {
       select: {
         shopifyOrderId: true,
         fulfilledAt: true,
+        kind: true,
       },
     });
 
     const localFulfillmentMap = new Map(
       localOrders.map((f) => [f.shopifyOrderId, f.fulfilledAt])
     );
+    // A stored kind wins over the guess: it may be a correction someone made
+    // here, and re-reading the order must not quietly revert it.
+    const localKindMap = new Map(localOrders.map((f) => [f.shopifyOrderId, f.kind]));
 
     // Process orders
     const orders: Order[] = [];
@@ -321,6 +343,7 @@ export async function GET() {
       const hasMysteryBag = items.some((i) => i.itemType === "mystery_bag");
 
       const shippingTitle = shopifyOrder.shippingLine?.title || null;
+      const storedKind = localKindMap.get(shopifyOrder.id);
       orders.push({
         shopifyOrderId: shopifyOrder.id,
         orderNumber: shopifyOrder.name,
@@ -328,6 +351,13 @@ export async function GET() {
         createdAt: shopifyOrder.createdAt,
         sourceName: shopifyOrder.sourceName || null,
         isDraft: !!shopifyOrder.isDraftOrder,
+        kind: storedKind
+          ? toOrderKind(storedKind)
+          : classifyOrderKind({
+              sourceName: shopifyOrder.sourceName,
+              tags: shopifyOrder.tags,
+              totalAmount: shopifyOrder.currentTotalPriceSet?.shopMoney?.amount ?? null,
+            }),
         items,
         locallyFulfilled: !!localFulfilledAt,
         locallyFulfilledAt: localFulfilledAt?.toISOString() || null,
@@ -366,6 +396,7 @@ export async function GET() {
         totalSuppliesReady,
         unmatchedProducts: Array.from(unmatchedProducts),
       },
+      draftWarning,
     };
 
     return NextResponse.json(response);

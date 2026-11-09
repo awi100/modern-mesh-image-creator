@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { RETAIL } from "@/lib/order-kind";
 
 /**
  * Sales rate per design, computed LIVE from order history.
@@ -18,6 +19,39 @@ import { prisma } from "@/lib/prisma";
 
 export const VELOCITY_WINDOW_DAYS = 90;
 
+/**
+ * The population every demand calculation must use: fulfilled orders, windowed
+ * by the REAL order date, and **retail only**.
+ *
+ * The `kind` filter is what keeps a donation, a damaged-goods replacement or a
+ * half-price wholesale order out of the sales rate. All three deduct stock —
+ * the unit left the building — but none of them is a customer wanting the
+ * design, and the rate here sizes reorders, stock alerts and the kit order. One
+ * 30-unit wholesale order would otherwise read as 2.3 units/week of fresh
+ * retail demand for a year. See lib/order-kind.
+ *
+ * The column defaults to "retail", so every order that predates it counts
+ * exactly as it did before.
+ *
+ * Exported as one fragment because this `where` was duplicated, comment and
+ * all, in four places (this file, /inventory/reorder, /inventory/velocity and
+ * the kit-order-planner skill) — four chances for the next filter to be added
+ * to three of them.
+ */
+export function retailDemandWhere(windowStart: Date) {
+  return {
+    fulfilledAt: { not: null },
+    kind: RETAIL,
+    OR: [
+      { orderDate: { gte: windowStart } },
+      { orderDate: null, createdAt: { gte: windowStart } },
+    ],
+  };
+}
+
+/** The matching line-item filter: only rows an actual deduction processed. */
+export const PROCESSED_DESIGN_ITEMS = { designId: { not: null }, processed: true } as const;
+
 export interface VelocityRow {
   /** Units sold in the window. */
   units: number;
@@ -28,24 +62,19 @@ export interface VelocityRow {
 /**
  * Units sold per design over the trailing window.
  *
- * Population matches /inventory/reorder exactly: fulfilled orders only,
- * processed line items only, windowed by the real order date with a fallback
- * to row createdAt for the 2,391 legacy rows that predate orderDate — so a
- * bulk backfill can't dump historical orders into the current window.
+ * Population matches /inventory/reorder exactly, because both now share
+ * `retailDemandWhere`: fulfilled retail orders only, processed line items only,
+ * windowed by the real order date with a fallback to row createdAt for the
+ * 2,391 legacy rows that predate orderDate — so a bulk backfill can't dump
+ * historical orders into the current window.
  */
 export async function salesInWindow(windowDays = VELOCITY_WINDOW_DAYS): Promise<Map<string, number>> {
   const windowStart = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
   const orders = await prisma.shopifyOrder.findMany({
-    where: {
-      fulfilledAt: { not: null },
-      OR: [
-        { orderDate: { gte: windowStart } },
-        { orderDate: null, createdAt: { gte: windowStart } },
-      ],
-    },
+    where: retailDemandWhere(windowStart),
     select: {
       items: {
-        where: { designId: { not: null }, processed: true },
+        where: PROCESSED_DESIGN_ITEMS,
         select: { designId: true, quantity: true },
       },
     },

@@ -14,13 +14,18 @@ import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { deductKits, lockKitGroups } from "@/lib/kit-group";
 import { drawFrom } from "@/lib/stock-draw";
+import { classifyOrderKind, countsAsRetailDemand, ORDER_KIND_LABEL } from "@/lib/order-kind";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface SyncResult {
   synced: number;
   alreadyProcessed: number;
   errors: string[];
-  syncedOrders: { orderNumber: string; itemCount: number }[];
+  syncedOrders: { orderNumber: string; itemCount: number; kind: string }[];
+  /** Orders synced as something other than a sale, so the UI can say so. */
+  nonRetail: { orderNumber: string; kind: string; label: string }[];
+  /** Set when draft orders could not be read (missing API scope). */
+  draftWarning?: string;
 }
 
 // POST - Sync fulfilled orders from Shopify
@@ -52,6 +57,7 @@ export async function POST() {
         alreadyProcessed: 0,
         errors: [],
         syncedOrders: [],
+        nonRetail: [],
       } as SyncResult);
     }
 
@@ -81,6 +87,13 @@ export async function POST() {
     // NEW id that would deduct again here. Map completed drafts -> their order
     // and, if we already fulfilled the draft locally, treat that order as
     // processed so it isn't double-deducted.
+    // A missing read_draft_orders scope is reported, not swallowed. This whole
+    // block, and the open-draft list on the Orders page, failed silently for
+    // months on a token without that scope: console.error on a server route is
+    // nobody's dashboard, so the feature looked absent rather than broken.
+    // Completing the draft in Shopify and letting sync pick up the real order
+    // works without the scope; only pre-completion visibility needs it.
+    let draftWarning: string | undefined;
     try {
       const draftLinks = await fetchCompletedDraftLinks(sixtyDaysAgo);
       if (draftLinks.length > 0) {
@@ -94,6 +107,10 @@ export async function POST() {
         }
       }
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      draftWarning = /access denied|ACCESS_DENIED/i.test(msg)
+        ? "Shopify token is missing the read_draft_orders scope, so open draft orders aren't listed. Completed drafts still sync as normal orders."
+        : `Draft reconciliation skipped: ${msg}`;
       console.error("Draft reconciliation failed (continuing without it):", e);
     }
 
@@ -108,6 +125,7 @@ export async function POST() {
         alreadyProcessed: fulfilledOrders.length,
         errors: [],
         syncedOrders: [],
+        nonRetail: [],
       } as SyncResult);
     }
 
@@ -160,13 +178,26 @@ export async function POST() {
       alreadyProcessed: processedIds.size,
       errors: [],
       syncedOrders: [],
+      nonRetail: [],
+      draftWarning,
     };
 
     for (const shopifyOrder of ordersToSync) {
       try {
         // POS (in-person/craft market) sales deduct from the market tote;
-        // online orders deduct from main/online stock.
+        // online orders deduct from main/online stock. A draft-originated order
+        // is neither POS nor a market sale, so it lands on home stock — which is
+        // where a donation, replacement or wholesale box is packed from.
         const isPos = isPosSource(shopifyOrder.sourceName);
+
+        // Why this order exists. Donations, damaged-goods replacements and
+        // wholesale orders all deduct stock exactly like a sale; the kind is
+        // what keeps them out of the sales rate that sizes reorders.
+        const kind = classifyOrderKind({
+          sourceName: shopifyOrder.sourceName,
+          tags: shopifyOrder.tags,
+          totalAmount: shopifyOrder.currentTotalPriceSet?.shopMoney?.amount ?? null,
+        });
 
         // Build items list with design/supply matching
         const items: {
@@ -274,12 +305,16 @@ export async function POST() {
               orderNumber: shopifyOrder.name,
               customerName: shopifyOrder.billingAddress?.name || null,
               sourceName: shopifyOrder.sourceName || null,
+              kind,
               fulfilledAt: new Date(),
               // Real order-placed date (not our sync time) so velocity buckets correctly.
               orderDate: shopifyOrder.createdAt ? new Date(shopifyOrder.createdAt) : null,
             },
             update: {
               sourceName: shopifyOrder.sourceName || null,
+              // Deliberately NOT overwriting kind on update: a correction made
+              // on the Orders page is a human decision, and re-syncing the same
+              // order must not reset it to the guess.
               fulfilledAt: new Date(),
               orderDate: shopifyOrder.createdAt ? new Date(shopifyOrder.createdAt) : undefined,
             },
@@ -362,7 +397,7 @@ export async function POST() {
               await tx.orderDeduction.create({
                 data: {
                   shopifyOrderId: shopifyOrder.id, orderNumber: shopifyOrder.name, sourceName: shopifyOrder.sourceName || null,
-                  bucket: isPos ? "market" : "online", via: "sync",
+                  bucket: isPos ? "market" : "online", via: "sync", kind,
                   designId, designName: design.name,
                   kitsRequested: updates.kitDeduction, kitsDeducted: actualKitDeduction,
                   canvasFromAndover: canvasDraw.fromAndover, kitsFromAndover: kitDraw.fromAndover,
@@ -407,7 +442,11 @@ export async function POST() {
           result.syncedOrders.push({
             orderNumber: shopifyOrder.name,
             itemCount: items.length,
+            kind,
           });
+          if (!countsAsRetailDemand(kind)) {
+            result.nonRetail.push({ orderNumber: shopifyOrder.name, kind, label: ORDER_KIND_LABEL[kind] });
+          }
         }
       } catch (error) {
         console.error(`Error syncing order ${shopifyOrder.name}:`, error);

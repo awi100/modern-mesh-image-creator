@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseNeedsKit, normalizeTitle, matchSupplyByVariant, isPosSource } from "@/lib/shopify";
+import { isDraftOriginatedSource } from "@/lib/order-kind";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { deductKits, lockKitGroups } from "@/lib/kit-group";
 import { drawFrom } from "@/lib/stock-draw";
@@ -47,6 +48,12 @@ interface ShopifyWebhookPayload {
 // Mirror of isIgnorableOrder (lib/shopify) for the REST-shaped webhook payload:
 // cancelled, fully refunded/voided, or $0 total orders must be ignored so the
 // webhook never deducts inventory the rest of the system skips.
+//
+// The $0 exemption for draft-originated orders that lib/shopify makes is NOT
+// repeated here, because this route defers every draft-originated order to sync
+// before reaching this check (see below). Keeping the exemption out means a
+// hand-built $0 order can only ever be processed down the one path that
+// classifies it.
 function isIgnorableWebhookOrder(p: ShopifyWebhookPayload): boolean {
   if (p.cancelled_at) return true;
   const fin = (p.financial_status || "").toLowerCase();
@@ -94,17 +101,22 @@ export async function POST(request: NextRequest) {
     // Parse the webhook payload
     const payload: ShopifyWebhookPayload = JSON.parse(rawBody);
 
+    // Orders that originated from a draft order are handled through the draft
+    // flow + sync (which reconciles drafts already fulfilled in-app so they
+    // aren't deducted twice, and classifies why the order exists). Defer them
+    // to sync rather than deduct here.
+    //
+    // Checked BEFORE the ignorable test: a hand-built donation or replacement
+    // is $0 on purpose, so the test below would report it as a refunded ghost
+    // and hide the real reason it was skipped here.
+    if (isDraftOriginatedSource(payload.source_name)) {
+      return NextResponse.json({ message: "Draft-originated order — deferred to sync" });
+    }
+
     // Ignore cancelled / fully-refunded / $0 orders (consistent with sync
     // and analytics, which never count these).
     if (isIgnorableWebhookOrder(payload)) {
       return NextResponse.json({ message: "Order ignored (cancelled/refunded/$0)" });
-    }
-
-    // Orders that originated from a draft order are handled through the draft
-    // flow + sync (which reconciles drafts already fulfilled in-app so they
-    // aren't deducted twice). Defer them to sync rather than deduct here.
-    if ((payload.source_name || "").toLowerCase() === "shopify_draft_order") {
-      return NextResponse.json({ message: "Draft-originated order — deferred to sync" });
     }
 
     // Only process if there are fulfillments

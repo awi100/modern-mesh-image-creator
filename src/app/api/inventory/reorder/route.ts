@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
 import { meshCountWhere } from "@/lib/mesh-filter";
+import { retailDemandWhere, PROCESSED_DESIGN_ITEMS } from "@/lib/velocity";
 
 // Smart canvas reorder analysis.
 //
@@ -63,22 +64,18 @@ export async function GET(request: NextRequest) {
     // Units sold per design within the trailing window, from processed Shopify
     // orders (same source the velocity job uses). Order date = when it sold.
     const orders = await prisma.shopifyOrder.findMany({
-      // Match the velocity job's population exactly: only fulfilled orders,
-      // windowed by the real order date (fallback to row createdAt for legacy
-      // rows) so a batch/backfill sync doesn't dump historical orders into the
-      // window. Without the fulfilledAt filter, processed items on draft/
-      // unfulfilled orders would inflate the reorder rate vs the velocity view.
-      where: {
-        fulfilledAt: { not: null },
-        OR: [
-          { orderDate: { gte: windowStart } },
-          { orderDate: null, createdAt: { gte: windowStart } },
-        ],
-      },
+      // Shares the velocity job's population exactly, which is the point of
+      // the shared fragment: fulfilled RETAIL orders, windowed by the real
+      // order date (fallback to row createdAt for legacy rows) so a
+      // batch/backfill sync doesn't dump historical orders into the window.
+      // Without the fulfilledAt filter, processed items on draft/unfulfilled
+      // orders would inflate the reorder rate vs the velocity view; without
+      // the kind filter, a wholesale or donation order would size the reorder.
+      where: retailDemandWhere(windowStart),
       select: {
         createdAt: true,
         items: {
-          where: { designId: { not: null }, processed: true },
+          where: PROCESSED_DESIGN_ITEMS,
           select: { designId: true, quantity: true },
         },
       },

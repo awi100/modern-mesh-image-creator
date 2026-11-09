@@ -234,6 +234,49 @@ Identical consecutive snapshots are skipped (`recordRevision`), which matters
 because the colours page auto-saves on a debounce — otherwise every pause while
 dragging a slider would leave its own entry. Logic in `src/lib/print-colors.ts`.
 
+### Hand-made orders: donations, replacements, wholesale
+
+Orders built by hand in the Shopify admin start as **draft orders** and are
+often not sales: a donation, a replacement for a badly printed canvas, or a
+wholesale order at half price. All of them move real stock, so all of them
+deduct. None of them is retail demand.
+
+`ShopifyOrder.kind` records which it is — `retail` | `wholesale` | `donation` |
+`replacement` — and `OrderDeduction.kind` denormalizes it so the audit log
+reads standalone. Logic in `src/lib/order-kind.ts`.
+
+- **Only `retail` counts toward the sales rate.** Every demand query goes
+  through `retailDemandWhere()` in `src/lib/velocity.ts` (stock alerts, the
+  reorder page, the velocity view and the kit-order-planner skill) and analytics
+  drops non-retail before computing revenue, order count or AOV. One 30-unit
+  wholesale order would otherwise read as 2.3 units/week of fresh retail demand
+  for a year.
+- **`Design.totalSold` still counts every kind**, because it answers "how many
+  units left the building", which a donation genuinely does.
+- The kind is **guessed, then correctable**. A Shopify tag wins
+  (`wholesale`, `donation`, `damaged`, … or an explicit `kind:wholesale`); else
+  a draft-originated order totalling **$0** is a giveaway, defaulting to
+  `donation`; else `retail` — including a draft at a real price, which is just a
+  phone order. Donation and replacement behave identically, so a wrong default
+  costs a label, never arithmetic. Change it on the Orders page
+  (`PATCH /api/shopify/orders/kind`); re-syncing never overwrites that choice.
+- The column defaults to `retail`, so all 3,159 pre-existing orders count
+  exactly as they did before.
+
+**A $0 total is not proof an order was refunded.** `isIgnorableOrder` discards
+$0 orders because a cancelled-by-full-refund order shows $0 — but a hand-built
+order is $0 *on purpose*. Nine such orders between 11 Sept and 5 Nov 2026 were
+dropped there and deducted nothing, leaving no trace in the app. Draft-originated
+orders are now exempt from that rule.
+
+**Draft orders need the `read_draft_orders` scope**, which the live token does
+not have. Without it `fetchOpenDraftOrders` and `fetchCompletedDraftLinks` both
+fail, so open drafts aren't listed and the draft→order reconciliation doesn't
+run — they fail together, which is why there's no half-working state. They used
+to fail into a `console.error` nobody reads; both paths now report a warning to
+the Orders page. **Completing the draft in Shopify and letting sync pick up the
+real order works without the scope**, and is the path these orders actually take.
+
 ### Where a sale deducts from
 
 An order draws on its own bucket first, then falls back to **Andover** bulk:

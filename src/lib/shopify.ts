@@ -1,5 +1,7 @@
 // Shopify Admin API client
 
+import { isDraftOriginatedSource } from "./order-kind";
+
 const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
 const SHOPIFY_ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
 
@@ -76,6 +78,10 @@ export interface ShopifyOrderNode {
   displayFulfillmentStatus: string;
   // PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED, etc.
   displayFinancialStatus: string | null;
+  // Shopify order tags. Read to classify why the order exists (a draft tagged
+  // "wholesale" or "damaged") — see lib/order-kind. Absent on API responses
+  // that don't request the field, so treat undefined as "no tags known".
+  tags?: string[];
   // Order total after refunds/edits — fully refunded orders show "0.00"
   currentTotalPriceSet: {
     shopMoney: { amount: string } | null;
@@ -131,7 +137,20 @@ export function isIgnorableOrder(order: ShopifyOrderNode): boolean {
   const fin = order.displayFinancialStatus?.toUpperCase();
   if (fin === "REFUNDED" || fin === "VOIDED") return true;
   const amount = order.currentTotalPriceSet?.shopMoney?.amount;
-  if (amount !== undefined && amount !== null && parseFloat(amount) === 0) return true;
+  if (amount !== undefined && amount !== null && parseFloat(amount) === 0) {
+    // A $0 total normally means the order was zeroed out after the fact —
+    // placed and then fully refunded — which is why it is ignored.
+    //
+    // A DRAFT order is the exception. Nobody checks out at zero; someone built
+    // it by hand to give something away: a donation, or a replacement for a
+    // badly printed canvas. The unit still leaves the building, so the order
+    // has to reach inventory. Nine such orders between 11 Sept and 5 Nov 2026
+    // were silently dropped right here, deducting nothing and leaving no trace
+    // anywhere in the app — 11 units of canvas, intro kits, needle minders and
+    // scissors. Their kind keeps them out of the sales rate (lib/order-kind);
+    // discarding them was never the right way to do that.
+    if (!isDraftOriginatedSource(order.sourceName)) return true;
+  }
   return false;
 }
 
@@ -182,6 +201,7 @@ export async function fetchUnfulfilledOrders(): Promise<OrdersQueryResult> {
           sourceName
           displayFulfillmentStatus
           displayFinancialStatus
+          tags
           currentTotalPriceSet {
             shopMoney {
               amount
@@ -278,6 +298,7 @@ export async function fetchRecentlyFulfilledOrders(sinceDate?: Date): Promise<Or
           sourceName
           displayFulfillmentStatus
           displayFinancialStatus
+          tags
           currentTotalPriceSet {
             shopMoney {
               amount
@@ -373,6 +394,7 @@ interface DraftOrderNode {
   name: string;
   createdAt: string;
   status: string; // OPEN | INVOICE_SENT | COMPLETED
+  tags: string[];
   order: { id: string } | null; // set once the draft is completed into an order
   totalPriceSet: { shopMoney: { amount: string } | null } | null;
   billingAddress: ShopifyOrderNode["billingAddress"];
@@ -393,6 +415,7 @@ const DRAFT_ORDER_FIELDS = `
   name
   createdAt
   status
+  tags
   order { id }
   totalPriceSet { shopMoney { amount } }
   billingAddress {
@@ -426,9 +449,13 @@ function draftToOrderNode(d: DraftOrderNode): ShopifyOrderNode {
     name: d.name,
     createdAt: d.createdAt,
     cancelledAt: null,
-    sourceName: null,
+    // Claim the source Shopify will stamp on this draft once it is completed,
+    // so an open draft is classified by exactly the same rules as the order it
+    // becomes — and so a $0 draft survives isIgnorableOrder either way.
+    sourceName: "shopify_draft_order",
     displayFulfillmentStatus: "UNFULFILLED",
     displayFinancialStatus: null,
+    tags: d.tags ?? [],
     currentTotalPriceSet: d.totalPriceSet,
     billingAddress:
       d.billingAddress ??

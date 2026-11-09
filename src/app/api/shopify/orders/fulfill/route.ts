@@ -6,6 +6,7 @@ import { isPosSource, normalizeTitle } from "@/lib/shopify";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { deductKits, restoreKits, lockKitGroups } from "@/lib/kit-group";
 import { drawFrom } from "@/lib/stock-draw";
+import { toOrderKind } from "@/lib/order-kind";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
 interface FulfillItem {
@@ -23,6 +24,14 @@ interface FulfillRequest {
   orderNumber: string;
   customerName?: string;
   sourceName?: string | null;
+  /**
+   * Why this order exists — "retail" | "wholesale" | "donation" |
+   * "replacement". The Orders page sends what it is showing, which is either a
+   * kind already stored for the order or the guess made from the Shopify
+   * source, tags and total. Anything unrecognised falls back to retail, so an
+   * older client still behaves as it always did.
+   */
+  kind?: string;
   items: FulfillItem[];
 }
 
@@ -62,6 +71,7 @@ export async function POST(request: NextRequest) {
   try {
     const body: FulfillRequest = await request.json();
     const { shopifyOrderId, orderNumber, customerName, sourceName, items } = body;
+    const kind = toOrderKind(body.kind);
     // POS (in-person/market) sales draw down the market tote; online orders
     // draw down main/online stock.
     const isPos = isPosSource(sourceName);
@@ -161,10 +171,12 @@ export async function POST(request: NextRequest) {
           orderNumber,
           customerName: customerName || null,
           sourceName: sourceName || null,
+          kind,
           fulfilledAt: new Date(),
         },
         update: {
           sourceName: sourceName || null,
+          kind,
           fulfilledAt: new Date(),
         },
       });
@@ -260,7 +272,7 @@ export async function POST(request: NextRequest) {
           await tx.orderDeduction.create({
             data: {
               shopifyOrderId, orderNumber, sourceName: sourceName || null,
-              bucket: isPos ? "market" : "online", via: "fulfill",
+              bucket: isPos ? "market" : "online", via: "fulfill", kind,
               designId, designName: design.name,
               kitsRequested: updates.kitDeduction, kitsDeducted: actualKitDeduction,
               canvasFromAndover: canvasDraw.fromAndover, kitsFromAndover: kitDraw.fromAndover,
