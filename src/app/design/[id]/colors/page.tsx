@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { useParams, useRouter } from "next/navigation";
 import { getDmcColorByNumber } from "@/lib/dmc-pearl-cotton";
 import { adjustColorForPrint, hexToHsl, hslToHex, exportPrintOrderPdf } from "@/lib/pdf-export";
+import { printHexForLightness, isBackToPalette } from "@/lib/print-color-slider";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { PrintColorHistory } from "@/components/PrintColorHistory";
 
@@ -153,12 +154,19 @@ export default function ColorSwapPage() {
     const color = colors.find(c => c.dmcNumber === dmcNumber);
     if (!color) return;
 
-    const hsl = hexToHsl(color.hex);
-    const newHex = hslToHex(hsl.h, hsl.s, newLightness);
+    // Rebuilt from the palette hex, NOT from `overrides[dmcNumber]` — the
+    // slider only ever changes lightness, so the palette's hue and saturation
+    // are the right ones and reading them back out of the previous override
+    // would compound the hex -> HSL -> hex rounding once per onChange. See
+    // printHexForLightness for the measurements.
+    const newHex = printHexForLightness(color.hex, newLightness);
 
     const newOverrides = { ...overrides, [dmcNumber]: newHex };
-    // If the override matches the original, remove it
-    if (newHex === color.hex) {
+    // Compared in lightness rather than against `color.hex`: the slider is
+    // whole-numbered and 340 of the 480 palette colours do not survive the
+    // hex -> HSL -> round -> hex trip, so an exact hex compare left those
+    // unresettable by dragging.
+    if (isBackToPalette(newLightness, color.hex)) {
       delete newOverrides[dmcNumber];
     }
     setOverrides(newOverrides);
@@ -427,7 +435,13 @@ export default function ColorSwapPage() {
                           onChange={(e) => handleLightnessChange(c.dmcNumber, parseInt(e.target.value))}
                           className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                           style={{
-                            background: `linear-gradient(to right, ${hslToHex(currentHsl.h, currentHsl.s, 0)}, ${hslToHex(currentHsl.h, currentHsl.s, 50)}, ${hslToHex(currentHsl.h, currentHsl.s, 100)})`,
+                            // Built from the palette's hue/saturation, not the
+                            // override's: the track is a preview of what this
+                            // slider will hand you, and the slider rebuilds
+                            // from the palette. Off the override it went grey
+                            // whenever the colour sat at either end point,
+                            // where hexToHsl reports {h:0, s:0}.
+                            background: `linear-gradient(to right, ${hslToHex(originalHsl.h, originalHsl.s, 0)}, ${hslToHex(originalHsl.h, originalHsl.s, 50)}, ${hslToHex(originalHsl.h, originalHsl.s, 100)})`,
                           }}
                         />
                         <span className="text-[10px] text-slate-500 w-6">Light</span>

@@ -1,0 +1,1002 @@
+{
+  "generatedBy": "scripts/build-measurement-scope.ts",
+  "generatedAt": "2026-11-13",
+  "paletteSize": 480,
+  "counts": {
+    "total": 77,
+    "design": 67,
+    "stock": 67,
+    "bobbin": 5,
+    "designsScanned": 77,
+    "measured": 0
+  },
+  "unknownToPalette": [],
+  "colors": [
+    {
+      "dmcNumber": "BLANC",
+      "name": "White",
+      "currentHex": "#FCFCFC",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock",
+        "bobbin"
+      ],
+      "designs": 57,
+      "skeins": 136,
+      "bobbins": 7
+    },
+    {
+      "dmcNumber": "310",
+      "name": "Black",
+      "currentHex": "#000000",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock",
+        "bobbin"
+      ],
+      "designs": 30,
+      "skeins": 112,
+      "bobbins": 42
+    },
+    {
+      "dmcNumber": "909",
+      "name": "Very Dark Emerald Green",
+      "currentHex": "#106038",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 14,
+      "skeins": 179,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "604",
+      "name": "Light Cranberry",
+      "currentHex": "#F793B2",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 12,
+      "skeins": 55,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "815",
+      "name": "Medium Garnet",
+      "currentHex": "#7B1B25",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 10,
+      "skeins": 34,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "444",
+      "name": "Dark Lemon",
+      "currentHex": "#F7D718",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 10,
+      "skeins": 4,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3753",
+      "name": "Ultra Very Light Antique Blue",
+      "currentHex": "#D8E8F0",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 8,
+      "skeins": 54,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "336",
+      "name": "Navy Blue",
+      "currentHex": "#182858",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 8,
+      "skeins": 53,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "500",
+      "name": "Very Dark Blue Green",
+      "currentHex": "#1D362A",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 8,
+      "skeins": 27,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "741",
+      "name": "Medium Tangerine",
+      "currentHex": "#F79848",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 8,
+      "skeins": 21,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "726",
+      "name": "Light Topaz",
+      "currentHex": "#F7E078",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 7,
+      "skeins": 71,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "311",
+      "name": "Medium Navy Blue",
+      "currentHex": "#183868",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 7,
+      "skeins": 36,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "801",
+      "name": "Dark Coffee Brown",
+      "currentHex": "#402818",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock",
+        "bobbin"
+      ],
+      "designs": 7,
+      "skeins": 24,
+      "bobbins": 41
+    },
+    {
+      "dmcNumber": "415",
+      "name": "Pearl Gray",
+      "currentHex": "#B0B0B0",
+      "measuredHex": null,
+      "sources": [
+        "design"
+      ],
+      "designs": 7,
+      "skeins": 0,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "817",
+      "name": "Very Dark Coral Red",
+      "currentHex": "#B41C2D",
+      "measuredHex": null,
+      "sources": [
+        "design"
+      ],
+      "designs": 7,
+      "skeins": 0,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3325",
+      "name": "Light Baby Blue",
+      "currentHex": "#B8D0E8",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 6,
+      "skeins": 82,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "437",
+      "name": "Light Tan",
+      "currentHex": "#D0A068",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 6,
+      "skeins": 21,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "799",
+      "name": "Medium Delft Blue",
+      "currentHex": "#5078B0",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 6,
+      "skeins": 12,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "725",
+      "name": "Medium Light Topaz",
+      "currentHex": "#F7D058",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 6,
+      "skeins": 8,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "603",
+      "name": "Cranberry",
+      "currentHex": "#FB4B7C",
+      "measuredHex": null,
+      "sources": [
+        "design"
+      ],
+      "designs": 6,
+      "skeins": 0,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "823",
+      "name": "Dark Navy Blue",
+      "currentHex": "#101848",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 5,
+      "skeins": 70,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "738",
+      "name": "Very Light Tan",
+      "currentHex": "#E0C098",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 5,
+      "skeins": 44,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "320",
+      "name": "Medium Pistachio Green",
+      "currentHex": "#588858",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 5,
+      "skeins": 27,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "739",
+      "name": "Ultra Very Light Tan",
+      "currentHex": "#F0E0C8",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 4,
+      "skeins": 110,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "996",
+      "name": "Medium Electric Blue",
+      "currentHex": "#30B0E8",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 4,
+      "skeins": 91,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "209",
+      "name": "Dark Lavender",
+      "currentHex": "#7858B0",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 4,
+      "skeins": 89,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "905",
+      "name": "Dark Parrot Green",
+      "currentHex": "#388040",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 4,
+      "skeins": 41,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "318",
+      "name": "Light Steel Gray",
+      "currentHex": "#989898",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 4,
+      "skeins": 33,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "816",
+      "name": "Garnet",
+      "currentHex": "#971E2A",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 4,
+      "skeins": 32,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "666",
+      "name": "Bright Red",
+      "currentHex": "#E31D3D",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 4,
+      "skeins": 24,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "904",
+      "name": "Very Dark Parrot Green",
+      "currentHex": "#285830",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 4,
+      "skeins": 15,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "413",
+      "name": "Dark Pewter Gray",
+      "currentHex": "#484848",
+      "measuredHex": null,
+      "sources": [
+        "design"
+      ],
+      "designs": 4,
+      "skeins": 0,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "519",
+      "name": "Sky Blue",
+      "currentHex": "#78B8D8",
+      "measuredHex": null,
+      "sources": [
+        "design"
+      ],
+      "designs": 4,
+      "skeins": 0,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3688",
+      "name": "Medium Mauve",
+      "currentHex": "#DC7C86",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 119,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "798",
+      "name": "Dark Delft Blue",
+      "currentHex": "#3858A0",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 81,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "319",
+      "name": "Very Dark Pistachio Green",
+      "currentHex": "#184828",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 74,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "472",
+      "name": "Ultra Light Avocado Green",
+      "currentHex": "#D1DE75",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 45,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "834",
+      "name": "Very Light Golden Olive",
+      "currentHex": "#D2B468",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 41,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "820",
+      "name": "Very Dark Royal Blue",
+      "currentHex": "#101870",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 40,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "504",
+      "name": "Very Light Blue Green",
+      "currentHex": "#C4DECC",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 17,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "900",
+      "name": "Dark Burnt Orange",
+      "currentHex": "#CF4010",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 16,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "906",
+      "name": "Medium Parrot Green",
+      "currentHex": "#48A050",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 11,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "608",
+      "name": "Bright Orange",
+      "currentHex": "#F85B20",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 10,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "938",
+      "name": "Ultra Dark Coffee Brown",
+      "currentHex": "#301810",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 8,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "898",
+      "name": "Very Dark Coffee Brown",
+      "currentHex": "#382010",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 4,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "471",
+      "name": "Very Light Avocado Green",
+      "currentHex": "#9EB357",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 3,
+      "skeins": 3,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3072",
+      "name": "Very Light Beaver Gray",
+      "currentHex": "#E0E0D8",
+      "measuredHex": null,
+      "sources": [
+        "design"
+      ],
+      "designs": 3,
+      "skeins": 0,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "794",
+      "name": "Light Cornflower Blue",
+      "currentHex": "#88A0C8",
+      "measuredHex": null,
+      "sources": [
+        "design"
+      ],
+      "designs": 3,
+      "skeins": 0,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "503",
+      "name": "Medium Blue Green",
+      "currentHex": "#89B89F",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 2,
+      "skeins": 60,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3348",
+      "name": "Light Yellow Green",
+      "currentHex": "#98B088",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 2,
+      "skeins": 52,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "824",
+      "name": "Very Dark Blue",
+      "currentHex": "#183858",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 2,
+      "skeins": 51,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3033",
+      "name": "Very Light Mocha Brown",
+      "currentHex": "#C8B8A8",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 2,
+      "skeins": 16,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3685",
+      "name": "Very Dark Mauve",
+      "currentHex": "#79263B",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 2,
+      "skeins": 12,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "433",
+      "name": "Medium Brown",
+      "currentHex": "#583018",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 2,
+      "skeins": 7,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3823",
+      "name": "Ultra Pale Yellow",
+      "currentHex": "#F8F0D0",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 2,
+      "skeins": 6,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "814",
+      "name": "Dark Garnet",
+      "currentHex": "#5C1420",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 2,
+      "skeins": 6,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "316",
+      "name": "Medium Antique Mauve",
+      "currentHex": "#B7737F",
+      "measuredHex": null,
+      "sources": [
+        "design"
+      ],
+      "designs": 2,
+      "skeins": 0,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "813",
+      "name": "Light Blue",
+      "currentHex": "#78A8C8",
+      "measuredHex": null,
+      "sources": [
+        "design"
+      ],
+      "designs": 2,
+      "skeins": 0,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "B5200",
+      "name": "Snow White",
+      "currentHex": "#FDFDFF",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 1,
+      "skeins": 67,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3042",
+      "name": "Light Antique Violet",
+      "currentHex": "#B79DA7",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 1,
+      "skeins": 59,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "966",
+      "name": "Medium Baby Green",
+      "currentHex": "#94D28A",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 1,
+      "skeins": 48,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "469",
+      "name": "Avocado Green",
+      "currentHex": "#5B6533",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 1,
+      "skeins": 17,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3743",
+      "name": "Very Light Antique Violet",
+      "currentHex": "#CFC2C9",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock",
+        "bobbin"
+      ],
+      "designs": 1,
+      "skeins": 16,
+      "bobbins": 15
+    },
+    {
+      "dmcNumber": "937",
+      "name": "Medium Avocado Green",
+      "currentHex": "#434F2C",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 1,
+      "skeins": 8,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "778",
+      "name": "Very Light Antique Mauve",
+      "currentHex": "#DCA6A4",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 1,
+      "skeins": 6,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "745",
+      "name": "Very Light Pale Yellow",
+      "currentHex": "#F8E8A8",
+      "measuredHex": null,
+      "sources": [
+        "design",
+        "stock"
+      ],
+      "designs": 1,
+      "skeins": 4,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "211",
+      "name": "Light Lavender",
+      "currentHex": "#C0A8E0",
+      "measuredHex": null,
+      "sources": [
+        "design"
+      ],
+      "designs": 1,
+      "skeins": 0,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "987",
+      "name": "Dark Forest Green",
+      "currentHex": "#386838",
+      "measuredHex": null,
+      "sources": [
+        "stock"
+      ],
+      "designs": 0,
+      "skeins": 102,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "33",
+      "name": "Fuchsia",
+      "currentHex": "#C32278",
+      "measuredHex": null,
+      "sources": [
+        "stock"
+      ],
+      "designs": 0,
+      "skeins": 60,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "932",
+      "name": "Light Antique Blue",
+      "currentHex": "#88A8C8",
+      "measuredHex": null,
+      "sources": [
+        "stock"
+      ],
+      "designs": 0,
+      "skeins": 40,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "3799",
+      "name": "Very Dark Pewter Gray",
+      "currentHex": "#383838",
+      "measuredHex": null,
+      "sources": [
+        "stock"
+      ],
+      "designs": 0,
+      "skeins": 36,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "800",
+      "name": "Pale Delft Blue",
+      "currentHex": "#B8D0F0",
+      "measuredHex": null,
+      "sources": [
+        "stock"
+      ],
+      "designs": 0,
+      "skeins": 36,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "03",
+      "name": "Medium Tin",
+      "currentHex": "#B0B0B5",
+      "measuredHex": null,
+      "sources": [
+        "stock",
+        "bobbin"
+      ],
+      "designs": 0,
+      "skeins": 30,
+      "bobbins": 24
+    },
+    {
+      "dmcNumber": "825",
+      "name": "Dark Blue",
+      "currentHex": "#305878",
+      "measuredHex": null,
+      "sources": [
+        "stock"
+      ],
+      "designs": 0,
+      "skeins": 20,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "840",
+      "name": "Medium Beige Brown",
+      "currentHex": "#988878",
+      "measuredHex": null,
+      "sources": [
+        "stock"
+      ],
+      "designs": 0,
+      "skeins": 12,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "841",
+      "name": "Light Beige Brown",
+      "currentHex": "#B8A898",
+      "measuredHex": null,
+      "sources": [
+        "stock"
+      ],
+      "designs": 0,
+      "skeins": 11,
+      "bobbins": 0
+    },
+    {
+      "dmcNumber": "315",
+      "name": "Medium Dark Antique Mauve",
+      "currentHex": "#814952",
+      "measuredHex": null,
+      "sources": [
+        "stock"
+      ],
+      "designs": 0,
+      "skeins": 9,
+      "bobbins": 0
+    }
+  ]
+}

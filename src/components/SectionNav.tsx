@@ -37,6 +37,8 @@ const ALSO_UNDER: Record<string, string[]> = {
   "/tools": ["/stock-alerts", "/velocity", "/finishing", "/inventory/reorder",
              "/inventory/andover-pickup", "/inventory/deductions", "/inventory/unmatched",
              "/inventory/bundles", "/inventory/pricing", "/shopify", "/help"],
+  // /tools/palette-review already matches on the "/tools/" prefix; it is listed
+  // nowhere here for that reason.
 };
 
 function SectionNavInner() {

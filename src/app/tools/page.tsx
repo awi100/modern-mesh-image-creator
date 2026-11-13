@@ -78,6 +78,14 @@ const TOOLS: Tool[] = [
     accent: "text-amber-300",
   },
   {
+    href: "/tools/palette-review",
+    group: "Checking & fixing",
+    title: "Palette Review",
+    description: "Judge our DMC hex values: name ladders that run backwards, and a blinded A/B against a real skein.",
+    icon: icon("M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"),
+    accent: "text-violet-300",
+  },
+  {
     href: "/inventory/bundles",
     group: "Stock & setup",
     title: "Bundles",

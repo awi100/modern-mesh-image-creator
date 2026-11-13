@@ -1,5 +1,7 @@
 // DMC Pearl Cotton Color Palette with Lab values for perceptual color matching
 
+import { MEASURED } from "./dmc-measured";
+
 export interface DmcColor {
   dmcNumber: string;
   name: string;
@@ -164,19 +166,109 @@ export function getSimilarityDescription(deltaE: number): string {
   return "Different";
 }
 
-// Helper to create color entry
+// Helper to create color entry.
+//
+// A measured reading, where we have one, wins over the literal hex below. The
+// lookup lives in dmc-measured.ts rather than being edited into the 480 literals
+// because this file is copied verbatim to the public SaaS app (CLAUDE.md, "SYNC
+// WITH PUBLIC APP"): rewriting literals here would turn every batch of newly
+// measured skeins into a three-way merge, while a separate generated file stays
+// a file copy. MEASURED ships empty, so with nothing measured this behaves
+// exactly as parsing the hex did.
+//
+// Measured Lab is taken straight through instead of being re-derived from the
+// measured hex. 8-bit sRGB quantises Lab into roughly 0.4 dE steps, and lab —
+// not hex — is what the matching path reads: findNearestDmcColor below and the
+// photo quantization in color-utils.ts.
 function createColor(dmcNumber: string, name: string, hex: string): DmcColor {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const lab = rgbToLab(r, g, b);
-  return { dmcNumber, name, hex, rgb: { r, g, b }, lab };
+  const measured = MEASURED[dmcNumber];
+  const effectiveHex = measured?.hex ?? hex;
+  const r = parseInt(effectiveHex.slice(1, 3), 16);
+  const g = parseInt(effectiveHex.slice(3, 5), 16);
+  const b = parseInt(effectiveHex.slice(5, 7), 16);
+  const lab = measured?.lab ?? rgbToLab(r, g, b);
+  return { dmcNumber, name, hex: effectiveHex, rgb: { r, g, b }, lab };
 }
 
 // Complete DMC Pearl Cotton palette - all colors available from Yarn Tree wholesale
+//
+// Lines marked "provisional" were corrected by hand against the two public
+// datasets (Wolfram n=454, camelia n=455) because they were provably wrong —
+// nobody held a skein next to a screen, so they are still guesses, only
+// better-argued ones. dmc-provenance.ts records which; a reading landing in
+// dmc-measured.ts is what retires the label. The reasoning, once:
+//
+//   310 Black     HELD AT #000000. It was moved to #131313 on 2026-11-13 and
+//     reverted the same day: a palette hex is not display-only, it is the seed
+//     for the print-colour overrides. The colours page generates
+//     adjustColorForPrint(color.hex) for any design that has no stored
+//     overrides and SAVES it, and adjustColorForPrint("#000000") = #1F1F1F
+//     while adjustColorForPrint("#131313") = #2E2E2E — 15 levels per channel
+//     lighter on a canvas that costs real money. 103 of the 292 live designs
+//     stitch 310 and 73 of those carry no overrides at all, so the next visit
+//     to each of their colours pages would have banked the new value silently.
+//     (The 30 designs that DO store a 310 override are already safe: 29 hold
+//     #1f1f1f and one a hand-tuned #171717, and a stored override always wins.)
+//     Black's true value is a measurement question, not a reasoning one; the
+//     screen-side problem it was reaching for was fixed where it lived, in
+//     darkenColor() in stitch-preview.ts. Moving 310 is only safe once print
+//     overrides are frozen first — backfill every design that stitches 310 with
+//     its current adjustColorForPrint value, THEN change the hex.
+//   B5200 Snow White #FFFFFF -> #FDFDFF  The same argument at the other end,
+//     and it survives because at L*99.36 it is above adjustColorForPrint's L*70
+//     threshold: both the old and the new hex pass through untouched, no
+//     override is ever generated, and the only print difference is the 2/255 on
+//     R and G that no printer resolves. Both datasets put B5200 at #FCFCFF — a
+//     hair under white with the optical brightener's blue cast; taken at half
+//     strength so B5200/BLANC stay the near-twins they are, still above BLANC's
+//     L*98.96. B5200 must stay at index 0, which store.ts:238 depends on.
+//
+//     It is NOT display-only either: it changes photo import. An exactly white
+//     pixel used to hit B5200 on a dE76 of 0 and now hits BLANC (1.036 vs
+//     B5200's 1.201), because findNearestDmcColor matches on lab. That is the
+//     better answer — BLANC is the thread the business actually stocks, 136
+//     skeins across 179 live designs, against B5200's 67 skeins in 6 — but it
+//     is a behaviour change, not a repaint, and it is recorded here rather than
+//     rediscovered from a quantized photo that came back a different white.
+//
+// The six byte-identical pairs below were six threads you could not tell apart
+// on screen, and findNearestDmcColor breaks ties by array position, so one of
+// each pair was unreachable from photo import. For five of them both datasets
+// agree which half ours matches, so the OTHER half moved, by the Lab delta the
+// two datasets agree on rather than by importing either one's absolute value:
+//
+//   988  vs 320   #588858 -> #5D8B4D  b* +7.6, forest green is the yellower one
+//   3346 vs 367   #386038 -> #42642E  b* +8.0, same relationship
+//   368  vs 989   #78A878 -> #8DCA98  L* +11.9; here ours matched 989 in both
+//                                     datasets, so 368 is the half that moved
+//   535  vs 318   #989898 -> #4B4942  L* -31.7. Not a nudge: ours was 28.6/30.4
+//                                     dE2000 from the two datasets, which agree
+//                                     535 is a dark olive-grey. Now 3.4/3.0.
+//   645  vs 3787  #585048 -> #565A51  a* -5.1; 645 is the neutral olive-grey of
+//                                     the pair, 3787 the brown one
+//   07   vs 453   #CCB8AA -> #BCA194  Neither dataset covers the 01-35 range at
+//     all, while both carry 453 (camelia byte-for-byte as ours), so 07 was the
+//     copy. Placed at the Lab midpoint of its own neighbours 06 and 08, whose
+//     steps were a lopsided 3.8 then 18.1 dE2000.
+//
+// None of those six carries 310's print consequence TODAY, which is why they
+// stand while 310 was reverted: not one of them is stitched in any of the 474
+// designs in the database, live or trashed, and no design stores a print
+// override for any of them. They would if they were used — 535's generated
+// override moves #9d9d9d -> #5f5d54, 3346's #477947 -> #55813c — so the same
+// freeze-the-overrides rule applies the first time one of them lands in a
+// design that has already been to the printer.
+//
+// And every hex here, changed for whatever reason, changes what a PHOTO
+// quantizes to. Import matches on lab (findNearestDmcColor, and the quantizer
+// in color-utils.ts), lab is derived from the hex, so moving one entry can
+// reassign pixels that were never near it — at #131313, 310 took rgb(32,32,32)
+// off 3799 Very Dark Pewter Gray, and splitting a byte-identical pair makes the
+// half that could never be picked pickable. Re-importing the same photograph
+// after a palette change is not guaranteed to give the same design.
 export const DMC_PEARL_COTTON: DmcColor[] = [
   // Whites and Ecrus
-  createColor("B5200", "Snow White", "#FFFFFF"),
+  createColor("B5200", "Snow White", "#FDFDFF"), // provisional, pending measurement
   createColor("BLANC", "White", "#FCFCFC"),
   createColor("ECRU", "Ecru", "#F0EAD6"),
   createColor("712", "Cream", "#F6EFDA"),
@@ -191,7 +283,7 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("04", "Dark Tin", "#9C9B9D"),
   createColor("05", "Light Driftwood", "#E3CCBE"),
   createColor("06", "Medium Light Driftwood", "#DCC6B8"),
-  createColor("07", "Driftwood", "#CCB8AA"),
+  createColor("07", "Driftwood", "#BCA194"), // provisional, pending measurement
   createColor("08", "Dark Driftwood", "#9D7D71"),
   createColor("09", "Very Dark Cocoa", "#552014"),
   createColor("10", "Very Light Tender Green", "#EDFED9"),
@@ -386,7 +478,7 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("319", "Very Dark Pistachio Green", "#184828"),
   createColor("320", "Medium Pistachio Green", "#588858"),
   createColor("367", "Dark Pistachio Green", "#386038"),
-  createColor("368", "Light Pistachio Green", "#78A878"),
+  createColor("368", "Light Pistachio Green", "#8DCA98"), // provisional, pending measurement
   createColor("369", "Very Light Pistachio Green", "#A8D0A8"),
   createColor("469", "Avocado Green", "#5B6533"),
   createColor("470", "Light Avocado Green", "#72813E"),
@@ -444,7 +536,7 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("966", "Medium Baby Green", "#94D28A"),
   createColor("986", "Very Dark Forest Green", "#284028"),
   createColor("987", "Dark Forest Green", "#386838"),
-  createColor("988", "Medium Forest Green", "#588858"),
+  createColor("988", "Medium Forest Green", "#5D8B4D"), // provisional, pending measurement
   createColor("989", "Forest Green", "#78A878"),
   createColor("991", "Dark Aquamarine", "#135F55"),
   createColor("992", "Light Aquamarine", "#42B59E"),
@@ -454,7 +546,7 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("3052", "Medium Green Gray", "#787E5C"),
   createColor("3053", "Green Gray", "#999D75"),
   createColor("3345", "Dark Hunter Green", "#183820"),
-  createColor("3346", "Hunter Green", "#386038"),
+  createColor("3346", "Hunter Green", "#42642E"), // provisional, pending measurement
   createColor("3347", "Medium Yellow Green", "#588050"),
   createColor("3348", "Light Yellow Green", "#98B088"),
   createColor("3362", "Dark Pine Green", "#49523C"),
@@ -637,6 +729,8 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("3864", "Light Mocha Beige", "#C8B0A0"),
 
   // Grays
+  // HELD at #000000: changing it rewrites generated print overrides. See the
+  // note above DMC_PEARL_COTTON before touching this value.
   createColor("310", "Black", "#000000"),
   createColor("317", "Pewter Gray", "#787878"),
   createColor("318", "Light Steel Gray", "#989898"),
@@ -646,11 +740,11 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("451", "Dark Shell Gray", "#887773"),
   createColor("452", "Medium Shell Gray", "#AD9994"),
   createColor("453", "Light Shell Gray", "#CCB8AA"),
-  createColor("535", "Very Light Ash Gray", "#989898"),
+  createColor("535", "Very Light Ash Gray", "#4B4942"), // provisional, pending measurement
   createColor("640", "Very Dark Beige Gray", "#817868"),
   createColor("642", "Dark Beige Gray", "#958D79"),
   createColor("644", "Medium Beige Gray", "#C4BEA6"),
-  createColor("645", "Very Dark Beaver Gray", "#585048"),
+  createColor("645", "Very Dark Beaver Gray", "#565A51"), // provisional, pending measurement
   createColor("646", "Dark Beaver Gray", "#787068"),
   createColor("647", "Medium Beaver Gray", "#989088"),
   createColor("648", "Light Beaver Gray", "#B8B0A8"),

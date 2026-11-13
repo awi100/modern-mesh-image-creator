@@ -31,7 +31,17 @@ function rgbToHex(r: number, g: number, b: number): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
-// Lighten a color by a percentage
+// Lighten a color by a percentage.
+//
+// Blends toward white, so it flattens out at the white end the same way the
+// multiply below flattens at the black end: at the 0.35 highlight BLANC
+// #FCFCFC gains 1 level of 255 and B5200 #FDFDFF gains 1 on R and G and none
+// on B, which is already at 255. That is left alone on
+// purpose. A near-white stitch still reads as a tube because its SHADOW half is
+// intact (BLANC's 0.30 shadow is #B0B0B0), and the only way to manufacture a
+// highlight above #FCFCFC would be to draw the crown darker than the body,
+// which reads as a groove rather than a round thread. Near-black had the
+// opposite problem and no compensating half, which is what darkenColor fixes.
 function lightenColor(hex: string, percent: number): string {
   const { r, g, b } = hexToRgb(hex);
   const newR = Math.min(255, Math.round(r + (255 - r) * percent));
@@ -40,13 +50,54 @@ function lightenColor(hex: string, percent: number): string {
   return rgbToHex(newR, newG, newB);
 }
 
-// Darken a color by a percentage
+// The smallest shade step worth drawing, per 1.0 of `percent`: 14 levels of 255
+// at the 0.30 stitch edge, 7 at the 0.15 mid-shadow. Below about 10 levels the
+// strand edges stop being visible against the strand body at preview zoom.
+const MIN_SHADE_PER_PERCENT = 48;
+
+// Darken a color by a percentage.
+//
+// Multiplying channels is right for a mid colour but has nothing left to take
+// at the dark end, and the stitch gradient is three strands whose edges are
+// drawn with this: 310 Black at #000000 returned #000000 for every percent, so
+// a black stitch lost both shadow stops and the three strands rendered as one
+// flat black lozenge — the one colour in the palette that did not read as
+// stitching. 310 is back at #000000 and staying there (its hex seeds the saved
+// print overrides; see dmc-pearl-cotton.ts), so the fix belongs here.
+//
+// Multiplying is kept wherever it already moves the colour by at least the
+// minimum step, which is 464 of the 480 palette entries — everything above
+// L*21.6 renders exactly as it did. The 15 very dark entries below that (939,
+// 823, 938, 820, 898, 3371, 814 …) take the step as a flat subtraction
+// instead, and because each channel is capped at whatever the multiply gave,
+// those shades can only come out darker than before, never lighter: the one
+// thing a shadow stop must never do is drift toward the body colour.
+//
+// Where even subtraction has no room — #000000 itself — the shade is LIFTED by
+// the step instead. Real black thread has no darker-than-black side either;
+// what makes it read is that the crown catches light and the edges do not, so
+// drawing the edge a few levels off the core is the only way to put that
+// distinction on screen. 310's stops go #0E0E0E / #070707 / #000000 / #2E2E2E
+// / #595959, which is a tube again instead of a flat lozenge.
 function darkenColor(hex: string, percent: number): string {
   const { r, g, b } = hexToRgb(hex);
-  const newR = Math.round(r * (1 - percent));
-  const newG = Math.round(g * (1 - percent));
-  const newB = Math.round(b * (1 - percent));
-  return rgbToHex(newR, newG, newB);
+  const step = Math.round(MIN_SHADE_PER_PERCENT * percent);
+  // Perceived brightness, same weights as desaturateColor below. It is linear
+  // in the channels, so `lum * percent` IS the drop the multiply would give.
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  const scaled = [r, g, b].map(v => Math.round(v * (1 - percent)));
+
+  if (lum * percent >= step) {
+    return rgbToHex(scaled[0], scaled[1], scaled[2]);
+  }
+
+  if (lum >= step) {
+    const dropped = [r, g, b].map((v, i) => Math.max(0, Math.min(scaled[i], v - step)));
+    return rgbToHex(dropped[0], dropped[1], dropped[2]);
+  }
+
+  const lifted = [r, g, b].map(v => Math.min(255, v + step));
+  return rgbToHex(lifted[0], lifted[1], lifted[2]);
 }
 
 // Desaturate a color
