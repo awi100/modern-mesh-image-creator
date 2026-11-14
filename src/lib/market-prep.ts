@@ -19,7 +19,19 @@ import { kitStockOf, totalKitStock } from "./kit-group";
  *     carry no combined figure at all — `inTote` is for supplies, which have no
  *     such split.
  *
- *  2. Lines are grouped and matched by the designId/supplyId they already
+ *  2. A design's kit target EQUALS its canvas target. It is not derived from
+ *     kit sales history, even though the history is there. Attach-rate sizing
+ *     read Fenway Frank's market sales as 9 canvases but only 8 kits, so a
+ *     tote holding 9 and 8 was "fully covered" and the row vanished from the
+ *     to-pack list — the 9th buyer could take a canvas but not a kit. Across
+ *     the list the history put 11 of 46 kit targets below their canvas target
+ *     and never once above, so parity only ever raises a target. The cost is
+ *     small and known: +5 kits to pack today, +2 more for the 5 designs with
+ *     no market kit sale yet (which do sell kits online, and four of which
+ *     already have kits in the tote). Bringing a canvas nobody can kit is the
+ *     expensive mistake; carrying a spare kit is not.
+ *
+ *  3. Lines are grouped and matched by the designId/supplyId they already
  *     carry, never by `productTitle`. Titles are snapshots taken at fulfil
  *     time: rename a design and its earlier market sales keep the old name, so
  *     title-matching found no tote stock for them and dropped them out of the
@@ -101,6 +113,12 @@ export interface PrepRow {
   recommended: number;
   /** Supplies only; a design's tote stock is the split pair below. */
   inTote: number | null;
+  /**
+   * Target for the next market. The two are EQUAL for a design (rule 2) and
+   * both 0 for a supply, which uses `recommended` instead. They stay separate
+   * fields because they are measured against different tote counts, and a
+   * single number would invite summing them.
+   */
   recommendedCanvas: number;
   recommendedKit: number;
   toteCanvas: number | null;
@@ -226,8 +244,6 @@ export function buildMarketPrep(
     supplyId: string | null;
     perMarket: number[];
     total: number;
-    perMarketKit: number[];
-    totalKit: number;
   }
 
   const items = new Map<string, ItemAgg>();
@@ -252,7 +268,6 @@ export function buildMarketPrep(
         agg = {
           name, kind, designId, supplyId,
           perMarket: new Array(marketCount).fill(0), total: 0,
-          perMarketKit: new Array(marketCount).fill(0), totalKit: 0,
         };
         items.set(key, agg);
       }
@@ -260,10 +275,6 @@ export function buildMarketPrep(
       if (it.needsKit && agg.kind === "canvas") agg.kind = "kit";
       agg.perMarket[mIdx] += it.quantity;
       agg.total += it.quantity;
-      if (it.needsKit) {
-        agg.perMarketKit[mIdx] += it.quantity;
-        agg.totalKit += it.quantity;
-      }
     }
   }
 
@@ -289,11 +300,9 @@ export function buildMarketPrep(
       // canvas = every unit sold; kit = only the "+ kit" units. These are the
       // only figures a design row should be judged on, in both directions.
       recommendedCanvas: isSupply ? 0 : recommended,
-      recommendedKit: isSupply
-        ? 0
-        : agg.totalKit > 0
-          ? recommend(Math.max(...agg.perMarketKit, 0), agg.totalKit, buffer)
-          : 0,
+      // One kit per canvas — rule 2 up top. Deliberately the same number, not
+      // a second figure sized from the "+ kit" units alone.
+      recommendedKit: isSupply ? 0 : recommended,
       toteCanvas: design?.marketCanvas ?? null,
       toteKits: design?.marketKits ?? null,
       // Enough to action a home -> market move without a second round trip.

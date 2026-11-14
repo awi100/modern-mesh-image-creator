@@ -44,6 +44,7 @@ interface SupplyStock { id: string; market: number; home: number; }
 interface PrepRow {
   name: string; kind: Kind; total: number; max: number; marketsSold: number;
   perMarket: number[]; recommended: number; inTote: number | null;
+  /** Equal for a design: one kit target per canvas target. */
   recommendedCanvas: number; recommendedKit: number;
   toteCanvas: number | null; toteKits: number | null;
   design: DesignStock | null; supply: SupplyStock | null;
@@ -557,7 +558,7 @@ function ItemRow({
 
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs mb-4">
             <Stat label="Target canvases" value={item.canvas?.need ?? 0} hint={`peak ${item.row.max} + buffer`} />
-            <Stat label="Target kits" value={item.kit?.need ?? 0} hint="only “+ kit” sales" />
+            <Stat label="Target kits" value={item.kit?.need ?? 0} hint="one per canvas" />
             <Stat label="At home" value={`${stock.homeCanvas}c · ${stock.homeKits}k`} />
             <Stat label="At Andover" value={`${stock.andoverCanvas}c · ${stock.andoverKits}k`} />
           </dl>

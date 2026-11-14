@@ -448,6 +448,44 @@ Rules, all enforced in `src/lib/kit-pool.ts` (pure, client-safe) and
 - Add or remove members with `scripts/create-kit-group.ts`, which refuses to
   write unless the members' colour sets match exactly.
 
+### Packing the market tote
+
+`src/lib/market-prep.ts` sizes the tote for the **busiest single market** seen
+plus a buffer — not the average — because the sample is small and any day we
+sold out understates demand. Three rules, all of which have been got wrong
+before:
+
+1. **A design's canvases and kits are never summed.** 3 canvases + 3 kits is not
+   "6 in tote". Design rows carry no combined figure at all; `inTote` is for
+   supplies, which have no such split.
+2. **A design's kit target equals its canvas target** — one kit per canvas,
+   *not* a second figure sized from the "+ kit" units alone. See below.
+3. **Rows are matched by `designId`/`supplyId`, never by `productTitle`.**
+   Titles are snapshots taken at fulfil time, so renaming a design orphaned its
+   earlier market sales and dropped it off the packing list.
+
+**Why kits match canvases.** Attach-rate sizing read Fenway Frank's market
+history as 9 canvases but only 8 kits, so a tote holding exactly 9 and 8 was
+"fully covered" — and since the list defaults to the **To-do** filter, the row
+disappeared from the packing list entirely. The 9th buyer could take a canvas
+but not a kit, and the only way to see the 8 was to switch to the Tote counts
+tab. Across the live list the history put **11 of 46** kit targets below their
+canvas target and **never once above**, so parity only ever raises a target.
+The cost is small and bounded: +5 kits, plus 2 more for the five designs with no
+market kit sale yet — all of which sell kits online, and four of which already
+had kits in the tote. Bringing a canvas nobody can kit is the expensive mistake.
+
+**Known latent issue: pooled kits are summed per design in the totals.**
+`summary.kit.inTote` / `covered` / `toPack` add up per-design figures, but a
+[shared kit pool](#shared-kit-pools) reports the *whole pool* to every member —
+exactly the multiplication `totalKitStock` exists to prevent. Per-design
+`required` is right (4 canvases across Comm Ave and Mass Ave genuinely need 4
+bags, since bags are interchangeable, not shared), but *held* is counted once
+per member. It is **not wrong today**: the Large pool has 1 market bag with one
+member on the list and the Small pool has 0, so the sums agree exactly. It will
+overstate as soon as a pool holds market stock with two members on the list.
+Fix by grouping the kit totals by `kitGroupId` before summing.
+
 ### Kit Features
 - View kit requirements for each design
 - Track "kits ready" (assembled kits)
