@@ -5,6 +5,12 @@ import Link from "next/link";
 import SectionNav from "@/components/SectionNav";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import type { EventListRow } from "@/app/api/ticket-tailor/events/route";
+// Type-only, so nothing from the server module is bundled into this client
+// component — the import is erased at compile time.
+import type { SyncResult } from "@/lib/ticket-tailor/sync";
+
+/** What the sync route returns: a SyncResult, or { error } when it fails. */
+type SyncResponse = SyncResult & { error?: string };
 
 /**
  * Sip-and-stitch events from Ticket Tailor.
@@ -39,12 +45,34 @@ export default function EventsPage() {
     setSyncing(true); setNote(null); setError(null);
     try {
       const res = await fetch("/api/ticket-tailor/sync", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Sync failed (${res.status})`);
+
+      // Read as text first. The route returns JSON for every failure it can
+      // see, so a non-JSON body means the function never got to return at all
+      // — the platform killed it and sent its own HTML error page. Calling
+      // res.json() straight away reported the parser's complaint instead
+      // ("Unexpected token 'A', \"An error o\"... is not valid JSON"), which
+      // names the symptom and hides the cause.
+      const body = await res.text();
+      let data: SyncResponse | null = null;
+      try {
+        data = body ? (JSON.parse(body) as SyncResponse) : null;
+      } catch {
+        throw new Error(
+          res.status === 504 || /An error occurred|timed? ?out|TIMEOUT/i.test(body)
+            ? "The sync ran out of time before it finished. Any events it did reach are up to date; sync a single event from its own page to catch the rest."
+            : `Sync failed (${res.status}) and the server did not return JSON.`,
+        );
+      }
+      if (!res.ok || !data) throw new Error(data?.error ?? `Sync failed (${res.status})`);
+
+      // Per-event failures come back in `errors` with a 200, because one bad
+      // event should not discard the others. Saying only what was synced would
+      // report a partial sync as a clean one.
       setNote(
         `Synced ${data.events} events, ${data.orders} orders, ${data.tickets} tickets.` +
         (data.masked ? ` ${data.masked} answers are hidden — the API key cannot read customer data.` : "") +
-        (data.unmapped ? ` ${data.unmapped} picks are not mapped yet.` : ""),
+        (data.unmapped ? ` ${data.unmapped} picks are not mapped yet.` : "") +
+        (data.errors?.length ? ` ${data.errors.length} problem${data.errors.length === 1 ? "" : "s"}: ${data.errors.join("; ")}` : ""),
       );
       await load();
     } catch (e) {

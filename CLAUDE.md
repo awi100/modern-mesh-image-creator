@@ -160,6 +160,48 @@ src/
   - Groups by DMC color and rounded length (whole yards only)
   - Shows which designs share same bobbin requirements
 
+### Keeping Ticket Tailor in step
+
+There is **no scheduler**. Ticket Tailor data only moves when someone presses
+Sync on `/events`, or when a webhook arrives — and as of 2026-11-13 **no webhook
+has ever been delivered** (`TicketTailorWebhookDelivery` is empty). So in
+practice the button is the only path, and if it fails the numbers silently stop
+moving. That is exactly what happened: the newest order and ticket in the
+database were 6.5 days old while sales continued.
+
+**The sync was timing out.** A full sync writes one row at a time — 193 order
+upserts plus 247 ticket upserts, 440 sequential round trips to a database in
+another building, ~210s of pure latency against a 60s platform ceiling. The
+function was killed partway, so:
+
+- The browser got the platform's **HTML** error page, and the page called
+  `res.json()` on it, reporting `Unexpected token 'A', "An error o"...`. Every
+  failure the route can actually see returns JSON, so a non-JSON body means the
+  function never returned at all. The page now reads the body as text first and
+  says the sync ran out of time.
+- `syncRecent` walks events in list order, so the two **oldest** events were
+  synced and the loop died before reaching the upcoming ones — the only ones
+  anybody needs. Stale data and an error, from one cause.
+
+Writes now go through `runChunked` (50 per `$transaction`), which Prisma sends
+as one request: 440 round trips become 9, measured at **49x** faster on the
+same connection. `buildTicketUpsert` returns the operation instead of awaiting
+it; a Prisma promise is lazy, so nothing reaches the database until the chunk is
+handed to `$transaction`.
+
+Two things this does NOT fix, worth knowing:
+
+- **Webhooks are still not arriving.** Until the endpoint is registered in the
+  Ticket Tailor dashboard and `TICKET_TAILOR_WEBHOOK_SECRET` is set, the Sync
+  button remains the only way data updates.
+- **`RECENT_DAYS = 120`** means every sync re-reads all five events, including
+  historical ones. That is cheap now and keeps voids and refunds on old events
+  current, so it is deliberate — but it is why sync cost grows with history.
+
+`syncEvent` collects per-event failures into `errors[]` and still returns 200,
+because one bad event should not discard the others. The page now shows them;
+reporting only what was synced made a partial sync read as a clean one.
+
 ### Voided and cancelled sip-and-stitch tickets
 
 A cancelled Ticket Tailor order has `status: "cancelled"`, and **every one of

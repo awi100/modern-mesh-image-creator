@@ -12,6 +12,7 @@
  *   - it mirrors Shopify, which deducts at fulfilment rather than at order.
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { listEvents, listIssuedTickets, listOrders, getEvent } from "./client";
 import { parseEvent, parseIssuedTicket, parseOrder, type ParsedTicket } from "./parse";
@@ -43,6 +44,31 @@ export interface SyncResult {
 
 const empty = (): SyncResult => ({ events: 0, orders: 0, tickets: 0, unmapped: 0, masked: 0, errors: [] });
 
+/**
+ * How many writes go to the database in one round trip.
+ *
+ * Every row used to be its own `await prisma.x.upsert(...)`, which on a full
+ * sync of this box office is 193 order writes plus 247 ticket writes — 440
+ * sequential round trips to a database that is not in the same building. That
+ * is what was killing the route: the function hit the platform's 60s ceiling
+ * and was terminated, so the browser got Vercel's HTML error page instead of
+ * JSON ("Unexpected token 'A', \"An error o\"..."), and the events the loop had
+ * not reached yet — the upcoming ones, the only ones anybody needs — were
+ * never synced at all.
+ *
+ * Prisma's array form of $transaction sends the whole chunk as one request and
+ * runs it in one database transaction, so the same 440 writes become 9 round
+ * trips. Chunked rather than sent as a single transaction so one oversized
+ * statement can't hold a lock across the entire sync.
+ */
+const WRITE_CHUNK = 50;
+
+async function runChunked(ops: Prisma.PrismaPromise<unknown>[]): Promise<void> {
+  for (let i = 0; i < ops.length; i += WRITE_CHUNK) {
+    await prisma.$transaction(ops.slice(i, i + WRITE_CHUNK));
+  }
+}
+
 /** Upsert one event's row, deciding `state` only when it is first created. */
 async function upsertEvent(json: Record<string, unknown>) {
   const e = parseEvent(json);
@@ -70,14 +96,20 @@ async function upsertEvent(json: Record<string, unknown>) {
   });
 }
 
-/** Resolve a parsed ticket and write it, preserving any override already set. */
-async function upsertTicket(
+/**
+ * Resolve a parsed ticket and BUILD its write, preserving any override set.
+ *
+ * Returns the operation rather than awaiting it so the caller can batch. A
+ * Prisma promise is lazy — nothing reaches the database until it is awaited or
+ * handed to $transaction.
+ */
+function buildTicketUpsert(
   t: ParsedTicket,
   byKey: Map<string, { answerKey: string; designId: string | null; needsKit: boolean }>,
   /** Overrides already stored, read once per event rather than per ticket. */
   overrides: Map<string, string | null>,
 ) {
-  if (!t.ttTicketId || !t.ttEventId || !t.ttOrderId) return { written: false, unmapped: false, masked: false };
+  if (!t.ttTicketId || !t.ttEventId || !t.ttOrderId) return { op: null, unmapped: false, masked: false };
 
   // An override is ours, not theirs, so it must survive a sync.
   const r = resolveTicket(
@@ -105,13 +137,13 @@ async function upsertTicket(
     raw: t as unknown as object,
   };
 
-  await prisma.ticketTailorTicket.upsert({
+  const op = prisma.ticketTailorTicket.upsert({
     where: { ttTicketId: t.ttTicketId },
     update: data,
     create: { ttTicketId: t.ttTicketId, ...data },
   });
 
-  return { written: true, unmapped: r.status === "unmapped", masked: r.masked };
+  return { op, unmapped: r.status === "unmapped", masked: r.masked };
 }
 
 /**
@@ -137,6 +169,7 @@ export async function syncEvent(ttEventId: string): Promise<SyncResult> {
     return out;
   }
 
+  const orderOps: Prisma.PrismaPromise<unknown>[] = [];
   for (const raw of await listOrders(ttEventId)) {
     const o = parseOrder(raw as Record<string, unknown>);
     if (!o.ttOrderId) continue;
@@ -156,13 +189,16 @@ export async function syncEvent(ttEventId: string): Promise<SyncResult> {
       ttCreatedAt: o.ttCreatedAt,
       raw: raw as object,
     };
-    await prisma.ticketTailorOrder.upsert({
+    orderOps.push(prisma.ticketTailorOrder.upsert({
       where: { ttOrderId: o.ttOrderId },
       update: data,
       create: { ttOrderId: o.ttOrderId, ...data },
-    });
+    }));
     out.orders++;
   }
+  // Orders land before tickets are read, because the ticket loop checks each
+  // ticket's order against what is actually stored.
+  await runChunked(orderOps);
 
   // Every order id we hold for this event, read once. A findUnique per ticket
   // was 226 sequential round trips to a remote database on a full sync, which
@@ -179,6 +215,7 @@ export async function syncEvent(ttEventId: string): Promise<SyncResult> {
       .map((o) => o.ttOrderId),
   );
 
+  const ticketOps: Prisma.PrismaPromise<unknown>[] = [];
   for (const raw of await listIssuedTickets(ttEventId)) {
     const t = parseIssuedTicket(raw as Record<string, unknown>);
     // A ticket whose order was not stored would fail its FK. That means the
@@ -188,11 +225,12 @@ export async function syncEvent(ttEventId: string): Promise<SyncResult> {
       out.errors.push(`ticket ${t.ttTicketId} references order ${t.ttOrderId}, which this event's order list did not include`);
       continue;
     }
-    const r = await upsertTicket(t, byKey, overrides);
-    if (r.written) out.tickets++;
+    const r = buildTicketUpsert(t, byKey, overrides);
+    if (r.op) { ticketOps.push(r.op); out.tickets++; }
     if (r.unmapped) out.unmapped++;
     if (r.masked) out.masked++;
   }
+  await runChunked(ticketOps);
 
   return out;
 }
