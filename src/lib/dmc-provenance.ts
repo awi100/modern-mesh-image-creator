@@ -20,7 +20,9 @@ export type ColorSource = "legacy-eyeballed" | "hand-corrected" | "measured";
  *  ones — so they stay "hand-corrected" until a reading supersedes them. */
 const HAND_CORRECTED: ReadonlySet<string> = new Set([
   "33",    // 63e7ba3, Aug 2026: #D9539F -> #C32278 against the real skein
-  "3753",  // b11644f, Jan 2026
+  "3753",  // b11644f, Jan 2026; corrected again Nov 2026 on photo+public consensus
+  "415",   // Nov 2026: photo + public table agree to 1.9 dE, palette was 9.2 off
+  "666",   // Nov 2026: same, agree to 1.5 dE, palette 8.2 off
   "B5200", // Nov 2026: off #FFFFFF
   "07",    // Nov 2026: the six byte-identical pairs, split
   "368",

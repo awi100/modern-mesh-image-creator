@@ -231,6 +231,40 @@ function createColor(dmcNumber: string, name: string, hex: string): DmcColor {
 //     is a behaviour change, not a repaint, and it is recorded here rather than
 //     rediscovered from a quantized photo that came back a different white.
 //
+// Three colours corrected on 2026-11-13 from a two-source consensus. A
+// photograph of the real skein (123stitch's product shots of DMC Pearl Cotton
+// size 5 — our actual product line) and an independent public table were each
+// compared with the palette after mean-centring both, so only the SHAPE of the
+// disagreement counts, not either source's exposure or white balance:
+//
+//   415  Pearl Gray    #B0B0B0 -> #D3D3D6  photo #cfd3dc, public #D3D3D6
+//   666  Bright Red    #E31D3D -> #E31D42  photo #dd1044, public #E31D42
+//   3753 Ultra V Lt Ant#D8E8F0 -> #DBE2E9  photo #d6dee1, public #DBE2E9
+//
+// The two sources agree with each other to 1.9, 1.5 and 4.3 dE2000 while the
+// palette sat 9.2, 8.2 and 7.6 from both. 415 and 3753 were also on the 8-step
+// RGB grid, the fingerprint of a value picked off a colour wheel.
+//
+// Photographs are NOT ground truth and this is the only way they are used
+// here. Scored alone against the public table they are a coin flip — the table
+// sided with our palette 34 times and with the photograph 29 — because a photo
+// carries six unknowns (illuminant, white balance, exposure, the mercerized
+// thread's specular sheen, JPEG, the screen) and no colour chart in frame.
+// What survives that is agreement between two methods that fail differently,
+// which is why only 3 of 63 comparable colours are here. See
+// scripts/estimate-colors-from-photos.ts and photo-palette-consensus.ts; do
+// not bulk-replace hexes from either source.
+//
+// 3753 was already hand-corrected once (b11644f, Jan 2026) and the consensus
+// still disagreed with it; its two sources agree least well of the three (4.3),
+// so it is the weakest of them and was applied at the owner's direction.
+//
+// All three seed print colours, so the 30 affected designs — 18 live, 2
+// archived and 10 print-versions — were frozen at their previous values first
+// with scripts/freeze-print-colors.ts, per the 310 rule below. Existing designs
+// therefore print exactly as before; the new values apply to new work, to photo
+// import, and to any design whose override is deliberately cleared.
+//
 // The six byte-identical pairs below were six threads you could not tell apart
 // on screen, and findNearestDmcColor breaks ties by array position, so one of
 // each pair was unreachable from photo import. For five of them both datasets
@@ -321,7 +355,7 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("816", "Garnet", "#971E2A"),
   createColor("815", "Medium Garnet", "#7B1B25"),
   createColor("814", "Dark Garnet", "#5C1420"),
-  createColor("666", "Bright Red", "#E31D3D"),
+  createColor("666", "Bright Red", "#E31D42"),  // provisional
   createColor("349", "Dark Coral", "#CF3B3B"),
   createColor("350", "Medium Coral", "#E15656"),
   createColor("351", "Coral", "#E97171"),
@@ -736,7 +770,7 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("318", "Light Steel Gray", "#989898"),
   createColor("413", "Dark Pewter Gray", "#484848"),
   createColor("414", "Dark Steel Gray", "#686868"),
-  createColor("415", "Pearl Gray", "#B0B0B0"),
+  createColor("415", "Pearl Gray", "#D3D3D6"),  // provisional
   createColor("451", "Dark Shell Gray", "#887773"),
   createColor("452", "Medium Shell Gray", "#AD9994"),
   createColor("453", "Light Shell Gray", "#CCB8AA"),
@@ -772,7 +806,7 @@ export const DMC_PEARL_COTTON: DmcColor[] = [
   createColor("931", "Medium Antique Blue", "#5878A0"),
   createColor("932", "Light Antique Blue", "#88A8C8"),
   createColor("3752", "Very Light Antique Blue", "#B8C8D8"),
-  createColor("3753", "Ultra Very Light Antique Blue", "#D8E8F0"),
+  createColor("3753", "Ultra Very Light Antique Blue", "#DBE2E9"),  // provisional
   createColor("3756", "Ultra Very Light Baby Blue", "#E8F0F8"),
   createColor("3808", "Ultra Very Dark Turquoise", "#106060"),
   createColor("3809", "Very Dark Turquoise", "#187078"),

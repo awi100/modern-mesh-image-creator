@@ -93,6 +93,13 @@ describe("two DMC numbers never render as the same colour", () => {
     expect(dupes).toEqual([]);
   });
 
+  // 3753=3841 was struck off on 2026-11-13. Ultra Very Light Antique Blue sat
+  // 0.54 dE2000 from Pale Baby Blue — indistinguishable, and since
+  // findNearestDmcColor breaks ties by array position, one of them could never
+  // be reached from a photo import at all. Correcting 3753 to the photo+public
+  // consensus (#D8E8F0 -> #DBE2E9) opened the pair to 4.10, so both are now
+  // reachable. That was not the reason for the change, but it is the second
+  // piece of evidence that the old value was the wrong one.
   const KNOWN_TOO_CLOSE = [
     "15=772",      // Apple Green vs Very Light Yellow Green, dE 1.06
     "24=25",       // White Lavender vs Ultra Light Lavender, dE 1.26
@@ -102,7 +109,6 @@ describe("two DMC numbers never render as the same colour", () => {
     "350=3705",    // Medium Coral vs Dark Melon, dE 1.48
     "353=3708",    // Peach vs Light Melon, dE 0.56
     "3689=776",    // Light Mauve vs Medium Pink, dE 0.89
-    "3753=3841",   // Ultra Very Light Antique Blue vs Pale Baby Blue, dE 0.54
     "3771=758",    // the two palest Terra Cottas, dE 1.29
     "3823=746",    // Ultra Pale Yellow vs Off White, dE 1.06
     "3831=601",    // Dark Raspberry vs Dark Cranberry, dE 0.97
@@ -115,7 +121,8 @@ describe("two DMC numbers never render as the same colour", () => {
   it("no pair is under 1.5 dE2000 beyond the sixteen already on record", () => {
     // 1.5 dE2000 is roughly the point where two swatches side by side stop
     // being tellable apart on a decent screen. The list was twenty-two before
-    // the six byte-identical pairs were split apart.
+    // the six byte-identical pairs were split apart, and sixteen before 3753
+    // was corrected away from 3841.
     const got = tooClosePairs(DMC_PEARL_COTTON, 1.5);
     const unexpected = got
       .filter(p => !KNOWN_TOO_CLOSE.includes(p.key))
@@ -123,7 +130,7 @@ describe("two DMC numbers never render as the same colour", () => {
     expect(unexpected).toEqual([]);
   });
 
-  it("still has all sixteen — strike off the ones you separated", () => {
+  it("still has all fifteen — strike off the ones you separated", () => {
     const keys = tooClosePairs(DMC_PEARL_COTTON, 1.5).map(p => p.key);
     expect(KNOWN_TOO_CLOSE.filter(k => !keys.includes(k))).toEqual([]);
   });
