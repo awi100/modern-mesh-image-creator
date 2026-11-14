@@ -40,9 +40,19 @@ export interface SyncResult {
   unmapped: number;
   masked: number;
   errors: string[];
+  /** Events the budget did not allow, newest-first order means these are the
+   *  least urgent ones. Empty on a complete run. */
+  skipped: string[];
+  /** True when the budget stopped the loop rather than it finishing. */
+  timedOut: boolean;
+  /** Milliseconds per event, so a slow one is visible instead of guessed at. */
+  timings: { ttEventId: string; name: string | null; ms: number }[];
 }
 
-const empty = (): SyncResult => ({ events: 0, orders: 0, tickets: 0, unmapped: 0, masked: 0, errors: [] });
+const empty = (): SyncResult => ({
+  events: 0, orders: 0, tickets: 0, unmapped: 0, masked: 0,
+  errors: [], skipped: [], timedOut: false, timings: [],
+});
 
 /**
  * How many writes go to the database in one round trip.
@@ -243,8 +253,19 @@ export async function syncEvent(ttEventId: string): Promise<SyncResult> {
  */
 export const RECENT_DAYS = 120;
 
-export async function syncRecent(): Promise<SyncResult> {
+/**
+ * How long the loop may spend before it stops and reports.
+ *
+ * The route is capped at 60s by the platform. Finishing early with a partial,
+ * honest result beats being killed: a kill returns the platform's HTML error
+ * page, so the browser cannot even read what DID sync, and every event the
+ * loop had not reached stays stale with nothing saying so.
+ */
+export const SYNC_BUDGET_MS = 45_000;
+
+export async function syncRecent(budgetMs = SYNC_BUDGET_MS): Promise<SyncResult> {
   const out = empty();
+  const startedAt = Date.now();
   const since = new Date(Date.now() - RECENT_DAYS * 864e5);
 
   let events: Record<string, unknown>[];
@@ -255,13 +276,36 @@ export async function syncRecent(): Promise<SyncResult> {
     return out;
   }
 
-  for (const raw of events) {
-    const e = parseEvent(raw);
-    // Keep upcoming events and anything from the window; skip the rest so a
-    // long history does not make every sync expensive.
-    if (e.startsAt && e.startsAt < since) continue;
+  // Keep upcoming events and anything from the window; drop the rest so a long
+  // history does not make every sync expensive.
+  const wanted = events
+    .map(parseEvent)
+    .filter((e) => e.ttEventId && !(e.startsAt && e.startsAt < since));
 
+  // ORDER MATTERS, and it did not before. The loop used to take events in
+  // whatever order the API listed them, which here is oldest first — so when
+  // the budget ran out it had synced September and October and never reached
+  // the upcoming events, the only ones anyone is packing for. Upcoming first,
+  // soonest first; then past events, most recent first.
+  const now = Date.now();
+  const upcoming = wanted.filter((e) => (e.startsAt?.getTime() ?? 0) >= now)
+    .sort((a, b) => (a.startsAt?.getTime() ?? 0) - (b.startsAt?.getTime() ?? 0));
+  const past = wanted.filter((e) => (e.startsAt?.getTime() ?? 0) < now)
+    .sort((a, b) => (b.startsAt?.getTime() ?? 0) - (a.startsAt?.getTime() ?? 0));
+
+  for (const e of [...upcoming, ...past]) {
+    // Stop while there is still time to RETURN. Overrunning the platform
+    // ceiling means the function is killed and the caller gets an HTML error
+    // page instead of this result, which loses the work that did succeed.
+    if (Date.now() - startedAt > budgetMs) {
+      out.timedOut = true;
+      out.skipped.push(e.name ?? e.ttEventId);
+      continue;
+    }
+
+    const at = Date.now();
     const r = await syncEvent(e.ttEventId);
+    out.timings.push({ ttEventId: e.ttEventId, name: e.name ?? null, ms: Date.now() - at });
     out.events += r.events;
     out.orders += r.orders;
     out.tickets += r.tickets;

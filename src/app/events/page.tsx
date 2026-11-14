@@ -68,8 +68,15 @@ export default function EventsPage() {
       // Per-event failures come back in `errors` with a 200, because one bad
       // event should not discard the others. Saying only what was synced would
       // report a partial sync as a clean one.
+      const slowest = [...(data.timings ?? [])].sort((a, b) => b.ms - a.ms)[0];
       setNote(
         `Synced ${data.events} events, ${data.orders} orders, ${data.tickets} tickets.` +
+        // Upcoming events are synced first, so a partial run still has the ones
+        // being packed for. Say which were left rather than implying a clean run.
+        (data.timedOut
+          ? ` Ran out of time before ${data.skipped.join(", ")} — sync those from their own pages.`
+          : "") +
+        (slowest ? ` Slowest: ${slowest.name ?? slowest.ttEventId} at ${(slowest.ms / 1000).toFixed(1)}s.` : "") +
         (data.masked ? ` ${data.masked} answers are hidden — the API key cannot read customer data.` : "") +
         (data.unmapped ? ` ${data.unmapped} picks are not mapped yet.` : "") +
         (data.errors?.length ? ` ${data.errors.length} problem${data.errors.length === 1 ? "" : "s"}: ${data.errors.join("; ")}` : ""),
