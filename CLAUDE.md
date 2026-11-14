@@ -189,18 +189,47 @@ same connection. `buildTicketUpsert` returns the operation instead of awaiting
 it; a Prisma promise is lazy, so nothing reaches the database until the chunk is
 handed to `$transaction`.
 
-Two things this does NOT fix, worth knowing:
+With the writes batched, **the Ticket Tailor API is the whole remaining cost**,
+and it cannot be overlapped. Measured on the live box office: 16 requests per
+full sync (1 list + 1 event + 1 orders page + 1 tickets page per event), at
+roughly **3s each**, which is ~48s against a 45s budget.
+
+**Ticket Tailor serves this key's requests serially. Do not try to parallelise
+them.** Firing all 16 at once was tried and shipped on 2026-11-13; it did not
+shorten the total at all, it only pushed the FIRST result out to 48.8s, so a
+sync that had been completing four events completed one and skipped four it had
+already paid to fetch. It was reverted the same day. Making a sync faster means
+making **fewer requests**, never more concurrent ones. The untaken one worth
+knowing about: `syncRecent` calls `getEvent` per event even though `listEvents`
+already returned each event's JSON — 5 of the 16 requests. It was left alone
+only because nothing here confirms the list payload carries `venue`, and a
+wrong guess silently nulls every venue name.
+
+The sync note on `/events` reports, per event, **time reading Ticket Tailor vs
+time writing here**, so a future slowdown is read off the screen rather than
+guessed at. The first round of this was diagnosed by guessing and the guess was
+wrong.
+
+Three things this does NOT fix, worth knowing:
 
 - **Webhooks are still not arriving.** Until the endpoint is registered in the
   Ticket Tailor dashboard and `TICKET_TAILOR_WEBHOOK_SECRET` is set, the Sync
   button remains the only way data updates.
 - **`RECENT_DAYS = 120`** means every sync re-reads all five events, including
-  historical ones. That is cheap now and keeps voids and refunds on old events
-  current, so it is deliberate — but it is why sync cost grows with history.
+  historical ones. It keeps voids and refunds on old events current, so it is
+  deliberate — but it is why sync cost grows with history, and at ~3s a request
+  it is the reason a full sync does not fit in one run.
+- **A full sync still does not fit.** Upcoming events go first, so the ones
+  being packed for are always current; past events are then taken **least
+  recently synced first**, so each comes round within a few syncs instead of
+  the oldest being permanently stranded. Newest-first refreshed the same two
+  every time, which is the state this sync was found in.
 
 `syncEvent` collects per-event failures into `errors[]` and still returns 200,
 because one bad event should not discard the others. The page now shows them;
-reporting only what was synced made a partial sync read as a clean one.
+reporting only what was synced made a partial sync read as a clean one. A
+failed order or ticket list used to throw straight out of the loop and discard
+every event already synced; it is now carried per event like any other failure.
 
 ### Voided and cancelled sip-and-stitch tickets
 
