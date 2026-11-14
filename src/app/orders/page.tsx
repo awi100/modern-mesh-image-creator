@@ -11,6 +11,7 @@ import { useMeshFilter } from "@/lib/use-mesh-filter";
 import CountStepper from "@/components/inventory/CountStepper";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 import { ORDER_KINDS, ORDER_KIND_LABEL, ORDER_KIND_HELP, type OrderKind } from "@/lib/order-kind";
+import { onPickList, isSkipped } from "@/lib/order-pick-list";
 
 // Kit content types
 interface BackupColorInfo {
@@ -71,14 +72,14 @@ function getContrastTextColor(hex: string): string {
 
 type FilterType = "all" | "canvases" | "kits" | "supplies" | "mystery";
 
-// Calculate aggregated demand per design across all orders (only for canvas items, excludes locally fulfilled)
+// Aggregated canvas demand per design across the orders still to be pulled.
+// `onPickList` drops both the already-deducted and the deliberately skipped:
+// one 30-unit wholesale order left in here reports "need 25" on every OTHER
+// order's row for the same design.
 function calculateDemandByDesign(orders: Order[]) {
   const demand = new Map<string, { totalKitsNeeded: number; totalCanvasesNeeded: number }>();
 
-  for (const order of orders) {
-    // Skip locally fulfilled orders - they've already been deducted
-    if (order.locallyFulfilled) continue;
-
+  for (const order of onPickList(orders)) {
     for (const item of order.items) {
       if (!item.designId || item.itemType !== "canvas") continue;
 
@@ -100,10 +101,12 @@ function calculateFulfillableOrders(orders: Order[]) {
   const fulfillableOrders = new Set<string>();
 
   // Sort express orders first (they paid for fast shipping, so they get
-  // inventory priority), then by date (oldest first). Locally fulfilled
-  // orders are excluded — they've already consumed their inventory.
-  const unfulfilledOrders = orders
-    .filter(o => !o.locallyFulfilled)
+  // inventory priority), then by date (oldest first). Already-deducted orders
+  // are out because they have consumed their inventory; skipped ones are out
+  // because they have not and must not — left in, an old wholesale order sits
+  // at the front of this queue and starves every order behind it of canvases
+  // that are actually on the shelf.
+  const unfulfilledOrders = onPickList(orders)
     .sort((a, b) => {
       if (a.isExpress !== b.isExpress) return a.isExpress ? -1 : 1;
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -220,6 +223,7 @@ export default function OrdersPage() {
   const [syncResult, setSyncResult] = useState<{ synced: number; message: string } | null>(null);
   const [undoing, setUndoing] = useState<string | null>(null);
   const [settingKind, setSettingKind] = useState<string | null>(null);
+  const [skipping, setSkipping] = useState<string | null>(null);
 
   // Calculate how many orders can be fully filled with current inventory
   const fulfillableOrderCount = useMemo(() => {
@@ -230,7 +234,7 @@ export default function OrdersPage() {
 
   const totalUnfulfilledOrders = useMemo(() => {
     if (!data) return 0;
-    return data.orders.filter(o => !o.locallyFulfilled).length;
+    return onPickList(data.orders).length;
   }, [data]);
 
   // Search results for backup color picker
@@ -541,6 +545,70 @@ export default function OrdersPage() {
     }
     setSettingKind(null);
   }, []);
+
+  /**
+   * Leave an order off the pick list, or put it back.
+   *
+   * Moves no stock and touches nothing in Shopify. It only stops the order
+   * counting toward what gets pulled from the shelf, and stops it being
+   * allocated inventory ahead of the orders actually being packed today.
+   *
+   * Applied locally first so the totals on screen move the moment the box is
+   * unticked; a failure puts the tick back and says why.
+   */
+  const handleToggleSkip = useCallback(async (order: Order) => {
+    const next = !isSkipped(order);
+    setSkipping(order.shopifyOrderId);
+    setError(null);
+
+    const applyLocally = (at: string | null) =>
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              orders: prev.orders.map((o) =>
+                o.shopifyOrderId === order.shopifyOrderId
+                  ? { ...o, excludedAt: at, excludedReason: at ? o.excludedReason : null }
+                  : o
+              ),
+            }
+          : prev
+      );
+
+    const previous = order.excludedAt;
+    applyLocally(next ? new Date().toISOString() : null);
+
+    try {
+      // Plain fetch, not mutApi: this moves no stock, kits, canvases, market,
+      // Andover, supplies or bobbins, so there is no inventory cache anywhere
+      // else to invalidate. The refetch below is for this page's own totals.
+      const res = await fetch("/api/shopify/orders/exclude", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopifyOrderId: order.shopifyOrderId,
+          excluded: next,
+          // Needed only when no local row exists yet, which is the usual case:
+          // skipping happens before packing. The kind rides along so a bare row
+          // cannot pin a wholesale order to the "retail" default.
+          orderNumber: order.orderNumber,
+          kind: order.kind,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update order");
+      }
+      // The headline "Canvases x/y" and "Kits x/y" cards are computed on the
+      // server, so the local tick above moves the per-row figures but not the
+      // totals she is actually pulling against. Refetch so both agree.
+      await fetchOrders();
+    } catch (err) {
+      applyLocally(previous);
+      setError(err instanceof Error ? err.message : "Failed to update order");
+    }
+    setSkipping(null);
+  }, [fetchOrders]);
 
   // Fetch inventory when backup picker opens, using the editing design's
   // thread size so a 13ct design shows Size 3 stock (not Size 5).
@@ -1763,6 +1831,8 @@ export default function OrdersPage() {
                       undoing={undoing === order.shopifyOrderId}
                       onSetKind={handleSetOrderKind}
                       settingKind={settingKind === order.shopifyOrderId}
+                      onToggleSkip={handleToggleSkip}
+                      skipping={skipping === order.shopifyOrderId}
                     />
                   ));
                 })()}
@@ -1788,6 +1858,10 @@ export default function OrdersPage() {
                       if (a.locallyFulfilled !== b.locallyFulfilled) {
                         return a.locallyFulfilled ? 1 : -1;
                       }
+                      // Skipped orders sink below the ones being packed, but
+                      // stay on the page: they are still owed, and putting one
+                      // back has to be one click away.
+                      if (isSkipped(a) !== isSkipped(b)) return isSkipped(a) ? 1 : -1;
                       if (a.isExpress !== b.isExpress) return a.isExpress ? -1 : 1;
                       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
                     });
@@ -1803,6 +1877,8 @@ export default function OrdersPage() {
                         undoing={undoing === order.shopifyOrderId}
                         onSetKind={handleSetOrderKind}
                         settingKind={settingKind === order.shopifyOrderId}
+                        onToggleSkip={handleToggleSkip}
+                        skipping={skipping === order.shopifyOrderId}
                       />
                     ));
                   })()
@@ -1917,6 +1993,8 @@ interface OrderCardProps {
   undoing: boolean;
   onSetKind: (order: Order, kind: OrderKind) => void;
   settingKind: boolean;
+  onToggleSkip: (order: Order) => void;
+  skipping: boolean;
 }
 
 // Colours for the order-type chip. Retail has none — it is the normal case and
@@ -1927,8 +2005,9 @@ const KIND_CHIP: Record<Exclude<OrderKind, "retail">, string> = {
   replacement: "bg-orange-600 text-white",
 };
 
-function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilling, onUndo, undoing, onSetKind, settingKind }: OrderCardProps) {
+function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilling, onUndo, undoing, onSetKind, settingKind, onToggleSkip, skipping }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const skipped = isSkipped(order);
 
   // Only count canvas items for kits/canvases
   const canvasItems = order.items.filter(item => item.itemType === "canvas");
@@ -1948,19 +2027,48 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
     return item.canvasPrinted >= item.quantity;
   });
 
-  // canFulfillOrder is calculated by parent, accounting for older orders consuming inventory first
-  const canFulfill = !order.locallyFulfilled && canFulfillOrder;
+  // canFulfillOrder is calculated by parent, accounting for older orders
+  // consuming inventory first. A skipped order cannot be fulfilled at all:
+  // "not ready to pack it" has to mean the Fulfill button won't deduct it by
+  // mistake. Ticking it back is one click.
+  const canFulfill = !order.locallyFulfilled && !skipped && canFulfillOrder;
 
   return (
     <div className={`bg-slate-800 rounded-xl border overflow-hidden ${
       order.locallyFulfilled
         ? "border-emerald-700/50 opacity-60"
-        : order.isExpress
-          ? "border-sky-600/70 ring-1 ring-sky-600/40"
-          : "border-slate-700"
+        : skipped
+          ? "border-slate-700 border-dashed opacity-50"
+          : order.isExpress
+            ? "border-sky-600/70 ring-1 ring-sky-600/40"
+            : "border-slate-700"
     }`}>
       {/* Header */}
       <div className="p-4 flex items-center justify-between">
+        {/* On the pick list? Ticked by default. Unticking parks the order: it
+            leaves the canvas and kit totals, stops being allocated stock ahead
+            of the orders being packed today, and cannot be fulfilled until it
+            is ticked back. Hidden once deducted, where it means nothing. */}
+        {!order.locallyFulfilled && (
+          <label
+            className="flex-shrink-0 mr-3 flex items-center cursor-pointer select-none"
+            title={
+              skipped
+                ? "Not being packed today — tick to put it back on the pick list"
+                : "On the pick list. Untick to leave it out of the canvas and kit counts."
+            }
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={!skipped}
+              disabled={skipping}
+              onChange={() => onToggleSkip(order)}
+              className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-800 cursor-pointer disabled:opacity-40"
+              aria-label={skipped ? `Put order ${order.orderNumber} back on the pick list` : `Leave order ${order.orderNumber} off the pick list`}
+            />
+          </label>
+        )}
         <button
           onClick={() => setExpanded(!expanded)}
           className="flex-1 flex items-center gap-4 text-left hover:bg-slate-700/30 transition-colors rounded-lg -m-2 p-2"
@@ -1968,6 +2076,14 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-white font-medium">{order.orderNumber}</p>
+              {skipped && (
+                <span
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-slate-600 text-slate-200"
+                  title="Left off the pick list, so it isn't counted in the canvas and kit totals and isn't allocated stock. Still owed — tick the box to put it back."
+                >
+                  Not today
+                </span>
+              )}
               {order.isDraft && (
                 <span
                   className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-600 text-white"
@@ -2089,9 +2205,11 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
                 : "bg-slate-700 text-slate-500 cursor-not-allowed"
             } disabled:opacity-50`}
             title={
-              canFulfill
-                ? "Mark as fulfilled and deduct inventory"
-                : "Not enough kits or canvases ready"
+              skipped
+                ? "Left off the pick list — tick the box to pack this order"
+                : canFulfill
+                  ? "Mark as fulfilled and deduct inventory"
+                  : "Not enough kits or canvases ready"
             }
           >
             {fulfilling ? (

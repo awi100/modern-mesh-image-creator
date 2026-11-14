@@ -333,6 +333,57 @@ to fail into a `console.error` nobody reads; both paths now report a warning to
 the Orders page. **Completing the draft in Shopify and letting sync pick up the
 real order works without the scope**, and is the path these orders actually take.
 
+### Leaving an order off the pick list
+
+The Orders page is a **picking list**: the "Canvases X/Y" and "Kits X/Y" headline
+counts are what she physically pulls from inventory before packing. An order she
+is not ready to pack yet — a wholesale order waiting on a ship date, say —
+should not be in those numbers at all.
+
+Each order card carries a checkbox, **ticked by default**, so the normal case
+needs no clicks. Unticking it sets `ShopifyOrder.excludedAt` / `excludedReason`;
+the card stays on the page, dashed and faded with a "Not today" chip, and the
+Fulfill button is disabled. Re-ticking clears both columns.
+
+This says **nothing about the order in Shopify**. Sync still fetches it, and
+completing it later deducts stock normally. It is a note to herself about today's
+packing session, not a state change on the sale.
+
+Both failure modes it prevents are quiet ones, which is why the filter lives in
+**one** place — `onPickList()` in `src/lib/order-pick-list.ts` (pure and
+client-safe, so the page and the summary can't drift):
+
+- **Inflated totals.** A 30-unit wholesale order adds 30 canvases to the counts,
+  so she pulls stock for kits nobody is packing.
+- **Starved allocation.** `calculateFulfillableOrders` walks orders oldest-first
+  and eats inventory as it goes. An excluded order left in that walk consumes
+  stock it will never use, and the orders she *is* packing read as short.
+
+A bare `!order.locallyFulfilled` is the shape of the old bug — add the skip
+filter through `onPickList`, never by hand.
+
+Three guards the exclude route (`PATCH /api/shopify/orders/exclude`) has to
+respect, because an unpacked order usually has **no local row yet** and the route
+must create one:
+
+- **No `fulfilledAt`.** Sync's processed guard is `fulfilledAt != null OR
+  items.some()`. Setting it on a bare row would make sync skip the order for
+  good, and the sale would never deduct.
+- **No line items**, for the same reason, and because undo falls back to
+  line-item quantities when an order has no audit rows — fabricated items would
+  let one Undo click invent stock. (Same reasoning as the nine hand-built draft
+  orders above.)
+- **Carry `kind` in on create.** Sync's `update` deliberately never overwrites
+  `kind`, so a row created with the `retail` default would pin a wholesale order
+  as retail forever and feed it into `retailDemandWhere()`.
+
+The route returns 409 if `fulfilledAt` is already set — an order that shipped is
+not a candidate for today's pick list either way.
+
+The headline counts are computed **server-side**, so the page refetches after a
+toggle rather than only ticking its local copy; otherwise the per-row figures and
+the totals she pulls against disagree.
+
 ### Where a sale deducts from
 
 An order draws on its own bucket first, then falls back to **Andover** bulk:

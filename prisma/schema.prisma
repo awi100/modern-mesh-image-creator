@@ -442,6 +442,14 @@ model ShopifyOrder {
   // retail so every pre-existing order keeps counting exactly as it did.
   // See src/lib/order-kind.ts.
   kind            String             @default("retail")
+  // Deliberately left off the pick list. She is not ready to pack this one yet
+  // — a wholesale order waiting on a ship date, say — so it must not inflate
+  // the canvas/kit counts she pulls stock against, nor eat inventory in the
+  // oldest-first fulfillable calculation and make the orders she IS packing
+  // look short. It says nothing about the order in Shopify: sync and fulfill
+  // still treat it normally, and putting it back is one click.
+  excludedAt      DateTime?
+  excludedReason  String?
   fulfilledAt     DateTime? // When we processed the fulfillment
   createdAt       DateTime           @default(now()) // when WE created the local row (sync time)
   orderDate       DateTime? // the real Shopify order-placed date (for velocity/sales-rate)

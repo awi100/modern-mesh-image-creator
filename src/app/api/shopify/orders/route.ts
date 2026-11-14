@@ -64,6 +64,10 @@ export interface Order {
   // Local fulfillment tracking
   locallyFulfilled: boolean;
   locallyFulfilledAt: string | null;
+  // Deliberately left off the pick list — see src/lib/order-pick-list.ts. Null
+  // for the overwhelming majority; set only when someone unticked this order.
+  excludedAt: string | null;
+  excludedReason: string | null;
   // Does this order contain a Mystery Misprint Bag line? We no longer track
   // which misprints go in it — this only drives the Orders page filter.
   hasMysteryBag: boolean;
@@ -216,6 +220,8 @@ export async function GET() {
         shopifyOrderId: true,
         fulfilledAt: true,
         kind: true,
+        excludedAt: true,
+        excludedReason: true,
       },
     });
 
@@ -225,6 +231,12 @@ export async function GET() {
     // A stored kind wins over the guess: it may be a correction someone made
     // here, and re-reading the order must not quietly revert it.
     const localKindMap = new Map(localOrders.map((f) => [f.shopifyOrderId, f.kind]));
+    // Orders deliberately left off the pick list: still owed, just not today.
+    // They keep their card so they can be put back, but they are kept out of
+    // the headline totals below — those are what gets pulled from the shelf.
+    const excludedMap = new Map(
+      localOrders.map((f) => [f.shopifyOrderId, { at: f.excludedAt, reason: f.excludedReason }])
+    );
 
     // Process orders
     const orders: Order[] = [];
@@ -239,6 +251,7 @@ export async function GET() {
 
     for (const shopifyOrder of shopifyOrders) {
       const items: OrderItem[] = [];
+      const skippedOrder = excludedMap.get(shopifyOrder.id)?.at != null;
 
       for (const lineItem of shopifyOrder.lineItems.nodes) {
         const productTitle = lineItem.product?.title || lineItem.title;
@@ -302,7 +315,12 @@ export async function GET() {
         // Mystery bag lines have no design or supply demand of their own.
         if (itemType === "mystery_bag") continue;
 
-        // Count what's needed based on item type
+        // Count what's needed based on item type. A skipped order still builds
+        // its items, so its card renders and can be put back, but it adds
+        // nothing to the totals — those are the shelf-pull figures, and an
+        // order nobody is packing today must not inflate them.
+        if (skippedOrder) continue;
+
         if (itemType === "canvas") {
           if (needsKit) {
             totalKitsNeeded += lineItem.quantity;
@@ -361,6 +379,8 @@ export async function GET() {
         items,
         locallyFulfilled: !!localFulfilledAt,
         locallyFulfilledAt: localFulfilledAt?.toISOString() || null,
+        excludedAt: excludedMap.get(shopifyOrder.id)?.at?.toISOString() || null,
+        excludedReason: excludedMap.get(shopifyOrder.id)?.reason || null,
         hasMysteryBag,
         shippingTitle,
         isExpress: isExpressShippingTitle(shippingTitle),
