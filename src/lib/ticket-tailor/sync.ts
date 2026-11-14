@@ -45,8 +45,16 @@ export interface SyncResult {
   skipped: string[];
   /** True when the budget stopped the loop rather than it finishing. */
   timedOut: boolean;
-  /** Milliseconds per event, so a slow one is visible instead of guessed at. */
-  timings: { ttEventId: string; name: string | null; ms: number }[];
+  /**
+   * Milliseconds per event, so a slow one is visible instead of guessed at.
+   *
+   * `fetchMs` is wall-clock on the Ticket Tailor API and `ms` is what the loop
+   * waited; they differ because the fetches overlap. Split out because "the
+   * sync is slow" has two completely different fixes depending on which side it
+   * is, and the first round of this was fixed by guessing right rather than by
+   * knowing.
+   */
+  timings: { ttEventId: string; name: string | null; ms: number; fetchMs: number; writeMs: number }[];
 }
 
 const empty = (): SyncResult => ({
@@ -348,7 +356,14 @@ export async function syncRecent(budgetMs = SYNC_BUDGET_MS): Promise<SyncResult>
   // order. The reads do not depend on each other, so run sequentially their
   // cost was the sum of all five events; run together it is the slowest one.
   // These never reject, so the ones a budget stop never awaits are harmless.
-  const inflight = ordered.map((e) => fetchEventBundle(e.ttEventId));
+  const fetchMs = new Map<string, number>();
+  const inflight = ordered.map((e) => {
+    const at = Date.now();
+    return fetchEventBundle(e.ttEventId).then((b) => {
+      fetchMs.set(e.ttEventId, Date.now() - at);
+      return b;
+    });
+  });
 
   // Read once, not once per event: the mapping table is the same for all of
   // them.
@@ -366,8 +381,16 @@ export async function syncRecent(budgetMs = SYNC_BUDGET_MS): Promise<SyncResult>
     }
 
     const at = Date.now();
-    const r = await writeEventBundle(await inflight[i], byKey);
-    out.timings.push({ ttEventId: e.ttEventId, name: e.name ?? null, ms: Date.now() - at });
+    const bundle = await inflight[i];
+    const writeAt = Date.now();
+    const r = await writeEventBundle(bundle, byKey);
+    out.timings.push({
+      ttEventId: e.ttEventId,
+      name: e.name ?? null,
+      ms: Date.now() - at,
+      fetchMs: fetchMs.get(e.ttEventId) ?? 0,
+      writeMs: Date.now() - writeAt,
+    });
     out.events += r.events;
     out.orders += r.orders;
     out.tickets += r.tickets;

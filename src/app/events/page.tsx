@@ -68,7 +68,11 @@ export default function EventsPage() {
       // Per-event failures come back in `errors` with a 200, because one bad
       // event should not discard the others. Saying only what was synced would
       // report a partial sync as a clean one.
-      const slowest = [...(data.timings ?? [])].sort((a, b) => b.ms - a.ms)[0];
+      // Ranked on fetch time, not on how long the loop waited for it: the
+      // fetches overlap, so the event the loop happened to wait on is not
+      // necessarily the expensive one.
+      const slowest = [...(data.timings ?? [])].sort((a, b) => (b.fetchMs ?? b.ms) - (a.fetchMs ?? a.ms))[0];
+      const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
       setNote(
         `Synced ${data.events} events, ${data.orders} orders, ${data.tickets} tickets.` +
         // Upcoming events are synced first, so a partial run still has the ones
@@ -76,7 +80,11 @@ export default function EventsPage() {
         (data.timedOut
           ? ` Ran out of time before ${data.skipped.join(", ")} — sync those from their own pages.`
           : "") +
-        (slowest ? ` Slowest: ${slowest.name ?? slowest.ttEventId} at ${(slowest.ms / 1000).toFixed(1)}s.` : "") +
+        // Which side the time went to, so a future slowdown does not have to be
+        // diagnosed by guessing: reading from Ticket Tailor, or writing here.
+        (slowest
+          ? ` Slowest: ${slowest.name ?? slowest.ttEventId} — ${secs(slowest.fetchMs ?? 0)} reading Ticket Tailor, ${secs(slowest.writeMs ?? 0)} writing.`
+          : "") +
         (data.masked ? ` ${data.masked} answers are hidden — the API key cannot read customer data.` : "") +
         (data.unmapped ? ` ${data.unmapped} picks are not mapped yet.` : "") +
         (data.errors?.length ? ` ${data.errors.length} problem${data.errors.length === 1 ? "" : "s"}: ${data.errors.join("; ")}` : ""),
