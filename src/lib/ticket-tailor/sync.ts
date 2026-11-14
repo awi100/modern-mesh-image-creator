@@ -157,6 +157,33 @@ function buildTicketUpsert(
 }
 
 /**
+ * Everything one event needs from the API, fetched in one go.
+ *
+ * The three calls are INDEPENDENT of each other — only the writes are ordered
+ * — so they run concurrently. Sequentially they were the whole remaining cost
+ * of a sync: with the database writes batched, a measured run spent 22.8s on
+ * the Publico event alone and ran out of budget before the fifth event.
+ *
+ * Never rejects. A failure is carried as `ok: false` so one unreachable event
+ * cannot abort the others — `listOrders` and `listIssuedTickets` used to throw
+ * straight through `syncEvent` and out of the whole loop, discarding every
+ * event that had already synced.
+ */
+type EventBundle =
+  | { ok: true; ttEventId: string; event: Record<string, unknown>; orders: unknown[]; tickets: unknown[] }
+  | { ok: false; ttEventId: string; error: string };
+
+function fetchEventBundle(ttEventId: string): Promise<EventBundle> {
+  return Promise.all([
+    getEvent(ttEventId) as Promise<Record<string, unknown>>,
+    listOrders(ttEventId) as Promise<unknown[]>,
+    listIssuedTickets(ttEventId) as Promise<unknown[]>,
+  ])
+    .then(([event, orders, tickets]) => ({ ok: true as const, ttEventId, event, orders, tickets }))
+    .catch((e) => ({ ok: false as const, ttEventId, error: e instanceof Error ? e.message : String(e) }));
+}
+
+/**
  * Sync one event: its own row, then its orders, then its tickets.
  *
  * Tickets are read from /issued_tickets rather than taken from the nested
@@ -164,14 +191,36 @@ function buildTicketUpsert(
  * null, so attendee names would come out blank.
  */
 export async function syncEvent(ttEventId: string): Promise<SyncResult> {
-  const out = empty();
-  if (!ttEventId) { out.errors.push("syncEvent called with no event id"); return out; }
-
+  if (!ttEventId) {
+    const out = empty();
+    out.errors.push("syncEvent called with no event id");
+    return out;
+  }
   const mappings = await prisma.ticketTailorCanvasMapping.findMany();
-  const byKey = mappingsByKey(mappings);
+  return writeEventBundle(await fetchEventBundle(ttEventId), mappingsByKey(mappings));
+}
+
+/**
+ * Write one already-fetched event. No API calls happen here, so the caller
+ * controls when the network work runs and how much of it overlaps.
+ *
+ * `byKey` is passed in rather than read here: the mapping table is the same for
+ * every event, and re-reading it per event was one extra round trip each.
+ */
+async function writeEventBundle(
+  bundle: EventBundle,
+  byKey: Map<string, { answerKey: string; designId: string | null; needsKit: boolean }>,
+): Promise<SyncResult> {
+  const out = empty();
+  const ttEventId = bundle.ttEventId;
+
+  if (!bundle.ok) {
+    out.errors.push(`event ${ttEventId}: ${bundle.error}`);
+    return out;
+  }
 
   try {
-    const ev = await upsertEvent(await getEvent(ttEventId) as Record<string, unknown>);
+    const ev = await upsertEvent(bundle.event);
     if (!ev) { out.errors.push(`event ${ttEventId} could not be parsed`); return out; }
     out.events = 1;
   } catch (e) {
@@ -180,7 +229,7 @@ export async function syncEvent(ttEventId: string): Promise<SyncResult> {
   }
 
   const orderOps: Prisma.PrismaPromise<unknown>[] = [];
-  for (const raw of await listOrders(ttEventId)) {
+  for (const raw of bundle.orders) {
     const o = parseOrder(raw as Record<string, unknown>);
     if (!o.ttOrderId) continue;
     // Skip an order whose event we have not stored: its FK would fail, and a
@@ -226,7 +275,7 @@ export async function syncEvent(ttEventId: string): Promise<SyncResult> {
   );
 
   const ticketOps: Prisma.PrismaPromise<unknown>[] = [];
-  for (const raw of await listIssuedTickets(ttEventId)) {
+  for (const raw of bundle.tickets) {
     const t = parseIssuedTicket(raw as Record<string, unknown>);
     // A ticket whose order was not stored would fail its FK. That means the
     // order list and the ticket list disagree, which is worth saying out loud
@@ -293,7 +342,20 @@ export async function syncRecent(budgetMs = SYNC_BUDGET_MS): Promise<SyncResult>
   const past = wanted.filter((e) => (e.startsAt?.getTime() ?? 0) < now)
     .sort((a, b) => (b.startsAt?.getTime() ?? 0) - (a.startsAt?.getTime() ?? 0));
 
-  for (const e of [...upcoming, ...past]) {
+  const ordered = [...upcoming, ...past];
+
+  // Every event's API reads start NOW, together, and the writes then drain in
+  // order. The reads do not depend on each other, so run sequentially their
+  // cost was the sum of all five events; run together it is the slowest one.
+  // These never reject, so the ones a budget stop never awaits are harmless.
+  const inflight = ordered.map((e) => fetchEventBundle(e.ttEventId));
+
+  // Read once, not once per event: the mapping table is the same for all of
+  // them.
+  const byKey = mappingsByKey(await prisma.ticketTailorCanvasMapping.findMany());
+
+  for (let i = 0; i < ordered.length; i++) {
+    const e = ordered[i];
     // Stop while there is still time to RETURN. Overrunning the platform
     // ceiling means the function is killed and the caller gets an HTML error
     // page instead of this result, which loses the work that did succeed.
@@ -304,7 +366,7 @@ export async function syncRecent(budgetMs = SYNC_BUDGET_MS): Promise<SyncResult>
     }
 
     const at = Date.now();
-    const r = await syncEvent(e.ttEventId);
+    const r = await writeEventBundle(await inflight[i], byKey);
     out.timings.push({ ttEventId: e.ttEventId, name: e.name ?? null, ms: Date.now() - at });
     out.events += r.events;
     out.orders += r.orders;
