@@ -189,26 +189,31 @@ same connection. `buildTicketUpsert` returns the operation instead of awaiting
 it; a Prisma promise is lazy, so nothing reaches the database until the chunk is
 handed to `$transaction`.
 
-With the writes batched, **the Ticket Tailor API is the whole remaining cost**,
-and it cannot be overlapped. Measured on the live box office: 16 requests per
-full sync (1 list + 1 event + 1 orders page + 1 tickets page per event), at
-roughly **3s each**, which is ~48s against a 45s budget.
+**The API is not the slow part — the writes are.** Measured per event on the
+live box office, the worst was 0.5s reading Ticket Tailor against **15.0s
+writing**. That is why the sync note on `/events` now reports those two numbers
+separately: the first round of this was diagnosed by reasoning about it, and
+the reasoning was wrong twice.
 
-**Ticket Tailor serves this key's requests serially. Do not try to parallelise
-them.** Firing all 16 at once was tried and shipped on 2026-11-13; it did not
-shorten the total at all, it only pushed the FIRST result out to 48.8s, so a
-sync that had been completing four events completed one and skipped four it had
-already paid to fetch. It was reverted the same day. Making a sync faster means
-making **fewer requests**, never more concurrent ones. The untaken one worth
-knowing about: `syncRecent` calls `getEvent` per event even though `listEvents`
-already returned each event's JSON — 5 of the 16 requests. It was left alone
-only because nothing here confirms the list payload carries `venue`, and a
-wrong guess silently nulls every venue name.
+So a row is written **only when something we store has actually changed**
+(`unchanged()`). Syncing is reconciliation and almost nothing moves between two
+runs — press Sync twice in a minute and every order and ticket used to be
+rewritten identically. The comparison deliberately skips `raw`: reading every
+stored blob back to diff it would cost more than the write it saves, and
+nothing reads `raw` to make a decision. A wrong TRUE from `unchanged` is the
+dangerous direction, because the stale row is then what the next sync compares
+against and no later sync ever corrects it — hence `unchanged.test.ts`.
 
-The sync note on `/events` reports, per event, **time reading Ticket Tailor vs
-time writing here**, so a future slowdown is read off the screen rather than
-guessed at. The first round of this was diagnosed by guessing and the guess was
-wrong.
+**Do not try to parallelise the API calls.** Firing all 16 at once was tried and
+shipped on 2026-11-13: a sync that had been completing four of five events
+completed **one**, having paid to fetch the other four, because the client
+retries a 429 with Retry-After and a burst trips Ticket Tailor's limiter. One
+request at a time is fast; sixteen at once is not. Reverted the same day.
+
+One request per sync is still redundant and was left alone: `syncRecent` calls
+`getEvent` per event even though `listEvents` already returned each event's
+JSON. Nothing here confirms the list payload carries `venue`, and a wrong guess
+silently nulls every venue name.
 
 Three things this does NOT fix, worth knowing:
 

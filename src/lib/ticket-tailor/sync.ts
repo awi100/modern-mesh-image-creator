@@ -87,6 +87,39 @@ async function runChunked(ops: Prisma.PrismaPromise<unknown>[]): Promise<void> {
   }
 }
 
+/**
+ * Has anything we store about this row actually changed?
+ *
+ * Syncing is reconciliation, and almost nothing moves between two syncs: press
+ * Sync twice in a minute and every order and ticket is written again
+ * identically. Those writes were the slow part — a measured run spent 0.5s
+ * reading Ticket Tailor and 15.0s writing one event — so a row that matches
+ * what is already stored is not written at all.
+ *
+ * `raw` is deliberately NOT compared. Reading every stored blob back to diff it
+ * would cost more than the write it saves, and nothing reads `raw` to make a
+ * decision — it is a record of what arrived. It still goes in whenever any
+ * field we do compare has moved.
+ */
+export function unchanged(
+  stored: Record<string, unknown> | undefined,
+  incoming: Record<string, unknown>,
+): boolean {
+  if (!stored) return false;
+  for (const [k, v] of Object.entries(incoming)) {
+    if (k === "raw") continue;
+    const s = stored[k];
+    if (v instanceof Date || s instanceof Date) {
+      const a = v instanceof Date ? v.getTime() : v === null || v === undefined ? null : NaN;
+      const b = s instanceof Date ? s.getTime() : s === null || s === undefined ? null : NaN;
+      if (a !== b) return false;
+    } else if (s !== v) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Upsert one event's row, deciding `state` only when it is first created. */
 async function upsertEvent(json: Record<string, unknown>) {
   const e = parseEvent(json);
@@ -124,14 +157,16 @@ async function upsertEvent(json: Record<string, unknown>) {
 function buildTicketUpsert(
   t: ParsedTicket,
   byKey: Map<string, { answerKey: string; designId: string | null; needsKit: boolean }>,
-  /** Overrides already stored, read once per event rather than per ticket. */
-  overrides: Map<string, string | null>,
+  /** What is already stored for this event, read once rather than per ticket. */
+  stored: Map<string, { overrideDesignId: string | null } & Record<string, unknown>>,
 ) {
   if (!t.ttTicketId || !t.ttEventId || !t.ttOrderId) return { op: null, unmapped: false, masked: false };
 
+  const existing = stored.get(t.ttTicketId);
+
   // An override is ours, not theirs, so it must survive a sync.
   const r = resolveTicket(
-    { ...t, overrideDesignId: overrides.get(t.ttTicketId) ?? null },
+    { ...t, overrideDesignId: existing?.overrideDesignId ?? null },
     byKey,
   );
 
@@ -155,11 +190,16 @@ function buildTicketUpsert(
     raw: t as unknown as object,
   };
 
-  const op = prisma.ticketTailorTicket.upsert({
-    where: { ttTicketId: t.ttTicketId },
-    update: data,
-    create: { ttTicketId: t.ttTicketId, ...data },
-  });
+  // The resolve above still runs for a skipped ticket: `unmapped` and `masked`
+  // describe the event's state, not what was written, and a sync that stopped
+  // counting them would report a clean event as soon as nothing had changed.
+  const op = unchanged(existing, data)
+    ? null
+    : prisma.ticketTailorTicket.upsert({
+        where: { ttTicketId: t.ttTicketId },
+        update: data,
+        create: { ttTicketId: t.ttTicketId, ...data },
+      });
 
   return { op, unmapped: r.status === "unmapped", masked: r.masked };
 }
@@ -238,6 +278,19 @@ async function writeEventBundle(
     return out;
   }
 
+  // What we already hold for this event, read once. This doubles as the list of
+  // order ids the ticket loop checks against, so it replaces a second query.
+  const storedOrders = new Map(
+    (await prisma.ticketTailorOrder.findMany({
+      where: { ttEventId },
+      select: {
+        ttOrderId: true, ttEventId: true, status: true, buyerName: true, buyerEmail: true,
+        totalCents: true, totalPaidCents: true, refundCents: true, currency: true, ttCreatedAt: true,
+      },
+    })).map((o) => [o.ttOrderId, o as Record<string, unknown>]),
+  );
+  const knownOrders = new Set(storedOrders.keys());
+
   const orderOps: Prisma.PrismaPromise<unknown>[] = [];
   for (const raw of bundle.orders) {
     const o = parseOrder(raw as Record<string, unknown>);
@@ -258,30 +311,37 @@ async function writeEventBundle(
       ttCreatedAt: o.ttCreatedAt,
       raw: raw as object,
     };
-    orderOps.push(prisma.ticketTailorOrder.upsert({
-      where: { ttOrderId: o.ttOrderId },
-      update: data,
-      create: { ttOrderId: o.ttOrderId, ...data },
-    }));
+    if (!unchanged(storedOrders.get(o.ttOrderId), data)) {
+      orderOps.push(prisma.ticketTailorOrder.upsert({
+        where: { ttOrderId: o.ttOrderId },
+        update: data,
+        create: { ttOrderId: o.ttOrderId, ...data },
+      }));
+    }
+    // An order seen this sync is one the ticket loop may reference, whether or
+    // not it needed writing.
+    knownOrders.add(o.ttOrderId);
     out.orders++;
   }
-  // Orders land before tickets are read, because the ticket loop checks each
-  // ticket's order against what is actually stored.
+  // Orders land before tickets are written, because the ticket loop checks each
+  // ticket's order against what is stored.
   await runChunked(orderOps);
 
-  // Every order id we hold for this event, read once. A findUnique per ticket
-  // was 226 sequential round trips to a remote database on a full sync, which
-  // took the route past any sensible timeout.
-  const overrides = new Map(
+  // Every ticket we already hold for this event, read once. A findUnique per
+  // ticket was 226 sequential round trips to a remote database on a full sync,
+  // which took the route past any sensible timeout. `overrideDesignId` comes
+  // back in the same query it used to need its own query for.
+  const storedTickets = new Map(
     (await prisma.ticketTailorTicket.findMany({
-      where: { ttEventId, overrideDesignId: { not: null } },
-      select: { ttTicketId: true, overrideDesignId: true },
-    })).map((t) => [t.ttTicketId, t.overrideDesignId]),
-  );
-
-  const knownOrders = new Set(
-    (await prisma.ticketTailorOrder.findMany({ where: { ttEventId }, select: { ttOrderId: true } }))
-      .map((o) => o.ttOrderId),
+      where: { ttEventId },
+      select: {
+        ttTicketId: true, overrideDesignId: true, ttOrderId: true, ttEventId: true,
+        attendeeName: true, attendeeEmail: true, ticketTypeName: true, ttTicketTypeId: true,
+        canvasAnswer: true, answerKey: true, resolveStatus: true, resolvedDesignId: true,
+        resolvedNeedsKit: true, ttStatus: true, voidedAt: true, listedPriceCents: true,
+        ttCreatedAt: true, ttUpdatedAt: true,
+      },
+    })).map((t) => [t.ttTicketId, t as { overrideDesignId: string | null } & Record<string, unknown>]),
   );
 
   const ticketOps: Prisma.PrismaPromise<unknown>[] = [];
@@ -294,7 +354,7 @@ async function writeEventBundle(
       out.errors.push(`ticket ${t.ttTicketId} references order ${t.ttOrderId}, which this event's order list did not include`);
       continue;
     }
-    const r = buildTicketUpsert(t, byKey, overrides);
+    const r = buildTicketUpsert(t, byKey, storedTickets);
     if (r.op) { ticketOps.push(r.op); out.tickets++; }
     if (r.unmapped) out.unmapped++;
     if (r.masked) out.masked++;
