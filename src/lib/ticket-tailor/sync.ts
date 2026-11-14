@@ -37,6 +37,16 @@ export interface SyncResult {
   events: number;
   orders: number;
   tickets: number;
+  /**
+   * Rows that were actually WRITTEN, as opposed to seen.
+   *
+   * `orders`/`tickets` count what came back from the API; these count what did
+   * not match what was already stored. Two syncs in a row should write almost
+   * nothing, so a second run still reporting hundreds of writes is the signal
+   * that the comparison is broken — which is not visible from timings alone.
+   */
+  ordersWritten: number;
+  ticketsWritten: number;
   unmapped: number;
   masked: number;
   errors: string[];
@@ -58,7 +68,7 @@ export interface SyncResult {
 }
 
 const empty = (): SyncResult => ({
-  events: 0, orders: 0, tickets: 0, unmapped: 0, masked: 0,
+  events: 0, orders: 0, tickets: 0, ordersWritten: 0, ticketsWritten: 0, unmapped: 0, masked: 0,
   errors: [], skipped: [], timedOut: false, timings: [],
 });
 
@@ -317,6 +327,7 @@ async function writeEventBundle(
         update: data,
         create: { ttOrderId: o.ttOrderId, ...data },
       }));
+      out.ordersWritten++;
     }
     // An order seen this sync is one the ticket loop may reference, whether or
     // not it needed writing.
@@ -355,7 +366,8 @@ async function writeEventBundle(
       continue;
     }
     const r = buildTicketUpsert(t, byKey, storedTickets);
-    if (r.op) { ticketOps.push(r.op); out.tickets++; }
+    out.tickets++;
+    if (r.op) { ticketOps.push(r.op); out.ticketsWritten++; }
     if (r.unmapped) out.unmapped++;
     if (r.masked) out.masked++;
   }
@@ -458,6 +470,8 @@ export async function syncRecent(budgetMs = SYNC_BUDGET_MS): Promise<SyncResult>
     out.events += r.events;
     out.orders += r.orders;
     out.tickets += r.tickets;
+    out.ordersWritten += r.ordersWritten;
+    out.ticketsWritten += r.ticketsWritten;
     out.unmapped += r.unmapped;
     out.masked += r.masked;
     out.errors.push(...r.errors);

@@ -74,7 +74,13 @@ export default function EventsPage() {
       const slowest = [...(data.timings ?? [])].sort((a, b) => (b.fetchMs ?? b.ms) - (a.fetchMs ?? a.ms))[0];
       const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
       setNote(
-        `Synced ${data.events} events, ${data.orders} orders, ${data.tickets} tickets.` +
+        `Synced ${data.events} events, ${data.orders} orders, ${data.tickets} tickets` +
+        // What was WRITTEN, not just seen. Two syncs in a row should write
+        // almost nothing; a second run still writing hundreds of rows means the
+        // unchanged-row comparison has stopped working, which no timing shows.
+        (data.ticketsWritten === undefined
+          ? "."
+          : ` (${data.ordersWritten + data.ticketsWritten} changed).`) +
         // Upcoming events are synced first, so a partial run still has the ones
         // being packed for. Say which were left rather than implying a clean run.
         (data.timedOut
