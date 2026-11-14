@@ -168,9 +168,11 @@ function buildTicketUpsert(
  * Everything one event needs from the API, fetched in one go.
  *
  * The three calls are INDEPENDENT of each other — only the writes are ordered
- * — so they run concurrently. Sequentially they were the whole remaining cost
- * of a sync: with the database writes batched, a measured run spent 22.8s on
- * the Publico event alone and ran out of budget before the fifth event.
+ * — so they are issued together. Do not read that as a speed-up: Ticket Tailor
+ * serves this key's requests serially at roughly 3s each, so the bundle costs
+ * about what the three calls cost one after another. It is grouped because it
+ * makes one event's reads one unit of work with one failure, not because it
+ * overlaps anything. Making a sync faster means making FEWER requests.
  *
  * Never rejects. A failure is carried as `ok: false` so one unreachable event
  * cannot abort the others — `listOrders` and `listIssuedTickets` used to throw
@@ -342,28 +344,24 @@ export async function syncRecent(budgetMs = SYNC_BUDGET_MS): Promise<SyncResult>
   // ORDER MATTERS, and it did not before. The loop used to take events in
   // whatever order the API listed them, which here is oldest first — so when
   // the budget ran out it had synced September and October and never reached
-  // the upcoming events, the only ones anyone is packing for. Upcoming first,
-  // soonest first; then past events, most recent first.
+  // the upcoming events, the only ones anyone is packing for.
+  //
+  // Upcoming first, soonest first. Then past events LEAST RECENTLY SYNCED
+  // first, rather than newest first: a budget that reaches only some of them
+  // would otherwise refresh the same two every time and leave the oldest
+  // permanently stale, which is the state this sync was found in. Rotating
+  // means every past event comes round within a few syncs.
+  const lastSynced = new Map(
+    (await prisma.ticketTailorEvent.findMany({ select: { ttEventId: true, lastSyncedAt: true } }))
+      .map((r) => [r.ttEventId, r.lastSyncedAt?.getTime() ?? 0]),
+  );
   const now = Date.now();
   const upcoming = wanted.filter((e) => (e.startsAt?.getTime() ?? 0) >= now)
     .sort((a, b) => (a.startsAt?.getTime() ?? 0) - (b.startsAt?.getTime() ?? 0));
   const past = wanted.filter((e) => (e.startsAt?.getTime() ?? 0) < now)
-    .sort((a, b) => (b.startsAt?.getTime() ?? 0) - (a.startsAt?.getTime() ?? 0));
+    .sort((a, b) => (lastSynced.get(a.ttEventId) ?? 0) - (lastSynced.get(b.ttEventId) ?? 0));
 
   const ordered = [...upcoming, ...past];
-
-  // Every event's API reads start NOW, together, and the writes then drain in
-  // order. The reads do not depend on each other, so run sequentially their
-  // cost was the sum of all five events; run together it is the slowest one.
-  // These never reject, so the ones a budget stop never awaits are harmless.
-  const fetchMs = new Map<string, number>();
-  const inflight = ordered.map((e) => {
-    const at = Date.now();
-    return fetchEventBundle(e.ttEventId).then((b) => {
-      fetchMs.set(e.ttEventId, Date.now() - at);
-      return b;
-    });
-  });
 
   // Read once, not once per event: the mapping table is the same for all of
   // them.
@@ -380,15 +378,21 @@ export async function syncRecent(budgetMs = SYNC_BUDGET_MS): Promise<SyncResult>
       continue;
     }
 
+    // ONE EVENT AT A TIME, MEASURED. Starting every event's reads at once was
+    // tried and was worse: Ticket Tailor serves this key's requests serially at
+    // roughly 3s each, so firing all fifteen together did not shorten the total
+    // — it only pushed the FIRST result out to 48.8s, past the budget, so a
+    // sync that had been completing four events completed one. Concurrency
+    // cannot help here; only making fewer requests can.
     const at = Date.now();
-    const bundle = await inflight[i];
+    const bundle = await fetchEventBundle(e.ttEventId);
     const writeAt = Date.now();
     const r = await writeEventBundle(bundle, byKey);
     out.timings.push({
       ttEventId: e.ttEventId,
       name: e.name ?? null,
       ms: Date.now() - at,
-      fetchMs: fetchMs.get(e.ttEventId) ?? 0,
+      fetchMs: writeAt - at,
       writeMs: Date.now() - writeAt,
     });
     out.events += r.events;
