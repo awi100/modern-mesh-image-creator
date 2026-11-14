@@ -215,20 +215,23 @@ One request per sync is still redundant and was left alone: `syncRecent` calls
 JSON. Nothing here confirms the list payload carries `venue`, and a wrong guess
 silently nulls every venue name.
 
-Three things this does NOT fix, worth knowing:
+Measured after that change: **5 events, 203 orders, 257 tickets, 0 changed,
+0.6s reading and 1.0s writing** on the slowest event. A full sync fits in one
+run again, with the whole budget to spare.
 
-- **Webhooks are still not arriving.** Until the endpoint is registered in the
-  Ticket Tailor dashboard and `TICKET_TAILOR_WEBHOOK_SECRET` is set, the Sync
-  button remains the only way data updates.
-- **`RECENT_DAYS = 120`** means every sync re-reads all five events, including
-  historical ones. It keeps voids and refunds on old events current, so it is
-  deliberate — but it is why sync cost grows with history, and at ~3s a request
-  it is the reason a full sync does not fit in one run.
-- **A full sync still does not fit.** Upcoming events go first, so the ones
-  being packed for are always current; past events are then taken **least
-  recently synced first**, so each comes round within a few syncs instead of
-  the oldest being permanently stranded. Newest-first refreshed the same two
-  every time, which is the state this sync was found in.
+The ordering still matters for the day it stops fitting. Upcoming events go
+first, so the ones being packed for are always current; past events are then
+taken **least recently synced first**, so each comes round within a few syncs
+instead of the oldest being permanently stranded. Newest-first refreshed the
+same two every time, which is the state this sync was found in.
+
+One thing this does NOT fix: **webhooks are still not arriving.** Until the
+endpoint is registered in the Ticket Tailor dashboard and
+`TICKET_TAILOR_WEBHOOK_SECRET` is set, the Sync button remains the only way
+data updates. `RECENT_DAYS = 120` means every sync re-reads all five events,
+which is what keeps voids and refunds on old events current; it is cheap now
+that an unchanged row costs nothing, but it is still why sync cost grows with
+history.
 
 `syncEvent` collects per-event failures into `errors[]` and still returns 200,
 because one bad event should not discard the others. The page now shows them;
