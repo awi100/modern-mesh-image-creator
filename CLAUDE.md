@@ -162,12 +162,11 @@ src/
 
 ### Keeping Ticket Tailor in step
 
-There is **no scheduler**. Ticket Tailor data only moves when someone presses
-Sync on `/events`, or when a webhook arrives — and as of 2026-11-13 **no webhook
-has ever been delivered** (`TicketTailorWebhookDelivery` is empty). So in
-practice the button is the only path, and if it fails the numbers silently stop
-moving. That is exactly what happened: the newest order and ticket in the
-database were 6.5 days old while sales continued.
+There is **no scheduler**. Ticket Tailor data moves when someone presses Sync on
+`/events`, or when a webhook arrives. Until 2026-11-14 the button was the only
+path that worked, so if it failed the numbers silently stopped moving — which is
+exactly what happened: the newest order and ticket in the database were 6.5 days
+old while sales continued.
 
 **The sync was timing out.** A full sync writes one row at a time — 193 order
 upserts plus 247 ticket upserts, 440 sequential round trips to a database in
@@ -225,13 +224,56 @@ taken **least recently synced first**, so each comes round within a few syncs
 instead of the oldest being permanently stranded. Newest-first refreshed the
 same two every time, which is the state this sync was found in.
 
-One thing this does NOT fix: **webhooks are still not arriving.** Until the
-endpoint is registered in the Ticket Tailor dashboard and
-`TICKET_TAILOR_WEBHOOK_SECRET` is set, the Sync button remains the only way
-data updates. `RECENT_DAYS = 120` means every sync re-reads all five events,
-which is what keeps voids and refunds on old events current; it is cheap now
-that an unchanged row costs nothing, but it is still why sync cost grows with
-history.
+`RECENT_DAYS = 120` means every sync re-reads all five events, which is what
+keeps voids and refunds on old events current; it is cheap now that an unchanged
+row costs nothing, but it is still why sync cost grows with history.
+
+### The webhook event names are not what you would guess
+
+Webhooks ARE registered and arriving — the first landed 2026-11-09. For the
+five days after that they did **nothing at all**, which looks identical to not
+being registered, and the note here said they had never been delivered.
+
+The event name Ticket Tailor sends is `ORDER_V2.CREATED` /
+`ISSUED_TICKET.CREATED`: upper case, and the order resource is **versioned**.
+`classify()` in `src/lib/ticket-tailor/webhook.ts` compared the whole string
+against `order.created` and `issued_ticket.created`, names that were guessed and
+never checked against a delivery, so every one of the first 20 classified as
+`other`, returned 200, and re-synced nothing. The tests passed because they were
+written from the same guess — `webhook.test.ts` now asserts the real strings and
+says not to relax them.
+
+**An ORDER_V2 webhook payload does not carry its event id.** Ten of ten live
+deliveries resolved to null through `eventIdFromPayload`. The `event_summary` it
+looks for is on an order **read back from the REST API** — a different shape from
+the one pushed in a webhook, and the fixture used to test it is an API response,
+so it proved nothing. The route now falls back to the order id in `resource_url`
+and looks the event up locally, which covers an UPDATE to an order we already
+have, i.e. a cancellation. A newly created order needs no fallback: the paired
+`ISSUED_TICKET.CREATED` arrives within milliseconds and a ticket payload does
+carry `event_id`.
+
+Only CREATED events have ever been observed. Whether `ORDER_V2.UPDATED` and
+`ISSUED_TICKET.UPDATED` are subscribed in the dashboard is **unverified** — the
+11 voided tickets on record all predate the first delivery, so no void has ever
+come through a webhook. If a cancellation does not show up on its own, that
+subscription is the first thing to check.
+
+**A burst of deliveries now triggers concurrent syncs of the same event,** and
+that has never actually run. One four-ticket order means five deliveries within
+milliseconds, so five `syncEvent` calls at once: fifteen Ticket Tailor requests
+in a burst, which is the shape that tripped their limiter when the sync was
+parallelised, plus concurrent upserts on the same rows. It should degrade rather
+than break — 429s are retried with Retry-After, every write is an idempotent
+upsert, and a failed delivery is retried by Ticket Tailor — but it is unmeasured.
+Watch the next multi-ticket signup before adding any coalescing.
+
+The delivery log is visible now. `GET /api/ticket-tailor/webhooks` reports when
+the last one arrived and how many came in the last 7 days, and `/events` shows
+it in a line above the sync note. It does **not** report how many were ignored,
+because nothing on the row records what the route decided: an ignored
+`ISSUED_TICKET` delivery still has an event id, so counting rows without one
+would have called all 20 silent deliveries healthy. That needs one more column.
 
 `syncEvent` collects per-event failures into `errors[]` and still returns 200,
 because one bad event should not discard the others. The page now shows them;

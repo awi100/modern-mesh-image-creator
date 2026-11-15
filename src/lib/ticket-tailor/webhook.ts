@@ -29,9 +29,70 @@ export function isHandled(kind: WebhookKind): boolean {
   return HANDLED.has(kind);
 }
 
+/**
+ * Resources we act on, by the name Ticket Tailor actually uses.
+ *
+ * Versioned, hence the alias: a future `ORDER_V3` is one line here and no
+ * change anywhere else.
+ */
+const RESOURCE_ALIASES: Record<string, "order" | "issued_ticket"> = {
+  ORDER: "order",
+  ORDER_V2: "order",
+  ISSUED_TICKET: "issued_ticket",
+};
+
+/**
+ * Map Ticket Tailor's event name onto what we do about it.
+ *
+ * THE NAMES ARE THEIRS, AND THEY ARE NOT WHAT THIS FILE FIRST GUESSED. A live
+ * delivery is `ORDER_V2.CREATED` or `ISSUED_TICKET.CREATED` — upper case, and
+ * the order resource is versioned. This used to compare the whole string
+ * against `order.created` / `issued_ticket.created`, so every real delivery
+ * classified as "other" and the route acknowledged it without re-syncing
+ * anything: 20 deliveries between 9 and 14 Nov 2026 each returned 200 and
+ * changed nothing, which is indistinguishable from no webhook at all.
+ *
+ * So the name is taken apart instead of matched whole — upper-cased, which
+ * accepts the lower-case spelling too, split on the last ".", and the resource
+ * put through the alias table. An unrecognised resource or action is still
+ * "other", because acting on a name we do not understand is worse than
+ * ignoring it.
+ */
 function classify(event: string | null): WebhookKind {
   if (!event) return "other";
-  return HANDLED.has(event as WebhookKind) ? (event as WebhookKind) : "other";
+  const dot = event.lastIndexOf(".");
+  if (dot <= 0) return "other";
+
+  const resource = RESOURCE_ALIASES[event.slice(0, dot).trim().toUpperCase()];
+  const action = event.slice(dot + 1).trim().toUpperCase();
+  if (!resource) return "other";
+  if (action !== "CREATED" && action !== "UPDATED") return "other";
+
+  return `${resource}.${action.toLowerCase()}` as WebhookKind;
+}
+
+/**
+ * The order id out of a delivery's `resource_url`.
+ *
+ * An ORDER_V2 webhook payload does not carry its event: of the first 10 live
+ * deliveries, NONE yielded an id through `eventIdFromPayload`. The
+ * `event_summary` that function looks for belongs to an order read back from
+ * the REST API, which is a different shape from the one pushed in a webhook —
+ * the test fixture for this is an API response, so it proved nothing about the
+ * webhook.
+ *
+ * The resource url is reliable (`.../v1/orders/or_87136845`), and an order we
+ * have already stored tells us its event. That covers the case that matters:
+ * an UPDATE to an existing order, i.e. a cancellation, which voids tickets.
+ *
+ * A brand-new order needs no fallback — an ISSUED_TICKET.CREATED for the same
+ * purchase arrives within milliseconds, and a ticket payload does carry
+ * `event_id`.
+ */
+export function orderIdFromResourceUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = /\/orders\/([A-Za-z0-9_-]+)/.exec(url);
+  return m ? m[1] : null;
 }
 
 /**

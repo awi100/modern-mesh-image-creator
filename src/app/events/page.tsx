@@ -8,6 +8,7 @@ import type { EventListRow } from "@/app/api/ticket-tailor/events/route";
 // Type-only, so nothing from the server module is bundled into this client
 // component — the import is erased at compile time.
 import type { SyncResult } from "@/lib/ticket-tailor/sync";
+import type { WebhookHealth } from "@/app/api/ticket-tailor/webhooks/route";
 
 /** What the sync route returns: a SyncResult, or { error } when it fails. */
 type SyncResponse = SyncResult & { error?: string };
@@ -25,6 +26,7 @@ export default function EventsPage() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [health, setHealth] = useState<WebhookHealth | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -36,6 +38,16 @@ export default function EventsPage() {
       setError(e instanceof Error ? e.message : "Could not load events");
     } finally {
       setLoading(false);
+    }
+
+    // Separate request, and a failure here is swallowed: whether webhooks are
+    // arriving is useful context, never a reason to fail the page that shows
+    // what to pack.
+    try {
+      const res = await fetch("/api/ticket-tailor/webhooks");
+      if (res.ok) setHealth(await res.json());
+    } catch {
+      /* ignore */
     }
   }, []);
 
@@ -139,6 +151,8 @@ export default function EventsPage() {
           off only when you open an event and press the deduct button, after you have pulled them.
         </p>
 
+        <WebhookLine health={health} />
+
         {note && <p className="text-sm text-emerald-400 bg-emerald-950/40 border border-emerald-900 rounded-lg px-3 py-2">{note}</p>}
         {error && <p className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded-lg px-3 py-2">{error}</p>}
 
@@ -156,6 +170,54 @@ export default function EventsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Whether Ticket Tailor is actually reaching us.
+ *
+ * Here because for five days it was not, and nothing on any page would have
+ * said so — the deliveries arrived, were acknowledged, and did nothing. The
+ * useful number is how recently one came in: a signup should show up without
+ * anyone pressing Sync, so if the last delivery is older than the last sale,
+ * the button is doing all the work again.
+ */
+function WebhookLine({ health }: { health: WebhookHealth | null }) {
+  if (!health) return null;
+
+  if (health.total === 0) {
+    return (
+      <p className="text-sm text-amber-300 bg-amber-950/30 border border-amber-900/60 rounded-lg px-3 py-2">
+        No webhook has ever arrived, so signups only appear when you press Sync. The endpoint
+        has to be registered in the Ticket Tailor dashboard.
+      </p>
+    );
+  }
+
+  const last = new Date(health.lastAt!);
+  const mins = Math.round((Date.now() - last.getTime()) / 60000);
+  const ago =
+    mins < 1 ? "just now"
+    : mins < 60 ? `${mins} min ago`
+    : mins < 60 * 48 ? `${Math.round(mins / 60)}h ago`
+    : `${Math.round(mins / 1440)} days ago`;
+
+  // A week with no delivery is not proof of a fault — it may simply be a quiet
+  // week — so this says what it knows and leaves the judgement alone.
+  const quiet = health.recent === 0;
+
+  return (
+    <p className={`text-sm rounded-lg px-3 py-2 border ${
+      quiet
+        ? "text-amber-300 bg-amber-950/30 border-amber-900/60"
+        : "text-slate-400 bg-slate-800/60 border-slate-700"
+    }`}>
+      Webhooks: last one {ago} ({health.lastEvent}).{" "}
+      {quiet
+        ? "Nothing in the last 7 days — if there have been signups since, they only landed because someone pressed Sync."
+        : `${health.recent} in the last 7 days.`}
+      {health.failed > 0 && ` ${health.failed} did not complete.`}
+    </p>
   );
 }
 
