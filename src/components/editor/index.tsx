@@ -47,6 +47,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
     setStitchType,
     setBufferPercent,
     setReferenceImage,
+    setTool,
     reset,
   } = useEditorStore();
 
@@ -144,6 +145,19 @@ export default function Editor({ designId, initialData }: EditorProps) {
       initializeGrid(initialData.gridWidth, initialData.gridHeight, initialData.grid);
       setStitchType(initialData.stitchType);
       setBufferPercent(initialData.bufferPercent);
+      // Open an EXISTING design in pan, never in a drawing tool. Opening a
+      // finished design to look at it and putting a stitch in it by accident is
+      // a silent edit — the editor auto-saves, so there is no "did you mean to
+      // save?" between the stray tap and the design being changed on disk.
+      //
+      // The store is global and is NOT reset between designs, so without this
+      // the tool simply carries over: draw on one design, open another, and the
+      // pencil is still live over work you only meant to view.
+      //
+      // Deliberately only here, in the `initialData` branch. A NEW design opens
+      // in pencil as before, because there is nothing to damage and drawing is
+      // the whole reason you just created it.
+      setTool("pan");
       if (initialData.referenceImageUrl) {
         setReferenceImage(initialData.referenceImageUrl, initialData.referenceImageOpacity);
       }
@@ -160,7 +174,7 @@ export default function Editor({ designId, initialData }: EditorProps) {
       }
       // Don't reset - preserve any name/dimensions set by NewDesignDialog
     }
-  }, [designId, initialData, setDesignInfo, initializeGrid, setStitchType, setBufferPercent, setReferenceImage]);
+  }, [designId, initialData, setDesignInfo, initializeGrid, setStitchType, setBufferPercent, setReferenceImage, setTool]);
 
   // Handle text added from dialog
   const handleTextAdded = useCallback((
