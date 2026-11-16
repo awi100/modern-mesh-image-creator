@@ -591,9 +591,16 @@ need **before** comparing it with stock:
 - In the headline counts — kit demand is keyed by pool server-side too.
 
 Canvases are keyed by design throughout: only the thread is interchangeable.
-The "Kits Needed" pull list is **one row per pool**, not per design, since it is
-a list of bags to pull and two rows reading "3 ready" for the same three bags is
-how you pull six.
+
+**Do not merge pooled designs into one row.** The "Kits Needed" list was briefly
+keyed by pool, on the reasoning that it is a list of interchangeable bags — and
+it reported "2 x Boylston St" for one Boylston and one Newbury. The bags are
+shared but the canvases are not, so one of each is two different things to pull
+and has to stay two rows. The right fix is the one in place now: one row per
+design, each showing the pool's bag count against the **pool's** total demand,
+labelled "Shared bags · Street Sign - Large · 2 needed across Boylston St,
+Newbury Street". Per-design demand on a pooled count is what invites pulling the
+pool twice; hiding a design is worse.
 
 ### Packing the market tote
 

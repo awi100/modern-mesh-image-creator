@@ -1074,16 +1074,17 @@ export default function OrdersPage() {
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-white">Kits Needed</h2>
                 {(() => {
-                  // Aggregate kit items into one row per BAG, which means one
-                  // row per shared pool rather than one per design. This is a
-                  // list of bags to pull: two rows reading "3 ready" for the
-                  // same three interchangeable bags is how you pull six.
+                  // One row PER DESIGN. Pooled designs are not merged: the kit
+                  // bags are interchangeable but the canvases are not, so a
+                  // Boylston order and a Newbury order are two different things
+                  // to pull and must stay two rows — merged, the list read
+                  // "2 x Boylston St" for one of each.
                   //
-                  // Members of a pool have identical colour sets by
-                  // construction (create-kit-group.ts refuses otherwise), so
-                  // the row can safely borrow any member's designId for the
-                  // colour breakdown and the +/- control — the PATCH route
-                  // routes a pooled write to the group either way.
+                  // What IS shared is the bag count, so `kitsReady` on every
+                  // member is the whole pool. Comparing it with one design's
+                  // demand would be the invitation to pull the pool twice, so
+                  // the pool's TOTAL demand is accumulated alongside and the
+                  // enough/short maths below uses that instead.
                   const kitsByDesign = new Map<string, {
                     designId: string | null;
                     designName: string | null;
@@ -1094,22 +1095,31 @@ export default function OrdersPage() {
                     folderId: string | null;
                     folderName: string | null;
                     totalSold: number;
+                    poolKey: string | null;
                     poolName: string | null;
-                    poolFor: string[];
                   }>();
+                  // poolKey -> total bags owed across every member, and which
+                  // designs are sharing them.
+                  const poolNeed = new Map<string, number>();
+                  const poolFor = new Map<string, string[]>();
 
                   for (const order of data.orders) {
                     for (const item of order.items) {
                       if (!item.needsKit || item.itemType !== "canvas") continue;
 
-                      const key = kitBudgetKey(item) || item.productTitle;
+                      const poolKey = item.kitPool ? kitBudgetKey(item) : null;
+                      if (poolKey) {
+                        poolNeed.set(poolKey, (poolNeed.get(poolKey) ?? 0) + item.quantity);
+                        const names = poolFor.get(poolKey) ?? [];
+                        const label = item.designName ?? item.productTitle;
+                        if (!names.includes(label)) names.push(label);
+                        poolFor.set(poolKey, names);
+                      }
+
+                      const key = item.designId || item.productTitle;
                       const existing = kitsByDesign.get(key);
                       if (existing) {
                         existing.quantity += item.quantity;
-                        existing.totalSold += item.designId === existing.designId ? 0 : item.totalSold;
-                        if (item.designName && !existing.poolFor.includes(item.designName)) {
-                          existing.poolFor.push(item.designName);
-                        }
                       } else {
                         kitsByDesign.set(key, {
                           designId: item.designId,
@@ -1121,8 +1131,8 @@ export default function OrdersPage() {
                           folderId: item.folderId,
                           folderName: item.folderName,
                           totalSold: item.totalSold,
+                          poolKey,
                           poolName: item.kitPool?.name ?? null,
-                          poolFor: item.designName ? [item.designName] : [],
                         });
                       }
                     }
@@ -1173,8 +1183,15 @@ export default function OrdersPage() {
                             </div>
                             <div className="divide-y divide-slate-700/50">
                               {sortedKits.map((kit, idx) => {
-                                const hasEnough = kit.kitsReady >= kit.quantity;
-                                const shortage = kit.quantity - kit.kitsReady;
+                                // `kit.kitsReady` is the whole pool for a pooled
+                                // design, so it is compared with what the whole
+                                // pool owes. Against this design alone, Boylston
+                                // needing 2 and Newbury needing 2 would both read
+                                // "enough" off the same 3 bags.
+                                const bagsNeeded = kit.poolKey ? (poolNeed.get(kit.poolKey) ?? kit.quantity) : kit.quantity;
+                                const hasEnough = kit.kitsReady >= bagsNeeded;
+                                const shortage = bagsNeeded - kit.kitsReady;
+                                const sharedWith = kit.poolKey ? (poolFor.get(kit.poolKey) ?? []) : [];
                                 const isExpanded = kit.designId ? expandedKits.has(kit.designId) : false;
                                 const kitInfo = kit.designId ? kitData.get(kit.designId) : null;
                                 const isIntroKit = kit.productTitle.toLowerCase().includes("intro") || kit.productTitle.toLowerCase().includes("beginner");
@@ -1229,16 +1246,17 @@ export default function OrdersPage() {
                                         ) : (
                                           <p className="text-xs text-purple-400">{kit.totalSold} sold</p>
                                         )}
-                                        {/* One row, one bag type. Say so, or the
-                                            row looks like it is about this design
-                                            alone and the count looks wrong. */}
+                                        {/* The bag count on this row is the whole
+                                            pool, so say whose it is — otherwise
+                                            the same 3 reads as 3 for this design
+                                            alone and gets pulled twice. */}
                                         {kit.poolName && (
                                           <p
                                             className="text-xs text-sky-400 truncate"
-                                            title={`One bag of thread fits any of: ${kit.poolFor.join(", ")}. The count is the whole shared pool, not this design's share.`}
+                                            title={`One bag of thread fits any of: ${sharedWith.join(", ")}. The ${kit.kitsReady} shown is the whole shared pool, and ${bagsNeeded} of them are needed across those designs — not this design's own share. The canvases are still separate.`}
                                           >
-                                            Shared bag · {kit.poolName}
-                                            {kit.poolFor.length > 1 ? ` (${kit.poolFor.join(", ")})` : ""}
+                                            Shared bags · {kit.poolName} · {bagsNeeded} needed across{" "}
+                                            {sharedWith.length > 1 ? sharedWith.join(", ") : kit.designName || kit.productTitle}
                                           </p>
                                         )}
                                         {/* Kit contents summary */}
@@ -1273,7 +1291,12 @@ export default function OrdersPage() {
                                             busy={updating === kit.designId}
                                             tone="home"
                                             label="ready"
-                                            ariaLabel={`Kits ready for ${kit.designName}`}
+                                            ariaLabel={kit.poolName
+                                              ? `Kit bags ready in the ${kit.poolName} shared pool, used by ${sharedWith.join(", ")}`
+                                              : `Kits ready for ${kit.designName}`}
+                                            labelTitle={kit.poolName
+                                              ? `Bags in the ${kit.poolName} pool. Editing this changes the pool, so it moves on every design that shares it.`
+                                              : undefined}
                                             valueClassName={hasEnough ? "text-emerald-400" : "text-red-400"}
                                             decrementTitle={`Remove ${kitDelta}`}
                                             incrementTitle={`Add ${kitDelta}`}
