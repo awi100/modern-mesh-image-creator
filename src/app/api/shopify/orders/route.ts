@@ -12,6 +12,7 @@ import {
   isExpressShippingTitle,
 } from "@/lib/shopify";
 import { classifyOrderKind, toOrderKind, type OrderKind } from "@/lib/order-kind";
+import { KIT_GROUP_INCLUDE, kitStockOf } from "@/lib/kit-group";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
@@ -29,7 +30,21 @@ export interface OrderItem {
   designId: string | null;
   designName: string | null;
   previewImageUrl: string | null;
+  /**
+   * Kit bags this design can ship from HOME.
+   *
+   * For a design in a shared kit pool this is the WHOLE pool, not a share of
+   * it — any bag fits any member, so a share would be a fiction. It therefore
+   * must NOT be summed across designs: see `kitGroupId`.
+   */
   kitsReady: number;
+  /**
+   * Set when `kitsReady` above is a pool shared with other designs. Anything
+   * that allocates or totals kits must key on `kitGroupId ?? designId`, or the
+   * same bags get spent once per member.
+   */
+  kitGroupId: string | null;
+  kitPool: { name: string; members: number; contents: string | null } | null;
   canvasPrinted: number;
   folderId: string | null;
   folderName: string | null;
@@ -146,7 +161,15 @@ export async function GET() {
         id: true,
         name: true,
         previewImageUrl: true,
+        // Kit stock for a pooled design is held at 0 on these columns and
+        // lives on the group instead, so read it through kitStockOf. Selecting
+        // kitsReady alone is how this page came to report 0 kits for every
+        // street sign while the shelf had three bags on it.
         kitsReady: true,
+        marketKitsReady: true,
+        kitsAndover: true,
+        kitGroupId: true,
+        ...KIT_GROUP_INCLUDE,
         canvasPrinted: true,
         totalSold: true,
         folderId: true,
@@ -246,7 +269,12 @@ export async function GET() {
     const unmatchedProducts = new Set<string>();
 
     // Track demand per design/supply for calculating "ready" counts
-    const designDemand = new Map<string, { canvasesNeeded: number; kitsNeeded: number; canvasesReady: number; kitsReady: number }>();
+    const designDemand = new Map<string, { canvasesNeeded: number; canvasesReady: number }>();
+    // Kits are tracked separately from canvases and keyed by POOL, because a
+    // shared bag serves any member: `kitStockOf` reports the whole pool to each
+    // of them, so a per-design map would count the same three bags once per
+    // street sign. Canvases are not interchangeable and stay per design.
+    const kitDemand = new Map<string, { needed: number; ready: number }>();
     const supplyDemand = new Map<string, { needed: number; ready: number }>();
 
     for (const shopifyOrder of shopifyOrders) {
@@ -267,7 +295,11 @@ export async function GET() {
         // Try to match to a design or supply
         const normalizedTitle = normalizeTitle(productTitle);
         const matchedDesign = designMap.get(normalizedTitle);
-        const matchedSupply = supplyMap.get(normalizedTitle) ?? matchSupplyByVariant(productTitle, lineItem.variantTitle, supplies) ?? undefined;
+        // Where this design's kit bags actually live — its own columns, or the
+        // shared pool's. `.home` only: the market tote is deliberately separate
+        // stock and an online order never draws on it.
+        const matchedKits = matchedDesign ? kitStockOf(matchedDesign) : null;
+        const matchedSupply =supplyMap.get(normalizedTitle) ?? matchSupplyByVariant(productTitle, lineItem.variantTitle, supplies) ?? undefined;
 
         // A bundle line item deducts several component supplies.
         const matchedBundle = bundleMap.get(normalizedTitle);
@@ -295,7 +327,11 @@ export async function GET() {
           designId: matchedDesign?.id || null,
           designName: matchedDesign?.name || null,
           previewImageUrl: matchedDesign?.previewImageUrl || null,
-          kitsReady: matchedDesign?.kitsReady || 0,
+          kitsReady: matchedKits?.home ?? 0,
+          kitGroupId: matchedKits?.groupId ?? null,
+          kitPool: matchedKits?.shared
+            ? { name: matchedKits.groupName!, members: matchedKits.memberCount, contents: matchedKits.contents }
+            : null,
           canvasPrinted: matchedDesign?.canvasPrinted || 0,
           folderId: matchedDesign?.folderId || null,
           folderName: matchedDesign?.folder?.name || null,
@@ -331,15 +367,17 @@ export async function GET() {
           if (matchedDesign) {
             const existing = designDemand.get(matchedDesign.id) || {
               canvasesNeeded: 0,
-              kitsNeeded: 0,
               canvasesReady: matchedDesign.canvasPrinted,
-              kitsReady: matchedDesign.kitsReady,
             };
             existing.canvasesNeeded += lineItem.quantity;
-            if (needsKit) {
-              existing.kitsNeeded += lineItem.quantity;
-            }
             designDemand.set(matchedDesign.id, existing);
+
+            if (needsKit) {
+              const key = matchedKits?.groupId ?? matchedDesign.id;
+              const kits = kitDemand.get(key) || { needed: 0, ready: matchedKits?.home ?? 0 };
+              kits.needed += lineItem.quantity;
+              kitDemand.set(key, kits);
+            }
           }
         } else {
           totalSupplies += lineItem.quantity;
@@ -392,7 +430,9 @@ export async function GET() {
     let totalKitsReady = 0;
     for (const demand of designDemand.values()) {
       totalCanvasesReady += Math.min(demand.canvasesReady, demand.canvasesNeeded);
-      totalKitsReady += Math.min(demand.kitsReady, demand.kitsNeeded);
+    }
+    for (const demand of kitDemand.values()) {
+      totalKitsReady += Math.min(demand.ready, demand.needed);
     }
 
     let totalSuppliesReady = 0;

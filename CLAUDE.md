@@ -569,6 +569,32 @@ Rules, all enforced in `src/lib/kit-pool.ts` (pure, client-safe) and
 - Add or remove members with `scripts/create-kit-group.ts`, which refuses to
   write unless the members' colour sets match exactly.
 
+**The Orders page was reading the zeroed columns.** `/api/shopify/orders`
+selected `kitsReady` directly, so all five street signs reported **0 kits**
+while three bags sat on the shelf — the exact failure the held-at-0 convention
+is designed to make obvious rather than plausible. Fixed 16 Nov 2026.
+
+Reporting the pool is only half of it, and the other half is the dangerous
+half: once every member reports the whole pool, anything that budgets or totals
+kits per design hands the same bags out once per member. So the Orders page's
+allocation lives in `src/lib/order-allocation.ts` (pure, tested) and everything
+there keys kits by `kitBudgetKey(item)` = `kitGroupId ?? designId`, and totals
+need **before** comparing it with stock:
+
+- Across orders — two orders for 2 bags each are not both packable from a pool
+  of 3.
+- Within one order — a basket of 2 Boylston + 2 Newbury checked item by item
+  passes twice against the untouched pool of 3, then deducts 4.
+- On a row's `X/Y` — `totalKitsNeeded` is the whole pool's demand written back
+  to every member, because that is the only figure comparable with the pooled
+  `kitsReady` shown beside it.
+- In the headline counts — kit demand is keyed by pool server-side too.
+
+Canvases are keyed by design throughout: only the thread is interchangeable.
+The "Kits Needed" pull list is **one row per pool**, not per design, since it is
+a list of bags to pull and two rows reading "3 ready" for the same three bags is
+how you pull six.
+
 ### Packing the market tote
 
 `src/lib/market-prep.ts` sizes the tote for the **busiest single market** seen

@@ -12,6 +12,10 @@ import CountStepper from "@/components/inventory/CountStepper";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 import { ORDER_KINDS, ORDER_KIND_LABEL, ORDER_KIND_HELP, type OrderKind } from "@/lib/order-kind";
 import { onPickList, isSkipped } from "@/lib/order-pick-list";
+// Allocation lives in a tested lib because it has to respect shared kit pools:
+// `item.kitsReady` is the WHOLE pool for a pooled design, so budgeting or
+// totalling it per design spends the same bags once per member.
+import { calculateFulfillableOrders, calculateDemandByDesign, kitBudgetKey } from "@/lib/order-allocation";
 
 // Kit content types
 interface BackupColorInfo {
@@ -35,6 +39,19 @@ interface KitItem {
   inStock: boolean;
   primaryInStock?: boolean;
   backup: BackupColorInfo | null;
+}
+
+/**
+ * Skeins of a colour that must be on hand to make one kit of it.
+ *
+ * Mirrors `skeinsToStock` in /api/kits: the displayed "N sk needed", except a
+ * bobbin-only colour shows 0 full skeins and still needs one skein opened to
+ * wind the bobbin from. Used for the optimistic in-stock flags so a +/- here
+ * cannot flip a colour green on a threshold the server would not agree with —
+ * `skeinsNeeded` is the raw fractional figure and was being compared instead.
+ */
+function skeinsToStockFor(item: Pick<KitItem, "fullSkeins" | "bobbinYards">): number {
+  return item.fullSkeins > 0 ? item.fullSkeins : item.bobbinYards > 0 ? 1 : 0;
 }
 
 interface KitData {
@@ -72,118 +89,6 @@ function getContrastTextColor(hex: string): string {
 
 type FilterType = "all" | "canvases" | "kits" | "supplies" | "mystery";
 
-// Aggregated canvas demand per design across the orders still to be pulled.
-// `onPickList` drops both the already-deducted and the deliberately skipped:
-// one 30-unit wholesale order left in here reports "need 25" on every OTHER
-// order's row for the same design.
-function calculateDemandByDesign(orders: Order[]) {
-  const demand = new Map<string, { totalKitsNeeded: number; totalCanvasesNeeded: number }>();
-
-  for (const order of onPickList(orders)) {
-    for (const item of order.items) {
-      if (!item.designId || item.itemType !== "canvas") continue;
-
-      const existing = demand.get(item.designId) || { totalKitsNeeded: 0, totalCanvasesNeeded: 0 };
-      if (item.needsKit) {
-        existing.totalKitsNeeded += item.quantity;
-      }
-      existing.totalCanvasesNeeded += item.quantity;
-      demand.set(item.designId, existing);
-    }
-  }
-
-  return demand;
-}
-
-// Calculate which orders can actually be fulfilled, processing oldest first
-// Returns a Set of shopifyOrderId that have enough inventory (after accounting for older orders)
-function calculateFulfillableOrders(orders: Order[]) {
-  const fulfillableOrders = new Set<string>();
-
-  // Sort express orders first (they paid for fast shipping, so they get
-  // inventory priority), then by date (oldest first). Already-deducted orders
-  // are out because they have consumed their inventory; skipped ones are out
-  // because they have not and must not — left in, an old wholesale order sits
-  // at the front of this queue and starves every order behind it of canvases
-  // that are actually on the shelf.
-  const unfulfilledOrders = onPickList(orders)
-    .sort((a, b) => {
-      if (a.isExpress !== b.isExpress) return a.isExpress ? -1 : 1;
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    });
-
-  // Track remaining inventory per design
-  // We need to get initial inventory from the first item of each design
-  const remainingKits = new Map<string, number>();
-  const remainingCanvases = new Map<string, number>();
-  const remainingSupplies = new Map<string, number>();
-
-  // Initialize remaining inventory from the actual design values
-  for (const order of unfulfilledOrders) {
-    for (const item of order.items) {
-      if (item.designId && !remainingKits.has(item.designId)) {
-        remainingKits.set(item.designId, item.kitsReady);
-        remainingCanvases.set(item.designId, item.canvasPrinted);
-      }
-      if (item.supplyId && !remainingSupplies.has(item.supplyId)) {
-        remainingSupplies.set(item.supplyId, item.supplyQuantity);
-      }
-    }
-  }
-
-  // Process orders chronologically
-  for (const order of unfulfilledOrders) {
-    const canvasItems = order.items.filter(item => item.itemType === "canvas");
-
-    // Check if this order can be fulfilled with remaining inventory
-    let canFulfill = true;
-
-    for (const item of canvasItems) {
-      if (!item.designId) continue;
-
-      const remainingKitsForDesign = remainingKits.get(item.designId) || 0;
-      const remainingCanvasesForDesign = remainingCanvases.get(item.designId) || 0;
-
-      // Need enough canvases
-      if (remainingCanvasesForDesign < item.quantity) {
-        canFulfill = false;
-        break;
-      }
-
-      // Need enough kits if this item needs a kit
-      if (item.needsKit && remainingKitsForDesign < item.quantity) {
-        canFulfill = false;
-        break;
-      }
-    }
-
-    if (canFulfill) {
-      fulfillableOrders.add(order.shopifyOrderId);
-
-      // Deduct from remaining inventory
-      for (const item of canvasItems) {
-        if (!item.designId) continue;
-
-        const currentCanvases = remainingCanvases.get(item.designId) || 0;
-        remainingCanvases.set(item.designId, currentCanvases - item.quantity);
-
-        if (item.needsKit) {
-          const currentKits = remainingKits.get(item.designId) || 0;
-          remainingKits.set(item.designId, currentKits - item.quantity);
-        }
-      }
-
-      // Deduct supplies
-      for (const item of order.items.filter(i => i.itemType === "supply")) {
-        if (!item.supplyId) continue;
-        const currentSupply = remainingSupplies.get(item.supplyId) || 0;
-        remainingSupplies.set(item.supplyId, currentSupply - item.quantity);
-      }
-    }
-  }
-
-  return fulfillableOrders;
-}
 
 
 
@@ -665,12 +570,26 @@ export default function OrdersPage() {
     // Immediately apply optimistic update to UI
     setData(prevData => {
       if (!prevData) return prevData;
+
+      // A kit edit on a pooled design changes the POOL, so it has to show on
+      // every member's rows — the server write already goes to the group, so
+      // updating only this design's rows would leave the siblings reporting a
+      // stale pool until the next refetch and invite a second correction.
+      // Canvases are per design and unaffected.
+      const groupId = field === "kitsReady"
+        ? prevData.orders
+            .flatMap(o => o.items)
+            .find(i => i.designId === designId)?.kitGroupId ?? null
+        : null;
+      const affects = (item: OrderItem) =>
+        groupId ? item.kitGroupId === groupId : item.designId === designId;
+
       return {
         ...prevData,
         orders: prevData.orders.map(order => ({
           ...order,
           items: order.items.map(item => {
-            if (item.designId !== designId) return item;
+            if (!affects(item)) return item;
             if (field === "kitsReady") {
               return { ...item, kitsReady: Math.max(0, item.kitsReady + delta) };
             } else {
@@ -747,16 +666,38 @@ export default function OrdersPage() {
     // Optimistic update in kitData — only items of the SAME thread size share
     // this inventory record; a same-DMC item at a different size is a different
     // SKU and must not move.
+    //
+    // One colour can appear in three places at once: as a kit's own colour, as
+    // the BACKUP for a different colour in the same kit, and as either of those
+    // in another design's kit. They all read the single (dmc, size) inventory
+    // row, so one +/- has to move every one of them — otherwise adjusting a
+    // backup's stock leaves the figure the button is attached to unchanged and
+    // it reads as if the click did nothing.
     setKitData(prevKitData => {
       const newMap = new Map(prevKitData);
       for (const [designId, kit] of newMap) {
         const updatedContents = kit.kitContents.map(item => {
-          if (item.dmcNumber !== dmcNumber || item.threadSize !== size) return item;
-          const newSkeins = Math.max(0, item.inventorySkeins + delta);
+          if (item.threadSize !== size) return item;
+          const hitsPrimary = item.dmcNumber === dmcNumber;
+          const hitsBackup = item.backup?.dmcNumber === dmcNumber;
+          if (!hitsPrimary && !hitsBackup) return item;
+
+          const need = skeinsToStockFor(item);
+          const primarySkeins = hitsPrimary ? Math.max(0, item.inventorySkeins + delta) : item.inventorySkeins;
+          const backupSkeins = item.backup
+            ? hitsBackup ? Math.max(0, item.backup.inventorySkeins + delta) : item.backup.inventorySkeins
+            : 0;
+          const primaryInStock = primarySkeins >= need;
+          const backupInStock = item.backup ? backupSkeins >= need : false;
+
           return {
             ...item,
-            inventorySkeins: newSkeins,
-            inStock: newSkeins >= item.skeinsNeeded,
+            inventorySkeins: primarySkeins,
+            backup: item.backup ? { ...item.backup, inventorySkeins: backupSkeins, inStock: backupInStock } : null,
+            primaryInStock,
+            // A colour counts as covered if EITHER the colour itself or its
+            // backup is stocked — the same rule /api/kits applies.
+            inStock: primaryInStock || backupInStock,
           };
         });
         newMap.set(designId, {
@@ -853,13 +794,23 @@ export default function OrdersPage() {
             if (!backupDmcNumber.trim()) {
               return { ...item, backup: null };
             }
-            // Find inventory for backup color at the SAME thread size.
-            let backupInventorySkeins = 0;
-            for (const k of prevKitData.values()) {
-              const backupItem = k.kitContents.find(i => i.dmcNumber === backupDmcNumber && i.threadSize === item.threadSize);
-              if (backupItem) {
-                backupInventorySkeins = backupItem.inventorySkeins;
-                break;
+            // Real stock for the backup colour at the SAME thread size.
+            //
+            // `inventoryStock` is loaded for this design's thread size when the
+            // picker opens, so it covers every colour. The scan of loaded kits
+            // below is the fallback, and it only ever finds a colour that is
+            // some design's OWN colour — a backup nobody stitches came out as
+            // 0, which the +/- control beside it would then be counting up
+            // from, writing a delta against a number that was never true.
+            let backupInventorySkeins = inventoryStock.get(backupDmcNumber);
+            if (backupInventorySkeins === undefined) {
+              backupInventorySkeins = 0;
+              for (const k of prevKitData.values()) {
+                const backupItem = k.kitContents.find(i => i.dmcNumber === backupDmcNumber && i.threadSize === item.threadSize);
+                if (backupItem) {
+                  backupInventorySkeins = backupItem.inventorySkeins;
+                  break;
+                }
               }
             }
             return {
@@ -869,7 +820,7 @@ export default function OrdersPage() {
                 colorName: backupColor?.name ?? "Unknown",
                 hex: backupColor?.hex ?? "#888888",
                 inventorySkeins: backupInventorySkeins,
-                inStock: backupInventorySkeins >= item.skeinsNeeded,
+                inStock: backupInventorySkeins >= skeinsToStockFor(item),
                 threadSize: item.threadSize,
               },
             };
@@ -888,7 +839,7 @@ export default function OrdersPage() {
     } finally {
       setSavingBackup(false);
     }
-  }, [editingBackup, savingBackup, kitData]);
+  }, [editingBackup, savingBackup, kitData, inventoryStock]);
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -1123,7 +1074,16 @@ export default function OrdersPage() {
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-white">Kits Needed</h2>
                 {(() => {
-                  // Aggregate all kit items by design
+                  // Aggregate kit items into one row per BAG, which means one
+                  // row per shared pool rather than one per design. This is a
+                  // list of bags to pull: two rows reading "3 ready" for the
+                  // same three interchangeable bags is how you pull six.
+                  //
+                  // Members of a pool have identical colour sets by
+                  // construction (create-kit-group.ts refuses otherwise), so
+                  // the row can safely borrow any member's designId for the
+                  // colour breakdown and the +/- control — the PATCH route
+                  // routes a pooled write to the group either way.
                   const kitsByDesign = new Map<string, {
                     designId: string | null;
                     designName: string | null;
@@ -1134,16 +1094,22 @@ export default function OrdersPage() {
                     folderId: string | null;
                     folderName: string | null;
                     totalSold: number;
+                    poolName: string | null;
+                    poolFor: string[];
                   }>();
 
                   for (const order of data.orders) {
                     for (const item of order.items) {
                       if (!item.needsKit || item.itemType !== "canvas") continue;
 
-                      const key = item.designId || item.productTitle;
+                      const key = kitBudgetKey(item) || item.productTitle;
                       const existing = kitsByDesign.get(key);
                       if (existing) {
                         existing.quantity += item.quantity;
+                        existing.totalSold += item.designId === existing.designId ? 0 : item.totalSold;
+                        if (item.designName && !existing.poolFor.includes(item.designName)) {
+                          existing.poolFor.push(item.designName);
+                        }
                       } else {
                         kitsByDesign.set(key, {
                           designId: item.designId,
@@ -1155,6 +1121,8 @@ export default function OrdersPage() {
                           folderId: item.folderId,
                           folderName: item.folderName,
                           totalSold: item.totalSold,
+                          poolName: item.kitPool?.name ?? null,
+                          poolFor: item.designName ? [item.designName] : [],
                         });
                       }
                     }
@@ -1261,6 +1229,18 @@ export default function OrdersPage() {
                                         ) : (
                                           <p className="text-xs text-purple-400">{kit.totalSold} sold</p>
                                         )}
+                                        {/* One row, one bag type. Say so, or the
+                                            row looks like it is about this design
+                                            alone and the count looks wrong. */}
+                                        {kit.poolName && (
+                                          <p
+                                            className="text-xs text-sky-400 truncate"
+                                            title={`One bag of thread fits any of: ${kit.poolFor.join(", ")}. The count is the whole shared pool, not this design's share.`}
+                                          >
+                                            Shared bag · {kit.poolName}
+                                            {kit.poolFor.length > 1 ? ` (${kit.poolFor.join(", ")})` : ""}
+                                          </p>
+                                        )}
                                         {/* Kit contents summary */}
                                         {kit.designId && (
                                           <button
@@ -1347,6 +1327,9 @@ export default function OrdersPage() {
                                                   const otherDesigns = (colorUsage.get(item.dmcNumber) || []).filter(
                                                     (d) => d.id !== kit.designId
                                                   );
+                                                  // Hoisted so the stepper's callbacks close over a
+                                                  // non-null backup instead of asserting on each use.
+                                                  const backup = item.backup;
                                                   return (
                                                   <div
                                                     key={item.dmcNumber}
@@ -1354,7 +1337,10 @@ export default function OrdersPage() {
                                                       item.inStock ? "bg-slate-800" : "bg-red-900/30"
                                                     }`}
                                                   >
-                                                    <div className="flex items-center gap-2 p-2">
+                                                    {/* Wraps: two steppers (the colour and its backup) plus the
+                                                        name do not fit one line on a phone, and overflowing put
+                                                        the backup's buttons off-screen. */}
+                                                    <div className="flex flex-wrap items-center gap-2 p-2">
                                                       <Link
                                                         href={`/inventory/color/${item.dmcNumber}?size=${item.threadSize}`}
                                                         className="w-6 h-6 rounded flex-shrink-0 border border-slate-600 hover:ring-1 hover:ring-rose-500"
@@ -1377,31 +1363,41 @@ export default function OrdersPage() {
                                                           valueClassName={item.inStock ? "text-emerald-400" : "text-red-400"}
                                                         />
                                                       </div>
-                                                      {/* Backup color indicator - clickable to change */}
-                                                      {item.backup ? (
-                                                        <button
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setEditingBackup({ designId: kit.designId!, dmcNumber: item.dmcNumber });
-                                                          }}
-                                                          className="flex items-center gap-1 px-1 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 hover:border-amber-600 transition-colors ml-auto"
-                                                          title={`Backup: ${item.backup.colorName} (click to change)`}
-                                                        >
-                                                          <span
-                                                            className="w-5 h-5 rounded flex items-center justify-center border border-white/20"
-                                                            style={{ backgroundColor: item.backup.hex }}
+                                                      {/* Backup color: swatch changes it, stepper adjusts its stock */}
+                                                      {backup ? (
+                                                        <div className="flex items-center gap-1 ml-auto flex-shrink-0 pl-1 border-l border-amber-800/40">
+                                                          <button
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              setEditingBackup({ designId: kit.designId!, dmcNumber: item.dmcNumber });
+                                                            }}
+                                                            className="flex items-center px-1 py-0.5 rounded bg-amber-900/30 border border-amber-800/50 hover:bg-amber-900/50 hover:border-amber-600 transition-colors"
+                                                            title={`Backup for ${item.dmcNumber}: ${backup.dmcNumber} ${backup.colorName} (click to change)`}
                                                           >
                                                             <span
-                                                              className="text-[6px] font-bold"
-                                                              style={{ color: getContrastTextColor(item.backup.hex) }}
+                                                              className="w-5 h-5 rounded flex items-center justify-center border border-white/20"
+                                                              style={{ backgroundColor: backup.hex }}
                                                             >
-                                                              {item.backup.dmcNumber}
+                                                              <span
+                                                                className="text-[6px] font-bold"
+                                                                style={{ color: getContrastTextColor(backup.hex) }}
+                                                              >
+                                                                {backup.dmcNumber}
+                                                              </span>
                                                             </span>
-                                                          </span>
-                                                          <span className={`text-[9px] font-medium ${item.backup.inStock ? "text-emerald-400" : "text-red-400"}`}>
-                                                            {item.backup.inventorySkeins}sk
-                                                          </span>
-                                                        </button>
+                                                          </button>
+                                                          {/* The backup's own skeins. Same (dmc, size) inventory row as
+                                                              anywhere else in the app, so this is the real stock of that
+                                                              colour, not a per-design figure. */}
+                                                          <CountStepper
+                                                            value={backup.inventorySkeins}
+                                                            onCommit={(next) => handleSetInventory(backup.dmcNumber, next, backup.threadSize, backup.inventorySkeins)}
+                                                            onDelta={(d) => handleUpdateInventory(backup.dmcNumber, d, backup.threadSize)}
+                                                            busy={updatingInventory === `${backup.dmcNumber}-${backup.threadSize}`}
+                                                            ariaLabel={`Skeins of DMC ${backup.dmcNumber} (Size ${backup.threadSize}), the backup for DMC ${item.dmcNumber}`}
+                                                            valueClassName={backup.inStock ? "text-emerald-400" : "text-red-400"}
+                                                          />
+                                                        </div>
                                                       ) : (
                                                         <button
                                                           onClick={(e) => {
@@ -2018,10 +2014,19 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
   const suppliesInOrder = supplyItems.reduce((sum, item) => sum + item.quantity, 0);
 
   // Check if we have enough kits/canvases for THIS order specifically (for badge display)
-  const hasEnoughKitsForOrder = canvasItems.every((item) => {
-    if (!item.needsKit || !item.designId) return true;
-    return item.kitsReady >= item.quantity;
-  });
+  //
+  // Kits are totalled by pool before comparing. Checked item by item, an order
+  // for two Boylston and two Newbury sees pool-of-3 >= 2 twice and reads as
+  // covered, when the four bags it needs come out of the same three.
+  const kitNeedByPool = new Map<string, { need: number; ready: number }>();
+  for (const item of canvasItems) {
+    if (!item.needsKit || !item.designId) continue;
+    const key = kitBudgetKey(item)!;
+    const e = kitNeedByPool.get(key) ?? { need: 0, ready: item.kitsReady };
+    e.need += item.quantity;
+    kitNeedByPool.set(key, e);
+  }
+  const hasEnoughKitsForOrder = [...kitNeedByPool.values()].every((e) => e.ready >= e.need);
   const hasEnoughCanvasesForOrder = canvasItems.every((item) => {
     if (!item.designId) return true;
     return item.canvasPrinted >= item.quantity;
