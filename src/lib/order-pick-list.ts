@@ -38,6 +38,19 @@ export function isSkipped(order: Pick<PickListOrder, "excludedAt">): boolean {
 }
 
 /**
+ * Is this one order still to be pulled: not yet deducted, and not skipped?
+ *
+ * The per-order form, for a caller walking orders one at a time rather than
+ * filtering a list — the API route building its totals as it goes. Both halves
+ * matter and the route had only the second: an order already deducted kept
+ * inflating the headline "Canvases x/y" she pulls against, because its stock
+ * has physically left but its demand was still being counted.
+ */
+export function isOnPickList(order: PickListOrder): boolean {
+  return !order.locallyFulfilled && !isSkipped(order);
+}
+
+/**
  * The orders still to be pulled: not yet deducted, and not skipped.
  *
  * Use this rather than filtering on `locallyFulfilled` alone — that was the
@@ -45,5 +58,5 @@ export function isSkipped(order: Pick<PickListOrder, "excludedAt">): boolean {
  * shape of the bug this replaces.
  */
 export function onPickList<T extends PickListOrder>(orders: readonly T[]): T[] {
-  return orders.filter((o) => !o.locallyFulfilled && !isSkipped(o));
+  return orders.filter(isOnPickList);
 }

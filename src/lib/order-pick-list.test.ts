@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isSkipped, onPickList } from "./order-pick-list";
+import { isSkipped, isOnPickList, onPickList } from "./order-pick-list";
 
 const order = (over: Partial<{ id: string; locallyFulfilled: boolean; excludedAt: string | Date | null; canvases: number }> = {}) => ({
   id: "x",
@@ -80,5 +80,30 @@ describe("onPickList", () => {
     const copy = [...rows];
     expect(onPickList(rows).map((o) => o.id)).toEqual(["a", "b"]);
     expect(rows).toEqual(copy);
+  });
+});
+
+describe("isOnPickList", () => {
+  it("keeps an ordinary open order", () => {
+    expect(isOnPickList(order())).toBe(true);
+  });
+
+  it("drops one already deducted", () => {
+    // The half the API route was missing: its totals tested excludedAt alone,
+    // so an order whose stock had already left kept counting as still owed.
+    expect(isOnPickList(order({ locallyFulfilled: true }))).toBe(false);
+  });
+
+  it("drops one deliberately skipped", () => {
+    expect(isOnPickList(order({ excludedAt: new Date() }))).toBe(false);
+  });
+
+  it("agrees with onPickList on every combination", () => {
+    for (const locallyFulfilled of [false, true]) {
+      for (const excludedAt of [null, new Date()]) {
+        const o = order({ locallyFulfilled, excludedAt });
+        expect(isOnPickList(o)).toBe(onPickList([o]).length === 1);
+      }
+    }
   });
 });

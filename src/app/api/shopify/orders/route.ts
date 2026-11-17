@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAuthenticated } from "@/lib/session";
+import { isOnPickList } from "@/lib/order-pick-list";
 import {
   fetchUnfulfilledOrders,
   fetchOpenDraftOrders,
@@ -279,7 +280,14 @@ export async function GET() {
 
     for (const shopifyOrder of shopifyOrders) {
       const items: OrderItem[] = [];
-      const skippedOrder = excludedMap.get(shopifyOrder.id)?.at != null;
+      // Both halves of the pick-list filter, through the same predicate the
+      // page uses. This used to test `excludedAt` alone, so an order already
+      // deducted kept adding its canvases and kits to the headline totals —
+      // stock that has physically left the building, counted as still owed.
+      const offPickList = !isOnPickList({
+        locallyFulfilled: localFulfillmentMap.get(shopifyOrder.id) != null,
+        excludedAt: excludedMap.get(shopifyOrder.id)?.at ?? null,
+      });
 
       for (const lineItem of shopifyOrder.lineItems.nodes) {
         const productTitle = lineItem.product?.title || lineItem.title;
@@ -351,11 +359,12 @@ export async function GET() {
         // Mystery bag lines have no design or supply demand of their own.
         if (itemType === "mystery_bag") continue;
 
-        // Count what's needed based on item type. A skipped order still builds
-        // its items, so its card renders and can be put back, but it adds
-        // nothing to the totals — those are the shelf-pull figures, and an
-        // order nobody is packing today must not inflate them.
-        if (skippedOrder) continue;
+        // Count what's needed based on item type. An order that is off the
+        // pick list still builds its items, so its card renders and can be put
+        // back, but it adds nothing to the totals — those are the shelf-pull
+        // figures, and neither an order nobody is packing today nor one whose
+        // stock has already been deducted must inflate them.
+        if (offPickList) continue;
 
         if (itemType === "canvas") {
           if (needsKit) {

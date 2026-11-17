@@ -483,6 +483,32 @@ client-safe, so the page and the summary can't drift):
 A bare `!order.locallyFulfilled` is the shape of the old bug — add the skip
 filter through `onPickList`, never by hand.
 
+**Unticking an order only moved the headline, not the lists.** The Canvases,
+Kits and Supplies tabs each aggregated `data.orders` inline, with no filter at
+all, so an order ticked "not today" kept every canvas and bag it wants on the
+lists she pulls against. Measured on the live box office on 16 Nov 2026: the
+Canvases tab read **33 units across 20 rows while the headline said 6**, and
+Kits **30 across 18 against 4** — the headline was computed on the server,
+which did filter, so the two halves of the same page disagreed by 5x. Three
+copies of the same loop meant three chances to forget, so they now come from
+`canvasPullList` / `kitPullList` / `supplyPullList` in
+`src/lib/order-pull-list.ts` (pure, tested), which apply `onPickList`
+themselves. Don't aggregate order items in the page again.
+
+The server had the other half of the same bug: its totals tested `excludedAt`
+alone, so an order **already deducted** still counted as owed. That window is
+not hypothetical — it is every order between pressing Fulfill and Shopify
+marking it shipped, which is exactly when she is packing. `isOnPickList` is
+the per-order form of `onPickList`, for a caller walking orders as it builds
+totals; the route uses it so there is one definition, not two.
+
+Totals must also be aggregated **per design before being compared with stock**
+on the order card, not item by item. One design can be two line items in one
+order — the "+ kit" variant and the canvas-only one, which is what order #4262
+is — and checked separately each sees the same untouched `canvasPrinted` and
+passes. `hasEnoughKitsForOrder` already did this by pool;
+`hasEnoughCanvasesForOrder` did not.
+
 Three guards the exclude route (`PATCH /api/shopify/orders/exclude`) has to
 respect, because an unpacked order usually has **no local row yet** and the route
 must create one:

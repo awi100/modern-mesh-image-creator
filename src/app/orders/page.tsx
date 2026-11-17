@@ -12,6 +12,12 @@ import CountStepper from "@/components/inventory/CountStepper";
 import { getDmcColorByNumber, searchDmcColors, DMC_PEARL_COTTON } from "@/lib/dmc-pearl-cotton";
 import { ORDER_KINDS, ORDER_KIND_LABEL, ORDER_KIND_HELP, type OrderKind } from "@/lib/order-kind";
 import { onPickList, isSkipped } from "@/lib/order-pick-list";
+import {
+  canvasPullList,
+  kitPullList,
+  groupKitRowsByFolder,
+  supplyPullList,
+} from "@/lib/order-pull-list";
 // Allocation lives in a tested lib because it has to respect shared kit pools:
 // `item.kitsReady` is the WHOLE pool for a pooled design, so budgeting or
 // totalling it per design spends the same bags once per member.
@@ -1074,71 +1080,10 @@ export default function OrdersPage() {
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-white">Kits Needed</h2>
                 {(() => {
-                  // One row PER DESIGN. Pooled designs are not merged: the kit
-                  // bags are interchangeable but the canvases are not, so a
-                  // Boylston order and a Newbury order are two different things
-                  // to pull and must stay two rows — merged, the list read
-                  // "2 x Boylston St" for one of each.
-                  //
-                  // What IS shared is the bag count, so `kitsReady` on every
-                  // member is the whole pool. Comparing it with one design's
-                  // demand would be the invitation to pull the pool twice, so
-                  // the pool's TOTAL demand is accumulated alongside and the
-                  // enough/short maths below uses that instead.
-                  const kitsByDesign = new Map<string, {
-                    designId: string | null;
-                    designName: string | null;
-                    productTitle: string;
-                    previewImageUrl: string | null;
-                    quantity: number;
-                    kitsReady: number;
-                    folderId: string | null;
-                    folderName: string | null;
-                    totalSold: number;
-                    poolKey: string | null;
-                    poolName: string | null;
-                  }>();
-                  // poolKey -> total bags owed across every member, and which
-                  // designs are sharing them.
-                  const poolNeed = new Map<string, number>();
-                  const poolFor = new Map<string, string[]>();
-
-                  for (const order of data.orders) {
-                    for (const item of order.items) {
-                      if (!item.needsKit || item.itemType !== "canvas") continue;
-
-                      const poolKey = item.kitPool ? kitBudgetKey(item) : null;
-                      if (poolKey) {
-                        poolNeed.set(poolKey, (poolNeed.get(poolKey) ?? 0) + item.quantity);
-                        const names = poolFor.get(poolKey) ?? [];
-                        const label = item.designName ?? item.productTitle;
-                        if (!names.includes(label)) names.push(label);
-                        poolFor.set(poolKey, names);
-                      }
-
-                      const key = item.designId || item.productTitle;
-                      const existing = kitsByDesign.get(key);
-                      if (existing) {
-                        existing.quantity += item.quantity;
-                      } else {
-                        kitsByDesign.set(key, {
-                          designId: item.designId,
-                          designName: item.designName,
-                          productTitle: item.productTitle,
-                          previewImageUrl: item.previewImageUrl,
-                          quantity: item.quantity,
-                          kitsReady: item.kitsReady,
-                          folderId: item.folderId,
-                          folderName: item.folderName,
-                          totalSold: item.totalSold,
-                          poolKey,
-                          poolName: item.kitPool?.name ?? null,
-                        });
-                      }
-                    }
-                  }
-
-                  const kits = Array.from(kitsByDesign.values());
+                  // The rows come from `kitPullList`, which counts only the
+                  // orders still to be pulled and carries each pooled row's
+                  // whole-pool demand in `bagsNeeded`. See lib/order-pull-list.
+                  const kits = kitPullList(data.orders);
 
                   if (kits.length === 0) {
                     return (
@@ -1148,30 +1093,13 @@ export default function OrdersPage() {
                     );
                   }
 
-                  // Group by folder
-                  const kitsByFolder = new Map<string, typeof kits>();
-                  for (const kit of kits) {
-                    const folderKey = kit.folderId || "__uncategorized__";
-                    const existing = kitsByFolder.get(folderKey) || [];
-                    existing.push(kit);
-                    kitsByFolder.set(folderKey, existing);
-                  }
-
-                  // Sort folders alphabetically, with uncategorized at the end
-                  const sortedFolders = Array.from(kitsByFolder.entries()).sort((a, b) => {
-                    if (a[0] === "__uncategorized__") return 1;
-                    if (b[0] === "__uncategorized__") return -1;
-                    const nameA = a[1][0]?.folderName || "";
-                    const nameB = b[1][0]?.folderName || "";
-                    return nameA.localeCompare(nameB);
-                  });
+                  const sortedFolders = groupKitRowsByFolder(kits);
 
                   return (
                     <div className="space-y-4">
                       {sortedFolders.map(([folderId, folderKits]) => {
                         const folderName = folderKits[0]?.folderName || "Uncategorized";
-                        // Sort kits within folder by quantity needed (descending)
-                        const sortedKits = [...folderKits].sort((a, b) => b.quantity - a.quantity);
+                        const sortedKits = folderKits;
 
                         return (
                           <div key={folderId} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
@@ -1185,13 +1113,12 @@ export default function OrdersPage() {
                               {sortedKits.map((kit, idx) => {
                                 // `kit.kitsReady` is the whole pool for a pooled
                                 // design, so it is compared with what the whole
-                                // pool owes. Against this design alone, Boylston
-                                // needing 2 and Newbury needing 2 would both read
-                                // "enough" off the same 3 bags.
-                                const bagsNeeded = kit.poolKey ? (poolNeed.get(kit.poolKey) ?? kit.quantity) : kit.quantity;
+                                // pool owes (`bagsNeeded`). Against this design
+                                // alone, Boylston needing 2 and Newbury needing
+                                // 2 would both read "enough" off the same 3 bags.
+                                const { bagsNeeded, sharedWith } = kit;
                                 const hasEnough = kit.kitsReady >= bagsNeeded;
                                 const shortage = bagsNeeded - kit.kitsReady;
-                                const sharedWith = kit.poolKey ? (poolFor.get(kit.poolKey) ?? []) : [];
                                 const isExpanded = kit.designId ? expandedKits.has(kit.designId) : false;
                                 const kitInfo = kit.designId ? kitData.get(kit.designId) : null;
                                 const isIntroKit = kit.productTitle.toLowerCase().includes("intro") || kit.productTitle.toLowerCase().includes("beginner");
@@ -1523,44 +1450,10 @@ export default function OrdersPage() {
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-white">All Canvases Needed</h2>
                 {(() => {
-                  // Aggregate ALL items by design (every order needs a canvas printed)
-                  const canvasesByDesign = new Map<string, {
-                    designId: string | null;
-                    designName: string | null;
-                    productTitle: string;
-                    previewImageUrl: string | null;
-                    quantity: number;
-                    canvasPrinted: number;
-                    kitsNeeded: number; // How many of these also need kits
-                  }>();
-
-                  for (const order of data.orders) {
-                    for (const item of order.items) {
-                      // Only include canvas items, not supplies
-                      if (item.itemType !== "canvas") continue;
-
-                      const key = item.designId || item.productTitle;
-                      const existing = canvasesByDesign.get(key);
-                      if (existing) {
-                        existing.quantity += item.quantity;
-                        if (item.needsKit) {
-                          existing.kitsNeeded += item.quantity;
-                        }
-                      } else {
-                        canvasesByDesign.set(key, {
-                          designId: item.designId,
-                          designName: item.designName,
-                          productTitle: item.productTitle,
-                          previewImageUrl: item.previewImageUrl,
-                          quantity: item.quantity,
-                          canvasPrinted: item.canvasPrinted,
-                          kitsNeeded: item.needsKit ? item.quantity : 0,
-                        });
-                      }
-                    }
-                  }
-
-                  const canvases = Array.from(canvasesByDesign.values()).sort((a, b) => b.quantity - a.quantity);
+                  // Only the orders still to be pulled. `canvasPullList` holds
+                  // that filter — an order ticked "not today", or one already
+                  // deducted, is not something to go and fetch a canvas for.
+                  const canvases = canvasPullList(data.orders);
 
                   if (canvases.length === 0) {
                     return (
@@ -1695,50 +1588,11 @@ export default function OrdersPage() {
                   </Link>
                 </div>
                 {(() => {
-                  // Aggregate supply items by supply ID or product title, and
-                  // tally per-variant counts (e.g. Project Bag colors, scissor
-                  // styles). Stock is one shared pool per supply, so we keep a
-                  // single row but show the variant breakdown for prep/ordering.
-                  const suppliesByKey = new Map<string, {
-                    supplyId: string | null;
-                    productTitle: string;
-                    productType: string | null;
-                    quantity: number;
-                    inStock: number;
-                    variants: Map<string, number>;
-                  }>();
-
-                  for (const order of data.orders) {
-                    for (const item of order.items) {
-                      if (item.itemType !== "supply") continue;
-
-                      const key = item.supplyId || item.productTitle;
-                      let entry = suppliesByKey.get(key);
-                      if (!entry) {
-                        entry = {
-                          supplyId: item.supplyId,
-                          productTitle: item.productTitle,
-                          productType: item.productType,
-                          quantity: 0,
-                          inStock: item.supplyQuantity,
-                          variants: new Map<string, number>(),
-                        };
-                        suppliesByKey.set(key, entry);
-                      }
-                      entry.quantity += item.quantity;
-                      // Track the variant (color/style). Skip only Shopify's
-                      // generic single-variant label ("Default Title"). NOTE: do
-                      // NOT skip variants that appear in the product name — that
-                      // wrongly dropped "Silver"/"Gold" for the product
-                      // "Silver/Gold Embroidery Scissors".
-                      const variant = (item.variantTitle || "").trim();
-                      if (variant && !/^default(\s*title)?$/i.test(variant)) {
-                        entry.variants.set(variant, (entry.variants.get(variant) || 0) + item.quantity);
-                      }
-                    }
-                  }
-
-                  const supplies = Array.from(suppliesByKey.values()).sort((a, b) => b.quantity - a.quantity);
+                  // Same pick-list filter as the canvases and kits, and one row
+                  // per matched supply named after the supply rather than the
+                  // line item: several arrive titled just "Needle Minder" with
+                  // the colour in the variant. See lib/order-pull-list.
+                  const supplies = supplyPullList(data.orders);
 
                   if (supplies.length === 0) {
                     return (
@@ -1765,7 +1619,7 @@ export default function OrdersPage() {
                                 </svg>
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-white font-medium truncate">{supply.productTitle}</p>
+                                <p className="text-white font-medium truncate">{supply.name}</p>
                                 {supply.productType && (
                                   <p className="text-xs text-purple-400">{supply.productType}</p>
                                 )}
@@ -2050,10 +1904,20 @@ function OrderCard({ order, demandByDesign, canFulfillOrder, onFulfill, fulfilli
     kitNeedByPool.set(key, e);
   }
   const hasEnoughKitsForOrder = [...kitNeedByPool.values()].every((e) => e.ready >= e.need);
-  const hasEnoughCanvasesForOrder = canvasItems.every((item) => {
-    if (!item.designId) return true;
-    return item.canvasPrinted >= item.quantity;
-  });
+
+  // Canvases are totalled per design before comparing, for the same reason: one
+  // design can be two line items in one order — the "+ kit" variant and the
+  // canvas-only one — and checked separately each sees the same untouched stock
+  // and passes. Order #4262 is exactly that shape, a Gingerbread Ornament with
+  // and without a kit.
+  const canvasNeedByDesign = new Map<string, { need: number; printed: number }>();
+  for (const item of canvasItems) {
+    if (!item.designId) continue;
+    const e = canvasNeedByDesign.get(item.designId) ?? { need: 0, printed: item.canvasPrinted };
+    e.need += item.quantity;
+    canvasNeedByDesign.set(item.designId, e);
+  }
+  const hasEnoughCanvasesForOrder = [...canvasNeedByDesign.values()].every((e) => e.printed >= e.need);
 
   // canFulfillOrder is calculated by parent, accounting for older orders
   // consuming inventory first. A skipped order cannot be fulfilled at all:
