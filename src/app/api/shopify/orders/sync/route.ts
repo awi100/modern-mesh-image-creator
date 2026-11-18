@@ -6,7 +6,6 @@ import {
   fetchCompletedDraftLinks,
   parseNeedsKit,
   normalizeTitle,
-  matchSupplyByVariant,
   visibleCustomAttributes,
   isPosSource,
 } from "@/lib/shopify";
@@ -14,6 +13,8 @@ import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { deductKits, lockKitGroups } from "@/lib/kit-group";
 import { drawFrom } from "@/lib/stock-draw";
+import { deductSupplies } from "@/lib/supply-draw";
+import { resolveSupply, supplyNameMap } from "@/lib/supply-match";
 import { classifyOrderKind, countsAsRetailDemand, ORDER_KIND_LABEL } from "@/lib/order-kind";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
@@ -153,10 +154,7 @@ export async function POST() {
       designMap.set(normalizeTitle(design.name), design);
     }
 
-    const supplyMap = new Map<string, typeof supplies[0]>();
-    for (const supply of supplies) {
-      supplyMap.set(normalizeTitle(supply.name), supply);
-    }
+    const supplyMap = supplyNameMap(supplies);
 
     // Bundles: one line item ("Essentials Bundle") that deducts several
     // component supplies (some fixed, one customer-choice via the variant).
@@ -218,7 +216,11 @@ export async function POST() {
 
           const normalizedTitle = normalizeTitle(productTitle);
           const matchedDesign = designMap.get(normalizedTitle);
-          const matchedSupply = supplyMap.get(normalizedTitle) ?? matchSupplyByVariant(productTitle, lineItem.variantTitle, supplies) ?? undefined;
+          // Variant first, product title second — see lib/supply-match.ts. Title
+          // first let the renamed "Project Bag" resolve to a retired row holding
+          // 0, and here that does not merely display wrong: it DEDUCTS from the
+          // wrong row, taking nothing while the real bag leaves the building.
+          const matchedSupply = resolveSupply(productTitle, lineItem.variantTitle, supplies, supplyMap) ?? undefined;
 
           items.push({
             designId: matchedDesign?.id || null,
@@ -407,30 +409,17 @@ export async function POST() {
             }
           }
 
-          // Process supply updates. POS sales draw down the market tote;
-          // online sales draw down main/online stock.
-          for (const [supplyId, deduction] of supplyUpdatesMap) {
-            const supply = await tx.supply.findUnique({
-              where: { id: supplyId },
-              select: { quantity: true, marketQuantity: true },
-            });
-
-            if (supply) {
-              const avail = isPos ? supply.marketQuantity : supply.quantity;
-              const actualDeduction = Math.max(0, Math.min(deduction, avail));
-              if (isPos && actualDeduction < deduction) {
-                console.warn(`Sync: POS order ${shopifyOrder.name} exceeded market supply stock for supply ${supplyId}`);
-              }
-              if (actualDeduction > 0) {
-                await tx.supply.update({
-                  where: { id: supplyId },
-                  data: isPos
-                    ? { marketQuantity: { decrement: actualDeduction } }
-                    : { quantity: { decrement: actualDeduction } },
-                });
-              }
-            }
-          }
+          // Process supply updates. POS sales draw down the market tote,
+          // online sales main stock, and both fall through to Andover bulk
+          // rather than deducting nothing. See lib/supply-draw.ts.
+          await deductSupplies(tx, supplyUpdatesMap, {
+            shopifyOrderId: shopifyOrder.id,
+            orderNumber: shopifyOrder.name,
+            sourceName: shopifyOrder.sourceName || null,
+            isPos,
+            via: "sync",
+            kind,
+          });
         }, { maxWait: 10_000, timeout: 20_000 });
 
         // An order skipped by the in-transaction guard was NOT synced here —

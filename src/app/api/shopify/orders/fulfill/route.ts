@@ -6,6 +6,7 @@ import { isPosSource, normalizeTitle } from "@/lib/shopify";
 import { lockOrder, lockDesigns, lockSupplies } from "@/lib/order-lock";
 import { deductKits, restoreKits, lockKitGroups } from "@/lib/kit-group";
 import { drawFrom } from "@/lib/stock-draw";
+import { deductSupplies, planSupplyRestore, restoreSupplies } from "@/lib/supply-draw";
 import { toOrderKind } from "@/lib/order-kind";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 
@@ -285,27 +286,16 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Process supply updates - ONE update per supply
-      for (const [supplyId, deduction] of supplyUpdatesMap) {
-        const supply = await tx.supply.findUnique({
-          where: { id: supplyId },
-          select: { quantity: true, marketQuantity: true },
-        });
-
-        if (supply) {
-          const avail = isPos ? supply.marketQuantity : supply.quantity;
-          const actualDeduction = Math.max(0, Math.min(deduction, avail));
-          if (actualDeduction > 0) {
-            await tx.supply.update({
-              where: { id: supplyId },
-              data: isPos
-                ? { marketQuantity: { decrement: actualDeduction } }
-                : { quantity: { decrement: actualDeduction } },
-            });
-            suppliesDeducted += actualDeduction;
-          }
-        }
-      }
+      // Process supply updates - ONE update per supply. Bucket first, then
+      // Andover bulk, and audited either way. See lib/supply-draw.ts.
+      suppliesDeducted += await deductSupplies(tx, supplyUpdatesMap, {
+        shopifyOrderId,
+        orderNumber,
+        sourceName: sourceName || null,
+        isPos,
+        via: "fulfill",
+        kind,
+      });
 
       return { alreadyProcessed: false, kitsDeducted, canvasesDeducted, suppliesDeducted };
     }, { maxWait: 10_000, timeout: 20_000 });
@@ -446,6 +436,15 @@ export async function DELETE(request: NextRequest) {
       select: { designId: true, kitsDeducted: true, canvasDeducted: true, bucket: true, canvasFromAndover: true, kitsFromAndover: true },
       orderBy: { createdAt: "desc" },
     });
+    // The supply half of the same record. Keyed by supplyId rather than
+    // designId, newest first for the same reason: only the newest row per
+    // supply belongs to the current fulfilment.
+    const supplyAuditRows = await prisma.supplyDeduction.findMany({
+      where: { shopifyOrderId },
+      select: { supplyId: true, deducted: true, fromAndover: true, bucket: true },
+      orderBy: { createdAt: "desc" },
+    });
+
     const actualByDesign = new Map<string, {
       kits: number; canvas: number; bucket: string;
       canvasFromAndover: number; kitsFromAndover: number;
@@ -531,16 +530,14 @@ export async function DELETE(request: NextRequest) {
         kitsRestored += kitRestore;
       }
 
-      // Restore supply inventory to the bucket it was deducted from.
-      for (const [supplyId, quantity] of supplyRestoreMap) {
-        await tx.supply.update({
-          where: { id: supplyId },
-          data: isPos
-            ? { marketQuantity: { increment: quantity } }
-            : { quantity: { increment: quantity } },
-        });
-        suppliesRestored += quantity;
-      }
+      // Restore supply inventory to the bucket it was deducted from, in the
+      // amount actually taken. Before the audit table existed this incremented
+      // the line-item quantity, so undoing an order that had run out invented
+      // stock that never left the shelf.
+      suppliesRestored += await restoreSupplies(
+        tx,
+        planSupplyRestore(supplyRestoreMap, supplyAuditRows, isPos),
+      );
 
       // Clear fulfillment status (but keep the record for history)
       await tx.shopifyOrder.update({

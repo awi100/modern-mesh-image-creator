@@ -1171,3 +1171,37 @@ model TicketTailorWebhookDelivery {
   @@index([ttEventId])
   @@map("ticket_tailor_webhook_deliveries")
 }
+
+/// What a sale actually took out of a supply, and from where.
+///
+/// The sibling of OrderDeduction, which records the same thing for canvases and
+/// kits. Supplies had no audit row at all until 18 Nov 2026, which is why their
+/// deduction could silently take nothing: there was no record to notice it in
+/// and nothing for an undo to put back accurately.
+///
+/// Deliberately a plain `supplyId` string with no relation, exactly like
+/// OrderDeduction's `designId`, so deleting a supply cannot delete the history
+/// of what it once sold.
+model SupplyDeduction {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  shopifyOrderId String // Shopify order gid
+  orderNumber    String // e.g. "#4288"
+  sourceName     String? // "pos" | "web" | etc.
+  bucket         String // "market" | "online" — which bucket it drew on first
+  via            String // "webhook" | "sync" | "fulfill"
+  kind           String   @default("retail")
+  supplyId       String
+  supplyName     String? // denormalized so the log reads standalone
+
+  requested   Int @default(0)
+  deducted    Int @default(0) // < requested means it ran out everywhere
+  /// How much of `deducted` came from Andover bulk rather than the order's own
+  /// bucket, so an undo credits each unit back to where it came from.
+  fromAndover Int @default(0)
+
+  @@index([shopifyOrderId])
+  @@index([supplyId])
+  @@index([createdAt])
+  @@map("supply_deductions")
+}

@@ -534,9 +534,16 @@ the totals she pulls against disagree.
 ### Matching a line item to a supply
 
 A Shopify line gives a product title and usually a variant. The **variant match
-wins** — `resolveSupply` in `src/lib/supply-match.ts` (pure, tested), used by
-`/api/shopify/orders`. It is strictly the more specific of the two matchers,
-because the title match throws the variant away.
+wins** — `resolveSupply` in `src/lib/supply-match.ts` (pure, tested). It is
+strictly the more specific of the two matchers, because the title match throws
+the variant away.
+
+Every path that resolves a supply uses it: `/api/shopify/orders` (display) and
+all three deduction paths — fulfil, webhook and sync. The deduction paths kept
+the old title-first order until 18 Nov 2026, which is the same bug one step
+worse: on the picking list a collision shows a wrong **number**, but in a
+deduction it takes stock **off the wrong row**, deducting nothing from a retired
+row holding 0 while the real bag leaves the building.
 
 It was the other way round until 18 Nov 2026. "NEW! Project Bag" was renamed in
 Shopify to plain **"Project Bag"**, which then collided exactly with the
@@ -587,6 +594,33 @@ Before the fallback existed the clamp stopped at the empty bucket and deducted
 trace in any count. Note the cost of the fallback: a draw from Andover does not
 mean anyone fetched anything, so the Andover count is only right again after the
 next pickup.
+
+**Supplies follow the same rule, but only since 18 Nov 2026.** All three
+deduction paths — fulfil, webhook, sync — carried their own copy of the old
+clamp (`Math.min(deduction, isPos ? marketQuantity : quantity)`) with no
+fallback, so a bag sold from an empty tote deducted **nothing** while hundreds
+sat at Andover. Worse than the canvas version, because there was no audit table
+to come up short in: the units simply never moved and nothing displayed it. 15
+of 33 supplies had sold more through a bucket than that bucket could ever have
+held. Found while checking the new project bags.
+
+All three now call `deductSupplies()` in `src/lib/supply-draw.ts`, which uses the
+same `drawFrom` and writes a **`SupplyDeduction`** row — the sibling of
+`OrderDeduction`, with `requested` / `deducted` / `fromAndover`.
+
+A row is written **even when the draw took zero**. The undo has to tell "this
+order ran and this supply had nothing to give" from "this order predates the
+table", and a missing row is the only signal either way; `planSupplyRestore`
+(pure, tested) depends on it. Undo previously incremented the **line-item
+quantity** back into the primary bucket, so undoing an order that had run out
+invented stock that never left the shelf. It now puts back what the row says was
+taken, to the bucket the row names — never today's `isPos`, which the fulfil
+POST overwrites on every call.
+
+Unaudited orders — everything before 18 Nov 2026 — still fall back to line-item
+quantities and today's bucket, which is the old behaviour unchanged. Nothing was
+backfilled: the lost units are not recoverable from any record, so a physical
+count is the only way to true up a supply that looks short.
 
 ### Shared kit pools
 
