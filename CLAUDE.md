@@ -531,6 +531,36 @@ The headline counts are computed **server-side**, so the page refetches after a
 toggle rather than only ticking its local copy; otherwise the per-row figures and
 the totals she pulls against disagree.
 
+### Matching a line item to a supply
+
+A Shopify line gives a product title and usually a variant. The **variant match
+wins** — `resolveSupply` in `src/lib/supply-match.ts` (pure, tested), used by
+`/api/shopify/orders`. It is strictly the more specific of the two matchers,
+because the title match throws the variant away.
+
+It was the other way round until 18 Nov 2026. "NEW! Project Bag" was renamed in
+Shopify to plain **"Project Bag"**, which then collided exactly with the
+long-dead 2026 supply row of the same name — retired, 0 in every location. The
+title match won, the variant was never consulted, and every colourway reported
+**0 stock** on the picking list while 245 sat at Andover. Order #4288 is the one
+that surfaced it. Checked against all 5,102 historical order lines, flipping the
+precedence changes exactly one other combination and that one is also a
+correction (`Project Bag [Green]`, 49 units, 0 → Green Gingham, 10).
+
+**A rename in Shopify breaks supply matching in two different ways, and only
+one of them is visible.** A product that carries variants degrades to a *wrong
+number*; a product with no variant (`Default Title`) matches nothing at all and
+**disappears from the Supplies tab** rather than reading zero. The same rename
+did both: the large bag became "Large Project Bag" while its row was still
+"NEW! Large Project Bag", and no precedence rule can rescue a row nothing
+matches — the supply had to be renamed. So when a Shopify product is renamed,
+check the bare-titled ones too; they fail silently.
+
+The three colourway rows still say "NEW!" and that is fine: `matchSupplyByVariant`
+is substring-based, so it finds them regardless. The dead row is now
+"Project Bag (retired)" — renamed, never deleted, because 174 historical order
+lines point at it by id.
+
 ### Where a sale deducts from
 
 An order draws on its own bucket first, then falls back to **Andover** bulk:

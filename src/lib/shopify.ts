@@ -574,7 +574,9 @@ export function normalizeTitle(title: string): string {
 // variant. Handles products sold as a generic title + style variant, e.g.
 // product "Needleminder" + variant "Hydrangea" -> supply "Hydrangea Needle
 // Minder". Comparison strips spaces/punctuation so "Needleminder" (one word)
-// matches "Needle Minder". Only called as a fallback after a direct match fails.
+// matches "Needle Minder". Tried BEFORE the product-title match, because it
+// uses both halves of what Shopify sent — see lib/supply-match.ts for why that
+// order matters and what went wrong when it was the other way round.
 export function matchSupplyByVariant<T extends { name: string }>(
   productTitle: string,
   variantTitle: string | null | undefined,

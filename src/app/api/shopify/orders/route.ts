@@ -7,7 +7,6 @@ import {
   fetchOpenDraftOrders,
   parseNeedsKit,
   normalizeTitle,
-  matchSupplyByVariant,
   ShopifyOrderNode,
   visibleCustomAttributes,
   isExpressShippingTitle,
@@ -16,6 +15,7 @@ import { classifyOrderKind, toOrderKind, type OrderKind } from "@/lib/order-kind
 import { KIT_GROUP_INCLUDE, kitStockOf } from "@/lib/kit-group";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
+import { resolveSupply, supplyNameMap } from "@/lib/supply-match";
 
 export type ItemType = "canvas" | "supply" | "mystery_bag" | "bundle";
 
@@ -211,10 +211,7 @@ export async function GET() {
     const bundleMap = buildBundleMap(bundleData);
     const supplyLite = supplies.map((s) => ({ id: s.id, name: s.name }));
 
-    const supplyMap = new Map<string, typeof supplies[0]>();
-    for (const supply of supplies) {
-      supplyMap.set(normalizeTitle(supply.name), supply);
-    }
+    const supplyMap = supplyNameMap(supplies);
 
     // Fetch unfulfilled orders from Shopify, plus open draft orders (manually
     // created in the admin — these never appear in the normal orders list).
@@ -307,7 +304,11 @@ export async function GET() {
         // shared pool's. `.home` only: the market tote is deliberately separate
         // stock and an online order never draws on it.
         const matchedKits = matchedDesign ? kitStockOf(matchedDesign) : null;
-        const matchedSupply =supplyMap.get(normalizedTitle) ?? matchSupplyByVariant(productTitle, lineItem.variantTitle, supplies) ?? undefined;
+        // Variant first, product title second — see lib/supply-match.ts. A
+        // bare title can collide with a retired row (the "Project Bag" rename)
+        // and report its zero stock for a bag there are hundreds of.
+        const matchedSupply =
+          resolveSupply(productTitle, lineItem.variantTitle, supplies, supplyMap) ?? undefined;
 
         // A bundle line item deducts several component supplies.
         const matchedBundle = bundleMap.get(normalizedTitle);
