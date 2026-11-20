@@ -1103,11 +1103,29 @@ export default function InventoryPage() {
 
     const main = type === "kits" ? design.kitsReady : design.canvasPrinted;
     const market = type === "kits" ? design.marketKitsReady : design.marketCanvasPrinted;
+    const noun = type === "kits" ? "kit" : "canvas";
+    const nounPl = type === "kits" ? "kits" : "canvases";
 
     if (delta > 0) {
       // Bring stock from home -> market (clamped to available home stock).
+      //
+      // Both clamps in this function used to `return` in silence. "Match kits"
+      // on a design with nothing at home therefore did nothing at all, with no
+      // feedback — indistinguishable from a successful match, and the row stayed
+      // unmatched for no visible reason. Say so instead. The toast auto-dismisses
+      // so it never has to be closed mid-pack.
       const moved = Math.min(delta, main);
-      if (moved === 0) return;
+      if (moved === 0) {
+        showToast(`${design.name}: out of ${nounPl} at home — nothing moved to the tote`, "warning", { duration: 2500 });
+        return;
+      }
+      if (moved < delta) {
+        showToast(
+          `${design.name}: only ${moved} ${moved === 1 ? noun : nounPl} at home — moved ${moved} of ${delta}`,
+          "warning",
+          { duration: 2500 },
+        );
+      }
       setDesigns((prev) => prev.map((d) => {
         if (d.id !== id) return d;
         return type === "kits"
@@ -1134,7 +1152,10 @@ export default function InventoryPage() {
 
     // delta < 0: remove from the market tote outright (does not touch home).
     const removed = Math.min(-delta, market);
-    if (removed === 0) return;
+    if (removed === 0) {
+      showToast(`${design.name}: no ${nounPl} in the tote to remove`, "warning", { duration: 2500 });
+      return;
+    }
     const newMarket = market - removed;
     setDesigns((prev) => prev.map((d) => {
       if (d.id !== id) return d;
@@ -1390,8 +1411,31 @@ export default function InventoryPage() {
         id: d.id,
         name: d.name,
         delta: d.marketCanvasPrinted - d.marketKitsReady,
+        // d.kitsReady is already the POOL's home count for a pooled design —
+        // /api/designs overwrites the zeroed column with kitStockOf(). So this
+        // is real stock for a street sign, not the held-at-0 column.
+        poolKey: d.kitGroupId ?? d.id,
+        home: d.kitsReady,
       }));
     if (work.length === 0) return;
+
+    // Predict the shortfall before firing the writes. The server clamps each
+    // raise to what is actually at home and still returns 200, so a match that
+    // only half-happened used to look exactly like one that worked.
+    //
+    // Budgeted by POOL, not per design: the five street signs each report the
+    // WHOLE shared pool, so checking them one at a time hands the same bags out
+    // once per member — the multiplication totalKitStock exists to prevent.
+    const kitBudget = new Map<string, number>();
+    for (const x of work) if (!kitBudget.has(x.poolKey)) kitBudget.set(x.poolKey, x.home);
+    const shortOfKits: { name: string; missing: number }[] = [];
+    for (const x of work) {
+      if (x.delta <= 0) continue;
+      const have = kitBudget.get(x.poolKey) ?? 0;
+      const grant = Math.min(x.delta, have);
+      kitBudget.set(x.poolKey, have - grant);
+      if (grant < x.delta) shortOfKits.push({ name: x.name, missing: x.delta - grant });
+    }
 
     // Lowering is destructive and irreversible — say so before doing it.
     const removals = work.filter((x) => x.delta < 0);
@@ -1434,6 +1478,19 @@ export default function InventoryPage() {
       const failed = results.filter((r) => !r.ok);
       if (failed.length > 0) {
         alert(`${failed.length} design${failed.length === 1 ? "" : "s"} failed to update: ${failed.map((f) => f.name).join(", ")}`);
+      }
+      // Out of stock is not a failure — every call above returned 200. Report it
+      // separately, and as a toast rather than an alert: it is information about
+      // the tote, not something to acknowledge.
+      if (shortOfKits.length > 0) {
+        const missing = shortOfKits.reduce((sum, x) => sum + x.missing, 0);
+        const names = shortOfKits.slice(0, 3).map((x) => x.name).join(", ");
+        showToast(
+          `${missing} kit${missing === 1 ? "" : "s"} short at home — ${names}` +
+            (shortOfKits.length > 3 ? ` +${shortOfKits.length - 3} more` : ""),
+          "warning",
+          { duration: 3500 },
+        );
       }
     } catch (e) {
       console.error("Error matching all kits to canvases:", e);
