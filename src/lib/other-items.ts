@@ -39,6 +39,11 @@ import { normalizeTitle } from "./shopify";
  */
 export const OTHER_ITEM_TITLES: readonly string[] = [
   "Private Class",
+  // Teaching at someone's office. Live on #4305, and a good illustration of
+  // why the `requiresShipping` rule was rejected: this line has no Shopify
+  // product and no variant behind it at all — it was typed onto a draft order
+  // — so there was no flag to read either way.
+  "Corporate Event",
   // Charged after the fact when a customer upgrades shipping; already live.
   "Update Shipping",
   // Intangible by definition — Shopify has it as requiresShipping: false.

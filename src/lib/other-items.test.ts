@@ -15,6 +15,13 @@ describe("isOtherItemTitle", () => {
     expect(isOtherItemTitle("  private CLASS  ")).toBe(true);
   });
 
+  it("covers corporate instruction, prefix so the suffix can vary", () => {
+    // Order #4305 — a hand-typed line with no Shopify product behind it.
+    expect(isOtherItemTitle("Corporate Event - Instruction")).toBe(true);
+    expect(isOtherItemTitle("Corporate Event — Materials")).toBe(true);
+    expect(isOtherItemTitle("Corporate Event")).toBe(true);
+  });
+
   it("covers the live shipping top-up that was counted as a canvas", () => {
     // Order #4242, 14 Nov 2026.
     expect(isOtherItemTitle("Update Shipping")).toBe(true);
