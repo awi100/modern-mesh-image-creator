@@ -38,7 +38,7 @@ export default function NewDesignDialog({ onClose, folderId }: NewDesignDialogPr
 
   const [widthInches, setWidthInches] = useState(8);
   const [heightInches, setHeightInches] = useState(8);
-  const [meshCount, setMeshCount] = useState<MeshCount>(14);
+  const [meshCount, setMeshCount] = useState<MeshCount>(18);
   const [designName, setDesignName] = useState("Untitled Design");
   const [showCustom, setShowCustom] = useState(false);
 

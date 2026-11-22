@@ -68,7 +68,7 @@ export default function CustomDesignPage() {
   const [customWidth, setCustomWidth] = useState(84);
   const [customHeight, setCustomHeight] = useState(84);
   const [useCustomSize, setUseCustomSize] = useState(false);
-  const [meshCount, setMeshCount] = useState<MeshCount>(14);
+  const [meshCount, setMeshCount] = useState<MeshCount>(18);
   const [lockAspectRatio, setLockAspectRatio] = useState(true);
 
   // Preview state
