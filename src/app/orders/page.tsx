@@ -17,6 +17,7 @@ import {
   kitPullList,
   groupKitRowsByFolder,
   supplyPullList,
+  otherPullList,
 } from "@/lib/order-pull-list";
 // Allocation lives in a tested lib because it has to respect shared kit pools:
 // `item.kitsReady` is the WHOLE pool for a pooled design, so budgeting or
@@ -93,7 +94,7 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
-type FilterType = "all" | "canvases" | "kits" | "supplies" | "mystery";
+type FilterType = "all" | "canvases" | "kits" | "supplies" | "mystery" | "other";
 
 
 
@@ -345,8 +346,11 @@ export default function OrdersPage() {
     try {
       // Prepare items for fulfillment. Mystery Bag lines are still sent so the
       // order history records them; they match no design and deduct nothing.
+      // "Other" lines (a private class, a gift card) are sent for the same
+      // reason, and because an order that is ONLY a private class would
+      // otherwise have nothing to send and could never be marked done.
       const items = order.items
-        .filter(item => item.designId || item.supplyId || item.itemType === "mystery_bag" || item.itemType === "bundle")
+        .filter(item => item.designId || item.supplyId || item.itemType === "mystery_bag" || item.itemType === "bundle" || item.itemType === "other")
         .map(item => ({
           designId: item.designId || undefined,
           supplyId: item.supplyId || undefined,
@@ -1060,6 +1064,19 @@ export default function OrdersPage() {
               >
                 Supplies <span className="opacity-75">({data.summary.totalSuppliesReady ?? 0}/{data.summary.totalSupplies})</span>
               </button>
+              {(data.summary.totalOther ?? 0) > 0 && (
+                <button
+                  onClick={() => setFilter("other")}
+                  className={`px-2 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors ${
+                    filter === "other"
+                      ? "bg-teal-600 text-white"
+                      : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-teal-300"
+                  }`}
+                  title="Services and credits: a private class, a gift card, a shipping top-up. Nothing to pull or deduct."
+                >
+                  Other <span className="opacity-75">({data.summary.totalOther})</span>
+                </button>
+              )}
               {(data.summary.totalMysteryBags ?? 0) > 0 && (
                 <button
                   onClick={() => setFilter("mystery")}
@@ -1671,6 +1688,67 @@ export default function OrdersPage() {
               </div>
             )}
 
+            {/* Other View - services and credits, nothing physical */}
+            {filter === "other" && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Other</h2>
+                  <p className="text-sm text-slate-400">
+                    One-offs that aren&apos;t a thing on a shelf &mdash; a private class, a
+                    gift card, a shipping top-up. Nothing here is pulled, packed or
+                    deducted from stock.
+                  </p>
+                </div>
+                {(() => {
+                  // Only the orders still to be packed, through the same filter
+                  // the other three tabs use. See lib/order-pull-list.
+                  const others = otherPullList(data.orders);
+
+                  if (others.length === 0) {
+                    return (
+                      <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+                        <p className="text-slate-400">Nothing to show</p>
+                        <p className="text-sm text-slate-500 mt-2">
+                          Add a title to OTHER_ITEM_TITLES in src/lib/other-items.ts to
+                          list a new kind of one-off here.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                      <div className="divide-y divide-slate-700/50">
+                        {others.map((row, idx) => (
+                          <div key={idx} className="p-4 flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-lg bg-teal-900/30 border border-teal-700/50 flex items-center justify-center flex-shrink-0">
+                              <svg className="w-6 h-6 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-medium truncate">{row.productTitle}</p>
+                              {row.variantTitle && !/^default(\s*title)?$/i.test(row.variantTitle.trim()) && (
+                                <p className="text-sm text-slate-400 truncate">{row.variantTitle}</p>
+                              )}
+                              <p className="text-xs text-teal-300">
+                                {row.orderNumbers.length === 1 ? "Order " : "Orders "}
+                                {row.orderNumbers.join(", ")}
+                              </p>
+                            </div>
+                            <div className="text-center px-4">
+                              <p className="text-2xl font-bold text-teal-400">{row.quantity}</p>
+                              <p className="text-xs text-slate-400">ordered</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             {/* Mystery Misprints View */}
             {filter === "mystery" && (
               <div className="space-y-4">
@@ -2242,6 +2320,8 @@ function OrderItemRow({ item, demandByDesign }: { item: OrderItem; demandByDesig
           <p className="text-xs text-rose-300 truncate" title={item.bundleComponents.map((c) => `${c.quantity}× ${c.name}`).join(", ")}>
             Bundle → {item.bundleComponents.length > 0 ? item.bundleComponents.map((c) => c.name).join(", ") : "no components set (add in Bundles)"}
           </p>
+        ) : item.itemType === "other" ? (
+          <p className="text-xs text-teal-300">Not a physical item — nothing to pull</p>
         ) : (!item.designId && !item.supplyId && item.itemType !== "mystery_bag") ? (
           <p className="text-xs text-yellow-500">No matching product</p>
         ) : null}

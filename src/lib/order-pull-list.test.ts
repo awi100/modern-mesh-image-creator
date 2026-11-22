@@ -4,6 +4,7 @@ import {
   kitPullList,
   groupKitRowsByFolder,
   supplyPullList,
+  otherPullList,
   type PullItem,
   type PullOrder,
 } from "./order-pull-list";
@@ -51,7 +52,7 @@ const newbury = (over: Partial<PullItem> = {}) =>
 let seq = 0;
 function order(items: PullItem[], over: Partial<PullOrder> = {}): PullOrder {
   seq += 1;
-  return { locallyFulfilled: false, excludedAt: null, items, ...over };
+  return { orderNumber: `#${seq}`, locallyFulfilled: false, excludedAt: null, items, ...over };
 }
 
 const SKIPPED = { excludedAt: "2026-11-16T00:00:00Z" };
@@ -251,5 +252,69 @@ describe("supplyPullList", () => {
 
   it("ignores canvas lines", () => {
     expect(supplyPullList([order([boylston()])])).toEqual([]);
+  });
+});
+
+describe("otherPullList", () => {
+  const cls = (over: Partial<PullItem> = {}) =>
+    item({
+      itemType: "other",
+      productTitle: "Private Class",
+      variantTitle: null,
+      designId: null,
+      designName: null,
+      needsKit: false,
+      ...over,
+    });
+
+  it("lists a service with the order it was created for", () => {
+    const rows = otherPullList([order([cls({ quantity: 1 })], { orderNumber: "#4360" })]);
+    expect(rows).toEqual([
+      { productTitle: "Private Class", variantTitle: null, quantity: 1, orderNumbers: ["#4360"] },
+    ]);
+  });
+
+  it("groups the same one-off across orders and keeps both numbers", () => {
+    const rows = otherPullList([
+      order([cls({ quantity: 1 })], { orderNumber: "#4360" }),
+      order([cls({ quantity: 2 })], { orderNumber: "#4361" }),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].quantity).toBe(3);
+    expect(rows[0].orderNumbers).toEqual(["#4360", "#4361"]);
+  });
+
+  it("keeps different variants apart", () => {
+    const rows = otherPullList([
+      order([
+        cls({ productTitle: "Gift Card", variantTitle: "$50.00" }),
+        cls({ productTitle: "Gift Card", variantTitle: "$100.00" }),
+      ]),
+    ]);
+    expect(rows).toHaveLength(2);
+  });
+
+  it("leaves out an order ticked 'not today', like every other tab", () => {
+    expect(otherPullList([order([cls()], SKIPPED)])).toEqual([]);
+  });
+
+  it("leaves out an order already deducted", () => {
+    expect(otherPullList([order([cls()], DEDUCTED)])).toEqual([]);
+  });
+
+  it("ignores canvas and supply lines", () => {
+    const rows = otherPullList([
+      order([boylston(), item({ itemType: "supply", supplyId: "s1", supplyName: "Seam Ripper" })]),
+    ]);
+    expect(rows).toEqual([]);
+  });
+
+  it("keeps a service off the canvas and supply lists", () => {
+    // The whole point: before this existed, an unmatched title defaulted to
+    // "canvas" and a private class became something to go and fetch.
+    const orders = [order([cls({ quantity: 1 })])];
+    expect(canvasPullList(orders)).toEqual([]);
+    expect(supplyPullList(orders)).toEqual([]);
+    expect(kitPullList(orders)).toEqual([]);
   });
 });

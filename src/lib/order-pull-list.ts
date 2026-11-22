@@ -47,6 +47,8 @@ export interface PullItem {
 }
 
 export interface PullOrder extends PickListOrder {
+  /** Only the "other" list needs it: a one-off has no id to group by. */
+  orderNumber: string;
   items: PullItem[];
 }
 
@@ -256,6 +258,51 @@ export function supplyPullList(orders: readonly PullOrder[]): SupplyPullRow[] {
       const variant = (item.variantTitle || "").trim();
       if (variant && !DEFAULT_VARIANT.test(variant)) {
         row.variants.set(variant, (row.variants.get(variant) || 0) + item.quantity);
+      }
+    }
+  }
+
+  return [...byKey.values()].sort((a, b) => b.quantity - a.quantity);
+}
+
+// ------------------------------------------------------------------- other
+
+export interface OtherPullRow {
+  productTitle: string;
+  variantTitle: string | null;
+  quantity: number;
+  /** Order numbers this appears on — the only useful handle on a one-off. */
+  orderNumbers: string[];
+}
+
+/**
+ * Services and credits on the open orders: a private class, a gift card, a
+ * shipping top-up. Nothing here is picked or deducted.
+ *
+ * Grouped by title AND variant rather than by an id, because these have no
+ * design or supply row to key on — that is what makes them "other". The order
+ * numbers come along because a one-off is only ever meaningful next to the
+ * order it was created for.
+ */
+export function otherPullList(orders: readonly PullOrder[]): OtherPullRow[] {
+  const byKey = new Map<string, OtherPullRow>();
+
+  for (const order of onPickList(orders)) {
+    for (const item of order.items) {
+      if (item.itemType !== "other") continue;
+
+      const key = `${item.productTitle}\u0000${item.variantTitle ?? ""}`;
+      const row = byKey.get(key);
+      if (row) {
+        row.quantity += item.quantity;
+        if (!row.orderNumbers.includes(order.orderNumber)) row.orderNumbers.push(order.orderNumber);
+      } else {
+        byKey.set(key, {
+          productTitle: item.productTitle,
+          variantTitle: item.variantTitle,
+          quantity: item.quantity,
+          orderNumbers: [order.orderNumber],
+        });
       }
     }
   }

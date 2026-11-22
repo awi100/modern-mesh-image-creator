@@ -14,11 +14,12 @@ import {
 import { classifyOrderKind, toOrderKind, type OrderKind } from "@/lib/order-kind";
 import { KIT_GROUP_INCLUDE, kitStockOf } from "@/lib/kit-group";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
+import { isOtherItemTitle } from "@/lib/other-items";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 import { resolveSupply, supplyNameMap } from "@/lib/supply-match";
 import { designNameIndex, resolveDesign } from "@/lib/design-match";
 
-export type ItemType = "canvas" | "supply" | "mystery_bag" | "bundle";
+export type ItemType = "canvas" | "supply" | "mystery_bag" | "bundle" | "other";
 
 export interface OrderItem {
   lineItemId: string;
@@ -102,6 +103,7 @@ export interface OrdersResponse {
     totalCanvasesNeeded: number;
     totalCanvasesReady: number;
     totalMysteryBags: number;
+    totalOther: number;
     totalSupplies: number;
     totalSuppliesReady: number;
     unmatchedProducts: string[];
@@ -124,6 +126,16 @@ function classifyItemType(
   // Mystery Misprint Bag wins over everything else (special multi-design bundle)
   if (isMysteryBagTitle(productTitle)) {
     return "mystery_bag";
+  }
+
+  // A service or credit — a private class, a gift card, a shipping top-up.
+  // Checked before the design/supply lookups because the list is explicit and
+  // curated: nothing lands here by accident, so nothing here should be second-
+  // guessed by a coincidental name match. Crucially it is also checked before
+  // the "unmatched defaults to canvas" rule at the bottom, which is what put a
+  // private class on the picking list as a canvas to go and fetch.
+  if (isOtherItemTitle(productTitle)) {
+    return "other";
   }
 
   // If it matches a design in our system, it's a canvas
@@ -262,6 +274,7 @@ export async function GET() {
     let totalKitsNeeded = 0;
     let totalCanvasesNeeded = 0;
     let totalSupplies = 0;
+    let totalOther = 0;
     const unmatchedProducts = new Set<string>();
 
     // Track demand per design/supply for calculating "ready" counts
@@ -360,6 +373,14 @@ export async function GET() {
 
         // Mystery bag lines have no design or supply demand of their own.
         if (itemType === "mystery_bag") continue;
+
+        // Services and credits are not picked, packed or deducted. They are
+        // counted here only so the Other tab can show a figure; falling
+        // through would add them to `totalSupplies` via the else branch below.
+        if (itemType === "other") {
+          if (!offPickList) totalOther += lineItem.quantity;
+          continue;
+        }
 
         // Count what's needed based on item type. An order that is off the
         // pick list still builds its items, so its card renders and can be put
@@ -463,6 +484,7 @@ export async function GET() {
         totalCanvasesNeeded,
         totalCanvasesReady,
         totalMysteryBags,
+        totalOther,
         totalSupplies,
         totalSuppliesReady,
         unmatchedProducts: Array.from(unmatchedProducts),
