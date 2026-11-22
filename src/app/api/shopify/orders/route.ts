@@ -16,6 +16,7 @@ import { KIT_GROUP_INCLUDE, kitStockOf } from "@/lib/kit-group";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 import { resolveSupply, supplyNameMap } from "@/lib/supply-match";
+import { designNameIndex, resolveDesign } from "@/lib/design-match";
 
 export type ItemType = "canvas" | "supply" | "mystery_bag" | "bundle";
 
@@ -193,10 +194,7 @@ export async function GET() {
     });
 
     // Create maps for fast lookup by normalized name
-    const designMap = new Map<string, typeof designs[0]>();
-    for (const design of designs) {
-      designMap.set(normalizeTitle(design.name), design);
-    }
+    const designIndex = designNameIndex(designs);
 
     // Bundles: a bundle line item expands into component supplies.
     const bundlesRaw = await prisma.bundle.findMany({
@@ -299,7 +297,10 @@ export async function GET() {
 
         // Try to match to a design or supply
         const normalizedTitle = normalizeTitle(productTitle);
-        const matchedDesign = designMap.get(normalizedTitle);
+        // Variant first, product title second — see lib/design-match.ts. A
+        // bundle's canvas component is titled by its OPTION ("Intro Kit"), so
+        // only the variant says which design it is.
+        const matchedDesign = resolveDesign(productTitle, lineItem.variantTitle, designIndex) ?? undefined;
         // Where this design's kit bags actually live — its own columns, or the
         // shared pool's. `.home` only: the market tote is deliberately separate
         // stock and an online order never draws on it.

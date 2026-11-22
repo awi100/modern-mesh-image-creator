@@ -7,6 +7,7 @@ import { deductKits, lockKitGroups } from "@/lib/kit-group";
 import { drawFrom } from "@/lib/stock-draw";
 import { deductSupplies } from "@/lib/supply-draw";
 import { resolveSupply, supplyNameMap } from "@/lib/supply-match";
+import { designNameIndex, resolveDesign } from "@/lib/design-match";
 import { buildBundleMap, expandBundle, type BundleData } from "@/lib/bundles";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import crypto from "crypto";
@@ -167,10 +168,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const designMap = new Map<string, typeof designs[0]>();
-    for (const design of designs) {
-      designMap.set(normalizeTitle(design.name), design);
-    }
+    const designIndex = designNameIndex(designs);
 
     const supplyMap = supplyNameMap(supplies);
 
@@ -211,8 +209,11 @@ export async function POST(request: NextRequest) {
       const isIntroProduct = lowerTitle.includes("intro") || lowerTitle.includes("beginner");
       const needsKit = isIntroProduct || parseNeedsKit(lineItem.variant_title);
 
-      const normalizedTitle = normalizeTitle(productTitle);
-      const matchedDesign = designMap.get(normalizedTitle);
+      // Variant first, product title second — see lib/design-match.ts. A
+      // bundle's canvas component is titled by its OPTION ("Intro Kit"), so
+      // only the variant says which design it is, and a miss here deducts no
+      // canvas and no kit for a sale that took both.
+      const matchedDesign = resolveDesign(productTitle, lineItem.variant_title, designIndex) ?? undefined;
       // Variant first, product title second — see lib/supply-match.ts. Title
       // first let the renamed "Project Bag" resolve to a retired row holding 0,
       // and here that does not merely display wrong: it DEDUCTS from the wrong
