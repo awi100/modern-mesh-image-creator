@@ -1,4 +1,5 @@
 import { normalizeTitle, matchSupplyByVariant } from "@/lib/shopify";
+import { isOtherItemTitle } from "@/lib/other-items";
 import { isMysteryBagTitle } from "@/lib/mystery-bag";
 import { buildBundleMap, type BundleData } from "@/lib/bundles";
 
@@ -115,6 +116,8 @@ export function buildUnmatchedReport(
   designs: Named[],
   supplies: Named[],
   bundles: BundleData[],
+  /** Titles marked "not a physical item" — a service is not a missing design. */
+  otherTitles: readonly string[] = [],
   now: Date = new Date(),
 ): UnmatchedReport {
   const designById = new Map(designs.map((d) => [d.id, d]));
@@ -172,6 +175,9 @@ export function buildUnmatchedReport(
     if (it.designId || it.supplyId) continue;
     if (isMysteryBagTitle(it.productTitle)) continue;
     if (bundleMap.get(normalizeTitle(it.productTitle))) continue;
+    // A private class has no design to match and never will. Listing it here
+    // buries the titles that ARE a missing design, which is what this is for.
+    if (isOtherItemTitle(it.productTitle, otherTitles)) continue;
 
     const key = `${it.productTitle}\u0000${it.variantTitle ?? ""}`;
     const g = groups.get(key) ?? {

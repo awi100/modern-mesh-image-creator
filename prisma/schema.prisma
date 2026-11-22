@@ -583,6 +583,25 @@ model Supply {
   @@map("supplies")
 }
 
+// A line-item title that is a service or credit rather than an object: a
+// private class, a gift card, a shipping top-up. Added from the Orders page
+// when an unmatched product turns out not to be physical, so a new kind of
+// one-off needs no code change. Matched as a case-insensitive PREFIX, so
+// "Corporate Event" also covers "Corporate Event - Instruction".
+//
+// Anything listed here is invisible to the canvas, kit and supply counts and
+// deducts no stock — a title added by mistake stops real inventory being
+// pulled, which is why adding one is a deliberate click and not a rule.
+// The built-in list lives in src/lib/other-items.ts; these are added to it.
+model OtherItemTitle {
+  id        String   @id @default(cuid())
+  title     String   @unique
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@map("other_item_titles")
+}
+
 // A bundle product (e.g. "Essentials Bundle") sold as one Shopify line item
 // that should deduct several component supplies. `title` matches the Shopify
 // product title (case-insensitive). Components are either a fixed supply, or a

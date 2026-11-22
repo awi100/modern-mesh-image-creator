@@ -136,6 +136,23 @@ export default function OrdersPage() {
   const [undoing, setUndoing] = useState<string | null>(null);
   const [settingKind, setSettingKind] = useState<string | null>(null);
   const [skipping, setSkipping] = useState<string | null>(null);
+  // Titles being marked "not a physical item", and the stored list, so the
+  // Other tab can offer to undo one.
+  const [markingOther, setMarkingOther] = useState<string | null>(null);
+  const [storedOther, setStoredOther] = useState<{ id: string; title: string }[]>([]);
+
+  // Load the stored "not physical" titles, for the undo control on the Other
+  // tab. The classification itself happens server-side; this is only the list.
+  const fetchStoredOther = useCallback(async () => {
+    try {
+      const res = await fetch("/api/other-items");
+      if (!res.ok) return;
+      const json = await res.json();
+      setStoredOther(json.stored ?? []);
+    } catch {
+      // A missing list only costs the undo button; the tab still works.
+    }
+  }, []);
 
   // Calculate how many orders can be fully filled with current inventory
   const fulfillableOrderCount = useMemo(() => {
@@ -193,6 +210,50 @@ export default function OrdersPage() {
     }
     setLoading(false);
   }, []);
+
+  // Mark an unmatched product as a service or credit: off the picking list,
+  // out of the unmatched warning, onto the Other tab.
+  const handleMarkOther = useCallback(async (title: string) => {
+    setMarkingOther(title);
+    setError(null);
+    try {
+      // Plain fetch, not mutApi: this moves no stock anywhere, it only changes
+      // how a line item is classified. The refetch below is for this page.
+      const res = await fetch("/api/other-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to mark as non-physical");
+      }
+      // The canvas totals are computed on the server and this title was being
+      // counted among them, so both halves have to be refetched together.
+      await Promise.all([fetchOrders(), fetchStoredOther()]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to mark as non-physical");
+    } finally {
+      setMarkingOther(null);
+    }
+  }, [fetchOrders, fetchStoredOther]);
+
+  const handleUnmarkOther = useCallback(async (id: string, title: string) => {
+    setMarkingOther(title);
+    setError(null);
+    try {
+      const res = await fetch(`/api/other-items?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to remove");
+      }
+      await Promise.all([fetchOrders(), fetchStoredOther()]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to remove");
+    } finally {
+      setMarkingOther(null);
+    }
+  }, [fetchOrders, fetchStoredOther]);
 
   // Sync fulfilled orders from Shopify
   const syncOrders = useCallback(async (showResult = true) => {
@@ -541,7 +602,8 @@ export default function OrdersPage() {
       await syncOrders(true);
     };
     loadAndSync();
-  }, [fetchOrders, syncOrders]);
+    fetchStoredOther();
+  }, [fetchOrders, syncOrders, fetchStoredOther]);
 
   // Send the actual API request for a design update
   const sendUpdate = useCallback(async (designId: string, field: "kitsReady" | "canvasPrinted", totalDelta: number) => {
@@ -1011,11 +1073,23 @@ export default function OrdersPage() {
               <div className="p-4 bg-yellow-900/20 border border-yellow-700 rounded-lg">
                 <p className="text-yellow-400 font-medium mb-2">Products Not Matched to Designs</p>
                 <p className="text-sm text-slate-300 mb-2">
-                  These Shopify product titles don&apos;t match any design names in your system:
+                  These Shopify product titles don&apos;t match any design names in your system.
+                  They are counted as canvases to pull — so if one isn&apos;t a physical thing
+                  (a class, a gift card, a shipping charge), say so and it moves to the Other tab.
                 </p>
-                <ul className="list-disc list-inside text-sm text-slate-400">
+                <ul className="text-sm text-slate-400 space-y-1.5">
                   {data.summary.unmatchedProducts.map((name) => (
-                    <li key={name}>{name}</li>
+                    <li key={name} className="flex flex-wrap items-center gap-2">
+                      <span className="text-slate-300">{name}</span>
+                      <button
+                        onClick={() => handleMarkOther(name)}
+                        disabled={markingOther === name}
+                        className="px-2 py-0.5 rounded-md text-xs font-medium bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 hover:text-white disabled:opacity-50 transition-colors"
+                        title="Stop counting this as a canvas to pull"
+                      >
+                        {markingOther === name ? "Saving..." : "Not a physical item"}
+                      </button>
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -1064,7 +1138,15 @@ export default function OrdersPage() {
               >
                 Supplies <span className="opacity-75">({data.summary.totalSuppliesReady ?? 0}/{data.summary.totalSupplies})</span>
               </button>
-              {(data.summary.totalOther ?? 0) > 0 && (
+              {/*
+                Shown whenever there is something to see OR something she has
+                marked herself. Gating on the open-order count alone (the rule
+                the Misprints chip follows) hid the tab the moment the class
+                shipped, taking the undo control with it — and a title marked
+                non-physical by mistake is silently absent from the picking
+                list, so that is precisely when it needs to be reachable.
+              */}
+              {((data.summary.totalOther ?? 0) > 0 || storedOther.length > 0) && (
                 <button
                   onClick={() => setFilter("other")}
                   className={`px-2 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors ${
@@ -1709,8 +1791,9 @@ export default function OrdersPage() {
                       <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
                         <p className="text-slate-400">Nothing to show</p>
                         <p className="text-sm text-slate-500 mt-2">
-                          Add a title to OTHER_ITEM_TITLES in src/lib/other-items.ts to
-                          list a new kind of one-off here.
+                          Nothing non-physical is on an open order right now. When one turns
+                          up, mark it &ldquo;Not a physical item&rdquo; in the unmatched
+                          products warning and it will appear here.
                         </p>
                       </div>
                     );
@@ -1746,6 +1829,43 @@ export default function OrdersPage() {
                     </div>
                   );
                 })()}
+
+                {/*
+                  The titles she has marked herself, always listed — including
+                  when nothing is on an open order. This list IS the setting,
+                  and a setting you can only reach while an affected order
+                  happens to be open is one you cannot correct afterwards: a
+                  real design marked non-physical would quietly stop being
+                  pulled, and the evidence would have gone with the order.
+                  The built-ins are not shown; they are not removable here.
+                */}
+                {storedOther.length > 0 && (
+                  <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+                    <p className="text-sm font-medium text-slate-300 mb-1">Marked &ldquo;not a physical item&rdquo;</p>
+                    <p className="text-xs text-slate-500 mb-3">
+                      These titles, and anything starting with them, are left off the
+                      picking list entirely. Undo one to count it as a canvas again.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {storedOther.map((t) => (
+                        <span
+                          key={t.id}
+                          className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-600 text-sm text-slate-300"
+                        >
+                          {t.title}
+                          <button
+                            onClick={() => handleUnmarkOther(t.id, t.title)}
+                            disabled={markingOther === t.title}
+                            className="text-slate-500 hover:text-red-400 disabled:opacity-50 transition-colors"
+                            title={`Stop treating "${t.title}" as non-physical`}
+                          >
+                            {markingOther === t.title ? "..." : "\u00d7"}
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

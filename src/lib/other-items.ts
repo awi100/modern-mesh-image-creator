@@ -23,19 +23,26 @@
  * here keeps the old behaviour and keeps shouting, which is the right default
  * for something unrecognised.
  *
- * Adding a new one-off is one line. Match is by PREFIX on the normalized
- * title, so "Private Class" also covers "Private Class (2 hours)" and the like
- * without another edit.
+ * Match is by PREFIX on the normalized title, so "Private Class" also covers
+ * "Private Class (2 hours)" and the like without another edit.
+ *
+ * The list below is the BUILT-IN one. Anything else is added from the Orders
+ * page, which stores it in `OtherItemTitle` and passes it in here — a new kind
+ * of one-off is a click rather than a deploy. Every caller that classifies a
+ * line item has to pass those stored titles, or the page and the totals
+ * disagree about what is physical, so `isOtherItemTitle` takes them as an
+ * explicit argument rather than reading a module-level cache.
  */
 
 import { normalizeTitle } from "./shopify";
 
 /**
- * Non-physical product titles, matched as prefixes.
+ * Non-physical product titles that ship with the app, matched as prefixes.
  *
  * Keep this short and specific. Anything here is invisible to the canvas, kit
  * and supply counts and deducts no stock, so a title added by mistake makes
- * real inventory stop being pulled.
+ * real inventory stop being pulled. These cannot be removed from the Orders
+ * page; everything added there lives in the database instead.
  */
 export const OTHER_ITEM_TITLES: readonly string[] = [
   "Private Class",
@@ -53,9 +60,29 @@ export const OTHER_ITEM_TITLES: readonly string[] = [
 
 const NORMALIZED = OTHER_ITEM_TITLES.map((t) => normalizeTitle(t));
 
-/** True when this line item is a service or credit rather than an object. */
-export function isOtherItemTitle(productTitle: string | null | undefined): boolean {
+/**
+ * True when this line item is a service or credit rather than an object.
+ *
+ * `stored` is whatever is in `OtherItemTitle`, which the caller loads once per
+ * request. A blank or whitespace-only entry is ignored rather than treated as
+ * a prefix that matches everything — that single bad row would empty the
+ * picking list, which is the one failure here nobody would notice in time.
+ */
+export function isOtherItemTitle(
+  productTitle: string | null | undefined,
+  stored: readonly string[] = [],
+): boolean {
   if (!productTitle) return false;
   const title = normalizeTitle(productTitle);
-  return NORMALIZED.some((t) => title.startsWith(t));
+  if (NORMALIZED.some((t) => title.startsWith(t))) return true;
+  return stored.some((raw) => {
+    const t = normalizeTitle(raw ?? "");
+    return t.length > 0 && title.startsWith(t);
+  });
+}
+
+/** Is this title one of the built-ins, i.e. not removable from the page? */
+export function isBuiltInOtherTitle(title: string | null | undefined): boolean {
+  if (!title) return false;
+  return NORMALIZED.includes(normalizeTitle(title));
 }

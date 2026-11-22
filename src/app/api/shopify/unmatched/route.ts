@@ -59,7 +59,10 @@ export async function GET() {
       })),
     }));
 
-    return NextResponse.json(buildUnmatchedReport(items, designs, supplies, bundles));
+    const otherTitles = (await prisma.otherItemTitle.findMany({ select: { title: true } })).map(
+      (t) => t.title,
+    );
+    return NextResponse.json(buildUnmatchedReport(items, designs, supplies, bundles, otherTitles));
   } catch (error) {
     console.error("Error building unmatched sales report:", error);
     return NextResponse.json({ error: "Failed to build unmatched sales report" }, { status: 500 });

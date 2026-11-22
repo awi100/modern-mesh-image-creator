@@ -121,7 +121,8 @@ export interface OrdersResponse {
 function classifyItemType(
   productTitle: string,
   matchedDesign: boolean,
-  matchedSupply: boolean
+  matchedSupply: boolean,
+  otherTitles: readonly string[]
 ): ItemType {
   // Mystery Misprint Bag wins over everything else (special multi-design bundle)
   if (isMysteryBagTitle(productTitle)) {
@@ -134,7 +135,7 @@ function classifyItemType(
   // guessed by a coincidental name match. Crucially it is also checked before
   // the "unmatched defaults to canvas" rule at the bottom, which is what put a
   // private class on the picking list as a canvas to go and fetch.
-  if (isOtherItemTitle(productTitle)) {
+  if (isOtherItemTitle(productTitle, otherTitles)) {
     return "other";
   }
 
@@ -219,6 +220,14 @@ export async function GET() {
       components: b.components.map((c) => ({ quantity: c.quantity, supplyId: c.supplyId, supplyName: c.supply?.name ?? null, chooseFrom: c.chooseFrom })),
     }));
     const bundleMap = buildBundleMap(bundleData);
+
+    // Titles she has marked "not a physical item" from this page. Loaded once
+    // per request and threaded through classifyItemType, so the tab, the
+    // unmatched warning and the headline totals all agree on what is a thing
+    // to go and fetch.
+    const otherTitles = (await prisma.otherItemTitle.findMany({ select: { title: true } })).map(
+      (t) => t.title,
+    );
     const supplyLite = supplies.map((s) => ({ id: s.id, name: s.name }));
 
     const supplyMap = supplyNameMap(supplies);
@@ -333,7 +342,7 @@ export async function GET() {
         // Classify item type based on matches
         const itemType: ItemType = matchedBundle
           ? "bundle"
-          : classifyItemType(productTitle, !!matchedDesign, !!matchedSupply);
+          : classifyItemType(productTitle, !!matchedDesign, !!matchedSupply, otherTitles);
 
         if (!matchedDesign && !matchedSupply && !matchedBundle && itemType === "canvas") {
           unmatchedProducts.add(productTitle);
